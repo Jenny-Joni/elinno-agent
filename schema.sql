@@ -1,0 +1,22 @@
+-- Elinno Agent — D1 schema
+-- Apply with:  npx wrangler d1 execute <DB_NAME> --file=./schema.sql
+--
+-- This file is a placeholder. Real tables will be added when we wire up
+-- user accounts.
+
+-- Example (commented out — to be enabled when auth is implemented):
+--
+-- CREATE TABLE IF NOT EXISTS users (
+--   id            TEXT PRIMARY KEY,
+--   email         TEXT NOT NULL UNIQUE,
+--   password_hash TEXT NOT NULL,
+--   created_at    INTEGER NOT NULL DEFAULT (unixepoch())
+-- );
+--
+-- CREATE TABLE IF NOT EXISTS sessions (
+--   token      TEXT PRIMARY KEY,
+--   user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+--   expires_at INTEGER NOT NULL
+-- );
+--
+-- CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
