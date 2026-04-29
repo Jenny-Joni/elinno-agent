@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#121215" />
   <title>Elinno Agent — Coming Soon</title>
   <meta name="description" content="Elinno Agent — something quietly intelligent is on the way." />
   <meta property="og:title" content="Elinno Agent" />
@@ -10,50 +11,84 @@
   <meta property="og:url" content="https://elinnoagent.com" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E◐%3C/text%3E%3C/svg%3E" />
 
+  <!-- Clash Grotesk via Fontshare (the family used on elinnovation.net) + Space Grotesk fallback -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@300,400,500,600,700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="grain" aria-hidden="true"></div>
 
-  <main class="page">
-    <header class="topbar">
-      <div class="mark" aria-label="Elinno Agent">
-        <svg viewBox="0 0 40 40" width="28" height="28" aria-hidden="true">
-          <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1.2" />
-          <path d="M20 2 A18 18 0 0 1 20 38 Z" fill="currentColor" />
-        </svg>
-        <span class="mark-text">Elinno&nbsp;Agent</span>
-      </div>
-      <div class="status">
-        <span class="dot" aria-hidden="true"></span>
-        <span>In&nbsp;development</span>
-      </div>
+  <!-- Hero / banner section -->
+  <section class="mainbanner">
+    <!-- Layer 1: dark base + animated gradient backdrop (no video file required) -->
+    <div class="banner-bg" aria-hidden="true"></div>
+    <!-- Layer 2: subtle moving orbs for depth -->
+    <div class="banner-orbs" aria-hidden="true">
+      <span class="orb orb-1"></span>
+      <span class="orb orb-2"></span>
+      <span class="orb orb-3"></span>
+    </div>
+    <!-- Layer 3: purple mix-blend wash (signature elinnovation move) -->
+    <div class="thisdiv" aria-hidden="true"></div>
+
+    <!-- Glass nav -->
+    <header class="main-navbar">
+      <nav class="navbar custom-container">
+        <a class="navbar-brand" href="/" aria-label="Elinno Agent">
+          <svg viewBox="0 0 40 40" width="28" height="28" aria-hidden="true">
+            <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1.4" />
+            <path d="M20 2 A18 18 0 0 1 20 38 Z" fill="currentColor" />
+          </svg>
+          <span class="brand-text">Elinno&nbsp;Agent</span>
+        </a>
+      </nav>
     </header>
 
-    <section class="hero">
+    <!-- Inner banner content -->
+    <div class="innerbanner custom-container">
       <p class="eyebrow reveal" style="--d:0ms">— 2026</p>
-      <h1 class="reveal" style="--d:120ms">
-        Something quietly<br />
-        <em>intelligent</em> is on the&nbsp;way.
+
+      <h1 class="mainbannerhead reveal" style="--d:120ms">
+        Something quietly
+        <span class="dark">intelligent</span>
+        is on the&nbsp;way
       </h1>
-      <p class="lede reveal" style="--d:280ms">
+
+      <p class="mainbannerpara reveal" style="--d:280ms">
         Elinno Agent is being built with care. A new kind of agent — thoughtful,
         precise, and made to work alongside&nbsp;you.
       </p>
-    </section>
+    </div>
+  </section>
 
-    <footer class="footer reveal" style="--d:520ms">
-      <div class="footer-line">
-        <span class="meta">elinnoagent.com</span>
-        <span class="sep" aria-hidden="true">·</span>
-        <span class="meta">Coming&nbsp;soon</span>
+  <!-- Footer -->
+  <footer class="mainfooter" id="about">
+    <div class="custom-container">
+      <div class="innerfooter">
+        <div class="footerleft">
+          <a class="footer-brand" href="/">
+            <svg viewBox="0 0 40 40" width="28" height="28" aria-hidden="true">
+              <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1.4" />
+              <path d="M20 2 A18 18 0 0 1 20 38 Z" fill="currentColor" />
+            </svg>
+            <span>Elinno&nbsp;Agent</span>
+          </a>
+          <p class="logopara">
+            Something quietly intelligent is on the way. A thoughtful, precise agent
+            made to work alongside you.
+          </p>
+        </div>
       </div>
-      <div class="copyright">© 2026 Elinno Agent. All rights reserved.</div>
-    </footer>
-  </main>
+
+      <div class="bottom-footer">
+        <span class="meta">© 2026 Elinno Agent. All rights reserved.</span>
+        <span class="meta">elinnoagent.com</span>
+      </div>
+    </div>
+  </footer>
+
 </body>
 </html>
