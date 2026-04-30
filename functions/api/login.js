@@ -29,8 +29,10 @@ export async function onRequestPost({ request, env }) {
     .first();
 
   // Always run verifyPassword to mitigate timing leaks of which emails exist.
-  // Use a dummy hash if the user doesn't exist.
-  const dummy = 'pbkdf2$310000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+  // Use a dummy hash if the user doesn't exist. Iter count must match
+  // PBKDF2_ITERATIONS (100k — CF Workers cap) so the no-user code path runs
+  // to completion in matched time.
+  const dummy = 'pbkdf2$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
   const ok = await verifyPassword(password, user ? user.password_hash : dummy);
 
   if (!user || !ok) {

@@ -7,7 +7,10 @@
 export const SESSION_COOKIE = 'ea_session';
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;   // 7 days
 export const RESET_TTL_SECONDS = 60 * 60;              // 1 hour
-export const PBKDF2_ITERATIONS = 310_000;              // OWASP 2023 minimum
+// Cloudflare Workers' Web Crypto caps PBKDF2 iterations at 100,000.
+// (Original target was 310k per OWASP 2023, but the runtime rejects values above 100k.
+//  Document this in PRD.md if you ever consider raising it.)
+export const PBKDF2_ITERATIONS = 100_000;
 
 // ---------- Random tokens ----------------------------------------------
 

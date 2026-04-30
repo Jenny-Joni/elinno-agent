@@ -10,7 +10,9 @@
 
 import { webcrypto as crypto } from 'node:crypto';
 
-const ITERATIONS = 310_000;
+// Must match PBKDF2_ITERATIONS in functions/_lib/auth.js.
+// Cloudflare Workers' Web Crypto caps PBKDF2 at 100k iterations.
+const ITERATIONS = 100_000;
 
 async function pbkdf2(password, salt, iterations, byteLength = 32) {
   const enc = new TextEncoder();
