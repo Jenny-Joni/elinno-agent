@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/auth.css" />
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <div class="app-nav-actions">
+        <span id="navUser" style="color:#fff;opacity:.85;font-size:14px;"></span>
+        <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <button id="logoutBtn" class="btn-nav">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <div class="custom-container">
+      <p class="section-eyebrow">Welcome</p>
+      <span class="section-line"></span>
+      <h1 class="section-heading">You're signed in</h1>
+      <p class="section-sub">This is the placeholder dashboard. The actual app will live here once it's built.</p>
+
+      <div class="card">
+        <p style="margin:0;color:var(--color-text-body);">Signed in as <strong id="userEmail" style="color:var(--color-text-dark);">…</strong>.</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    fetch('/api/me').then(r => r.json()).then(d => {
+      if (!d.user) { location.replace('/'); return; }
+      document.getElementById('userEmail').textContent = d.user.email;
+      document.getElementById('navUser').textContent = d.user.email;
+      if (d.user.is_admin) document.getElementById('adminLink').style.display = '';
+    }).catch(() => location.replace('/'));
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+      location.replace('/');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/auth.css" />
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <div class="app-nav-actions">
+        <span id="navUser" style="color:#fff;opacity:.85;font-size:14px;"></span>
+        <a href="/dashboard.html">Dashboard</a>
+        <button id="logoutBtn" class="btn-nav">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <div class="custom-container">
+      <p class="section-eyebrow">Admin</p>
+      <span class="section-line"></span>
+      <h1 class="section-heading">User management</h1>
+      <p class="section-sub">Add new users, promote them to admins, or remove them.</p>
+
+      <div class="card" style="margin-bottom:30px;">
+        <h2 style="margin:0 0 20px;font-family:var(--font-medium);font-size:18px;text-transform:uppercase;letter-spacing:0.5px;">Add user</h2>
+        <div id="addMsg" class="form-msg hidden"></div>
+        <form id="addForm" novalidate>
+          <div class="add-user-row">
+            <div class="field">
+              <label for="newEmail">Email</label>
+              <input id="newEmail" type="email" required placeholder="user@example.com" />
+            </div>
+            <div class="field">
+              <label for="newPassword">Initial password</label>
+              <input id="newPassword" type="text" required minlength="8" placeholder="at least 8 chars" />
+            </div>
+            <label class="check">
+              <input id="newIsAdmin" type="checkbox" />
+              Admin
+            </label>
+            <button type="submit" class="btn btn-primary" id="addBtn" style="width:auto;">Add user</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="listMsg" class="form-msg hidden"></div>
+      <div class="users-table-wrap">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Role</th>
+              <th class="col-created">Created</th>
+              <th style="text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersBody">
+            <tr><td colspan="4" style="text-align:center;color:var(--color-text-muted);padding:40px;">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let me = null;
+
+    function showMsg(el, text, kind) { el.textContent = text; el.className = 'form-msg ' + kind; }
+    function hideMsg(el) { el.className = 'form-msg hidden'; }
+    function fmtDate(unix) {
+      if (!unix) return '';
+      try { return new Date(unix * 1000).toLocaleDateString(); } catch { return ''; }
+    }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // Auth gate
+    fetch('/api/me').then(r => r.json()).then(d => {
+      if (!d.user) { location.replace('/'); return; }
+      if (!d.user.is_admin) { location.replace('/dashboard.html'); return; }
+      me = d.user;
+      document.getElementById('navUser').textContent = d.user.email;
+      loadUsers();
+    }).catch(() => location.replace('/'));
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+      location.replace('/');
+    });
+
+    async function loadUsers() {
+      const listMsg = document.getElementById('listMsg');
+      const tbody = document.getElementById('usersBody');
+      hideMsg(listMsg);
+      try {
+        const res = await fetch('/api/admin/users');
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showMsg(listMsg, data.error || 'Failed to load users', 'error');
+          tbody.innerHTML = '';
+          return;
+        }
+        const data = await res.json();
+        if (!data.users.length) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--color-text-muted);padding:30px;">No users yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.users.map(u => `
+          <tr data-id="${u.id}">
+            <td>${escapeHtml(u.email)}${u.id === me.id ? ' <span class="badge" style="background:#eee;color:#888;">you</span>' : ''}</td>
+            <td>${u.is_admin ? '<span class="badge">Admin</span>' : '<span style="color:var(--color-text-muted);">User</span>'}</td>
+            <td class="col-created" style="color:var(--color-text-muted);">${fmtDate(u.created_at)}</td>
+            <td style="text-align:right;">
+              ${u.id === me.id ? '' : `<button class="btn btn-danger" data-action="delete" data-id="${u.id}" data-email="${escapeHtml(u.email)}">Remove</button>`}
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        showMsg(listMsg, 'Network error loading users.', 'error');
+      }
+    }
+
+    // Delete (event delegation)
+    document.getElementById('usersBody').addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-action="delete"]');
+      if (!btn) return;
+      const id = btn.dataset.id;
+      const email = btn.dataset.email;
+      if (!confirm(`Remove user ${email}? This cannot be undone.`)) return;
+      btn.disabled = true;
+      btn.textContent = 'Removing…';
+      try {
+        const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || 'Failed to remove user');
+          btn.disabled = false;
+          btn.textContent = 'Remove';
+          return;
+        }
+        loadUsers();
+      } catch (err) {
+        alert('Network error.');
+        btn.disabled = false;
+        btn.textContent = 'Remove';
+      }
+    });
+
+    // Add user
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const addMsg = document.getElementById('addMsg');
+      const addBtn = document.getElementById('addBtn');
+      hideMsg(addMsg);
+      const email    = document.getElementById('newEmail').value;
+      const password = document.getElementById('newPassword').value;
+      const is_admin = document.getElementById('newIsAdmin').checked;
+      addBtn.disabled = true;
+      addBtn.textContent = 'Adding…';
+      try {
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, is_admin }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showMsg(addMsg, data.error || 'Failed to add user', 'error');
+          addBtn.disabled = false;
+          addBtn.textContent = 'Add user';
+          return;
+        }
+        showMsg(addMsg, `Added ${email}. Share the password with them so they can sign in.`, 'success');
+        document.getElementById('newEmail').value = '';
+        document.getElementById('newPassword').value = '';
+        document.getElementById('newIsAdmin').checked = false;
+        addBtn.disabled = false;
+        addBtn.textContent = 'Add user';
+        loadUsers();
+      } catch (err) {
+        showMsg(addMsg, 'Network error.', 'error');
+        addBtn.disabled = false;
+        addBtn.textContent = 'Add user';
+      }
+    });
+  </script>
+</body>
+</html>

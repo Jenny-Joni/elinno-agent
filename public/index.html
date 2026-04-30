@@ -4,14 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#121215" />
-  <title>Elinno Agent — Coming Soon</title>
-  <meta name="description" content="Elinno Agent — something quietly intelligent is on the way." />
+  <title>Elinno Agent — Sign in</title>
+  <meta name="description" content="Sign in to Elinno Agent." />
   <meta property="og:title" content="Elinno Agent" />
-  <meta property="og:description" content="Something quietly intelligent is on the way." />
+  <meta property="og:description" content="A thoughtful, precise agent made to work alongside you." />
   <meta property="og:url" content="https://elinnoagent.com" />
+  <meta name="robots" content="noindex" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E◐%3C/text%3E%3C/svg%3E" />
 
-  <!-- Clash Grotesk via Fontshare (the family used on elinnovation.net) + Space Grotesk fallback -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -21,20 +21,15 @@
 </head>
 <body>
 
-  <!-- Hero / banner section -->
   <section class="mainbanner">
-    <!-- Layer 1: dark base + animated gradient backdrop (no video file required) -->
     <div class="banner-bg" aria-hidden="true"></div>
-    <!-- Layer 2: subtle moving orbs for depth -->
     <div class="banner-orbs" aria-hidden="true">
       <span class="orb orb-1"></span>
       <span class="orb orb-2"></span>
       <span class="orb orb-3"></span>
     </div>
-    <!-- Layer 3: purple mix-blend wash (signature elinnovation move) -->
     <div class="thisdiv" aria-hidden="true"></div>
 
-    <!-- Glass nav -->
     <header class="main-navbar">
       <nav class="navbar custom-container">
         <a class="navbar-brand" href="/" aria-label="Elinno Agent">
@@ -47,24 +42,36 @@
       </nav>
     </header>
 
-    <!-- Inner banner content -->
     <div class="innerbanner custom-container">
       <p class="eyebrow reveal" style="--d:0ms">— 2026</p>
 
       <h1 class="mainbannerhead reveal" style="--d:120ms">
-        Something quietly
-        <span class="dark">intelligent</span>
-        is on the&nbsp;way
+        Welcome
+        <span class="dark">back</span>
       </h1>
 
-      <p class="mainbannerpara reveal" style="--d:280ms">
-        Elinno Agent is being built with care. A new kind of agent — thoughtful,
-        precise, and made to work alongside&nbsp;you.
-      </p>
+      <form id="loginForm" class="hero-login reveal" style="--d:280ms" novalidate>
+        <div id="msg" class="hero-msg" role="status" aria-live="polite"></div>
+
+        <div class="hero-field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="username" required placeholder="you@example.com" />
+        </div>
+
+        <div class="hero-field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required placeholder="••••••••" />
+        </div>
+
+        <button id="submitBtn" type="submit" class="hero-btn">Sign in</button>
+
+        <div class="hero-foot">
+          <a href="/forgot-password.html">Forgot password?</a>
+        </div>
+      </form>
     </div>
   </section>
 
-  <!-- Footer -->
   <footer class="mainfooter" id="about">
     <div class="custom-container">
       <div class="innerfooter">
@@ -77,8 +84,7 @@
             <span>Elinno&nbsp;Agent</span>
           </a>
           <p class="logopara">
-            Something quietly intelligent is on the way. A thoughtful, precise agent
-            made to work alongside you.
+            A thoughtful, precise agent made to work alongside you.
           </p>
         </div>
       </div>
@@ -89,6 +95,52 @@
       </div>
     </div>
   </footer>
+
+  <script>
+    // Already signed in? Skip straight to the right destination.
+    fetch('/api/me').then(r => r.json()).then(d => {
+      if (d.user) location.replace(d.user.is_admin ? '/admin.html' : '/dashboard.html');
+    }).catch(() => {});
+
+    const form = document.getElementById('loginForm');
+    const msg  = document.getElementById('msg');
+    const btn  = document.getElementById('submitBtn');
+
+    function showMsg(text, kind) {
+      msg.textContent = text;
+      msg.className = 'hero-msg ' + kind;
+    }
+    function hideMsg() { msg.className = 'hero-msg'; msg.textContent = ''; }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideMsg();
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showMsg(data.error || 'Login failed', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Sign in';
+          return;
+        }
+        location.replace(data.user?.is_admin ? '/admin.html' : '/dashboard.html');
+      } catch (err) {
+        showMsg('Network error. Please try again.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+      }
+    });
+  </script>
 
 </body>
 </html>

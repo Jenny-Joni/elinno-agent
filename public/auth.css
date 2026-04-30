@@ -1,0 +1,413 @@
+/* Elinno Agent — shared styles
+   Built against the Elinnovation Style Guide.
+   Clash Grotesk falls back to Space Grotesk if not loaded. */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Mada:wght@200..900&display=swap');
+
+:root {
+  /* Colors */
+  --color-bg-dark: #121215;
+  --color-bg-light: #fff;
+  --color-bg-soft: #f7f7f7;
+  --color-bg-wash: #f0ebff;
+  --color-brand: #6234fc;
+  --color-brand-tint: rgba(98, 52, 252, 0.1);
+  --color-text-dark: #000;
+  --color-text-body: #4f4f4f;
+  --color-text-muted: #888;
+  --color-text-placeholder: #a5a5a5;
+  --color-text-inverse: #fff;
+  --color-border: #e0e0e0;
+  --color-field-bg: #eaeaea;
+  --color-error: #ff0083;
+  --color-success: #4dd388;
+
+  /* Glass */
+  --glass-nav: rgba(0, 0, 0, 0.3);
+  --glass-blur-nav: blur(3.5px);
+
+  /* Type — fall back to Space Grotesk if Clash isn't loaded */
+  --font-light: 'clight', 'Space Grotesk', system-ui, sans-serif;
+  --font-regular: 'cregular', 'Space Grotesk', system-ui, sans-serif;
+  --font-medium: 'cmedium', 'Space Grotesk', system-ui, sans-serif;
+  --font-semibold: 'csemibold', 'Space Grotesk', system-ui, sans-serif;
+
+  /* Layout */
+  --container-max: 1230px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 15px;
+  --radius-xl: 20px;
+
+  /* Motion */
+  --t-fast: 0.1s ease-out;
+  --t-form: 0.3s linear;
+  --t-card: 0.7s;
+}
+
+/* ---------- Reset / base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--font-regular);
+  font-size: 16px;
+  line-height: 140%;
+  color: var(--color-text-dark);
+  background: var(--color-bg-light);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+a { color: var(--color-brand); text-decoration: none; transition: opacity var(--t-form); }
+a:hover { opacity: 0.8; }
+button { font-family: inherit; cursor: pointer; }
+img, svg { max-width: 100%; display: block; }
+
+.custom-container {
+  max-width: var(--container-max);
+  width: 100%;
+  padding: 0 15px;
+  margin: 0 auto;
+}
+
+/* ---------- Auth pages: dark hero layout ---------- */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: var(--color-bg-dark);
+  padding: 40px 15px;
+  overflow: hidden;
+}
+
+/* Soft purple radial wash on the dark hero */
+.auth-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(98, 52, 252, 0.35), transparent 55%),
+    radial-gradient(ellipse at 80% 80%, rgba(98, 52, 252, 0.25), transparent 50%);
+  z-index: 0;
+}
+
+.auth-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 460px;
+  background: var(--color-bg-light);
+  border-radius: var(--radius-lg);
+  padding: 45px 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.auth-eyebrow {
+  color: var(--color-brand);
+  font-family: var(--font-medium);
+  font-size: 14px;
+  line-height: 100%;
+  letter-spacing: 1.08px;
+  text-transform: uppercase;
+  margin: 0 0 14px;
+}
+
+.auth-eyebrow-line {
+  display: block;
+  width: 60px;
+  height: 2px;
+  background: var(--color-brand);
+  margin: 0 0 24px;
+}
+
+.auth-heading {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-size: 32px;
+  line-height: 110%;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+}
+
+.auth-sub {
+  color: var(--color-text-body);
+  font-family: var(--font-regular);
+  font-size: 15px;
+  line-height: 140%;
+  margin: 0 0 28px;
+}
+
+/* ---------- Form fields (light variant) ---------- */
+.field { margin-bottom: 18px; }
+.field label {
+  display: block;
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-size: 13px;
+  line-height: 100%;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.field input {
+  width: 100%;
+  background: var(--color-field-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 16px 16px;
+  color: var(--color-text-dark);
+  font-family: var(--font-regular);
+  font-size: 14px;
+  line-height: 100%;
+  transition: var(--t-form);
+}
+.field input::placeholder { color: var(--color-text-placeholder); }
+.field input:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.05);
+  border-color: var(--color-brand);
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 24px;
+  font-family: var(--font-medium);
+  font-size: 14px;
+  line-height: 100%;
+  text-transform: uppercase;
+  border: none;
+  outline: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: filter var(--t-form), background var(--t-form), color var(--t-form);
+}
+.btn-primary {
+  background: var(--color-brand);
+  color: #fff;
+  width: 100%;
+}
+.btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-body);
+}
+.btn-ghost:hover { color: var(--color-brand); }
+
+.btn-danger {
+  background: transparent;
+  color: var(--color-error);
+  border: 1px solid var(--color-error);
+  padding: 10px 14px;
+  font-size: 12px;
+}
+.btn-danger:hover:not(:disabled) { background: var(--color-error); color: #fff; }
+
+/* ---------- Auth-page footer row ---------- */
+.auth-foot {
+  margin-top: 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-regular);
+  font-size: 14px;
+  color: var(--color-text-body);
+}
+.auth-foot a { color: var(--color-brand); }
+
+/* ---------- Form messages ---------- */
+.form-msg {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-regular);
+  font-size: 14px;
+  line-height: 140%;
+}
+.form-msg.error {
+  background: rgba(255, 0, 131, 0.08);
+  color: var(--color-error);
+  border: 1px solid rgba(255, 0, 131, 0.3);
+}
+.form-msg.success {
+  background: rgba(77, 211, 136, 0.1);
+  color: #1f7a4d;
+  border: 1px solid rgba(77, 211, 136, 0.4);
+}
+.form-msg.hidden { display: none; }
+
+/* ---------- Dashboard / app shell ---------- */
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 99;
+  background: var(--glass-nav);
+  backdrop-filter: var(--glass-blur-nav);
+  -webkit-backdrop-filter: var(--glass-blur-nav);
+  background-color: rgba(18, 18, 21, 0.85);
+}
+.app-nav-inner {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 16px 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.app-brand {
+  color: #fff;
+  font-family: var(--font-medium);
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-decoration: none;
+}
+.app-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.app-nav-actions a {
+  color: #fff;
+  font-family: var(--font-regular);
+  font-size: 14px;
+  text-decoration: none;
+  opacity: 0.85;
+}
+.app-nav-actions a:hover { opacity: 1; }
+.app-nav-actions .btn-nav {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid #fff;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-medium);
+  font-size: 13px;
+  text-transform: uppercase;
+}
+.app-nav-actions .btn-nav:hover { opacity: 1; background: rgba(255, 255, 255, 0.18); }
+
+.app-main {
+  background: var(--color-bg-soft);
+  min-height: calc(100vh - 70px);
+  padding: 70px 0;
+}
+
+.section-eyebrow {
+  color: var(--color-brand);
+  font-family: var(--font-medium);
+  font-size: 14px;
+  letter-spacing: 1.08px;
+  text-transform: uppercase;
+  margin: 0 0 14px;
+}
+.section-line {
+  display: block;
+  width: 107px;
+  height: 2px;
+  background: var(--color-brand);
+  margin: 0 0 24px;
+}
+.section-heading {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-size: 45px;
+  line-height: 110%;
+  text-transform: uppercase;
+  margin: 0 0 16px;
+}
+.section-sub {
+  color: var(--color-text-body);
+  font-family: var(--font-regular);
+  font-size: 18px;
+  line-height: 140%;
+  margin: 0 0 40px;
+  max-width: 640px;
+}
+
+/* ---------- Cards ---------- */
+.card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+}
+
+/* ---------- Admin user table ---------- */
+.users-table-wrap {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+table.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-regular);
+  font-size: 14px;
+}
+.users-table th, .users-table td {
+  padding: 16px 20px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+.users-table thead th {
+  background: var(--color-bg-soft);
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.users-table tbody tr:last-child td { border-bottom: none; }
+.users-table tbody tr:hover { background: var(--color-bg-wash); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 50px;
+  background: var(--color-brand-tint);
+  color: var(--color-brand);
+  font-family: var(--font-medium);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ---------- Add-user form (admin) ---------- */
+.add-user-row {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr auto auto;
+  gap: 12px;
+  align-items: end;
+}
+.add-user-row .field { margin: 0; }
+.add-user-row .check {
+  display: flex; align-items: center; gap: 8px;
+  padding: 16px 0;
+  font-family: var(--font-regular);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.add-user-row .btn { padding: 16px 22px; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 700px) {
+  .auth-card { padding: 32px 24px; }
+  .auth-heading { font-size: 26px; }
+  .section-heading { font-size: 30px; }
+  .add-user-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .users-table th, .users-table td { padding: 12px 14px; }
+  .users-table .col-created { display: none; }
+}
