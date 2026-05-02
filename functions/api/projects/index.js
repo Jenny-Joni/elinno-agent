@@ -5,7 +5,6 @@
 // Routes (this file):
 //   POST /api/projects  → create a project (workspace-admin only)
 //   GET  /api/projects  → list projects the session user is a member of
-//                         (added in a follow-up commit)
 //
 // Project creation writes two rows in one Postgres transaction:
 //   1. INSERT INTO projects (...)         RETURNING *
@@ -14,7 +13,7 @@
 // admin row would leave the creator unable to access the project
 // they just created.
 import postgres from 'postgres';
-import { error, json, requireWorkspaceAdmin } from '../../_lib/auth.js';
+import { error, getSessionUser, json, requireWorkspaceAdmin } from '../../_lib/auth.js';
 
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 1000;
@@ -86,6 +85,54 @@ export async function onRequestPost({ request, env }) {
     });
 
     return json({ ok: true, project }, { status: 201 });
+  } catch (_err) {
+    return error('Internal error', 500);
+  } finally {
+    try {
+      await sql.end({ timeout: 5 });
+    } catch {
+      // best-effort cleanup; never masks the return value
+    }
+  }
+}
+
+export async function onRequestGet({ request, env }) {
+  const user = await getSessionUser(request, env.DB);
+  if (!user) return error('Not authenticated', 401);
+
+  // Cross-DB seam: D1 users.id (INTEGER) → Postgres TEXT.
+  // Pattern documented canonically in db/schema-postgres.sql header.
+  const userIdText = String(user.id);
+
+  const sql = postgres(env.HYPERDRIVE.connectionString, {
+    max: 5,
+    fetch_types: false,
+  });
+
+  try {
+    // Index path: project_members_user_active_idx on
+    // (user_id) WHERE joined_at IS NOT NULL — filters to active
+    // memberships in one index scan, then PK-joins to projects.
+    // Tiebreaker on p.id keeps ordering stable when two projects
+    // share an updated_at (e.g., both freshly created).
+    const projects = await sql`
+      SELECT
+        p.id,
+        p.name,
+        p.description,
+        p.owner_user_id,
+        p.created_at,
+        p.updated_at,
+        pm.role
+        FROM projects p
+        JOIN project_members pm ON pm.project_id = p.id
+       WHERE pm.user_id    = ${userIdText}
+         AND pm.joined_at  IS NOT NULL
+         AND p.deleted_at  IS NULL
+       ORDER BY p.updated_at DESC, p.id DESC
+    `;
+
+    return json({ ok: true, projects });
   } catch (_err) {
     return error('Internal error', 500);
   } finally {
