@@ -1,0 +1,79 @@
+# wrangler.toml — PRODUCTION SOURCE OF TRUTH for the elinno-agent Pages project.
+#
+# What this file controls
+# -----------------------
+# This file is authoritative for the Pages project's bindings, vars, and
+# compatibility settings. Per Cloudflare Pages' wrangler-configuration docs
+# (https://developers.cloudflare.com/pages/functions/wrangler-configuration/),
+# the presence of `pages_build_output_dir` flips a wrangler config from
+# "local dev only" to "source of truth" — Cloudflare reads every binding,
+# var, and compat setting from THIS FILE on every deploy (Production AND
+# Preview), not from the dashboard. The dashboard's UI for these fields
+# becomes read-only after the first deploy from this file.
+#
+# Why we made the switch (Block 1 Task 2)
+# ---------------------------------------
+# Block 1 Task 2 of the v1.1 build plan needs `nodejs_compat` enabled on
+# Preview deploys (postgres.js depends on Node built-ins like `node:events`).
+# The Cloudflare Pages dashboard's "Compatibility flags" panel for this
+# project only exposes Production-environment config; there is no Preview-
+# side equivalent in the UI. Setting `nodejs_compat` for Production alone
+# did NOT propagate to Preview deploys — commit `0d553d5`'s preview build
+# failed at runtime with:
+#
+#   Error: Failed to publish your Function. Got error:
+#   Uncaught Error: No such module "node:events"
+#
+# With compat config in this file, both environments get the same flags
+# automatically — no per-environment dashboard plumbing required, and no
+# more Preview-vs-Production drift on compat settings.
+#
+# What MUST stay in sync with the dashboard pre-switch
+# ----------------------------------------------------
+# Once `pages_build_output_dir` is set, anything missing from this file
+# gets dropped from the deploy. Declared here to mirror what the dashboard
+# was managing before the switch:
+#
+#   - D1 binding `DB` → elinno-agent-db (auth tables)
+#   - Hyperdrive binding `HYPERDRIVE` → elinno-agent-hyperdrive (Block 1)
+#   - vars `MAIL_FROM`, `SITE_URL` (used by the password-reset email flow)
+#   - compatibility_date `2026-04-21` (matches what the dashboard had set)
+#   - compatibility_flags `["nodejs_compat"]`
+#
+# Top-level config (no `[env.preview]` / `[env.production]` overrides) means
+# Production and Preview share identical bindings, vars, and compat — which
+# is exactly what we want and what fixes the original drift.
+#
+# What is NOT declared here (intentionally)
+# -----------------------------------------
+# `RESEND_API_KEY` is a SECRET, not a var. Cloudflare Pages manages secrets
+# separately from wrangler.toml: secrets survive the dashboard→file switch
+# and continue to be set via Pages → Settings → Variables and Secrets.
+# Never put plaintext secrets in this file or anywhere else in the repo.
+#
+# Local development
+# -----------------
+# `wrangler pages dev` reads this same file. The Hyperdrive binding has no
+# `localConnectionString` because the Neon connection string lives only in
+# the Cloudflare Hyperdrive config and the developer's password manager;
+# `wrangler pages dev` therefore cannot connect to Neon locally. Local dev
+# of /api/db-health is not testable end-to-end; verification happens on the
+# Cloudflare Pages preview deploy.
+
+name = "elinno-agent"
+pages_build_output_dir = "public"
+compatibility_date = "2026-04-21"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+MAIL_FROM = "Elinno Agent <noreply@elinnoagent.com>"
+SITE_URL = "https://elinnoagent.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "elinno-agent-db"
+database_id = "b526badb-b6d0-490f-a72f-3f61d64016b7"
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "78af00bbf464468cb902e35099aa0dfe"

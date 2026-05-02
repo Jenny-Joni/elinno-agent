@@ -1,0 +1,8 @@
+{
+  "name": "elinno-agent",
+  "private": true,
+  "description": "Elinno Agent — multi-tenant project intelligence platform",
+  "dependencies": {
+    "postgres": "^3.4.9"
+  }
+}

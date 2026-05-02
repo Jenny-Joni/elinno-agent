@@ -1,20 +1,22 @@
-# Elinno Agent — Project Handoff
+# Elinno Agent — Project Reference
 
-> Drop this file into your project root (or paste it into Claude Code) to give
-> a fresh AI assistant full context on the project.
+> Stack, repo layout, conventions, and concrete IDs. Read this first when joining
+> the project. For "where are we and what's next," see HANDOFF.md.
 
-Last updated: 2026-04-28
+Last updated: 2026-05-02
 
 ---
 
 ## 1. Project overview
 
-**Elinno Agent** — a web application currently launching with a "coming soon"
-welcome page. Owner: Jenny (jenny@elinnovation.net).
+**Elinno Agent** — a multi-tenant project intelligence platform.
+Owner: Jenny (jenny@elinnovation.net).
 
-The site is **live in production**. The roadmap is to grow it into a
-full-stack app with **user accounts (signup / login / sessions)** as the next
-major milestone.
+The auth foundation is **live in production** at https://elinnoagent.com.
+v1.1 (currently being built) adds four connectors (Jira, Slack, Monday, Google
+Drive) and a per-project AI assistant on top of the existing auth.
+
+For full product context, see PRD.md. For the ordered task list, see BUILD_PLAN.md.
 
 ---
 
@@ -27,6 +29,7 @@ major milestone.
 | Cloudflare Pages default URL | https://elinno-agent.pages.dev |
 | GitHub repository | https://github.com/Jenny-Joni/elinno-agent |
 | Cloudflare Pages dashboard | https://dash.cloudflare.com → Workers & Pages → `elinno-agent` |
+| Neon dashboard | https://console.neon.tech → `Elinno Agent` |
 
 ---
 
@@ -35,10 +38,15 @@ major milestone.
 - **Hosting**: Cloudflare Pages (auto-deploy on push to `main`)
 - **DNS / domain**: Cloudflare (domain `elinnoagent.com` is on the same Cloudflare account)
 - **Source control**: GitHub
-- **Frontend (today)**: static HTML + CSS, no framework, no build step
-- **Backend (planned)**: Cloudflare Pages Functions (JavaScript / TypeScript)
-- **Database (planned)**: Cloudflare D1 (SQLite at the edge)
-- **Auth (planned)**: cookie-based sessions over D1, custom-built (not third-party)
+- **Frontend (today)**: static HTML + CSS, no framework, no build step yet
+- **Light API (deployed)**: Cloudflare Pages Functions (auth: login, logout, me, password reset, admin/users)
+- **Auth database (deployed)**: Cloudflare D1 (`elinno-agent-db`), bound as `env.DB`
+- **Connector data + embeddings (provisioned)**: Neon Postgres with pgvector v0.8.0, reached via Cloudflare Hyperdrive, bound as `env.HYPERDRIVE`
+- **Auth**: custom (PBKDF2, 100k iterations — Workers cap)
+- **Email**: Resend (`elinnoagent.com` domain verified)
+- **Sync workers + AI agent (planned)**: Cloudflare Workers
+- **Job queue (planned)**: Cloudflare Queues
+- **LLM (planned)**: Anthropic Claude API (Sonnet for synthesis, Haiku for routing)
 
 ---
 
@@ -46,14 +54,36 @@ major milestone.
 
 ```
 elinno-agent/
-├── public/             ← static site, deployed as-is
-│   ├── index.html      ← welcome page
+├── public/                  ← static site, deployed as-is
+│   ├── index.html           ← welcome page
+│   ├── login.html, etc.
 │   └── styles.css
-├── functions/          ← reserved for Cloudflare Pages Functions (empty)
-│   └── README.md
-├── schema.sql          ← D1 schema placeholder (empty, examples commented)
-└── README.md
+├── functions/               ← Cloudflare Pages Functions (auth endpoints deployed; /api/db-health added in Block 1 Task 2)
+│   └── api/
+│       ├── login.js, logout.js, me.js
+│       ├── forgot-password.js, reset-password.js
+│       ├── admin/users.js, admin/users/[id].js
+│       └── db-health.js     ← Hyperdrive → Neon health check (Block 1)
+├── scripts/                 ← admin/maintenance scripts
+│   └── seed-admin.mjs
+├── schema.sql               ← D1 auth schema (canonical for users/sessions/password_resets)
+├── HANDOFF.md               ← state, design principles, how to work with AI assistants
+├── PROJECT.md               ← this file: stack, layout, IDs
+├── PRD.md                   ← product requirements
+├── BUILD_PLAN.md            ← ordered task list, 9 blocks
+├── DESIGN.md                ← visual style guide
+└── README.md                ← minimal deploy notes
 ```
+
+**Files added in Block 1 Task 2 (in progress):**
+
+- `package.json` — declares `postgres` (porsager/postgres) as the Postgres client library
+- `wrangler.toml` — declares the Hyperdrive binding for local dev, sets `compatibility_flags = ["nodejs_compat"]`
+- `functions/api/db-health.js` — health-check endpoint that queries Neon through Hyperdrive
+
+**Files to be added in Block 1 Task 3:**
+
+- `schema-postgres.sql` (or similar — name TBD to disambiguate from the existing D1 `schema.sql`) — Neon Postgres schema for `projects`, `project_members`, `connections`, `entities`, `entity_embeddings`, `sync_runs`, `conversations`, `messages`
 
 ---
 
@@ -65,9 +95,11 @@ Set in the project's **Settings → Build & deployments**:
 |---|---|
 | Production branch | `main` |
 | Framework preset | None |
-| Build command | *(empty)* |
+| Build command | *(empty for now — will become `npm install` once `package.json` lands in Block 1 Task 2)* |
 | Build output directory | `public` |
 | Root directory | `/` |
+| Compatibility date | (set in dashboard; aim for the most recent stable date) |
+| Compatibility flags | `nodejs_compat` (to be added in Block 1 Task 2 — required by the `postgres` library) |
 
 **Behavior**: any push to `main` triggers a fresh deploy. Push to other
 branches creates a preview deployment at a unique `*.elinno-agent.pages.dev`
@@ -87,46 +119,92 @@ Cloudflare. Nothing to manage manually.
 
 ---
 
-## 7. Credentials & secrets
+## 7. Bindings on the Pages project
 
-⚠️ **Do NOT commit this section to a public repo.** If checking this file in,
-either delete this section or move secrets to `.env` / Cloudflare secrets.
-
-| Item | Where it lives | Notes |
+| Type | Variable name | Points to |
 |---|---|---|
-| GitHub Personal Access Token | (none currently active — was revoked after deploy) | Generate a new fine-grained token with `Contents: Read and write` on `elinno-agent` repo when needed. Expiration: 30 days. |
-| Cloudflare API token | not yet created | Needed if a tool wants to manage Cloudflare resources programmatically. Create at: dash.cloudflare.com → My Profile → API Tokens. |
-| Cloudflare Account ID | *(omitted — see Cloudflare dashboard)* | Visible in dashboard sidebar. |
-| Cloudflare Pages project name | `elinno-agent` | |
-| GitHub username | `Jenny-Joni` | |
-| GitHub repo name | `elinno-agent` | |
-| Cloudflare workers.dev subdomain | `jenny-da2.workers.dev` | Disabled. |
+| D1 database | `DB` | `elinno-agent-db` (auth tables) |
+| Hyperdrive | `HYPERDRIVE` | `elinno-agent-hyperdrive` config → Neon `elinno_agent_db` |
+
+Both are applied to Production and Preview environments. Bindings only attach
+to the next deployment after they're created — existing deployed builds don't
+pick them up retroactively.
 
 ---
 
-## 8. Local development
+## 8. Credentials, secrets, and IDs
+
+⚠️ **Do NOT commit credentials to the repo.** Use Cloudflare's **Settings →
+Environment variables / Secrets** UI for anything sensitive that runtime code needs.
+
+### Non-secret IDs (safe to keep in this file)
+
+| Item | Value |
+|---|---|
+| Cloudflare Account ID | `da2174836d9863b4f2fcafeba4dbff3c` |
+| Cloudflare Pages project name | `elinno-agent` |
+| Cloudflare workers.dev subdomain | `jenny-da2.workers.dev` (disabled) |
+| GitHub username | `Jenny-Joni` |
+| GitHub repo name | `elinno-agent` |
+| D1 database name | `elinno-agent-db` |
+| Neon project name | `Elinno Agent` |
+| Neon region | AWS Frankfurt (`eu-central-1`) |
+| Neon branch | `production` (id `br-autumn-scene-aln7pf8j`) |
+| Neon database name | `elinno_agent_db` |
+| Neon role | `neondb_owner` |
+| pgvector version | 0.8.0 |
+| Hyperdrive config name | `elinno-agent-hyperdrive` |
+| Hyperdrive config ID | `78af00bbf464468cb902e35099aa0dfe` |
+
+### Secrets (NEVER in repo, NEVER pasted into chat)
+
+| Secret | Where it lives |
+|---|---|
+| Neon `neondb_owner` password | Inside the Hyperdrive config (encrypted by Cloudflare) and in the developer's password manager. Code reads it at runtime via `env.HYPERDRIVE.connectionString`. |
+| Resend API key | Cloudflare Pages → Settings → Variables and Secrets, as `RESEND_API_KEY` (secret). |
+| Anthropic API key (when Block 5 starts) | Cloudflare Pages → Settings → Variables and Secrets, as `ANTHROPIC_API_KEY` (secret). |
+| GitHub Personal Access Token | None currently active. Generate a new fine-grained token (Contents: Read and write on `elinno-agent`) when needed. |
+
+### Standing rules
+
+- **Never put plaintext credentials in code, in `.env` files committed to the repo, or in chat with an AI assistant.**
+- The Neon connection string lives in exactly two places: the Cloudflare Hyperdrive config (encrypted at rest) and the developer's password manager. Anywhere else is a leak.
+- If a credential is accidentally exposed (pasted into chat, committed, etc.), rotate immediately at the source (e.g., Neon → Roles & Databases → Reset password) before doing anything else.
+
+---
+
+## 9. Local development
 
 ```bash
 # Clone
 git clone https://github.com/Jenny-Joni/elinno-agent.git
 cd elinno-agent
 
-# Quickest preview — just open the file
+# Install dependencies (once package.json exists, after Block 1 Task 2)
+npm install
+
+# Quickest preview — just open the welcome HTML
 open public/index.html
 
-# Better — full Pages-like dev server (needs Node.js)
+# Better — full Pages-like dev server with bindings (D1 + Hyperdrive)
 npx wrangler pages dev public
 
-# When functions are added later
-npx wrangler pages dev public --compatibility-date=2024-01-01
+# When functions are involved (auth or db-health endpoint)
+npx wrangler pages dev public --compatibility-date=2026-04-28 --compatibility-flag=nodejs_compat
 ```
 
 `wrangler` is Cloudflare's CLI. Install globally with `npm i -g wrangler` or
 use `npx` per-command.
 
+**Local Hyperdrive note:** when running `wrangler pages dev` locally, Hyperdrive
+will tunnel through to the real Neon database using the connection string in
+the Cloudflare config. Test queries from local count against the same database
+as production. Use a Neon branch (free tier allows up to 10) if you need
+isolation for destructive testing.
+
 ---
 
-## 9. Deploying
+## 10. Deploying
 
 **Automatic**: any commit pushed to `main` deploys to production within
 ~30 seconds.
@@ -137,6 +215,10 @@ git commit -m "your message"
 git push origin main
 ```
 
+**Convention**: push code to a branch first, verify on the preview deploy, then
+merge to `main`. Don't push directly to `main` for anything that wasn't
+previewed.
+
 Watch the deploy at:
 https://dash.cloudflare.com → Workers & Pages → `elinno-agent` → Deployments
 
@@ -146,73 +228,32 @@ https://dash.cloudflare.com → Workers & Pages → `elinno-agent` → Deploymen
 
 ---
 
-## 10. Roadmap & next steps
-
-Pick up from any of these:
-
-### A. Polish the welcome page
-- Iterate on copy, colors, typography
-- Add a logo or hero illustration
-- Add an **email-capture form** for "notify me at launch"
-   - Could write to D1, Google Sheets, or a service like Buttondown / ConvertKit
-
-### B. Build the user-account system (the main next milestone)
-1. Create a D1 database via Cloudflare dashboard or `wrangler d1 create elinno-agent-db`
-2. Bind it to the Pages project (Settings → Functions → D1 database bindings, name it `DB`)
-3. Apply schema:
-   ```bash
-   npx wrangler d1 execute elinno-agent-db --file=./schema.sql
-   ```
-   (uncomment the example tables in `schema.sql` first)
-4. Build the Pages Functions:
-   - `functions/api/signup.js` — POST: create user, hash password (use Web Crypto API + scrypt or bcrypt-compatible), set session cookie
-   - `functions/api/login.js` — POST: verify password, set session cookie
-   - `functions/api/logout.js` — POST: delete session, clear cookie
-   - `functions/api/me.js` — GET: return current user from session cookie
-   - `functions/_middleware.js` — shared auth check, sets `request.user` for downstream functions
-5. Build the frontend pages:
-   - `public/login.html`
-   - `public/signup.html`
-   - `public/dashboard.html` (protected — checks `/api/me`)
-6. Session strategy: HTTP-only, Secure, SameSite=Lax cookie containing a random session token; the token maps to a row in `sessions` table with an `expires_at`.
-
-### C. Add Cloudflare Web Analytics
-- Free, privacy-friendly, GDPR-friendly
-- Setup: dashboard → Analytics & Logs → Web Analytics → Add a site → paste snippet into `<head>` of `public/index.html`
-
-### D. SEO basics
-- Add a real `og:image` (currently no image set)
-- Add `robots.txt` and `sitemap.xml` in `public/`
-- Verify with Google Search Console (DNS or HTML-file verification)
-
----
-
 ## 11. Conventions for this repo
 
-- **Branching**: `main` is production. Features go on short-lived branches and merge back via PR (or direct push if solo).
-- **Commits**: prefer Conventional Commits style (`feat:`, `fix:`, `chore:`, `docs:`).
-- **No build step (yet)**. Keep `public/` directly servable. If/when a build step is added, update Cloudflare Pages settings.
-- **Secrets** never go in the repo. Use Cloudflare's **Settings → Environment variables / Secrets** UI for anything sensitive that runtime code needs.
+- **Branching**: `main` is production. Features go on short-lived branches and merge back via PR (or manual merge if solo). Don't push to `main` without verifying on a preview deploy first.
+- **Commits**: prefer Conventional Commits style (`feat:`, `fix:`, `chore:`, `docs:`). Scope to the block when relevant: `feat(block-1): add db-health endpoint`.
+- **Build step**: minimal. Once `package.json` lands, `npm install` runs at deploy time. No bundlers, no frameworks, no SSR.
+- **Secrets** never go in the repo. Use Cloudflare's UI for anything sensitive.
+- **AI changes** require manual diff review before commit. The developer runs all git commands themselves.
 
 ---
 
-## 12. How to use this document with Claude Code
+## 12. How to use these docs with Claude Code / Cursor
 
 ```bash
 # In the project directory
 cd elinno-agent
-# Place this file at the root (already there if pulled from main)
-# Then launch Claude Code
-claude
+# Make sure HANDOFF.md, PROJECT.md, PRD.md, BUILD_PLAN.md are at the root
+# Then launch Claude Code or Cursor
 ```
 
 Then in your first prompt:
 
-> Read PROJECT.md and tell me you understand the project. Then I'd like to start working on [task].
+> Read HANDOFF.md, PROJECT.md, PRD.md, and BUILD_PLAN.md. Tell me what you understand about the project and which block we're on. Then I'd like to work on [task].
 
-Claude Code will read this file and have full context — stack, layout,
+The assistant will read these files and have full context — stack, layout,
 conventions, where things live, what's planned next.
 
 ---
 
-*Generated during initial project setup, 2026-04-28.*
+*Last updated 2026-05-02 — during Block 1 Task 2 of the v1.1 build.*
