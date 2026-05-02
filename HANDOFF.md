@@ -186,15 +186,16 @@ These rules came out of how the project has been run so far. They matter:
 ## Reference docs in this project
 
 
-| File              | What's in it                                                                                              |
-| ----------------- | --------------------------------------------------------------------------------------------------------- |
-| **PROJECT.md**    | Stack, repo layout, conventions. Read first.                                                              |
-| **PRD.md**        | Product requirements: what's being built and why. Roles, requirements, pricing, risks, post-v1.1 backlog. |
-| **BUILD_PLAN.md** | Ordered task list (this is your roadmap). Nine blocks in strict order.                                    |
-| **DESIGN.md**     | Visual style guide.                                                                                       |
-| **schema.sql**    | Postgres schema (canonical). To be drafted in Block 1 Task 3.                                             |
-| **README.md**     | Minimal deploy notes.                                                                                     |
-| **HANDOFF.md**    | This file. Project handoff for new sessions.                                                              |
+| File                       | What's in it                                                                                                                                        |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PROJECT.md**             | Stack, repo layout, conventions. Read first.                                                                                                        |
+| **PRD.md**                 | Product requirements: what's being built and why. Roles, requirements, pricing, risks, post-v1.1 backlog.                                           |
+| **BUILD_PLAN.md**          | Ordered task list (this is your roadmap). Nine blocks in strict order.                                                                              |
+| **DESIGN.md**              | Visual style guide.                                                                                                                                 |
+| **db/schema-d1.sql**       | D1 auth schema (canonical) — users, sessions, password_resets. Already applied to Cloudflare D1.                                                    |
+| **db/schema-postgres.sql** | Neon Postgres schema (canonical) — 8 tables for connector data and embeddings. Applied to Neon production branch as of Block 1 Task 3 (2026-05-02). |
+| **README.md**              | Minimal deploy notes.                                                                                                                               |
+| **HANDOFF.md**             | This file. Project handoff for new sessions.                                                                                                        |
 
 
 If any doc contradicts another, **the PRD is the source of truth for what to build, the Build Plan is the source of truth for the order, and the latest status notes are the source of truth for what's actually done.**
