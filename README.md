@@ -21,7 +21,7 @@ The website and (eventually) full-stack application for **Elinno Agent**.
 │   ├── index.html
 │   └── styles.css
 ├── functions/       ← serverless API endpoints (Pages Functions)
-├── schema.sql       ← D1 database schema
+├── db/schema-d1.sql ← D1 auth schema (canonical)
 └── README.md
 ```
 

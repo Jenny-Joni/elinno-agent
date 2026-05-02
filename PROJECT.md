@@ -66,7 +66,9 @@ elinno-agent/
 │       └── db-health.js     ← Hyperdrive → Neon health check (Block 1)
 ├── scripts/                 ← admin/maintenance scripts
 │   └── seed-admin.mjs
-├── schema.sql               ← D1 auth schema (canonical for users/sessions/password_resets)
+├── db/                      ← canonical schemas
+│   ├── schema-d1.sql        ← D1 auth schema (users/sessions/password_resets)
+│   └── schema-postgres.sql  ← Neon Postgres schema (connector data + embeddings)
 ├── HANDOFF.md               ← state, design principles, how to work with AI assistants
 ├── PROJECT.md               ← this file: stack, layout, IDs
 ├── PRD.md                   ← product requirements
@@ -74,16 +76,6 @@ elinno-agent/
 ├── DESIGN.md                ← visual style guide
 └── README.md                ← minimal deploy notes
 ```
-
-**Files added in Block 1 Task 2 (in progress):**
-
-- `package.json` — declares `postgres` (porsager/postgres) as the Postgres client library
-- `wrangler.toml` — declares the Hyperdrive binding for local dev, sets `compatibility_flags = ["nodejs_compat"]`
-- `functions/api/db-health.js` — health-check endpoint that queries Neon through Hyperdrive
-
-**Files to be added in Block 1 Task 3:**
-
-- `schema-postgres.sql` (or similar — name TBD to disambiguate from the existing D1 `schema.sql`) — Neon Postgres schema for `projects`, `project_members`, `connections`, `entities`, `entity_embeddings`, `sync_runs`, `conversations`, `messages`
 
 ---
 

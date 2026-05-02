@@ -39,7 +39,7 @@ elinno-agent/
 │           └── users/[id].js   ← NEW
 ├── scripts/
 │   └── seed-admin.mjs          ← NEW (one-time)
-├── schema.sql                  ← REPLACED (placeholder → real schema)
+├── db/schema-d1.sql            ← REPLACED (placeholder → D1 auth schema)
 └── SETUP.md                    ← NEW (this file)
 ```
 
@@ -75,7 +75,7 @@ database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 Now apply the schema:
 
 ```bash
-npx wrangler d1 execute elinno-agent-db --remote --file=./schema.sql
+npx wrangler d1 execute elinno-agent-db --remote --file=./db/schema-d1.sql
 ```
 
 (`--remote` runs against the real production D1. Without it, it runs against a
