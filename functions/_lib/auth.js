@@ -184,6 +184,27 @@ export function isValidPassword(pw) {
   return typeof pw === 'string' && pw.length >= 8 && pw.length <= 256;
 }
 
+// ---------- Workspace-admin gating -------------------------------------
+
+/**
+ * Gate a handler on workspace-admin (D1 users.is_admin = 1).
+ *
+ * Distinct from requireProjectRole: workspace-admin operates at the
+ * D1 user level (e.g., creating a brand-new project, managing global
+ * users), while requireProjectRole operates at the Postgres
+ * project_members level (e.g., reading or modifying an existing project).
+ *
+ * Returns `{ error: Response }` on failure for early-return, or
+ * `{ user }` on success. Same shape as requireProjectRole's success
+ * tuple minus role (workspace-admin doesn't have a role to report).
+ */
+export async function requireWorkspaceAdmin(request, env) {
+  const user = await getSessionUser(request, env.DB);
+  if (!user) return { error: error('Not authenticated', 401) };
+  if (!user.is_admin) return { error: error('Forbidden', 403) };
+  return { user };
+}
+
 // ---------- Project-scoped access --------------------------------------
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
