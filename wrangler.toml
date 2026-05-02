@@ -1,0 +1,58 @@
+# wrangler.toml — LOCAL DEVELOPMENT ONLY.
+#
+# This file is consumed only by `wrangler pages dev`. It is NOT the source of
+# truth for production. The Cloudflare Pages dashboard remains authoritative
+# for all production bindings, vars, secrets, build output directory, and
+# compatibility settings.
+#
+# Why `pages_build_output_dir` is intentionally omitted
+# -----------------------------------------------------
+# Per Cloudflare Pages' wrangler-configuration docs
+# (https://developers.cloudflare.com/pages/functions/wrangler-configuration/),
+# the PRESENCE of `pages_build_output_dir` is the documented switch that
+# flips a wrangler config from "local dev only" to "source of truth for the
+# Pages project." Quoting the docs:
+#
+#   "You can continue to use your Wrangler file for local development without
+#    migrating it for production use by not adding a `pages_build_output_dir`
+#    key. If you do not add a `pages_build_output_dir` key and run `wrangler
+#    pages deploy`, you will see a warning message telling you that fields
+#    are missing and that the file will continue to be used for local
+#    development only."
+#
+# Local-dev-only is therefore a documented, supported mode — not a workaround.
+# We use it deliberately. Adding `pages_build_output_dir` would make this
+# file authoritative for production, at which point any binding or var NOT
+# declared here gets dropped on the next deploy: the auth system depends on
+# a dashboard-managed D1 binding (`DB`), env vars (`MAIL_FROM`, `SITE_URL`),
+# and a secret (`RESEND_API_KEY`). Migrating those into the file is a real,
+# scoped change for a future session, ideally seeded by:
+#   npx wrangler pages download config elinno-agent
+#
+# What this means in practice
+# ---------------------------
+# - `wrangler pages dev` reads this file (compat flags, Hyperdrive binding).
+# - `wrangler pages deploy` (and Cloudflare's git-integrated deploys) ignore
+#   this file for production config and emit a warning that fields are
+#   missing — that's expected.
+# - Bindings declared below affect LOCAL DEV ONLY. Production bindings are
+#   configured in the Cloudflare Pages dashboard and applied at deploy time.
+# - Compat date and `nodejs_compat` must ALSO be set in the dashboard
+#   (Pages → Settings → Build & deployments) for production deploys to
+#   pick them up. Setting them here only affects `wrangler pages dev`.
+
+name = "elinno-agent"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Hyperdrive binding for `wrangler pages dev` only. Production picks up the
+# same binding from the dashboard (already configured under variable name
+# HYPERDRIVE for both Production and Preview environments).
+#
+# No `localConnectionString` is set: the Neon connection string lives only in
+# the Cloudflare Hyperdrive config and the developer's password manager.
+# `wrangler pages dev` therefore cannot connect to Neon locally — verification
+# of `/api/db-health` happens on a Cloudflare Pages preview deploy.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "78af00bbf464468cb902e35099aa0dfe"
