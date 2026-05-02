@@ -2,7 +2,7 @@
 
 > Drop this into a fresh Claude session (chat or Cursor) so the assistant can pick up where the last session left off. This file is the single source of truth for "where are we and what's next." Update it after each working session.
 
-**Last updated:** 2026-05-02
+**Last updated:** 2026-05-03
 **Current product version:** v1.1 (the MVP being built now)
 **Owner / sole developer:** Jenny ([jenny@elinnovation.net](mailto:jenny@elinnovation.net))
 **AI tooling:** Cursor + Claude
@@ -15,7 +15,7 @@ You are joining a project mid-build. Here's the shape of it:
 
 - **Elinno Agent** is a multi-tenant project intelligence platform. An admin creates a project, connects external tools (Jira, Slack, Monday, Google Drive), and the platform syncs that data into a unified store. Members chat with an AI assistant scoped to a single project, asking questions like "how many tickets in this sprint?" or "how much did we spend on testing?"
 - **The auth foundation is already deployed** at [https://elinnoagent.com](https://elinnoagent.com) (Cloudflare Pages + Pages Functions + D1).
-- **Block 1 is fully done.** Data layer foundation is wired end-to-end through Cloudflare Pages Functions → Hyperdrive → Neon Postgres. Both `/api/db-health` and `/api/db-test` are live in production. Block 2 (project shell — create projects, invite members, placeholder chat UI) is next.
+- **Block 1 is fully done; Block 2 Session 1 is shipped.** Data layer foundation is wired end-to-end through Cloudflare Pages Functions → Hyperdrive → Neon Postgres. Both `/api/db-health` and `/api/db-test` are live in production. Block 2's projects + members API endpoints are deployed (sub-tasks 2.0, 2.1, 2.2); Session 2 (projects list + create UI) is next.
 - **Solo build with Cursor + Claude.** No team. One task at a time.
 
 Your first move in any new session: read this file, read PROJECT.md, read the latest STATUS.md or git log, then check this handoff against reality before changing anything.
@@ -108,7 +108,7 @@ Four connectors, AI chat scoped per-project, free to users.
 Use the **Build Plan** doc (BUILD_PLAN.md) for the ordered task list. Nine blocks, in strict order:
 
 1. Block 1 — Database setup (Neon, pgvector, Hyperdrive, schema) ← **✅ DONE**
-2. **Block 2 — Project shell** (create projects, invite members, placeholder chat) ← **next**
+2. **Block 2 — Project shell** (create projects, invite members, placeholder chat) ← **in progress: Session 1 of 4 done; Session 2 next**
 3. Block 3 — Connector framework (interface + dummy connector)
 4. Block 4 — Slack connector
 5. Block 5 — First AI answer ← **milestone: product feels real here**
@@ -160,6 +160,38 @@ Use the **Build Plan** doc (BUILD_PLAN.md) for the ordered task list. Nine block
 - Test rows accumulate under `owner_user_id = 'block-1-task-4-test-user'`; cleanup SQL is documented in the file's top comment (soft-delete with `UPDATE projects SET deleted_at = NOW() WHERE owner_user_id = '...'`).
 
 **Where the project is right now:** Block 1 is fully closed. Data layer foundation is deployed end-to-end (Cloudflare Pages Functions → Hyperdrive → Neon Postgres + pgvector), with two live verification endpoints (`/api/db-health` and `/api/db-test`). Auth is intact. Ready to start Block 2 — Project shell (create projects, invite members, placeholder chat UI).
+
+### Block 2 detailed status (as of 2026-05-03)
+
+**Session 1 — Schema check + Projects API foundation: ✅ DONE**
+
+- **Sub-task 2.0 (schema check):** collapsed to verification only — no migrations needed. `users.is_admin` (D1) and `conversations.title` (Postgres) were already shaped correctly by the Block 1 schema design.
+- **Sub-task 2.1 (projects API):** three endpoints under `functions/api/projects/`:
+  - `POST /api/projects` — workspace-admin only; atomic project + creator-as-admin transaction.
+  - `GET /api/projects` — lists projects the session user is a member of (sorted `updated_at DESC, id DESC`).
+  - `GET /api/projects/:id` — project-member access; whitelisted columns (no `deleted_at` leak).
+- **Sub-task 2.2 (project members API):** three endpoints under `functions/api/projects/[id]/members/`:
+  - `POST /api/projects/:id/members` — project-admin invites existing D1 user (existing-users-only per design decision D).
+  - `GET /api/projects/:id/members` — project-member access; cross-DB email lookup (Postgres SELECT → bulk D1 IN-clause).
+  - `DELETE /api/projects/:id/members/:userId` — project-admin only; creator-protected (SELECT-owner pre-flight before DELETE).
+- **Two auth helpers added** to `functions/_lib/auth.js`:
+  - `requireWorkspaceAdmin` — D1-side; gates workspace-admin operations (project creation today, eventual `admin/*` migration).
+  - `requireProjectRole` — Postgres-side; gates per-project access. UUID validation, JOIN to `project_members`, role hierarchy (admin ≥ member), defensive `deleted_at IS NULL` filter, 403-collapse on every failure mode (PRD §10 cross-project enumeration prevention).
+- **Build plan committed** to `BLOCK_2_PLAN.md` — locked design decisions A–M, sub-task breakdown, four-session work order, schema prerequisites.
+- **Production verification:** 16-scenario curl matrix on the preview deploy (`https://3b2336e2.elinno-agent.pages.dev`), 16/16 PASS. Three orthogonal-property pairs hold:
+  - State-preservation on failed mutation (scenarios 6 → 5b: byte-identical millisecond timestamps confirm no half-success on a rejected DELETE).
+  - State-commitment on successful mutation (scenarios 7 → 8: fresh timestamps + no PK collision confirm the DELETE committed).
+  - 403-collapse equivalence class (scenarios 4 → 13 → 15: byte-identical 21-byte `{"error":"Forbidden"}` from three structurally-distinct authorization failures).
+  See PR #2 description for the full matrix and per-scenario assertions.
+- **PR #2 merged** via fast-forward (`01b7d01..0f5204c`); 9 commit SHAs preserved intact on `main`.
+
+**Session 2 — Projects list + create UI: next**
+
+- Sub-task 2.3 — `public/projects.html` + `public/projects/new.html`. APIs from Session 1 are ready; this is form + grid wiring against existing components. Shortest session of the four per `BLOCK_2_PLAN.md` §"Session-by-session work order".
+
+**Sessions 3 + 4:** conversations + messages API + chat UI (Session 3 — biggest session, most overrun risk per the plan); members tab UI + optional invite-notification email (Session 4). See `BLOCK_2_PLAN.md` for the detailed sub-task breakdown.
+
+**Current state:** Block 2 Session 1 is shipped to production via `main`. Six API endpoints live behind two centralized auth helpers (`requireWorkspaceAdmin` + `requireProjectRole`). UI work begins in Session 2.
 
 When you (Claude in a new session) are joining mid-build, the developer will tell you which task within which block they're on. If they don't, ask. Don't assume.
 
@@ -267,6 +299,14 @@ These are tracked but not blocking. Pick up when adjacent:
 - **Cross-DB orphan rows in `project_members`.** When an admin deletes a D1 user via `admin/users/[id].js` DELETE, the cascade only covers D1 (sessions, password_resets) — Postgres `project_members` rows for that user are left orphaned (no FK across engines). v1.1 doesn't trigger this in normal use (we don't routinely delete users) but the schema permits it. Two-part fix:
   1. **Data:** update `admin/users/[id].js` DELETE to also remove Postgres `project_members` rows for the deleted user. Folds naturally into the `requireWorkspaceAdmin` migration above — same file, same review.
   2. **UI (Block 2 Sub-task 2.6 / Session 4):** the members list (`GET /api/projects/:id/members`) returns orphan rows with `email: null` rather than filtering them. Render those in the members tab as "(deleted user)" or similar so admins can see and clean them up.
+- **SQLSTATE consistency datapoint.** Both `POST /api/projects/:id/members` (Block 2 PR #2, verification scenario 9) and `POST /api/admin/users` (legacy, surfaced incidentally during Bob-create in the same verification pass) return 409 + a specific message on PG error code `'23505'`. The two endpoints share the same `err.code === '23505'` detection contract, which strengthens the case that the deferred `requireWorkspaceAdmin` migration of `admin/*` above is a behavior-identical refactor.
+- **Cross-DB orphan present in production data.** P1 (UUID `f0362121-c703-4459-b9de-456582141727`) in Postgres has a `project_members` row whose `user_id` (`"4"`) no longer matches any D1 user — Alice (`alice@example.com`) was deleted from D1 during scenario 16 of the Block 2 verification matrix. Decision N2's runtime behavior — orphan rows surface with `email: null` rather than being silently filtered — is verified end-to-end. The orphan is deliberately preserved as live documentation of the cross-DB cleanup TODO above until the broader fix lands.
+- **Soft-deleted test projects in production.** P1 (`f0362121-c703-4459-b9de-456582141727`) and P2 (`79ba1898-cf7b-4af2-bc46-50579e29137a`) are tombstoned on Neon (`deleted_at = 2026-05-02 21:50:16.519669+00`, single UPDATE during the Block 2 verification cleanup). Invisible to the API thanks to `requireProjectRole`'s `deleted_at IS NULL` filter, but the rows are still on disk. If they ever become noisy in a query, a hard `DELETE FROM projects WHERE deleted_at < ...` cleanup is straightforward.
+- **Decide IDE markdown-formatter policy.** During the Block 2 Session 1 closeout, an IDE format-on-focus formatter silently rewrote `BLOCK_2_PLAN.md` (47 insertions, 8 deletions, zero content change — table column-alignment, blank lines after headers, removed EOF newline) when the file was opened in the editor. The reformat was discarded via `git restore` before the merge, but the formatter behavior bypasses the working agreement's "every diff reviewed before commit" rule structurally. Pick one of two options before the next session and codify it:
+  1. Add a project-level `.prettierrc` or `.markdownlint.json` codifying the preferred style, and run it deliberately as a one-time normalize-all-markdown commit on its own branch (changes ride a single review pass).
+  2. Disable format-on-save / format-on-focus for `.md` files in the workspace (preserve current formatting as committed).
+
+  Either option is fine; the current state — formatter fires silently on focus, with no codified style — is not.
 
 ---
 
