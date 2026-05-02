@@ -15,7 +15,7 @@ You are joining a project mid-build. Here's the shape of it:
 
 - **Elinno Agent** is a multi-tenant project intelligence platform. An admin creates a project, connects external tools (Jira, Slack, Monday, Google Drive), and the platform syncs that data into a unified store. Members chat with an AI assistant scoped to a single project, asking questions like "how many tickets in this sprint?" or "how much did we spend on testing?"
 - **The auth foundation is already deployed** at [https://elinnoagent.com](https://elinnoagent.com) (Cloudflare Pages + Pages Functions + D1).
-- **Block 1 of 9 is in progress — Tasks 1 and 2 are done.** Neon Postgres provisioned with pgvector, Hyperdrive bound to the Pages project, `/api/db-health` live in production. Next up is Block 1 Task 3 — designing the Postgres schema for the eight tables (`projects`, `project_members`, `connections`, `entities`, `entity_embeddings`, `sync_runs`, `conversations`, `messages`).
+- **Block 1 of 9 is in progress — Tasks 1, 2, and 3 are done.** Neon Postgres provisioned with pgvector, Hyperdrive bound to the Pages project, `/api/db-health` live in production, and the canonical 8-table Postgres schema (`projects`, `project_members`, `connections`, `entities`, `entity_embeddings`, `sync_runs`, `conversations`, `messages`) is applied to Neon and committed to `db/schema-postgres.sql`. Block 1 Task 4 (test insert/read endpoint) is the only Block 1 work remaining.
 - **Solo build with Cursor + Claude.** No team. One task at a time.
 
 Your first move in any new session: read this file, read PROJECT.md, read the latest STATUS.md or git log, then check this handoff against reality before changing anything.
@@ -140,11 +140,21 @@ Use the **Build Plan** doc (BUILD_PLAN.md) for the ordered task list. Nine block
 - `functions/api/db-health.js` ships through Hyperdrive to Neon. Verified end-to-end on production: `https://elinnoagent.com/api/db-health` returns the expected JSON with live Postgres 17 + Hyperdrive-shaped host (2026-05-02).
 - `package.json` (postgres ^3.4.9) and `wrangler.toml` landed. `wrangler.toml` is now the **production source of truth** for the Pages project's bindings, vars, and compatibility settings — see "Production / repo facts" below for what that means in practice.
 
-**Task 3 — Schema:** not started. Will draft together in a separate planning session before applying. Tables to design: `projects`, `project_members`, `connections`, `entities`, `entity_embeddings`, `sync_runs`, `conversations`, `messages`. Per PRD §5.5, embeddings use pgvector with HNSW indexes (pgvector 0.8.0 supports HNSW).
+**Task 3 — Postgres schema designed and applied: ✅ DONE**
 
-**Task 4 — Test insert/read endpoint:** not started. Depends on Task 3.
+- Eight tables landed on Neon production branch (`elinno_agent_db`) on 2026-05-02. Verified: 8 tables present, `pgcrypto` 1.3 + `pgvector` 0.8.0 extensions active, HNSW index with `vector_cosine_ops` on `entity_embeddings`. Canonical SQL committed to `db/schema-postgres.sql` (merge commit `ce54a67`).
+- Tables: `projects`, `project_members`, `connections`, `entities`, `entity_embeddings`, `sync_runs`, `conversations`, `messages`.
+- Design decisions (documented inline in the schema header):
+  - UUID v4 primary keys (`gen_random_uuid()` via `pgcrypto`)
+  - 1536-dim embeddings, planning OpenAI `text-embedding-3-small`
+  - HNSW with cosine distance (`vector_cosine_ops`, m=16, ef_construction=64)
+  - Hybrid soft-delete: top-level records (projects, connections, conversations, messages) soft-deleted; derived data (project_members, entities, entity_embeddings, sync_runs) hard-deleted on FK cascade
+  - Envelope encryption for connector credentials: 3 cols (`wrapped_data_key`, `iv`, `ciphertext_credentials`) plus `encryption_algorithm`
+- Cross-DB seam: users live in D1 (auth), referenced from Postgres as `TEXT` with no FK enforcement — application code verifies user existence in D1 before inserting user-referencing rows in Neon.
 
-**Where the project is right now:** Foundation is deployed. Block 1 Tasks 1 and 2 are complete (Hyperdrive plumbing verified end-to-end against Neon in production). Next: Block 1 Task 3 — Postgres schema design (`projects`, `project_members`, `connections`, `entities`, `entity_embeddings`, `sync_runs`, `conversations`, `messages`).
+**Task 4 — Test insert/read endpoint:** not started. Depends on Task 3 (now done — Task 4 is unblocked).
+
+**Where the project is right now:** Foundation is deployed. Block 1 Tasks 1, 2, and 3 are complete (Hyperdrive plumbing live in production, 8-table Postgres schema applied to Neon and committed). Next: Block 1 Task 4 — test insert/read endpoint that exercises the schema through Hyperdrive.
 
 When you (Claude in a new session) are joining mid-build, the developer will tell you which task within which block they're on. If they don't, ask. Don't assume.
 
