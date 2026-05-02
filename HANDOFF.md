@@ -15,7 +15,7 @@ You are joining a project mid-build. Here's the shape of it:
 
 - **Elinno Agent** is a multi-tenant project intelligence platform. An admin creates a project, connects external tools (Jira, Slack, Monday, Google Drive), and the platform syncs that data into a unified store. Members chat with an AI assistant scoped to a single project, asking questions like "how many tickets in this sprint?" or "how much did we spend on testing?"
 - **The auth foundation is already deployed** at [https://elinnoagent.com](https://elinnoagent.com) (Cloudflare Pages + Pages Functions + D1).
-- **Block 1 of 9 is in progress — Tasks 1, 2, and 3 are done.** Neon Postgres provisioned with pgvector, Hyperdrive bound to the Pages project, `/api/db-health` live in production, and the canonical 8-table Postgres schema (`projects`, `project_members`, `connections`, `entities`, `entity_embeddings`, `sync_runs`, `conversations`, `messages`) is applied to Neon and committed to `db/schema-postgres.sql`. Block 1 Task 4 (test insert/read endpoint) is the only Block 1 work remaining.
+- **Block 1 is fully done.** Data layer foundation is wired end-to-end through Cloudflare Pages Functions → Hyperdrive → Neon Postgres. Both `/api/db-health` and `/api/db-test` are live in production. Block 2 (project shell — create projects, invite members, placeholder chat UI) is next.
 - **Solo build with Cursor + Claude.** No team. One task at a time.
 
 Your first move in any new session: read this file, read PROJECT.md, read the latest STATUS.md or git log, then check this handoff against reality before changing anything.
@@ -107,8 +107,8 @@ Four connectors, AI chat scoped per-project, free to users.
 
 Use the **Build Plan** doc (BUILD_PLAN.md) for the ordered task list. Nine blocks, in strict order:
 
-1. **Block 1 — Database setup** (Neon, pgvector, Hyperdrive, schema) ← **in progress**
-2. Block 2 — Project shell (create projects, invite members, placeholder chat)
+1. Block 1 — Database setup (Neon, pgvector, Hyperdrive, schema) ← **✅ DONE**
+2. **Block 2 — Project shell** (create projects, invite members, placeholder chat) ← **next**
 3. Block 3 — Connector framework (interface + dummy connector)
 4. Block 4 — Slack connector
 5. Block 5 — First AI answer ← **milestone: product feels real here**
@@ -152,9 +152,14 @@ Use the **Build Plan** doc (BUILD_PLAN.md) for the ordered task list. Nine block
   - Envelope encryption for connector credentials: 3 cols (`wrapped_data_key`, `iv`, `ciphertext_credentials`) plus `encryption_algorithm`
 - Cross-DB seam: users live in D1 (auth), referenced from Postgres as `TEXT` with no FK enforcement — application code verifies user existence in D1 before inserting user-referencing rows in Neon.
 
-**Task 4 — Test insert/read endpoint:** not started. Depends on Task 3 (now done — Task 4 is unblocked).
+**Task 4 — Test insert/read endpoint: ✅ DONE**
 
-**Where the project is right now:** Foundation is deployed. Block 1 Tasks 1, 2, and 3 are complete (Hyperdrive plumbing live in production, 8-table Postgres schema applied to Neon and committed). Next: Block 1 Task 4 — test insert/read endpoint that exercises the schema through Hyperdrive.
+- Endpoint: `functions/api/db-test.js` (commit `8d28b60`, merged via `cdb9636`).
+- `GET /api/db-test` inserts a row into `projects` and returns it via `RETURNING *` (single round-trip, atomic).
+- Verified end-to-end on preview AND production: `ok: true`, fresh UUID per hit, ISO `created_at`/`updated_at`, Hyperdrive-shaped host, real Neon Postgres 17.8 response.
+- Test rows accumulate under `owner_user_id = 'block-1-task-4-test-user'`; cleanup SQL is documented in the file's top comment (soft-delete with `UPDATE projects SET deleted_at = NOW() WHERE owner_user_id = '...'`).
+
+**Where the project is right now:** Block 1 is fully closed. Data layer foundation is deployed end-to-end (Cloudflare Pages Functions → Hyperdrive → Neon Postgres + pgvector), with two live verification endpoints (`/api/db-health` and `/api/db-test`). Auth is intact. Ready to start Block 2 — Project shell (create projects, invite members, placeholder chat UI).
 
 When you (Claude in a new session) are joining mid-build, the developer will tell you which task within which block they're on. If they don't, ask. Don't assume.
 
@@ -216,6 +221,7 @@ If any doc contradicts another, **the PRD is the source of truth for what to bui
 
 - **Production URL:** [https://elinnoagent.com](https://elinnoagent.com) (also [www.elinnoagent.com](http://www.elinnoagent.com))
 - **Production health endpoint:** [https://elinnoagent.com/api/db-health](https://elinnoagent.com/api/db-health) — verified working as of 2026-05-02. Returns `{ ok: true, one: 1, now, postgres_version, hyperdrive_host }`, proving the Pages Function → Hyperdrive → Neon path is live.
+- **Production schema verification endpoint:** [https://elinnoagent.com/api/db-test](https://elinnoagent.com/api/db-test) — verified working as of 2026-05-02. Inserts a row into `projects` and returns it via `RETURNING *`, proving the full schema works end-to-end (not just the connection). Test rows accumulate under `owner_user_id = 'block-1-task-4-test-user'`; cleanup SQL is documented in the top comment of `functions/api/db-test.js`.
 - **Cloudflare Pages project:** `elinno-agent`
 - **Cloudflare Account ID:** `da2174836d9863b4f2fcafeba4dbff3c`
 - **GitHub repo:** [https://github.com/Jenny-Joni/elinno-agent](https://github.com/Jenny-Joni/elinno-agent)
