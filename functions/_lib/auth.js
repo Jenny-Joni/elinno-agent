@@ -1,6 +1,11 @@
 // functions/_lib/auth.js
 // Shared helpers for the Elinno Agent auth system.
-// Uses only Web Crypto APIs available in Cloudflare Workers / Pages Functions.
+// Uses Web Crypto APIs (D1-side: sessions, password hashing) and the
+// `postgres` client (Postgres-side: project_members lookup for project-
+// scoped access checks). Both bindings — env.DB (D1) and env.HYPERDRIVE
+// (Hyperdrive → Neon) — are declared in wrangler.toml.
+
+import postgres from 'postgres';
 
 // ---------- Constants ---------------------------------------------------
 
@@ -177,4 +182,94 @@ export function isValidEmail(email) {
 export function isValidPassword(pw) {
   // Minimum: 8 chars. Keep loose; we leave complexity up to user.
   return typeof pw === 'string' && pw.length >= 8 && pw.length <= 256;
+}
+
+// ---------- Project-scoped access --------------------------------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Verify the session user has at least the requested role on a project.
+ *
+ * Mirrors the `requireAdmin` pattern in functions/api/admin/users.js:
+ * returns `{ error: Response }` on failure for early-return, or
+ * `{ user, role }` on success. No throws — Pages Function handlers
+ * convert exceptions clumsily into HTTP responses.
+ *
+ * Authorization layers, in order:
+ *   1. Session valid (D1)                                → otherwise 401
+ *   2. projectId is a syntactically valid UUID           → otherwise 400
+ *   3. User is an active project member AND project
+ *      is not soft-deleted                               → otherwise 403
+ *   4. User's role on the project meets requiredRole     → otherwise 403
+ *
+ * Failure cases 3a (not a member), 3b (pending invite — joined_at NULL),
+ * and 3c (project soft-deleted) all collapse to one 403 so the API never
+ * leaks which projects exist or which a user is/isn't in. PRD §10
+ * lists cross-project leakage as a top threat.
+ *
+ * Role hierarchy: 'admin' satisfies 'member'-level requirements;
+ * 'member' does NOT satisfy 'admin'. v1.1 schema CHECK constrains role
+ * to ('admin','member') — see db/schema-postgres.sql.
+ *
+ * Cross-DB seam: D1 users.id is INTEGER, Postgres project_members.user_id
+ * is TEXT with no FK (db/schema-postgres.sql header). We coerce with
+ * String(user.id) at the boundary.
+ *
+ * @param {Request} request - Pages Function request (cookies live here)
+ * @param {object} env - Pages Function env (env.DB + env.HYPERDRIVE)
+ * @param {string} projectId - From URL path :id
+ * @param {'admin'|'member'} requiredRole
+ * @returns {Promise<{user: object, role: 'admin'|'member'} | {error: Response}>}
+ */
+export async function requireProjectRole(request, env, projectId, requiredRole) {
+  if (requiredRole !== 'admin' && requiredRole !== 'member') {
+    return { error: error('Internal error', 500) };
+  }
+
+  const user = await getSessionUser(request, env.DB);
+  if (!user) return { error: error('Not authenticated', 401) };
+
+  if (typeof projectId !== 'string' || !UUID_RE.test(projectId)) {
+    return { error: error('Invalid project id', 400) };
+  }
+
+  const userIdText = String(user.id);
+  const sql = postgres(env.HYPERDRIVE.connectionString, {
+    max: 5,
+    fetch_types: false,
+  });
+
+  try {
+    const rows = await sql`
+      SELECT pm.role
+        FROM project_members pm
+        JOIN projects p ON p.id = pm.project_id
+       WHERE pm.project_id = ${projectId}
+         AND pm.user_id    = ${userIdText}
+         AND pm.joined_at  IS NOT NULL
+         AND p.deleted_at  IS NULL
+       LIMIT 1
+    `;
+
+    if (rows.length === 0) {
+      return { error: error('Forbidden', 403) };
+    }
+
+    const role = rows[0].role;
+
+    if (requiredRole === 'admin' && role !== 'admin') {
+      return { error: error('Forbidden', 403) };
+    }
+
+    return { user, role };
+  } catch (_err) {
+    return { error: error('Internal error', 500) };
+  } finally {
+    try {
+      await sql.end({ timeout: 5 });
+    } catch {
+      // best-effort cleanup; never masks the return value
+    }
+  }
 }
