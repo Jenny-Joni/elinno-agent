@@ -13,12 +13,14 @@
 //        → send a message. Single round-trip per decision I:
 //            1. validate content
 //            2. verify conversation belongs to project + session user
-//            3. insert messages row (role='user')
-//            4. if first user message in conversation, update
-//               conversations.title from truncated content (decision H)
+//               (and capture current title for decision H)
+//            3. if conversation title is still the default 'New conversation',
+//               derive new title from content (decision H — see DECISION H
+//               IMPLEMENTATION NOTE below)
+//            4. insert messages row (role='user')
 //            5. generate echo (decision I exact format)
 //            6. insert second messages row (role='assistant')
-//            7. update conversations.updated_at
+//            7. update conversations.title + updated_at
 //            8. return user_message + assistant_message + the
 //               (possibly updated) conversation title (decision X)
 //
@@ -46,9 +48,43 @@
 //   conversation-id-and-content tuple) reproduces the Block 2 Session 3
 //   500-on-every-send bug. The Decision-H/I/X happy paths (matrix scenarios
 //   2, 3, 4 of the trimmed verification) all break without it.
+//
+// DECISION H IMPLEMENTATION NOTE — title-state trigger, not message-count:
+//   Decision H says auto-title fires "from first user message." The natural
+//   reading is "count existing user messages, fire if zero." We tried that
+//   first; it failed in production verification because Hyperdrive's query
+//   result cache returns stale COUNT data: the previous send's INSERT lands
+//   in Postgres, but a SELECT COUNT(*) issued on the next send still hits
+//   the cached pre-INSERT result and returns 0 — so every send re-derives
+//   the title (matrix scenario 4 of the trimmed verification, plus the
+//   decisive 2-curl test that pinned the bug).
+//
+//   The fix substitutes a title-state check for the count check: if the
+//   current `conversations.title` equals the default literal 'New conversation'
+//   (set by the conversations POST handler on creation per decision G), this
+//   is the first user-message-driven title-set; replace it. Otherwise keep
+//   the existing title.
+//
+//   This sidesteps the Hyperdrive cache entirely (the conv-guard SELECT
+//   above is the only read; we already have its result), and removes one
+//   round-trip per send.
+//
+//   Trade-off vs the count-based reading of Decision H: in v1.1 the only
+//   thing that mutates `conversations.title` is this auto-title logic, so
+//   "title is default" and "no user messages yet" are equivalent. If a
+//   future Block adds user-renameable conversations (Block 9 polish bucket),
+//   the semantics shift slightly: a user who renames a conversation back
+//   to the literal string 'New conversation' would re-trigger auto-title
+//   on their next send. That's a stretch case the PRD doesn't address;
+//   Block 9 to revisit if it surfaces.
 
 import postgres from 'postgres';
 import { error, json, requireProjectRole } from '../../../../../_lib/auth.js';
+
+// Decision G: literal default title set by the conversations POST handler
+// at conversation creation. Decision H replaces this on the first user
+// message — see DECISION H IMPLEMENTATION NOTE in the file header.
+const DEFAULT_CONVERSATION_TITLE = 'New conversation';
 
 // Decision H: first ~50 chars, truncate at word boundary, append "…" if truncated.
 function deriveTitleFromMessage(content) {
@@ -158,7 +194,8 @@ export async function onRequestPost({ request, env, params }) {
 
   try {
     // Conversation guard (same as GET): belongs to this project AND user.
-    // Includes current title so we can decide whether to auto-title.
+    // Includes current title — we use it for decision H's auto-title trigger
+    // (see DECISION H IMPLEMENTATION NOTE in file header).
     const [conv] = await sql`
       SELECT id, title
       FROM conversations
@@ -170,20 +207,13 @@ export async function onRequestPost({ request, env, params }) {
     `;
     if (!conv) return error('Forbidden', 403);
 
-    // Decision H trigger: auto-title fires only on the first USER message.
-    // Implementation: count existing user-role messages in this conversation
-    // BEFORE we insert the new one. Zero existing → this is the first → set title.
-    // The default title 'New conversation' set by the conversations POST
-    // handler is what gets replaced.
-    const [{ count: existingUserCount }] = await sql`
-      SELECT COUNT(*)::int AS count
-      FROM messages
-      WHERE conversation_id = ${params.conversationId}
-        AND role            = 'user'
-        AND deleted_at IS NULL
-    `;
-    const isFirstUserMessage = existingUserCount === 0;
-    const newTitle = isFirstUserMessage ? deriveTitleFromMessage(content) : conv.title;
+    // Decision H: auto-title fires once, when the title is still the default.
+    // No COUNT(*) round-trip — see DECISION H IMPLEMENTATION NOTE in header
+    // for why the count-based reading was abandoned (Hyperdrive query cache
+    // returns stale "0 messages" results, which fired auto-title on every
+    // send).
+    const isFirstTitleSet = conv.title === DEFAULT_CONVERSATION_TITLE;
+    const newTitle = isFirstTitleSet ? deriveTitleFromMessage(content) : conv.title;
 
     // Insert user message. project_id required (see SCHEMA NOTE in header).
     const [userMessage] = await sql`
