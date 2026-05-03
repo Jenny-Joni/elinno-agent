@@ -1141,3 +1141,195 @@ table.users-table {
 
   .tab-placeholder { padding: 20px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Block 2 / Sub-task 2.6 — members tab UI
+   Net-new components per BLOCK_2_PLAN.md decisions D, L, M, Q, Y.
+   No existing selectors are modified.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ---------- Tab count pill (decision Y, deferred from 2.5) ---------- */
+.project-tab .tab-count {
+  font-family: var(--font-regular);
+  font-weight: 400;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 50px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-text-body);
+}
+.project-tab.active .tab-count {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+/* ---------- Members tab body ---------- */
+.members-area {
+  flex: 1;
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+/* Invite row — soft-grey panel matching the mockup screen-4 pattern.
+   Field + button side-by-side at desktop; stacks below 700px. */
+.invite-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  background: var(--color-bg-soft);
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  margin-bottom: 32px;
+  align-items: end;
+}
+.invite-row .field { margin: 0; }
+.invite-row .field input { background: #fff; }
+.invite-row .field input:focus { background: rgba(0, 0, 0, 0.04); }
+.invite-row .btn-primary { width: auto; padding: 16px 22px; }
+.invite-row .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.invite-row .btn-primary:disabled:hover { filter: none; }
+.invite-error {
+  grid-column: 1 / -1;
+  font-family: var(--font-regular);
+  font-size: 13px;
+  color: var(--color-error);
+  margin-top: -4px;
+}
+
+.members-section-title {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 16px;
+}
+
+/* Members list — white card. Decision Y referenced admin.html's table; we use
+   a CSS-grid row pattern to match the mockup verbatim (.member-row with
+   grid-template-columns). Visually equivalent, semantically distinct. */
+.members-list {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.member-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--t-form);
+}
+/* Read-only view (non-admin members) — collapse the trailing Remove column. */
+.member-row.read-only {
+  grid-template-columns: auto 1fr auto;
+}
+.member-row:last-child { border-bottom: none; }
+.member-row:hover { background: var(--color-bg-wash); }
+
+.member-row .avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-brand-tint);
+  color: var(--color-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+/* Self-row marker: solid-brand avatar (mockup line 1250). */
+.member-row.you .avatar {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+.member-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.member-email {
+  color: var(--color-text-dark);
+  font-family: var(--font-regular);
+  font-size: 15px;
+  font-weight: 500;
+  word-break: break-all;
+}
+.member-email .self {
+  color: var(--color-text-muted);
+  font-weight: 400;
+  font-size: 13px;
+  margin-left: 4px;
+}
+.member-meta {
+  color: var(--color-text-muted);
+  font-family: var(--font-regular);
+  font-size: 12px;
+}
+
+/* Disabled Remove (creator's row) — faded, no hover-fill. */
+.btn-danger.member-remove-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-danger.member-remove-btn:disabled:hover {
+  background: transparent;
+  color: var(--color-error);
+}
+
+/* Skeleton loading row — reuses the projects.html shimmer animation. */
+.member-row-skeleton {
+  height: 72px;
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-soft) 0%,
+    #fff 50%,
+    var(--color-bg-soft) 100%
+  );
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.member-row-skeleton:last-child { border-bottom: none; }
+
+/* ---------- Mobile floor (≤700px) — members tab ----------
+   Invite row stacks. Member row drops the role badge to reclaim horizontal
+   space for the email (only 320–375px content width on phone viewports);
+   role info is redundant with the (you) marker on the creator's row in v1.1
+   since promotion is deferred to Block 9 per decision M. Block 9 polish
+   task if anyone misses the badge on mobile. */
+@media (max-width: 700px) {
+  .members-area { padding: 20px 18px; }
+
+  .invite-row {
+    grid-template-columns: 1fr;
+    padding: 18px;
+    gap: 12px;
+  }
+  .invite-row .btn-primary {
+    width: 100%;
+    padding: 14px 22px;
+  }
+
+  .member-row {
+    grid-template-columns: auto 1fr auto;
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  .member-row.read-only {
+    grid-template-columns: auto 1fr;
+  }
+  .member-row .avatar { width: 36px; height: 36px; font-size: 12px; }
+  .member-row .badge { display: none; }
+  .member-email { font-size: 14px; }
+  .member-meta { font-size: 11px; }
+}

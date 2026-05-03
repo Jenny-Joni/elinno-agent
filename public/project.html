@@ -60,6 +60,11 @@
     const messagesById = {};   // cache: conversationId → messages[] (avoids refetch on tab switch)
     let drawerOpen = false;    // decision AA: in-memory only
     let inFlight = false;      // global send-in-flight guard
+    // Members tab state (sub-task 2.6). `members` is null until first successful
+    // load — boot fetches eagerly so the tab pill renders from initial paint.
+    // memberCount being null means "unknown"; the pill stays hidden.
+    let members = null;
+    let memberCount = null;
 
     const VALID_TABS = { chat: 1, members: 1, connections: 1 };
 
@@ -225,6 +230,25 @@
           conversations = [createData.conversation];
         }
 
+        // Sub-task 2.6: eager members fetch so the Members tab's count pill
+        // (decision Y) renders from initial paint, not after first tab open.
+        // Latency cost is one additional GET on every project.html boot
+        // (~50ms typical). On non-OK we leave members=null/memberCount=null —
+        // boot doesn't fail just because the count is unknown; the Members
+        // tab will retry the fetch on first open.
+        try {
+          const memRes = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/members');
+          if (memRes.status === 401) { redirectToLogin(); return; }
+          if (memRes.status === 403) { location.replace('/projects.html'); return; }
+          if (memRes.ok) {
+            const memData = await memRes.json().catch(() => ({}));
+            members = Array.isArray(memData.members) ? memData.members : [];
+            memberCount = members.length;
+          }
+        } catch {
+          // Swallow — Members tab open will retry. Chat still works.
+        }
+
         // Step 4 (decisions F + V): resolve activeConvId — ?c= if it matches a
         // real row, otherwise most-recent (conversations[0] is updated_at DESC).
         if (initialConvId && conversations.some(c => c.id === initialConvId)) {
@@ -283,7 +307,7 @@
               </div>
               <div class="project-tabs" id="tabStrip">
                 <button class="project-tab" type="button" data-tab="chat">Chat</button>
-                <button class="project-tab" type="button" data-tab="members">Members</button>
+                <button class="project-tab" type="button" data-tab="members">Members <span class="tab-count" id="memberCountPill"${memberCount === null ? ' style="display:none;"' : ''}>${memberCount === null ? '' : escapeHtml(String(memberCount))}</span></button>
                 <button class="project-tab" type="button" data-tab="connections">Connections</button>
               </div>
             </div>
@@ -360,7 +384,7 @@
     function renderTabBody() {
       const body = document.getElementById('tabBody');
       if (activeTab === 'chat') renderChat(body);
-      else if (activeTab === 'members') renderMembersPlaceholder(body);
+      else if (activeTab === 'members') renderMembers(body);
       else renderConnectionsPlaceholder(body);
     }
 
@@ -664,25 +688,323 @@
       }
     }
 
-    // ---------- Placeholder tabs (decision Y) ----------
-    function renderMembersPlaceholder(body) {
-      // Two-person SVG reused from projects.html's empty-non-admin state (decision Y).
+    // ---------- Members tab (sub-task 2.6) ----------
+    //
+    // Admins see the invite row + members list with Remove buttons (creator's
+    // Remove disabled). Non-admins see a read-only list — no invite row,
+    // no Remove buttons (decision: read-only view per session-4 plan).
+    //
+    // Cache strategy: the boot pipeline fetches members eagerly so the tab
+    // pill renders from initial paint. If that fetch failed (members === null),
+    // first Members-tab open re-fetches; on subsequent opens the cached
+    // members[] renders instantly. Invite/remove always re-fetch the list
+    // (per-spec: "After invite/remove, refetch the list and re-render.
+    // Optimistic updates not needed at this scale.")
+    function renderMembers(body) {
+      const isProjectAdmin = project.role === 'admin';
       body.innerHTML = `
-        <div class="tab-placeholder">
-          <div class="state-card">
-            <div class="state-card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="9" cy="8" r="3"/>
-                <path d="M3 19c0-2.8 2.7-5 6-5s6 2.2 6 5"/>
-                <circle cx="17" cy="10" r="2.5"/>
-                <path d="M15 15c.7-.3 1.3-.5 2-.5 2.5 0 4.5 2 4.5 4.5"/>
-              </svg>
+        <div class="members-area">
+          ${isProjectAdmin ? `
+            <div class="invite-row">
+              <div class="field">
+                <label for="inviteEmail">Invite by email</label>
+                <input id="inviteEmail" type="email" placeholder="teammate@elinnovation.net" autocomplete="email" />
+              </div>
+              <button class="btn btn-primary" id="inviteBtn" type="button" disabled>Send invite</button>
+              <div class="invite-error" id="inviteError" style="display:none;" role="alert"></div>
             </div>
-            <h2 class="state-card-heading">Members coming soon</h2>
-            <p class="state-card-body">You'll be able to invite people and manage roles from this tab in the next deploy.</p>
+          ` : ''}
+          <div class="members-section-title" id="membersSectionTitle">Loading…</div>
+          <div id="membersListContainer"></div>
+        </div>
+      `;
+
+      if (isProjectAdmin) wireInvite();
+
+      if (members !== null) {
+        renderMembersList();
+      } else {
+        loadMembers();
+      }
+    }
+
+    function wireInvite() {
+      const input = document.getElementById('inviteEmail');
+      const btn = document.getElementById('inviteBtn');
+      if (!input || !btn) return;
+      input.addEventListener('input', () => {
+        btn.disabled = input.value.trim().length === 0;
+      });
+      // IME-safe Enter handling — same pattern as the chat composer (decision W).
+      input.addEventListener('keydown', (e) => {
+        if (e.isComposing || e.keyCode === 229) return;
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          onInviteSubmit();
+        }
+      });
+      btn.addEventListener('click', onInviteSubmit);
+    }
+
+    async function loadMembers() {
+      const container = document.getElementById('membersListContainer');
+      const title = document.getElementById('membersSectionTitle');
+      if (!container) return;
+
+      // Three-row skeleton — quick visual cue that data's loading.
+      container.innerHTML = `
+        <div class="members-list" aria-busy="true" aria-label="Loading members">
+          <div class="member-row-skeleton"></div>
+          <div class="member-row-skeleton"></div>
+          <div class="member-row-skeleton"></div>
+        </div>
+      `;
+      if (title) title.textContent = 'Loading…';
+
+      let res;
+      try {
+        res = await fetch('/api/projects/' + encodeURIComponent(project.id) + '/members');
+      } catch {
+        renderMembersError();
+        return;
+      }
+      if (res.status === 401) { redirectToLogin(); return; }
+      if (res.status === 403) { location.replace('/projects.html'); return; }
+      if (!res.ok) { renderMembersError(); return; }
+
+      const data = await res.json().catch(() => ({}));
+      members = Array.isArray(data.members) ? data.members : [];
+      memberCount = members.length;
+      updateMemberCountPill();
+      renderMembersList();
+    }
+
+    function renderMembersError() {
+      const container = document.getElementById('membersListContainer');
+      const title = document.getElementById('membersSectionTitle');
+      if (!container) return;
+      container.innerHTML = `
+        <div class="state-card" role="alert">
+          <div class="state-card-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l9.5 17H2.5L12 3z"/>
+              <line x1="12" y1="9" x2="12" y2="14"/>
+              <line x1="12" y1="17.5" x2="12" y2="17.51"/>
+            </svg>
+          </div>
+          <h2 class="state-card-heading">Couldn't load members</h2>
+          <p class="state-card-body">Check your connection or refresh the page if this persists.</p>
+          <div class="state-card-actions">
+            <button class="btn btn-primary" id="membersRetryBtn" type="button">Retry</button>
           </div>
         </div>
       `;
+      if (title) title.textContent = '';
+      const retry = document.getElementById('membersRetryBtn');
+      if (retry) retry.addEventListener('click', loadMembers);
+    }
+
+    function renderMembersList() {
+      const container = document.getElementById('membersListContainer');
+      const title = document.getElementById('membersSectionTitle');
+      if (!container) return;
+
+      if (title) {
+        title.textContent = members.length === 1 ? '1 member' : members.length + ' members';
+      }
+
+      const isProjectAdmin = project.role === 'admin';
+      container.innerHTML = `
+        <div class="members-list">
+          ${members.map(m => renderMemberRow(m, isProjectAdmin)).join('')}
+        </div>
+      `;
+
+      if (isProjectAdmin) {
+        container.querySelectorAll('.member-remove-btn').forEach(btn => {
+          btn.addEventListener('click', () => onRemoveClick(btn.dataset.userId, btn));
+        });
+      }
+    }
+
+    function renderMemberRow(m, isProjectAdmin) {
+      const userIdStr = String(m.user_id);
+      const isYou = userIdStr === String(me.id);
+      const isCreator = userIdStr === String(project.owner_user_id);
+      // .read-only collapses the trailing Remove column on non-admin views;
+      // see CSS for the grid-template-columns swap.
+      const cls = 'member-row' + (isYou ? ' you' : '') + (!isProjectAdmin ? ' read-only' : '');
+      // Email may be null for orphan rows (project_members without a matching D1
+      // user — surfaced rather than hidden, per the API contract).
+      const email = m.email || '(orphan: id=' + userIdStr + ')';
+      const initial = m.email ? deriveUserInitial(m.email) : '?';
+      const meta = formatMemberMeta(m, isCreator);
+      const roleBadge = isCreator
+        ? '<span class="badge">Admin</span>'
+        : '<span class="badge muted">Member</span>';
+      const removeBtn = isProjectAdmin
+        ? '<button class="btn-danger member-remove-btn" type="button" data-user-id="' + escapeHtml(userIdStr) + '"' + (isCreator ? ' disabled' : '') + '>Remove</button>'
+        : '';
+      const youSuffix = isYou ? ' <span class="self">(you)</span>' : '';
+      return `
+        <div class="${cls}">
+          <div class="avatar">${escapeHtml(initial)}</div>
+          <div class="member-info">
+            <div class="member-email">${escapeHtml(email)}${youSuffix}</div>
+            <div class="member-meta">${escapeHtml(meta)}</div>
+          </div>
+          ${roleBadge}
+          ${removeBtn}
+        </div>
+      `;
+    }
+
+    function formatMemberMeta(m, isCreator) {
+      // Creator uses joined_at ("Joined as creator · 28 Apr"); invitees use
+      // invited_at ("Invited 2 May") to match the mockup verbatim.
+      if (isCreator) {
+        const dateStr = formatShortDate(m.joined_at);
+        return dateStr ? 'Joined as creator · ' + dateStr : 'Joined as creator';
+      }
+      const dateStr = formatShortDate(m.invited_at);
+      return dateStr ? 'Invited ' + dateStr : 'Invited';
+    }
+
+    function formatShortDate(value) {
+      if (!value) return '';
+      try {
+        const d = new Date(value);
+        if (isNaN(d.getTime())) return '';
+        // "28 Apr" / "2 May" — day + abbreviated month, no year.
+        return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(d);
+      } catch {
+        return '';
+      }
+    }
+
+    function updateMemberCountPill() {
+      const pill = document.getElementById('memberCountPill');
+      if (!pill) return;
+      if (memberCount === null) {
+        pill.style.display = 'none';
+        pill.textContent = '';
+      } else {
+        pill.style.display = '';
+        pill.textContent = String(memberCount);
+      }
+    }
+
+    async function onInviteSubmit() {
+      const input = document.getElementById('inviteEmail');
+      const btn = document.getElementById('inviteBtn');
+      if (!input || !btn || btn.disabled) return;
+      const email = input.value.trim();
+      if (email.length === 0) return;
+
+      const origText = btn.textContent;
+      btn.textContent = 'Sending…';
+      btn.disabled = true;
+      input.disabled = true;
+      hideInviteError();
+
+      let res;
+      try {
+        res = await fetch('/api/projects/' + encodeURIComponent(project.id) + '/members', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+      } catch {
+        showInviteError('Something went wrong. Please try again.');
+        restoreInviteForm(btn, input, origText);
+        return;
+      }
+
+      if (res.status === 401) { redirectToLogin(); return; }
+      // 403 from requireProjectRole = stale-admin-state. Bounce so the user
+      // returns to a known UI state rather than seeing a bare "Forbidden".
+      if (res.status === 403) { location.replace('/projects.html'); return; }
+
+      if (!res.ok) {
+        // 400 / 404 / 409 / 500 — render server's error verbatim per decision N.
+        // The members API uses user-facing-quality strings already
+        // ("Invalid email", "No Elinno account…", "User is already a member…").
+        const data = await res.json().catch(() => ({}));
+        const msg = (data && data.error) ? data.error : 'Something went wrong. Please try again.';
+        showInviteError(msg);
+        restoreInviteForm(btn, input, origText);
+        return;
+      }
+
+      // 201 success — clear input, refetch list.
+      input.value = '';
+      restoreInviteForm(btn, input, origText);
+      await loadMembers();
+    }
+
+    function showInviteError(msg) {
+      const slot = document.getElementById('inviteError');
+      if (!slot) return;
+      slot.textContent = msg;
+      slot.style.display = '';
+    }
+
+    function hideInviteError() {
+      const slot = document.getElementById('inviteError');
+      if (!slot) return;
+      slot.style.display = 'none';
+      slot.textContent = '';
+    }
+
+    function restoreInviteForm(btn, input, origText) {
+      if (btn) {
+        btn.textContent = origText;
+        btn.disabled = !input || input.value.trim().length === 0;
+      }
+      if (input) input.disabled = false;
+    }
+
+    async function onRemoveClick(userId, btn) {
+      if (!btn || btn.disabled || !userId) return;
+      // Defensive: the creator's row renders Remove with disabled attr, but a
+      // tampered DOM could re-enable it. The 403 creator-block from the API
+      // is the true gate; this is a pre-flight to keep the UI honest.
+      if (userId === String(project.owner_user_id)) return;
+
+      const origText = btn.textContent;
+      btn.textContent = 'Removing…';
+      btn.disabled = true;
+      hideInviteError();
+
+      let res;
+      try {
+        res = await fetch(
+          '/api/projects/' + encodeURIComponent(project.id) +
+          '/members/' + encodeURIComponent(userId),
+          { method: 'DELETE' }
+        );
+      } catch {
+        showInviteError('Something went wrong. Please try again.');
+        if (btn.isConnected) { btn.textContent = origText; btn.disabled = false; }
+        return;
+      }
+
+      if (res.status === 401) { redirectToLogin(); return; }
+
+      if (!res.ok) {
+        // Includes 403 ("The project creator cannot be removed"), 404, 500.
+        // Render verbatim — the creator-block path is the most likely 403 here,
+        // and stale-admin showing "Forbidden" is acceptable for a rare edge case.
+        const data = await res.json().catch(() => ({}));
+        const msg = (data && data.error) ? data.error : 'Something went wrong. Please try again.';
+        showInviteError(msg);
+        if (btn.isConnected) { btn.textContent = origText; btn.disabled = false; }
+        return;
+      }
+
+      // Success — refetch list. The button reference becomes detached during
+      // the re-render; that's fine, we don't touch it after this point.
+      await loadMembers();
     }
 
     function renderConnectionsPlaceholder(body) {
