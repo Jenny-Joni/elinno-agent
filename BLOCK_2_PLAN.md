@@ -177,6 +177,277 @@ These were locked at the start of Session 2, after Session 1 shipped the project
 - Honest to the data we have. Don't retrofit Session 1's API for a UI nicety; revisit in a Block 9 polish pass if anyone misses it.
 - Relative-time formatting via `Intl.RelativeTimeFormat`, computed on page load only (no live ticking).
 
+### Session 3 additions (decisions V–AC)
+
+These were locked at the start of Session 3, after Sessions 1 and 2 shipped the
+projects + members APIs and the projects list + create UI. V, W, X, Y, Z, AA,
+AB, AC are all live constraints for Session 3's `project.html` + the
+conversations + messages API. AA's drawer pattern, AB's `message_count` API
+addition, and AC's per-user scoping are the only ones that introduce net-new
+mechanics; the rest extend or specialize the N–U precedent.
+
+**Pre-question — three tabs, not two.** The mockup file
+(`block-2-mockups-v2.html`) shows two tabs (Chat | Members) on screens 3 and 4.
+Decision K locks three (Chat | Members | Connections). Three is canonical for
+v1.1; the mockup is stale on this point. Reasoning: shipping the third tab in
+Session 3 means Block 4's connector framework slots into existing UI;
+deferring it means re-doing the tab strip's CSS spacing in Block 4. The cost
+of shipping a third tab now is one additional `.state-card` placeholder
+(decision Y) — trivial.
+
+### V. URL/state-update mechanism — `history.replaceState`, no full reload
+
+- Both `?c=` (conversation switch) and `?tab=` (tab switch) update the URL via
+  `history.replaceState`, never `pushState`, never reload.
+- Rationale: `pushState` would trap users inside a project's history stack —
+  Back becomes "previous conversation" instead of the expected "back to
+  projects list," breaking the dashboard → projects → project mental model.
+  `replaceState` keeps URLs shareable, survives reload, and Back behaves how
+  users expect.
+- Initial page load: when `?c=` is missing and the page defaults to the most
+  recent conversation (decision F), update the URL via `replaceState`
+  immediately so the URL bar reflects reality from the moment the page is
+  interactive.
+- Single `applyState({ conversationId, tab })` function. Sidebar click,
+  tab click, auto-creation (decision G), and default-to-most-recent (decision
+  F) all route through it.
+
+### W. Composer mechanics
+
+- Textarea + Send button, side-by-side. Mockup pins `min-height: 48px;
+  max-height: 140px; resize: none`.
+- Auto-resize on `input` event: `el.style.height = 'auto'; el.style.height =
+  el.scrollHeight + 'px'`, capped at 140 by CSS.
+- **Enter sends, Shift+Enter inserts newline.** Standard chat-app convention.
+- **IME-safe**: `keydown` handler bails when `e.isComposing` is true (or
+  `e.keyCode === 229`), so Enter-to-commit-IME-candidate never sends a
+  half-composed message.
+- Send button disabled when textarea is empty after trim. Mirrors decision Q's
+  state machine.
+- In-flight: button text becomes `"Sending…"`, button disabled, textarea
+  disabled. On response: restore. On success: clear textarea, reset to
+  `min-height`, refocus textarea. On error: restore + render error per
+  decision Z's banner area / decision N's error mapping.
+- **Avatar initials**: user gets a single uppercase letter derived from email's
+  first character (`jenny@elinnovation.net` → `J`). Assistant gets hardcoded
+  `"EA"`. Display name + proper initials deferred to Block 9 (same bucket as
+  decision U's deferred member count). Session 4's members tab uses the same
+  derivation for consistency.
+
+### X. Auto-title render timing — server response is canonical
+
+- `POST /messages` response always includes the conversation's current title,
+  not just on first-message updates. The server has the title anyway; always
+  returning it is simpler than conditionally including it.
+- Client updates sidebar row's title + chat-conv-title heading (the standalone
+  heading above the messages pane, mockup line 1107) from the response on
+  every send. First-message sends update both visibly; subsequent sends are
+  no-ops on the title.
+- No refetch of the conversations list per send. Decision H's auto-title
+  feature is fully served by the response shape.
+- Multi-tab inconsistency self-heals on next send or page reload — out of
+  scope for v1.1.
+
+### Y. Placeholder tab content (Members + Connections in Session 3)
+
+Both placeholder tabs render a `.state-card` (Session 2 primitive) in the main
+pane when active. No new CSS beyond what Session 2 added. No CTA buttons. No
+tab-count pills in Session 3 — Session 4 adds the Members pill alongside the
+real members UI.
+
+- **Connections tab**:
+  - Heading: `"No tools connected yet"`
+  - Body: `"Slack, Jira, Monday, and Google Drive are coming."` (decision K's
+    locked copy, split across heading + body for visual weight)
+  - Icon: plug or link SVG in the brand-tinted square
+- **Members tab** (Session 3 placeholder; Session 4 replaces with real UI):
+  - Heading: `"Members coming soon"`
+  - Body: `"You'll be able to invite people and manage roles from this tab in
+    the next deploy."`
+  - Icon: two-person SVG reused from projects.html's empty-non-admin state
+    (line 137 of projects.html — same path data)
+- Tabs route via decision V regardless of placeholder vs. live content —
+  clicking Members in Session 3 still sets `?tab=members` in the URL.
+
+### Z. Echo banner + placeholder bubble styling
+
+Mockup pins down most of this. Locked details:
+
+- **Banner copy verbatim** (mockup line 1146):
+  `"Block 2 placeholder — your messages persist, but the assistant just echoes
+  back until Block 5 wires up the AI."`
+- **Banner styling** (mockup CSS lines 633–640): 12px, `--color-text-muted`,
+  centered, no background, no border. Sits inside `.chat-composer` above
+  `.chat-composer-row`.
+- **Banner is non-dismissible.** Honest disclosure, not a notification.
+  Block 5 removes it in the same diff that wires up real AI generation.
+- **Placeholder bubble styling** (mockup CSS lines 617–622): `1px dashed`
+  border, white background, body-text color, italic. Keyed off `.placeholder`
+  class on `.chat-msg.assistant`.
+- **Placeholder rule is client-side, not schema-driven.** Every `role:
+  'assistant'` message in Session 3's render loop gets `.placeholder`. Block 5
+  removes the unconditional rule in the same diff that wires up real AI. No
+  `placeholder` column on the messages table; schema is identical to Block 5's
+  eventual real format (per the "echo response format must match Block 5"
+  reminder in BLOCK_2_PLAN's Things-to-Remember section).
+- **Echo content format** (decision I, restated for proximity):
+  `You said: "USER_MESSAGE" — Real AI coming in Block 5.`
+- **Block-2-era echo messages opened after Block 5 ships** render as plain
+  assistant bubbles (no dashed border, content unchanged — self-disclosing
+  via `"Real AI coming in Block 5."` text). Acceptable; no migration needed.
+
+### AA. Mobile chat layout — drawer behind hamburger
+
+Below the 700px breakpoint (decision R), `project.html` switches from the
+desktop two-pane layout to a drawer-based pattern. The desktop sidebar becomes
+a slide-in overlay over the main pane, toggled by a hamburger button in the
+project header.
+
+- **Default state**: drawer closed on every page load. No persistence. State
+  is in-memory only (single boolean), never in the URL.
+- **Opens** when: hamburger tapped.
+- **Closes** when: (a) hamburger tapped again, (b) backdrop tapped,
+  (c) any `.conv-item` tapped (selecting a conversation), (d) the `+` button
+  tapped (new conversation, after creation succeeds), (e) Escape key pressed.
+- **Slide-in from left**, 0.25s ease-out transition. Backdrop fades in
+  alongside (semi-transparent black, ~30% opacity, full-pane).
+- **Hamburger**: 28×28px button, `1px solid var(--color-border)` border, three
+  CSS spans (14px wide, 1.5px tall, `--color-text-body`). Positioned in the
+  project-main-header, left of the breadcrumb/name block. Visible only below
+  700px (hidden on desktop via the same media query).
+- **Auto-close after `+` creates a new conversation** — drops user into the
+  empty new conversation immediately. Matches the user's intent (they tapped
+  `+` to start chatting, not to admire the list).
+- **No focus trap, no body-scroll-lock** in v1.1. Drawer covers most of the
+  screen; `.app-main` is already the only scrollable region. Block 9 polish
+  task if anyone hits the rough edges.
+
+Sidebar row content rendering rules below 700px are unchanged from desktop;
+only the container behavior differs.
+
+### AB. Sidebar conversation row content + API addition
+
+Sidebar rows are two-line per the mockup:
+- **Line 1**: conversation title, single-line ellipsis on overflow
+  (`white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`).
+- **Line 2** (`.conv-meta`): `"Nh ago · N message(s)"`. Ternary for plural
+  (`"1 message"` vs `"8 messages"`). Reuse `fmtRelative` from projects.html
+  (or add a sibling helper that drops the `"Updated "` prefix — Cursor's call).
+- **Active row**: brand-tinted background, brand-purple text, font-weight 500.
+  `.conv-meta` stays at brand-purple, 0.7 opacity (existing rule from mockup
+  CSS line 460).
+
+**API addition**: `GET /api/projects/:projectId/conversations` returns
+`message_count` per row via `LEFT JOIN messages … COUNT(*)` with
+`deleted_at IS NULL` on both tables. `LEFT JOIN` (not `INNER`) ensures empty
+conversations — including decision G's auto-created-on-first-open ones —
+show as `0 messages` rather than getting filtered out.
+
+Query shape:
+
+```sql
+SELECT
+  c.id, c.title, c.created_at, c.updated_at,
+  COALESCE(COUNT(m.id), 0)::INTEGER AS message_count
+FROM conversations c
+LEFT JOIN messages m
+  ON m.conversation_id = c.id
+  AND m.deleted_at IS NULL
+WHERE c.project_id = $1
+  AND c.deleted_at IS NULL
+GROUP BY c.id
+ORDER BY c.updated_at DESC, c.id DESC;
+```
+
+CRITICAL: `m.deleted_at IS NULL` MUST live in the JOIN ON clause, not WHERE.
+Putting it in WHERE drops conversations whose messages are all soft-deleted out
+of the result entirely (after LEFT JOIN, the WHERE rejects them and a "0
+messages after deletes" conversation vanishes from the sidebar). JOIN-side
+filtering preserves LEFT JOIN semantics: keep the conversation row regardless,
+only count non-deleted messages.
+
+`POST /api/projects/:projectId/conversations` returns the new conversation in
+the same shape (`message_count: 0`). Mirrors decision X's pattern of "API
+returns canonical state, client renders directly from response" — the client
+prepends the new row to the sidebar without a refetch.
+
+This is a deliberate departure from decision U's "don't retrofit Session 1's
+API for a UI nicety" precedent. The case for going against U here: the mockup
+explicitly drew message count on every sidebar row — it's a primary visual
+element of the chat surface, not a card-meta decoration. The JOIN is
+essentially free at v1.1 scale (one project, dozens of conversations, dozens
+of messages each). Block 9 polish revisit is unnecessary; this ships correctly
+the first time.
+
+### AC. Conversations are per-user within a project, not per-project
+
+The schema (`conversations.user_id NOT NULL`, hot-path index
+`(user_id, project_id, last_message_at) WHERE deleted_at IS NULL`) plus PRD §3
+establish that conversations are PRIVATE to their owner. Other project members
+do not see each other's conversations. The sidebar shows the session user's
+conversations in this project, not all conversations in the project.
+
+This matches the mental model of every consumer chat product (ChatGPT,
+Claude.ai, etc.) and is what the schema was designed for — the codification
+here is to prevent future sessions from rediscovering this from the schema
+header.
+
+API consequence: both `GET /api/projects/:projectId/conversations` and
+`POST /api/projects/:projectId/conversations` scope to `session.user.id`.
+Member-level access on the PROJECT is the gate on existence (cross-project
+leakage prevented by `requireProjectRole`'s 403-collapse, per PRD §10).
+Per-user scoping inside a project is enforced at the SQL level via a
+`user_id = $session_user_id` filter on every read and a
+`user_id = $session_user_id` set on every insert.
+
+When the actual chat agent goes live in Block 5, it operates with visibility
+into ALL project data (Slack messages, Jira tickets, etc.) when answering —
+but the *conversation* between user and agent is still private to that user.
+
+Naming note for v1.1: `last_message_at` is reserved in the schema but unused —
+`updated_at` is what gets bumped per BLOCK_2_PLAN sub-task 2.4 step 5 and read
+by `fmtRelative`. Block 9 to decide: rename, drop, or start populating.
+
+### Things explicitly NOT decisions (already covered elsewhere)
+
+Flagged so Cursor doesn't re-litigate mid-session:
+
+- **Optimistic vs round-trip rendering of user messages** — decision I locks
+  single round-trip, no optimism. Server returns both user + assistant rows;
+  client renders both at once.
+- **Auth gate behavior** — decision N + projects.html precedent fully cover
+  this. Same `/api/me` → redirect-on-null pattern, same 401-mid-flight
+  redirect-with-`?next=`, same 403-flips-page semantics.
+- **Pre-flight ordering on project.html boot** — already specified in sub-task
+  2.5.
+- **Empty-conversation state when user manually deletes their last
+  conversation** — moot in v1.1; conversation deletion is deferred to Block 9
+  per decision M.
+- **Multi-tab consistency without websockets** — out of scope for v1.1;
+  inconsistency self-heals on next user action or page reload.
+
+### Session 3 verification model
+
+Unlike Session 2's UI-only manual smoke, Session 3 ships both API and UI.
+Verification splits accordingly:
+
+- **API (sub-task 2.4)**: curl matrix on the preview deploy, similar to
+  Session 1's 16-scenario matrix. Likely 16+ scenarios — cross-project leakage
+  on conversations + messages, conversation-belongs-to-project guard, message
+  ordering (created_at ASC), auto-title timing on first message, auto-title
+  no-op on subsequent messages, `message_count` JOIN including empty
+  conversations, `LEFT JOIN` correctness with soft-deleted messages, per-user
+  scoping (decision AC).
+- **UI (sub-task 2.5)**: manual browser smoke on the merged-main deploy.
+  Admin flow + non-admin member flow + 700px mobile drawer behavior +
+  conversation auto-create-on-first-open + auto-title render across both
+  sidebar and chat-conv-title heading + tab switching via `replaceState`.
+
+**Natural break point** (per BLOCK_2_PLAN line 357): if Session 3 overruns at
+the chat-UI step, API ships merged, UI moves to Session 4. Session 4's
+members-tab work does NOT combine with Session 3's chat-UI under any
+circumstances.
+
 ### Session 2 roles (who does what)
 
 Three-way relay, established in Session 1 and unchanged for Session 2.
