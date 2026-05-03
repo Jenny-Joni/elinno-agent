@@ -2,9 +2,9 @@
 
 > The working agreement for the rest of the project (Block 2 remainder
 > through Block 9). Drop this in the repo root or reference it from
-> HANDOFF.md so every fresh Claude / Cursor session inherits it.
+> HANDOFF.md so every fresh Claude Code session inherits it.
 
-Last updated: 2026-05-03 (mid-Block-2 Session 3).
+Last updated: 2026-05-03 (mid-Block-2 Session 3, post-switch from Cursor + Claude.ai to Claude Code).
 
 ---
 
@@ -12,9 +12,7 @@ Last updated: 2026-05-03 (mid-Block-2 Session 3).
 
 **Jenny** — sole developer. Owns decisions, owns reviews, owns every push to `main`.
 
-**Claude** — designer, writer, reviewer of own work. Produces all content: code, mockups, schema migrations, curl matrices, docs, system prompts, tool schemas, copy.
-
-**Cursor** — executor only. Reads files, places at target paths, proposes commits with messages Claude specifies, runs git operations Jenny approves. Cursor does NOT review Claude's content; Cursor only verifies file integrity (encoding, path, no transit corruption).
+**Claude Code** — designer, writer, reviewer of own work, executor. Produces all content (code, mockups, schema migrations, curl matrices, docs, system prompts, tool schemas, copy) AND runs the shell, git, wrangler, curl, and the dev server in Jenny's environment under her per-action approval.
 
 ---
 
@@ -22,45 +20,46 @@ Last updated: 2026-05-03 (mid-Block-2 Session 3).
 
 For every change — code, doc, schema, anything:
 
-1. **Claude writes the file** to `/mnt/user-data/outputs/`. Includes a header comment naming the decisions it implements.
-2. **Claude flags own uncertainty** explicitly. If a path, helper signature, CSS class name, or behavior is a guess rather than a verified fact, Claude says so.
-3. **Jenny downloads** the file(s) from her sandbox/Downloads.
-4. **Cursor reads** the file from `~/Downloads`, places it at the target path Claude specified, mkdir-ing the path if needed.
-5. **Cursor verifies file integrity**: line count matches Claude's report, no encoding corruption (e.g., em-dashes preserved), file at correct path.
-6. **Cursor proposes the commit** with the exact Conventional Commits message Claude provided.
-7. **Jenny approves** the commit.
-8. **Cursor commits.** Does not push.
-9. **Jenny gives explicit "approve push to main"** when ready.
-10. **Cursor fast-forward merges** to main and pushes. No PRs, no GitHub review interface.
+1. **Claude Code writes the file** at the target path. Includes a header comment naming the decisions it implements where that's customary for the file type.
+2. **Claude Code flags own uncertainty** explicitly. If a path, helper signature, CSS class name, or behavior is a guess rather than a verified fact, Claude Code says so.
+3. **Claude Code shows the staged diff** (`git diff --staged`) and proposes the Conventional Commits message.
+4. **Jenny approves** the diff and the commit message.
+5. **Claude Code commits.** Does not push.
+6. **Jenny gives explicit "approve push to <branch>"** per push (each push to a remote, including each push to `main`, is a separate explicit approval — never standing). Claude Code then pushes.
+
+No PRs. Fast-forward merges only: branch → preview deploy → verification → ff-merge to main → push. The GitHub PR review interface is not used.
 
 ---
 
-## What Cursor does NOT do
+## Reviewing mockups and other previewable artifacts
 
-- Review Claude's content for correctness against locked decisions.
-- Propose code that Claude didn't write.
-- Suggest changes to Claude's code beyond flagging file-integrity issues (encoding, path, truncation).
-- Push to `main` without Jenny's explicit per-push approval.
-- Force-push or amend commits without explicit per-action approval.
+For HTML mockups, screenshots, or anything that needs to render to be reviewed:
+
+- **Claude Code opens the file in Jenny's browser** (`open <path>` on macOS) rather than describing it in chat. The mockup workflow is: Claude Code writes the mockup HTML, runs `open <path>` to launch it, and Jenny reviews it visually before any code that implements it gets written.
+- **For deployed previews** (Cloudflare Pages branch previews, the dev server at localhost), Claude Code surfaces the URL and Jenny opens it. Claude Code does not interact with the rendered page itself — manual smoke tests stay Jenny's per WORKFLOW's "What Jenny does" section.
+- Iteration on a mockup happens the same way: Claude Code edits the file, re-runs `open`, Jenny re-reviews.
 
 ---
 
-## What Claude does NOT do
+## Hard limits on what Claude Code does autonomously
 
-- Run git operations.
-- Execute shell commands in Jenny's environment.
-- Open or close IDE tabs, manage buffers, or interact with the IDE UI in any way.
-- Push, commit, or otherwise modify Jenny's repo directly. All file delivery is via `/mnt/user-data/outputs/` for Jenny to download.
+- **No schema migrations on production D1 or Neon production branch.** Drafting the SQL and reviewing it together is fine. Running it via `wrangler d1 execute --remote` or against Neon production is Jenny's. Falls under the schema-migrations security carve-out below.
+- **No credential generation.** Don't pick passwords for real accounts, don't generate API keys, don't suggest specific secret values. If a secret is needed, Claude Code points Jenny at the right Cloudflare/Neon/etc. UI.
+- **No persisting secrets to disk.** Never write a credential to a file, never commit one, never paste one into an output that gets logged. Jenny exports `JENNY_PASSWORD` per shell session; Claude Code inherits it via the env var, never reads it back, never writes it anywhere.
+- **No architecture-level unilateral decisions** (e.g., "let's disable Hyperdrive caching globally"). Surface the option, recommend, but Jenny decides.
+- **No "good enough to merge" calls.** Whether the verification matrix passes or not is Claude Code's read; whether the work is *done* is Jenny's decision.
+- **No `--amend` or force-push without per-action approval.** Default to creating a new commit when a hook fails — never `--amend` after a failure (the prior commit didn't actually happen on hook fail).
+- **No auto-appended `Co-authored-by:` trailers.** Use commit messages exactly as Jenny approves them.
 
 ---
 
 ## What Jenny does
 
-- Reads (or skims) every file Claude writes before approving the commit.
+- Reads (or skims) every diff Claude Code produces before approving the commit.
 - Approves every commit.
-- Approves every push to `main`.
+- Approves every push to any remote, per push.
 - Runs the IDE-side verifications: tab management, save events, browser smoke tests, manual UI walkthroughs on merged-main deploys.
-- Flags when she sees Claude or Cursor drifting from the agreement.
+- Flags when she sees Claude Code drifting from the agreement.
 
 ---
 
@@ -68,21 +67,19 @@ For every change — code, doc, schema, anything:
 
 Before any code is written for a new block:
 
-1. Claude proposes a list of decisions to lock for the block.
+1. Claude Code proposes a list of decisions to lock for the block.
 2. Jenny works through them in order, approving or revising each.
-3. Claude consolidates the locked decisions into a `BLOCK_N_PLAN.md` addendum or new file.
-4. Cursor commits the plan as the first commit of the block's branch.
+3. Claude Code consolidates the locked decisions into a `BLOCK_N_PLAN.md` addendum or new file.
+4. Claude Code commits the plan as the first commit of the block's branch (under Jenny's approval per the gate above).
 5. Code commits follow on the same branch, each implementing decisions cited in their commit messages.
 
-Block 2 used decisions A–AC. Block 3 will start a fresh letter sequence (or use a different naming scheme — Claude's call when Block 3 starts).
+Block 2 used decisions A–AC. Block 3 will start a fresh letter sequence (or use a different naming scheme — Claude Code's call when Block 3 starts).
 
 ---
 
 ## Security carve-out — code that warrants extra review
 
-The single-reviewer model (Jenny only) has known weak points. For these
-specific changes, Claude flags explicitly that "this would normally be a
-code-review-required change," and Jenny decides per-case whether to:
+The single-reviewer model (Jenny only) has known weak points. For these specific changes, Claude Code flags explicitly that "this would normally be a code-review-required change," and Jenny decides per-case whether to:
 
 - Open a one-time PR for that file specifically and request external review.
 - Spot-check against a known reference (e.g., libsodium docs for crypto).
@@ -96,7 +93,7 @@ The flagged categories:
 - **Webhook handlers** — Slack/Jira webhooks if any block adds them. Signature verification and replay protection.
 - **Schema migrations** — anything that runs DDL on production D1 or Neon. Reversibility check, dry-run on a Neon branch.
 
-When one of these comes up, Claude says so up-front. Jenny decides whether to enlist extra eyes.
+When one of these comes up, Claude Code says so up-front. Jenny decides whether to enlist extra eyes.
 
 ---
 
@@ -105,29 +102,20 @@ When one of these comes up, Claude says so up-front. Jenny decides whether to en
 - **End every session in a runnable state.** Trunk green, working tree clean except documented untracked files, deploys passing.
 - **HANDOFF.md updated at every session close.** Last-updated date, current block status, any new env vars or services, any new follow-ups.
 - **Natural break points are honored.** When a block plan calls out a break point (e.g., Block 2's "API done, UI to next session if chat UI hiccups"), don't combine sessions to push past it.
-
----
-
-## File delivery convention
-
-- Claude saves files to `/mnt/user-data/outputs/` and presents them.
-- Jenny downloads to `~/Downloads`.
-- Cursor reads from `~/Downloads`, places at the target path Claude specified.
-- After Cursor confirms placement, Claude can clear the sandbox files (no-op for Jenny; just keeps the outputs directory uncluttered next session).
+- **Stop after two consecutive failed diagnoses of the same bug.** Don't write a third fix commit. Run a deterministic diagnostic (e.g., tail logs while reproducing) and find the actual failure mode before touching code again. (Codified after Block 2 Session 3 burned three fix commits on Decision H without identifying the real cause.)
 
 ---
 
 ## Process changes that require an explicit re-lock
 
-This agreement holds until Jenny says otherwise. Some specific changes
-worth surfacing explicitly:
+This agreement holds until Jenny says otherwise. Some specific changes worth surfacing explicitly:
 
 - **Bringing in a second human reviewer** for a specific block or PR.
-- **Switching tooling** (Cursor → Claude Code, etc.).
+- **Switching tooling** (e.g., adding a new IDE or AI assistant alongside Claude Code). The Cursor + Claude.ai → Claude Code switch happened mid-Session-3 and is reflected in this revision.
 - **Adding CI / pre-commit hooks** that change the commit gate.
 - **Going public with the repo** (the security carve-out list expands).
 
-Claude flags any of these when they come up; Jenny decides.
+Claude Code flags any of these when they come up; Jenny decides.
 
 ---
 
@@ -139,6 +127,7 @@ Claude flags any of these when they come up; Jenny decides.
 
 ---
 
-*Generated 2026-05-03 mid-Block-2-Session-3 after Jenny consolidated the
-roles. Update this file as the working agreement evolves; date the
-"Last updated" line every time.*
+*Originally generated 2026-05-03 mid-Block-2-Session-3 after Jenny consolidated the
+roles. Revised same day after the switch from Cursor + Claude.ai to Claude Code
+collapsed the three-role workflow to two. Update this file as the working agreement
+evolves; date the "Last updated" line every time.*
