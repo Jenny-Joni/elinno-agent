@@ -146,6 +146,7 @@ These were locked at the start of Session 2, after Session 1 shipped the project
 - **Error overlay**: fetch failed (network / 500). Replaces grid with *"Couldn't load your projects. [Retry]"*. Retry re-runs the fetch.
 - **No timeout fallback.** Explicit try/catch around `fetch()` with explicit error rendering. A real hang stays visible as stuck loading — that's the correct signal.
 - This four-state pattern carries to Session 3 (project.html — chat tab, members tab).
+- **`.state-card` primitive (Session 2 closeout):** the canonical primitive for empty/error/unauthorized states across Block 2 — used in `projects.html` for empty-admin / empty-non-admin / error overlay; in `projects/new.html` for unauthorized; reused for Session 3+ chat / members / connections empty states.
 
 ### Q. Form validation — client-light, server-truth, panel-only errors
 - Client: submit button disabled while name field is empty after trim. No length checks client-side (server catches; rare to hit).

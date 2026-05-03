@@ -15,7 +15,7 @@ You are joining a project mid-build. Here's the shape of it:
 
 - **Elinno Agent** is a multi-tenant project intelligence platform. An admin creates a project, connects external tools (Jira, Slack, Monday, Google Drive), and the platform syncs that data into a unified store. Members chat with an AI assistant scoped to a single project, asking questions like "how many tickets in this sprint?" or "how much did we spend on testing?"
 - **The auth foundation is already deployed** at [https://elinnoagent.com](https://elinnoagent.com) (Cloudflare Pages + Pages Functions + D1).
-- **Block 1 is fully done; Block 2 Session 1 is shipped.** Data layer foundation is wired end-to-end through Cloudflare Pages Functions → Hyperdrive → Neon Postgres. Both `/api/db-health` and `/api/db-test` are live in production. Block 2's projects + members API endpoints are deployed (sub-tasks 2.0, 2.1, 2.2); Session 2 (projects list + create UI) is next.
+- **Block 1 is fully done; Block 2 Sessions 1 and 2 are shipped.** Data layer foundation is wired end-to-end through Cloudflare Pages Functions → Hyperdrive → Neon Postgres. Both `/api/db-health` and `/api/db-test` are live in production. Block 2's projects + members APIs and the projects list + create UI are deployed (sub-tasks 2.0–2.3 done); Session 3 (conversations + messages API + chat UI) is next.
 - **Solo build with Cursor + Claude.** No team. One task at a time.
 
 Your first move in any new session: read this file, read PROJECT.md, read the latest STATUS.md or git log, then check this handoff against reality before changing anything.
@@ -108,7 +108,7 @@ Four connectors, AI chat scoped per-project, free to users.
 Use the **Build Plan** doc (BUILD_PLAN.md) for the ordered task list. Nine blocks, in strict order:
 
 1. Block 1 — Database setup (Neon, pgvector, Hyperdrive, schema) ← **✅ DONE**
-2. **Block 2 — Project shell** (create projects, invite members, placeholder chat) ← **in progress: Session 1 of 4 done; Session 2 next**
+2. **Block 2 — Project shell** (create projects, invite members, placeholder chat) ← **in progress: Sessions 1 and 2 of 4 done; Session 3 next**
 3. Block 3 — Connector framework (interface + dummy connector)
 4. Block 4 — Slack connector
 5. Block 5 — First AI answer ← **milestone: product feels real here**
@@ -185,13 +185,29 @@ Use the **Build Plan** doc (BUILD_PLAN.md) for the ordered task list. Nine block
   See PR #2 description for the full matrix and per-scenario assertions.
 - **PR #2 merged** via fast-forward (`01b7d01..0f5204c`); 9 commit SHAs preserved intact on `main`.
 
-**Session 2 — Projects list + create UI: next**
+**Session 2 — Projects list + create UI: ✅ DONE**
 
-- Sub-task 2.3 — `public/projects.html` + `public/projects/new.html`. APIs from Session 1 are ready; this is form + grid wiring against existing components. Shortest session of the four per `BLOCK_2_PLAN.md` §"Session-by-session work order".
+- **Sub-task 2.3 (projects list + create UI):** four UI files shipped under `public/`:
+  - `projects.html` — list view with four states (loading skeleton grid, empty-admin, empty-non-admin, populated) + error overlay. Consumes `GET /api/projects`. `.state-card` primitive with icons (folder / two-person / alert triangle) for visual anchoring; XSS-safe rendering via `textContent` / `escapeHtml` / `encodeURIComponent`.
+  - `projects/new.html` — create form with three states (loading skeleton, form, unauthorized). Consumes `POST /api/projects`. Two-tier error model per decision N. Submit-button state machine per decision Q.
+  - `dashboard.html` + `admin.html` — top-nav Projects link wired (diff #4, strict scope).
+  - `projects.html` + `projects/new.html` — Dashboard / Projects sibling links wired for nav consistency (diff #4.5). Page omits its own self-link.
+- **CSS additions** to `public/auth.css`: net-new selectors only — `.section-head-row`, `.projects-grid`, `.project-card`, `.state-card` primitive (with `.state-card-icon`), skeleton shapes with shimmer animation, `.form-narrow`, `.form-actions`, `.field-hint`, single `@media (max-width: 700px)` mobile floor (decision R). No existing tokens or rules modified.
+- **What Session 3 inherits as locked patterns** (apply directly to `project.html` + the chat / members / connections tab states):
+  - **Decision N** — two-tier error model: UI translates terse auth strings (`"Not authenticated"`, `"Forbidden"`, `"Internal error"`); validation strings render verbatim in `.form-msg.error`. 401 → redirect to `/login.html?next=...`; 403 on POST → flip page to unauthorized state; 500 / network / malformed JSON → `"Something went wrong. Please try again."`
+  - **Decision P** — four-state page model + error overlay, no timeout fallback. Explicit try/catch around `fetch()` with explicit error rendering.
+  - **Decision Q** — client-light validation, server-truth, panel-only errors. Submit button disabled while required field empty after trim; in-flight button copy (`"Creating…"` / `"Sending…"`); form values stay populated on every failure path.
+- **Nav convention** (apply when Session 3 adds `project.html`): within `.app-nav-actions`, order is `navUser → static sibling links → conditional links → logout`. Static siblings are **hierarchically ordered** (Dashboard first as canonical home, others by feature-importance — never alphabetical). Page omits its own self-link. Static sibling links use plain `<a>`, no class.
+- **Verification:** manual browser smoke test on the `session-2-projects-ui.elinno-agent.pages.dev` preview deploy, all paths PASS (admin populated / empty / error overlay; non-admin empty; mobile at 375px and 700px; nav matrix across the four pages).
+- **Branch:** `session-2-projects-ui`, 6 code commits + 1 docs closeout commit ahead of pre-session `main` (`df5e33b`); fast-forward merge to `main` at session closeout.
 
-**Sessions 3 + 4:** conversations + messages API + chat UI (Session 3 — biggest session, most overrun risk per the plan); members tab UI + optional invite-notification email (Session 4). See `BLOCK_2_PLAN.md` for the detailed sub-task breakdown.
+**Session 3 — Conversations + messages API + chat UI: next**
 
-**Current state:** Block 2 Session 1 is shipped to production via `main`. Six API endpoints live behind two centralized auth helpers (`requireWorkspaceAdmin` + `requireProjectRole`). UI work begins in Session 2.
+- Biggest session, most overrun risk per the plan. Sub-tasks 2.4 + 2.5. See `BLOCK_2_PLAN.md` for the detailed sub-task breakdown.
+
+**Session 4:** members tab UI + optional invite-notification email (Sub-task 2.6).
+
+**Current state:** Block 2 Sessions 1 and 2 are shipped to production via `main`. Six API endpoints live behind two centralized auth helpers (`requireWorkspaceAdmin` + `requireProjectRole`); the projects list + create UI consumes the project APIs end-to-end. Chat / members / connections tabs are Session 3+ work.
 
 When you (Claude in a new session) are joining mid-build, the developer will tell you which task within which block they're on. If they don't, ask. Don't assume.
 
@@ -205,6 +221,7 @@ These rules came out of how the project has been run so far. They matter:
 - **One scoped change per Cursor session.** "Add the Slack OAuth callback" works. "Build the connector layer" doesn't.
 - **Always show diffs before commits.** The developer is hands-on. Read every diff before accepting AI changes.
 - **Cursor handles git commands** (`add`, `commit`, `push`, branch operations) on the developer's behalf.
+- **Sync local `main` before branching.** Run `git fetch && git merge --ff-only origin/main` before creating any feature branch. Caught twice this block (Session 1 close → Session 2 open) — local `main` drifted behind origin both times, forcing a corrective rebase that wasted review cycles. Make it a habit.
 - **Developer reviews diffs and commit messages before authorization** — Cursor proposes, developer approves, Cursor executes.
 - **Pushes to `main` still require explicit per-push approval.** No standing autonomous push to `main`.
 - **Cursor never amends or force-pushes** without explicit per-action approval.
