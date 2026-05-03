@@ -29,6 +29,23 @@
 //     in-handler check via the SELECT at the top of each method;
 //     403 on either failure (matches requireProjectRole's pattern of
 //     collapsing all access-denied paths to 403, per PRD §10).
+//
+// SCHEMA NOTE — `messages.project_id` is denormalized:
+//   The `messages` table has a NOT NULL `project_id` uuid column with no
+//   default. It's redundant with `conversations.project_id` (every message
+//   belongs to a conversation, every conversation belongs to a project),
+//   but the schema (db/schema-postgres.sql, Block 1 Task 3) denormalizes
+//   it onto `messages` so future query patterns — Block 5+ analytics over
+//   "messages in this project," cross-conversation searches scoped to a
+//   project, vector queries that join messages → entity_embeddings without
+//   needing a 3-way join through conversations — can hit one index on
+//   messages alone.
+//
+//   Both INSERTs below MUST populate project_id from `params.id`. Removing
+//   it (e.g. as part of a "simplification" that just inserts the obvious
+//   conversation-id-and-content tuple) reproduces the Block 2 Session 3
+//   500-on-every-send bug. The Decision-H/I/X happy paths (matrix scenarios
+//   2, 3, 4 of the trimmed verification) all break without it.
 
 import postgres from 'postgres';
 import { error, json, requireProjectRole } from '../../../../../_lib/auth.js';
@@ -168,20 +185,20 @@ export async function onRequestPost({ request, env, params }) {
     const isFirstUserMessage = existingUserCount === 0;
     const newTitle = isFirstUserMessage ? deriveTitleFromMessage(content) : conv.title;
 
-    // Insert user message.
+    // Insert user message. project_id required (see SCHEMA NOTE in header).
     const [userMessage] = await sql`
-      INSERT INTO messages (conversation_id, role, content)
-      VALUES (${params.conversationId}, 'user', ${content})
+      INSERT INTO messages (project_id, conversation_id, role, content)
+      VALUES (${params.id}, ${params.conversationId}, 'user', ${content})
       RETURNING id, conversation_id, role, content, created_at
     `;
 
     // Generate echo placeholder (decision I).
     const echo = generateEcho(content);
 
-    // Insert assistant message.
+    // Insert assistant message. project_id required (see SCHEMA NOTE in header).
     const [assistantMessage] = await sql`
-      INSERT INTO messages (conversation_id, role, content)
-      VALUES (${params.conversationId}, 'assistant', ${echo})
+      INSERT INTO messages (project_id, conversation_id, role, content)
+      VALUES (${params.id}, ${params.conversationId}, 'assistant', ${echo})
       RETURNING id, conversation_id, role, content, created_at
     `;
 
