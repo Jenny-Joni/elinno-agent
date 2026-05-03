@@ -1,22 +1,22 @@
 # Elinno Agent — Project Handoff
 
-> Drop this into a fresh Claude session (chat or Cursor) so the assistant can pick up where the last session left off. This file is the single source of truth for "where are we and what's next." Update it after each working session.
+> Drop this into a fresh Claude Code session so the assistant can pick up where the last session left off. This file is the single source of truth for "where are we and what's next." Update it after each working session.
 
 **Last updated:** 2026-05-03
 **Current product version:** v1.1 (the MVP being built now)
 **Owner / sole developer:** Jenny ([jenny@elinnovation.net](mailto:jenny@elinnovation.net))
-**AI tooling:** Cursor + Claude
+**AI tooling:** Claude Code (switched from Cursor + Claude.ai mid-Block-2-Session-3, 2026-05-03)
 
 ---
 
-## TL;DR for a new Claude session
+## TL;DR for a new Claude Code session
 
 You are joining a project mid-build. Here's the shape of it:
 
 - **Elinno Agent** is a multi-tenant project intelligence platform. An admin creates a project, connects external tools (Jira, Slack, Monday, Google Drive), and the platform syncs that data into a unified store. Members chat with an AI assistant scoped to a single project, asking questions like "how many tickets in this sprint?" or "how much did we spend on testing?"
 - **The auth foundation is already deployed** at [https://elinnoagent.com](https://elinnoagent.com) (Cloudflare Pages + Pages Functions + D1).
 - **Block 1 is fully done; Block 2 Sessions 1 and 2 are shipped.** Data layer foundation is wired end-to-end through Cloudflare Pages Functions → Hyperdrive → Neon Postgres. Both `/api/db-health` and `/api/db-test` are live in production. Block 2's projects + members APIs and the projects list + create UI are deployed (sub-tasks 2.0–2.3 done); Session 3 (conversations + messages API + chat UI) is next.
-- **Solo build with Cursor + Claude.** No team. One task at a time.
+- **Solo build with Claude Code.** No team. One task at a time.
 
 Your first move in any new session: read this file, read PROJECT.md, read the latest STATUS.md or git log, then check this handoff against reality before changing anything.
 
@@ -217,18 +217,7 @@ When you (Claude in a new session) are joining mid-build, the developer will tel
 
 These rules came out of how the project has been run so far. They matter:
 
-- **Plan in chat, build in Cursor.** Use Claude chat sessions like this one for design/schema/tradeoff decisions. Use Cursor for actual code changes once the approach is settled.
-- **One scoped change per Cursor session.** "Add the Slack OAuth callback" works. "Build the connector layer" doesn't.
-- **Always show diffs before commits.** The developer is hands-on. Read every diff before accepting AI changes.
-- **Cursor handles git commands** (`add`, `commit`, `push`, branch operations) on the developer's behalf.
-- **Sync local `main` before branching.** Run `git fetch && git merge --ff-only origin/main` before creating any feature branch. Caught twice this block (Session 1 close → Session 2 open) — local `main` drifted behind origin both times, forcing a corrective rebase that wasted review cycles. Make it a habit.
-- **Developer reviews diffs and commit messages before authorization** — Cursor proposes, developer approves, Cursor executes.
-- **Pushes to `main` still require explicit per-push approval.** No standing autonomous push to `main`.
-- **Cursor never amends or force-pushes** without explicit per-action approval.
-- **End every session in a runnable state.** Never leave the trunk mid-refactor.
-- **Update PROJECT.md or write a STATUS.md after each session.** This is how future-you (and future Claude) get oriented.
-
-> **Note:** as of 2026-05-02 (Block 1 Task 2), git operations are delegated to Cursor. Earlier sessions had the developer run git commands directly; the workflow shifted because of friction with editor-driven git tools (vim, hunk-by-hunk staging) eating into project velocity. The diff-review safety net stays — every commit message and diff goes through human approval before Cursor executes.
+The binding rules — roles, gating, security carve-outs, stopping rules — live in [WORKFLOW.md](WORKFLOW.md). Read it before suggesting changes. The 2026-05-03 revision reflects the switch from Cursor + Claude.ai to Claude Code.
 
 ### What to use Claude for
 
@@ -485,13 +474,13 @@ strips final newlines on save. Resolved both times with `git checkout
 WORKFLOW.md`. Doesn't block work but worth investigating: check
 `.vscode/settings.json` for `files.insertFinalNewline: false` or similar.
 
-### Cursor co-author trailer
+### Cursor co-author trailer (resolved — moot)
 
-Both fix commits (`25a005c`, `9ef44f6`, `0b793c3`) have a
+Three Session-3 commits (`25a005c`, `9ef44f6`, `0b793c3`) carry a
 `Co-authored-by: Cursor <cursoragent@cursor.com>` trailer auto-appended
-by Cursor's IDE. Not malicious; just attribution. Decide at next
-between-sittings: keep, or disable via the relevant Cursor IDE setting
-or git hook.
+by Cursor's IDE. Moot 2026-05-03 — the switch to Claude Code resolves
+it (no auto-trailers per WORKFLOW.md). Existing trailers stay in the
+merged commits as historical record; no rewrite of merged history.
 
 ### Cross-DB orphan reminder + test data still in Neon
 
