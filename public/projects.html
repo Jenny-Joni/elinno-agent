@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Projects — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/auth.css" />
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <div class="app-nav-actions">
+        <span id="navUser" style="color:#fff;opacity:.85;font-size:14px;"></span>
+        <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <button id="logoutBtn" class="btn-nav">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <div class="custom-container">
+      <p class="section-eyebrow">Workspace</p>
+      <span class="section-line"></span>
+
+      <div class="section-head-row">
+        <div>
+          <h1 class="section-heading">Your projects</h1>
+          <p class="section-sub">Each project has its own connected tools and chat history. Members you invite see only the projects they belong to.</p>
+        </div>
+        <div id="newProjectAction" class="head-actions" style="display:none;">
+          <a href="/projects/new.html" class="btn btn-primary auto">+ New project</a>
+        </div>
+      </div>
+
+      <div id="projectsList">
+        <!-- JS renders one of: loading skeleton / empty (admin or non-admin) / populated grid / error overlay -->
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let me = null;
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // Relative-time formatter for project card meta (decision U: card meta = role + relative time only).
+    // Computed on page load; not live-ticking. Falls back to '' on parse failure so the meta gracefully omits.
+    function fmtRelative(value) {
+      if (!value) return '';
+      try {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) return '';
+        const diffMs  = Date.now() - date.getTime();
+        const diffMin = Math.round(diffMs / 60000);
+        const diffHr  = Math.round(diffMs / 3600000);
+        const diffDay = Math.round(diffMs / 86400000);
+        const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+        if (Math.abs(diffMin) < 60) return 'Updated ' + rtf.format(-diffMin, 'minute');
+        if (Math.abs(diffHr)  < 24) return 'Updated ' + rtf.format(-diffHr,  'hour');
+        if (Math.abs(diffDay) < 30) return 'Updated ' + rtf.format(-diffDay, 'day');
+        return 'Updated ' + rtf.format(-Math.round(diffDay / 30), 'month');
+      } catch {
+        return '';
+      }
+    }
+
+    // Auth gate. /api/me returns { user: null } for unauthenticated (200 with empty user).
+    // Match the existing dashboard.html / admin.html pattern: redirect to '/' on missing user.
+    fetch('/api/me').then(r => r.json()).then(d => {
+      if (!d.user) { location.replace('/'); return; }
+      me = d.user;
+      document.getElementById('navUser').textContent = d.user.email;
+      if (d.user.is_admin) {
+        document.getElementById('adminLink').style.display = '';
+        document.getElementById('newProjectAction').style.display = '';
+      }
+      loadProjects();
+    }).catch(() => location.replace('/'));
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+      location.replace('/');
+    });
+
+    // GET /api/projects with explicit try/catch — no timeout fallback per decision P.
+    // Decision N error mapping: 401 → /login.html?next=...; non-OK or network → error state.
+    async function loadProjects() {
+      renderLoading();
+      try {
+        const res = await fetch('/api/projects');
+        if (res.status === 401) {
+          location.replace('/login.html?next=' + encodeURIComponent('/projects.html'));
+          return;
+        }
+        if (!res.ok) {
+          renderError();
+          return;
+        }
+        const data = await res.json();
+        const projects = data && Array.isArray(data.projects) ? data.projects : [];
+        if (projects.length === 0) {
+          renderEmpty();
+          return;
+        }
+        renderPopulated(projects);
+      } catch (err) {
+        renderError();
+      }
+    }
+
+    function renderLoading() {
+      const card = `
+        <div class="project-card-skeleton" aria-hidden="true">
+          <div class="skeleton-shape icon"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="skeleton-shape title"></div>
+            <div class="skeleton-shape line full"></div>
+            <div class="skeleton-shape line medium"></div>
+          </div>
+          <div style="display:flex;gap:12px;margin-top:auto;padding-top:20px;border-top:1px solid var(--color-border);">
+            <div class="skeleton-shape line" style="height:18px;width:64px;"></div>
+            <div class="skeleton-shape line" style="height:12px;width:100px;"></div>
+          </div>
+        </div>
+      `;
+      document.getElementById('projectsList').innerHTML =
+        `<div class="projects-grid" aria-busy="true" aria-label="Loading projects">${card}${card}${card}${card}</div>`;
+    }
+
+    function renderEmpty() {
+      const list = document.getElementById('projectsList');
+      if (me.is_admin) {
+        list.innerHTML = `
+          <div class="state-card">
+            <div class="state-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 5a2 2 0 012-2h4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/>
+              </svg>
+            </div>
+            <h2 class="state-card-heading">No projects yet</h2>
+            <p class="state-card-body">Create your first one to get started.</p>
+            <div class="state-card-actions">
+              <a href="/projects/new.html" class="btn btn-primary">+ New project</a>
+            </div>
+          </div>
+        `;
+      } else {
+        list.innerHTML = `
+          <div class="state-card">
+            <div class="state-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="8" r="3"/>
+                <path d="M3 19c0-2.8 2.7-5 6-5s6 2.2 6 5"/>
+                <circle cx="17" cy="10" r="2.5"/>
+                <path d="M15 15c.7-.3 1.3-.5 2-.5 2.5 0 4.5 2 4.5 4.5"/>
+              </svg>
+            </div>
+            <h2 class="state-card-heading">No projects yet</h2>
+            <p class="state-card-body">You haven't been added to any projects yet. Ask your admin to invite you.</p>
+          </div>
+        `;
+      }
+    }
+
+    function renderError() {
+      document.getElementById('projectsList').innerHTML = `
+        <div class="state-card" role="alert">
+          <div class="state-card-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l9.5 17H2.5L12 3z"/>
+              <line x1="12" y1="9" x2="12" y2="14"/>
+              <line x1="12" y1="17.5" x2="12" y2="17.51"/>
+            </svg>
+          </div>
+          <h2 class="state-card-heading">Couldn't load your projects</h2>
+          <p class="state-card-body">Check your connection or refresh the page if this persists.</p>
+          <div class="state-card-actions">
+            <button class="btn btn-primary" id="retryBtn">Retry</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPopulated(projects) {
+      const cards = projects.map(p => {
+        const name = escapeHtml(p.name || 'Untitled project');
+        const desc = p.description ? escapeHtml(p.description) : '';
+        const role = String(p.role || 'member').toLowerCase();
+        const roleBadge = role === 'admin'
+          ? '<span class="badge">Admin</span>'
+          : '<span class="badge muted">Member</span>';
+        const updated = fmtRelative(p.updated_at);
+        const id = encodeURIComponent(p.id);
+        return `
+          <a href="/project.html?id=${id}" class="project-card">
+            <div class="project-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M3 5a2 2 0 012-2h4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/>
+              </svg>
+            </div>
+            <div>
+              <div class="project-card-name">${name}</div>
+              ${desc ? `<div class="project-card-desc">${desc}</div>` : ''}
+            </div>
+            <div class="project-card-meta">
+              ${roleBadge}
+              ${updated ? `<span class="project-card-meta-item">${updated}</span>` : ''}
+            </div>
+          </a>
+        `;
+      }).join('');
+      document.getElementById('projectsList').innerHTML = `<div class="projects-grid">${cards}</div>`;
+    }
+
+    // Retry button is rendered dynamically inside #projectsList; delegate from the parent so
+    // the listener survives state-swap re-renders.
+    document.getElementById('projectsList').addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'retryBtn') {
+        loadProjects();
+      }
+    });
+  </script>
+</body>
+</html>
