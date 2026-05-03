@@ -1,0 +1,14 @@
+{
+  // Block 2 IDE markdown-formatter policy.
+  // The formatter has corrupted asterisks in code spans (e.g., `admin/*`)
+  // four times during Block 2 — pre-Session-3 investigation found the
+  // earlier user-scope fix never persisted on this Glass build of Cursor.
+  // Workspace-scoped disable of all four format-on-* channels for .md.
+  // See HANDOFF.md "open follow-ups" for context.
+  "[markdown]": {
+    "editor.formatOnSave": false,
+    "editor.formatOnPaste": false,
+    "editor.formatOnType": false,
+    "editor.defaultFormatter": null
+  }
+}
