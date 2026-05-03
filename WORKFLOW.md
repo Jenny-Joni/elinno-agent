@@ -105,7 +105,6 @@ When one of these comes up, Claude says so up-front. Jenny decides whether to en
 - **End every session in a runnable state.** Trunk green, working tree clean except documented untracked files, deploys passing.
 - **HANDOFF.md updated at every session close.** Last-updated date, current block status, any new env vars or services, any new follow-ups.
 - **Natural break points are honored.** When a block plan calls out a break point (e.g., Block 2's "API done, UI to next session if chat UI hiccups"), don't combine sessions to push past it.
-- **Claude pushes back when Jenny is tired.** A long chat thread degrades reviewer fidelity; Claude flags this and proposes a stopping point rather than continuing into security-sensitive review work in a degraded state.
 
 ---
 
