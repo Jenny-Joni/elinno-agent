@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Elinno Agent — Block 2 Mockups (production styling)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@300,400,500,600,700&display=swap" rel="stylesheet" />
+
+<style>
+/* ──────────────────────────────────────────────────────────────────
+   Production auth.css — copied verbatim
+   so these mockups render the same as the live site.
+   ────────────────────────────────────────────────────────────────── */
+:root {
+  --color-bg-dark: #121215;
+  --color-bg-light: #fff;
+  --color-bg-soft: #f7f7f7;
+  --color-bg-wash: #f0ebff;
+  --color-brand: #6234fc;
+  --color-brand-tint: rgba(98, 52, 252, 0.1);
+  --color-text-dark: #000;
+  --color-text-body: #4f4f4f;
+  --color-text-muted: #888;
+  --color-text-placeholder: #a5a5a5;
+  --color-text-inverse: #fff;
+  --color-border: #e0e0e0;
+  --color-field-bg: #eaeaea;
+  --color-error: #ff0083;
+  --color-success: #4dd388;
+  --glass-nav: rgba(0, 0, 0, 0.3);
+  --glass-blur-nav: blur(3.5px);
+  --font-light: 'Clash Grotesk', 'Space Grotesk', system-ui, sans-serif;
+  --font-regular: 'Clash Grotesk', 'Space Grotesk', system-ui, sans-serif;
+  --font-medium: 'Clash Grotesk', 'Space Grotesk', system-ui, sans-serif;
+  --font-semibold: 'Clash Grotesk', 'Space Grotesk', system-ui, sans-serif;
+  --container-max: 1230px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 15px;
+  --radius-xl: 20px;
+  --radius-pill: 50px;
+  --t-fast: 0.1s ease-out;
+  --t-form: 0.3s linear;
+  --t-card: 0.7s;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: var(--font-regular);
+  font-size: 16px;
+  line-height: 140%;
+  color: var(--color-text-dark);
+  background: #2a2a30;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+a { color: var(--color-brand); text-decoration: none; transition: opacity var(--t-form); }
+a:hover { opacity: 0.8; }
+button { font-family: inherit; cursor: pointer; }
+img, svg { max-width: 100%; display: block; }
+
+.custom-container {
+  max-width: var(--container-max);
+  width: 100%;
+  padding: 0 15px;
+  margin: 0 auto;
+}
+
+/* App nav (production pattern from auth.css) */
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 99;
+  background: var(--glass-nav);
+  backdrop-filter: var(--glass-blur-nav);
+  -webkit-backdrop-filter: var(--glass-blur-nav);
+  background-color: rgba(18, 18, 21, 0.85);
+}
+.app-nav-inner {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 16px 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.app-brand {
+  color: #fff;
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-decoration: none;
+}
+.app-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.app-nav-actions a {
+  color: #fff;
+  font-family: var(--font-regular);
+  font-size: 14px;
+  text-decoration: none;
+  opacity: 0.85;
+}
+.app-nav-actions a.active { opacity: 1; }
+.app-nav-actions a:hover { opacity: 1; }
+.app-nav-actions .nav-user {
+  color: #fff;
+  opacity: 0.85;
+  font-size: 14px;
+}
+.app-nav-actions .btn-nav {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid #fff;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+.app-nav-actions .btn-nav:hover { background: rgba(255, 255, 255, 0.18); }
+
+.app-main {
+  background: var(--color-bg-soft);
+  min-height: calc(100vh - 70px);
+  padding: 70px 0;
+}
+
+/* Section header pattern */
+.section-eyebrow {
+  color: var(--color-brand);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 1.08px;
+  text-transform: uppercase;
+  margin: 0 0 14px;
+}
+.section-line {
+  display: block;
+  width: 107px;
+  height: 2px;
+  background: var(--color-brand);
+  margin: 0 0 24px;
+}
+.section-heading {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 45px;
+  line-height: 110%;
+  text-transform: uppercase;
+  margin: 0 0 16px;
+}
+.section-sub {
+  color: var(--color-text-body);
+  font-family: var(--font-regular);
+  font-size: 18px;
+  line-height: 140%;
+  margin: 0 0 40px;
+  max-width: 640px;
+}
+
+/* Form fields (light variant) */
+.field { margin-bottom: 18px; }
+.field label {
+  display: block;
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 100%;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.field input,
+.field textarea {
+  width: 100%;
+  background: var(--color-field-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 16px 16px;
+  color: var(--color-text-dark);
+  font-family: var(--font-regular);
+  font-size: 14px;
+  line-height: 140%;
+  transition: var(--t-form);
+}
+.field input::placeholder,
+.field textarea::placeholder { color: var(--color-text-placeholder); }
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.05);
+  border-color: var(--color-brand);
+}
+.field textarea { resize: vertical; min-height: 110px; }
+.field-hint {
+  color: var(--color-text-muted);
+  font-family: var(--font-regular);
+  font-size: 13px;
+  margin: -2px 0 8px;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 24px;
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 100%;
+  text-transform: uppercase;
+  border: none;
+  outline: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: filter var(--t-form), background var(--t-form), color var(--t-form);
+  text-decoration: none;
+}
+.btn-primary { background: var(--color-brand); color: #fff; width: 100%; }
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-primary.auto { width: auto; }
+.btn-ghost { background: transparent; color: var(--color-text-body); }
+.btn-ghost:hover { color: var(--color-brand); }
+.btn-danger {
+  background: transparent;
+  color: var(--color-error);
+  border: 1px solid var(--color-error);
+  padding: 10px 14px;
+  font-size: 12px;
+}
+.btn-danger:hover { background: var(--color-error); color: #fff; }
+
+/* Cards */
+.card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+}
+
+/* Badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 50px;
+  background: var(--color-brand-tint);
+  color: var(--color-brand);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.badge.muted { background: rgba(0,0,0,0.06); color: var(--color-text-body); }
+
+/* Form messages */
+.form-msg {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-regular);
+  font-size: 14px;
+  line-height: 140%;
+}
+.form-msg.error {
+  background: rgba(255, 0, 131, 0.08);
+  color: var(--color-error);
+  border: 1px solid rgba(255, 0, 131, 0.3);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Block 2 NEW components — added on top of production CSS.
+   These are what would land in auth.css for Block 2.
+   ────────────────────────────────────────────────────────────────── */
+
+/* Section header w/ trailing CTA (e.g. "+ New project") */
+.section-head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 40px;
+}
+.section-head-row .section-sub { margin-bottom: 0; }
+.section-head-row .head-actions { padding-bottom: 6px; flex-shrink: 0; margin-left: 24px; }
+
+/* Project cards — uses the .specialcard hover pattern from style guide */
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+.project-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  cursor: pointer;
+  transition: background var(--t-card), border-color var(--t-card);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-decoration: none;
+  color: inherit;
+}
+.project-card:hover {
+  background: var(--color-bg-wash);
+  border-color: transparent;
+}
+.project-card-icon {
+  width: 56px; height: 56px;
+  border-radius: var(--radius-md);
+  background: var(--color-brand-tint);
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--t-card);
+}
+.project-card:hover .project-card-icon { background: var(--color-brand); }
+.project-card-icon svg path,
+.project-card-icon svg circle {
+  fill: none;
+  stroke: var(--color-brand);
+  stroke-width: 1.6;
+  transition: stroke var(--t-card);
+}
+.project-card:hover .project-card-icon svg path,
+.project-card:hover .project-card-icon svg circle { stroke: #fff; }
+.project-card-name {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 110%;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+}
+.project-card-desc {
+  color: var(--color-text-body);
+  font-family: var(--font-regular);
+  font-size: 15px;
+  line-height: 145%;
+  margin-top: 8px;
+}
+.project-card-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+.project-card:hover .project-card-meta {
+  border-top-color: rgba(98, 52, 252, 0.2);
+}
+.project-card-meta-item {
+  color: var(--color-text-muted);
+  font-family: var(--font-regular);
+  font-size: 13px;
+}
+
+/* Two-field grid for project create form (kept narrow, matches auth-card width vibe) */
+.form-narrow { max-width: 640px; }
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+.form-actions .btn-primary { width: auto; }
+
+/* Project detail layout: sidebar + main */
+.project-shell {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 640px;
+}
+.project-sidebar {
+  background: var(--color-bg-soft);
+  border-right: 1px solid var(--color-border);
+  padding: 24px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.project-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 12px;
+  margin-bottom: 16px;
+}
+.project-sidebar-title {
+  color: var(--color-text-muted);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.new-conv-btn {
+  width: 28px; height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-tint);
+  color: var(--color-brand);
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  font-family: var(--font-regular);
+  line-height: 1;
+  transition: background var(--t-form), color var(--t-form);
+}
+.new-conv-btn:hover { background: var(--color-brand); color: #fff; }
+.conv-item {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-body);
+  font-family: var(--font-regular);
+  font-size: 14px;
+  line-height: 130%;
+  transition: background var(--t-form);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.conv-item:hover { background: rgba(0,0,0,0.04); }
+.conv-item.active {
+  background: var(--color-brand-tint);
+  color: var(--color-brand);
+  font-weight: 500;
+}
+.conv-item .conv-meta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-family: var(--font-regular);
+  font-weight: 400;
+}
+.conv-item.active .conv-meta { color: var(--color-brand); opacity: 0.7; }
+
+.project-main {
+  display: flex;
+  flex-direction: column;
+}
+.project-main-header {
+  padding: 24px 32px 20px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+}
+.project-breadcrumb {
+  color: var(--color-text-muted);
+  font-family: var(--font-regular);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.project-breadcrumb a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: color var(--t-form);
+}
+.project-breadcrumb a:hover { color: var(--color-brand); opacity: 1; }
+.project-name-h {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 28px;
+  line-height: 110%;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+
+/* Tabs */
+.project-tabs {
+  display: flex;
+  gap: 4px;
+}
+.project-tab {
+  padding: 10px 18px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background var(--t-form), color var(--t-form);
+}
+.project-tab:hover { background: rgba(0,0,0,0.04); }
+.project-tab.active {
+  color: var(--color-brand);
+  background: var(--color-brand-tint);
+}
+.project-tab .tab-count {
+  font-family: var(--font-regular);
+  font-weight: 400;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 50px;
+  background: rgba(0,0,0,0.06);
+  color: var(--color-text-body);
+}
+.project-tab.active .tab-count {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+/* Chat */
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 32px 0;
+  min-height: 0;
+}
+.chat-conv-title {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 24px;
+}
+.chat-messages {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  overflow-y: auto;
+  padding-bottom: 24px;
+}
+.chat-msg {
+  display: flex;
+  gap: 12px;
+  max-width: 88%;
+}
+.chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.chat-msg-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.chat-msg.user .chat-msg-avatar {
+  background: var(--color-brand);
+  color: #fff;
+}
+.chat-msg.assistant .chat-msg-avatar {
+  background: var(--color-bg-soft);
+  color: var(--color-text-body);
+  border: 1px solid var(--color-border);
+}
+.chat-msg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-msg.user .chat-msg-body { align-items: flex-end; }
+.chat-msg-meta {
+  color: var(--color-text-muted);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.chat-msg-content {
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-regular);
+  font-size: 15px;
+  line-height: 145%;
+}
+.chat-msg.user .chat-msg-content {
+  background: var(--color-brand);
+  color: #fff;
+}
+.chat-msg.assistant .chat-msg-content {
+  background: var(--color-bg-soft);
+  color: var(--color-text-dark);
+}
+.chat-msg.assistant.placeholder .chat-msg-content {
+  border: 1px dashed var(--color-border);
+  background: #fff;
+  color: var(--color-text-body);
+  font-style: italic;
+}
+
+/* Composer */
+.chat-composer {
+  padding: 16px 0 28px;
+  border-top: 1px solid var(--color-border);
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.chat-placeholder-banner {
+  font-family: var(--font-regular);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+.chat-composer-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+.chat-input {
+  flex: 1;
+  padding: 14px 16px;
+  background: var(--color-field-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-dark);
+  font-family: var(--font-regular);
+  font-size: 14px;
+  line-height: 140%;
+  resize: none;
+  min-height: 48px;
+  max-height: 140px;
+  transition: var(--t-form);
+}
+.chat-input:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.05);
+  border-color: var(--color-brand);
+}
+.chat-input::placeholder { color: var(--color-text-placeholder); }
+.chat-send-btn {
+  padding: 14px 22px;
+  background: var(--color-brand);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  height: 48px;
+  transition: filter var(--t-form);
+}
+.chat-send-btn:hover { filter: brightness(1.1); }
+
+/* Members area */
+.members-area {
+  flex: 1;
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+.invite-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  background: var(--color-bg-soft);
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  margin-bottom: 32px;
+  align-items: end;
+}
+.invite-row .field { margin: 0; }
+.invite-row .field input { background: #fff; }
+.invite-row .field input:focus { background: rgba(0,0,0,0.04); }
+.invite-row .btn-primary { width: auto; padding: 16px 22px; }
+.invite-error {
+  grid-column: 1 / -1;
+  font-family: var(--font-regular);
+  font-size: 13px;
+  color: var(--color-error);
+  margin-top: -4px;
+}
+
+.members-section-title {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 16px;
+}
+
+.members-list {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.member-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--t-form);
+}
+.member-row:last-child { border-bottom: none; }
+.member-row:hover { background: var(--color-bg-wash); }
+.member-row .avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--color-brand-tint);
+  color: var(--color-brand);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.member-row.you .avatar {
+  background: var(--color-brand);
+  color: #fff;
+}
+.member-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.member-email {
+  color: var(--color-text-dark);
+  font-family: var(--font-regular);
+  font-size: 15px;
+  font-weight: 500;
+}
+.member-email .self {
+  color: var(--color-text-muted);
+  font-weight: 400;
+  font-size: 13px;
+  margin-left: 4px;
+}
+.member-meta {
+  color: var(--color-text-muted);
+  font-family: var(--font-regular);
+  font-size: 12px;
+}
+.btn-danger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-danger:disabled:hover {
+  background: transparent;
+  color: var(--color-error);
+}
+
+/* Mockup chrome */
+.mockup-section {
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 60px 30px 20px;
+}
+.mockup-label {
+  color: rgba(255,255,255,0.55);
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  margin-bottom: 6px;
+}
+.mockup-title {
+  color: #fff;
+  font-family: var(--font-medium);
+  font-weight: 500;
+  font-size: 22px;
+  margin-bottom: 18px;
+  letter-spacing: -0.005em;
+}
+.mockup-frame {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+}
+.browser-bar {
+  background: #1a1a1f;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #0a0a0d;
+}
+.browser-dot { width: 12px; height: 12px; border-radius: 50%; background: #4a4a52; }
+.browser-url {
+  flex: 1;
+  background: #2a2a30;
+  border-radius: 6px;
+  padding: 6px 12px;
+  margin-left: 8px;
+  color: rgba(255,255,255,0.7);
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 12px;
+}
+
+.annotation {
+  background: rgba(98, 52, 252, 0.18);
+  border-left: 2px solid var(--color-brand);
+  color: rgba(255,255,255,0.9);
+  font-family: var(--font-regular);
+  font-size: 13px;
+  line-height: 155%;
+  padding: 14px 18px;
+  margin-top: 14px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.annotation strong {
+  font-family: var(--font-medium);
+  font-weight: 500;
+  color: #fff;
+}
+.annotation code {
+  background: rgba(255,255,255,0.1);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 12px;
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN 1 — PROJECTS LIST                                              -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="mockup-section">
+  <div class="mockup-label">Screen 1 of 4</div>
+  <div class="mockup-title">Projects list — landing after login</div>
+
+  <div class="mockup-frame">
+    <div class="browser-bar">
+      <div class="browser-dot"></div><div class="browser-dot"></div><div class="browser-dot"></div>
+      <div class="browser-url">elinnoagent.com/projects.html</div>
+    </div>
+
+    <nav class="app-nav">
+      <div class="app-nav-inner">
+        <a href="#" class="app-brand">Elinno Agent</a>
+        <div class="app-nav-actions">
+          <span class="nav-user">jenny@elinnovation.net</span>
+          <a href="#">Admin</a>
+          <button class="btn-nav">Log out</button>
+        </div>
+      </div>
+    </nav>
+
+    <main class="app-main">
+      <div class="custom-container">
+        <p class="section-eyebrow">Workspace</p>
+        <span class="section-line"></span>
+
+        <div class="section-head-row">
+          <div>
+            <h1 class="section-heading">Your projects</h1>
+            <p class="section-sub">Each project has its own connected tools and chat history. Members you invite see only the projects they belong to.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn btn-primary auto">+ New project</button>
+          </div>
+        </div>
+
+        <div class="projects-grid">
+
+          <a href="#" class="project-card">
+            <div class="project-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 5a2 2 0 012-2h4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5z"/>
+              </svg>
+            </div>
+            <div>
+              <div class="project-card-name">Q4 Product Launch</div>
+              <div class="project-card-desc">Coordination project for the December release across engineering, marketing, and ops.</div>
+            </div>
+            <div class="project-card-meta">
+              <span class="badge">Admin</span>
+              <span class="project-card-meta-item">5 members</span>
+              <span class="project-card-meta-item">Updated 2h ago</span>
+            </div>
+          </a>
+
+          <a href="#" class="project-card">
+            <div class="project-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <div>
+              <div class="project-card-name">Internal Operations</div>
+              <div class="project-card-desc">Day-to-day ops, hiring pipeline, vendor coordination.</div>
+            </div>
+            <div class="project-card-meta">
+              <span class="badge">Admin</span>
+              <span class="project-card-meta-item">3 members</span>
+              <span class="project-card-meta-item">Updated yesterday</span>
+            </div>
+          </a>
+
+          <a href="#" class="project-card">
+            <div class="project-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 11H5a2 2 0 00-2 2v7h18v-7a2 2 0 00-2-2h-4M9 11V5a3 3 0 016 0v6M9 11h6"/>
+              </svg>
+            </div>
+            <div>
+              <div class="project-card-name">Acme Client Engagement</div>
+              <div class="project-card-desc">Active consulting project with Acme Corp. Q3–Q4 deliverables.</div>
+            </div>
+            <div class="project-card-meta">
+              <span class="badge muted">Member</span>
+              <span class="project-card-meta-item">8 members</span>
+              <span class="project-card-meta-item">Updated 4d ago</span>
+            </div>
+          </a>
+
+          <a href="#" class="project-card">
+            <div class="project-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+              </svg>
+            </div>
+            <div>
+              <div class="project-card-name">2026 Strategic Planning</div>
+              <div class="project-card-desc">Annual planning, OKRs, budget allocation.</div>
+            </div>
+            <div class="project-card-meta">
+              <span class="badge">Admin</span>
+              <span class="project-card-meta-item">2 members</span>
+              <span class="project-card-meta-item">Updated 1w ago</span>
+            </div>
+          </a>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="annotation">
+    <strong>Now uses production patterns.</strong> Glass navbar with the existing brand mark + email + Admin link + outlined "Log out" button (matches <code>admin.html</code> exactly). Page header is the production <code>section-eyebrow</code> + 107×2px purple line + 45px UPPERCASE heading. Body sits on <code>#f7f7f7</code> soft grey, cards are white-with-border on top of it (matches the <code>.card</code> and <code>.users-table-wrap</code> pattern). Hover still goes to <code>#f0ebff</code> wash with the icon flipping to solid purple — that move is preserved from the style guide.
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN 2 — CREATE PROJECT FORM                                        -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="mockup-section">
+  <div class="mockup-label">Screen 2 of 4</div>
+  <div class="mockup-title">Create project form</div>
+
+  <div class="mockup-frame">
+    <div class="browser-bar">
+      <div class="browser-dot"></div><div class="browser-dot"></div><div class="browser-dot"></div>
+      <div class="browser-url">elinnoagent.com/projects/new.html</div>
+    </div>
+
+    <nav class="app-nav">
+      <div class="app-nav-inner">
+        <a href="#" class="app-brand">Elinno Agent</a>
+        <div class="app-nav-actions">
+          <span class="nav-user">jenny@elinnovation.net</span>
+          <a href="#">Admin</a>
+          <button class="btn-nav">Log out</button>
+        </div>
+      </div>
+    </nav>
+
+    <main class="app-main">
+      <div class="custom-container">
+        <p class="section-eyebrow"><a href="#" style="color: var(--color-text-muted);">← Projects</a></p>
+        <span class="section-line"></span>
+        <h1 class="section-heading">New project</h1>
+        <p class="section-sub">A project is a separate workspace with its own connected tools, members, and conversation history.</p>
+
+        <div class="card form-narrow">
+          <div class="field">
+            <label for="project-name">Project name</label>
+            <input id="project-name" type="text" placeholder="e.g. Q4 Product Launch" value="Q4 Product Launch" />
+          </div>
+
+          <div class="field">
+            <label for="project-desc">Description (optional)</label>
+            <p class="field-hint">A short note about what this project is for. Members will see it on the projects list.</p>
+            <textarea id="project-desc" placeholder="What is this project about?">Coordination project for the December release across engineering, marketing, and ops.</textarea>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn-primary">Create project</button>
+            <button class="btn btn-ghost">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="annotation">
+    <strong>Form lives in a card on soft-grey body</strong>, matching <code>admin.html</code>'s "Add user" card pattern. Inputs use the production <code>.field</code> styling — <code>#eaeaea</code> background, transparent border, focus state goes to a subtle dark wash + purple border. Two buttons: primary purple <code>.btn-primary</code> for create, <code>.btn-ghost</code> for cancel. Same back-arrow eyebrow trick reuses the section pattern.
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN 3 — PROJECT DETAIL (CHAT)                                      -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="mockup-section">
+  <div class="mockup-label">Screen 3 of 4</div>
+  <div class="mockup-title">Project detail — chat tab (echo placeholder)</div>
+
+  <div class="mockup-frame">
+    <div class="browser-bar">
+      <div class="browser-dot"></div><div class="browser-dot"></div><div class="browser-dot"></div>
+      <div class="browser-url">elinnoagent.com/project.html?id=q4-product-launch&c=conv-2</div>
+    </div>
+
+    <nav class="app-nav">
+      <div class="app-nav-inner">
+        <a href="#" class="app-brand">Elinno Agent</a>
+        <div class="app-nav-actions">
+          <span class="nav-user">jenny@elinnovation.net</span>
+          <a href="#">Admin</a>
+          <button class="btn-nav">Log out</button>
+        </div>
+      </div>
+    </nav>
+
+    <main class="app-main">
+      <div class="custom-container">
+
+        <div class="project-shell">
+
+          <aside class="project-sidebar">
+            <div class="project-sidebar-header">
+              <div class="project-sidebar-title">Conversations</div>
+              <button class="new-conv-btn" title="New conversation">+</button>
+            </div>
+
+            <div class="conv-item">
+              <div>Sprint planning notes</div>
+              <div class="conv-meta">3h ago · 8 messages</div>
+            </div>
+
+            <div class="conv-item active">
+              <div>What's blocking the launch?</div>
+              <div class="conv-meta">12m ago · 4 messages</div>
+            </div>
+
+            <div class="conv-item">
+              <div>Budget questions</div>
+              <div class="conv-meta">Yesterday · 2 messages</div>
+            </div>
+
+            <div class="conv-item">
+              <div>New conversation</div>
+              <div class="conv-meta">3d ago · 1 message</div>
+            </div>
+          </aside>
+
+          <main class="project-main">
+            <div class="project-main-header">
+              <div>
+                <div class="project-breadcrumb">
+                  <a href="#">Projects</a> / <span style="color: var(--color-text-dark);">Q4 Product Launch</span>
+                </div>
+                <h2 class="project-name-h">Q4 Product Launch</h2>
+              </div>
+              <div class="project-tabs">
+                <button class="project-tab active">Chat</button>
+                <button class="project-tab">Members <span class="tab-count">5</span></button>
+              </div>
+            </div>
+
+            <div class="chat-area">
+              <div class="chat-conv-title">What's blocking the launch?</div>
+
+              <div class="chat-messages">
+
+                <div class="chat-msg user">
+                  <div class="chat-msg-avatar">JK</div>
+                  <div class="chat-msg-body">
+                    <div class="chat-msg-meta">You · 12 minutes ago</div>
+                    <div class="chat-msg-content">What's blocking the launch?</div>
+                  </div>
+                </div>
+
+                <div class="chat-msg assistant placeholder">
+                  <div class="chat-msg-avatar">EA</div>
+                  <div class="chat-msg-body">
+                    <div class="chat-msg-meta">Elinno Agent · 12 minutes ago</div>
+                    <div class="chat-msg-content">You said: "What's blocking the launch?" — Real AI coming in Block 5.</div>
+                  </div>
+                </div>
+
+                <div class="chat-msg user">
+                  <div class="chat-msg-avatar">JK</div>
+                  <div class="chat-msg-body">
+                    <div class="chat-msg-meta">You · 8 minutes ago</div>
+                    <div class="chat-msg-content">testing that messages persist on reload</div>
+                  </div>
+                </div>
+
+                <div class="chat-msg assistant placeholder">
+                  <div class="chat-msg-avatar">EA</div>
+                  <div class="chat-msg-body">
+                    <div class="chat-msg-meta">Elinno Agent · 8 minutes ago</div>
+                    <div class="chat-msg-content">You said: "testing that messages persist on reload" — Real AI coming in Block 5.</div>
+                  </div>
+                </div>
+
+              </div>
+
+              <div class="chat-composer">
+                <div class="chat-placeholder-banner">Block 2 placeholder — your messages persist, but the assistant just echoes back until Block 5 wires up the AI.</div>
+                <div class="chat-composer-row">
+                  <textarea class="chat-input" placeholder="Ask anything about this project…" rows="1"></textarea>
+                  <button class="chat-send-btn">Send</button>
+                </div>
+              </div>
+            </div>
+
+          </main>
+
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <div class="annotation">
+    <strong>Two-pane shell sits in a single white card</strong> on the soft-grey body — same elevation as <code>.users-table-wrap</code> in <code>admin.html</code>. Sidebar uses the soft-grey shade as a subtle inset. Chat composer reuses the <code>#eaeaea</code> field background + purple-border focus state, so the input feels native to every other form on the site. URL pattern: <code>?id=PROJECT&c=CONV</code>. Default conversation auto-creates and auto-titles from the first user message; the dashed-bordered placeholder bubble plus the banner above the composer make it obvious the AI isn't real yet.
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN 4 — PROJECT DETAIL (MEMBERS TAB)                               -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="mockup-section">
+  <div class="mockup-label">Screen 4 of 4</div>
+  <div class="mockup-title">Project detail — members tab</div>
+
+  <div class="mockup-frame">
+    <div class="browser-bar">
+      <div class="browser-dot"></div><div class="browser-dot"></div><div class="browser-dot"></div>
+      <div class="browser-url">elinnoagent.com/project.html?id=q4-product-launch&tab=members</div>
+    </div>
+
+    <nav class="app-nav">
+      <div class="app-nav-inner">
+        <a href="#" class="app-brand">Elinno Agent</a>
+        <div class="app-nav-actions">
+          <span class="nav-user">jenny@elinnovation.net</span>
+          <a href="#">Admin</a>
+          <button class="btn-nav">Log out</button>
+        </div>
+      </div>
+    </nav>
+
+    <main class="app-main">
+      <div class="custom-container">
+
+        <div class="project-shell">
+
+          <aside class="project-sidebar">
+            <div class="project-sidebar-header">
+              <div class="project-sidebar-title">Conversations</div>
+              <button class="new-conv-btn" title="New conversation">+</button>
+            </div>
+            <div class="conv-item">
+              <div>Sprint planning notes</div>
+              <div class="conv-meta">3h ago · 8 messages</div>
+            </div>
+            <div class="conv-item">
+              <div>What's blocking the launch?</div>
+              <div class="conv-meta">12m ago · 4 messages</div>
+            </div>
+            <div class="conv-item">
+              <div>Budget questions</div>
+              <div class="conv-meta">Yesterday · 2 messages</div>
+            </div>
+            <div class="conv-item">
+              <div>New conversation</div>
+              <div class="conv-meta">3d ago · 1 message</div>
+            </div>
+          </aside>
+
+          <main class="project-main">
+            <div class="project-main-header">
+              <div>
+                <div class="project-breadcrumb">
+                  <a href="#">Projects</a> / <span style="color: var(--color-text-dark);">Q4 Product Launch</span>
+                </div>
+                <h2 class="project-name-h">Q4 Product Launch</h2>
+              </div>
+              <div class="project-tabs">
+                <button class="project-tab">Chat</button>
+                <button class="project-tab active">Members <span class="tab-count">5</span></button>
+              </div>
+            </div>
+
+            <div class="members-area">
+
+              <div class="invite-row">
+                <div class="field">
+                  <label for="invite-email">Invite by email</label>
+                  <input id="invite-email" type="email" placeholder="teammate@elinnovation.net" />
+                </div>
+                <button class="btn btn-primary">Send invite</button>
+                <div class="invite-error" style="display:none;">No Elinno account with this email. Ask your admin to create the account first.</div>
+              </div>
+
+              <div class="members-section-title">5 members</div>
+
+              <div class="members-list">
+
+                <div class="member-row you">
+                  <div class="avatar">JK</div>
+                  <div class="member-info">
+                    <div class="member-email">jenny@elinnovation.net <span class="self">(you)</span></div>
+                    <div class="member-meta">Joined as creator · 28 Apr</div>
+                  </div>
+                  <span class="badge">Admin</span>
+                  <button class="btn-danger" disabled>Remove</button>
+                </div>
+
+                <div class="member-row">
+                  <div class="avatar">SC</div>
+                  <div class="member-info">
+                    <div class="member-email">sarah.chen@elinnovation.net</div>
+                    <div class="member-meta">Invited 2 May</div>
+                  </div>
+                  <span class="badge muted">Member</span>
+                  <button class="btn-danger">Remove</button>
+                </div>
+
+                <div class="member-row">
+                  <div class="avatar">DR</div>
+                  <div class="member-info">
+                    <div class="member-email">david.r@elinnovation.net</div>
+                    <div class="member-meta">Invited 2 May</div>
+                  </div>
+                  <span class="badge muted">Member</span>
+                  <button class="btn-danger">Remove</button>
+                </div>
+
+                <div class="member-row">
+                  <div class="avatar">MT</div>
+                  <div class="member-info">
+                    <div class="member-email">marcus@elinnovation.net</div>
+                    <div class="member-meta">Invited 2 May</div>
+                  </div>
+                  <span class="badge muted">Member</span>
+                  <button class="btn-danger">Remove</button>
+                </div>
+
+                <div class="member-row">
+                  <div class="avatar">AL</div>
+                  <div class="member-info">
+                    <div class="member-email">aria@elinnovation.net</div>
+                    <div class="member-meta">Invited yesterday</div>
+                  </div>
+                  <span class="badge muted">Member</span>
+                  <button class="btn-danger">Remove</button>
+                </div>
+
+              </div>
+
+            </div>
+          </main>
+
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <div class="annotation">
+    <strong>Members list mirrors the admin user table</strong> from <code>admin.html</code>: same white-on-soft-grey container card, same <code>.btn-danger</code> outlined-error remove button, same <code>.badge</code> pill for role. Invite row sits at the top in a soft-grey panel with a single field + primary purple submit. Hover row goes to <code>#f0ebff</code> wash, matching the table-row hover already in production. The creator's "Remove" button is disabled (faded), and promoting a member to admin is deferred to Block 9.
+  </div>
+</section>
+
+<div style="height: 80px;"></div>
+
+</body>
+</html>

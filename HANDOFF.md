@@ -2,7 +2,7 @@
 
 > Drop this into a fresh Claude Code session so the assistant can pick up where the last session left off. This file is the single source of truth for "where are we and what's next." Update it after each working session.
 
-**Last updated:** 2026-05-03
+**Last updated:** 2026-05-04
 **Current product version:** v1.1 (the MVP being built now)
 **Owner / sole developer:** Jenny ([jenny@elinnovation.net](mailto:jenny@elinnovation.net))
 **AI tooling:** Claude Code (switched from Cursor + Claude.ai mid-Block-2-Session-3, 2026-05-03)
@@ -15,7 +15,7 @@ You are joining a project mid-build. Here's the shape of it:
 
 - **Elinno Agent** is a multi-tenant project intelligence platform. An admin creates a project, connects external tools (Jira, Slack, Monday, Google Drive), and the platform syncs that data into a unified store. Members chat with an AI assistant scoped to a single project, asking questions like "how many tickets in this sprint?" or "how much did we spend on testing?"
 - **The auth foundation is already deployed** at [https://elinnoagent.com](https://elinnoagent.com) (Cloudflare Pages + Pages Functions + D1).
-- **Block 1 is fully done; Block 2 Sessions 1 and 2 are shipped.** Data layer foundation is wired end-to-end through Cloudflare Pages Functions → Hyperdrive → Neon Postgres. Both `/api/db-health` and `/api/db-test` are live in production. Block 2's projects + members APIs and the projects list + create UI are deployed (sub-tasks 2.0–2.3 done); Session 3 (conversations + messages API + chat UI) is next.
+- **Blocks 1 and 2 are fully done.** Data layer foundation is wired end-to-end through Cloudflare Pages Functions → Hyperdrive → Neon Postgres. Block 2 closed 2026-05-04 — projects + members APIs, projects list + create UI, conversations + messages API, project.html three-tab shell with chat / members / connections tabs all shipped to production. Block 3 (connector framework — TypeScript interface, registry, encryption helper, dummy connector; backend-only) is next.
 - **Solo build with Claude Code.** No team. One task at a time.
 
 Your first move in any new session: read this file, read PROJECT.md, read the latest STATUS.md or git log, then check this handoff against reality before changing anything.
@@ -108,8 +108,8 @@ Four connectors, AI chat scoped per-project, free to users.
 Use the **Build Plan** doc (BUILD_PLAN.md) for the ordered task list. Nine blocks, in strict order:
 
 1. Block 1 — Database setup (Neon, pgvector, Hyperdrive, schema) ← **✅ DONE**
-2. **Block 2 — Project shell** (create projects, invite members, placeholder chat) ← **in progress: Sessions 1 and 2 of 4 done; Session 3 next**
-3. Block 3 — Connector framework (interface + dummy connector)
+2. Block 2 — Project shell (create projects, invite members, placeholder chat) ← **✅ DONE**
+3. **Block 3 — Connector framework** (interface + dummy connector) ← **next**
 4. Block 4 — Slack connector
 5. Block 5 — First AI answer ← **milestone: product feels real here**
 6. Block 6 — Jira connector
@@ -668,3 +668,205 @@ Plus the four `matrix-test-project-*` rows in Neon and two cross-DB
 orphan `project_members` rows from the deleted bob users (already
 documented in the prior mid-state). Combined cleanup is a between-
 blocks task; soft-delete SQL is in the prior section.
+
+---
+
+## Block 2 closeout — 2026-05-04
+
+> Appended at Block 2 completion. Sub-tasks 2.5 and 2.6 shipped this
+> session, closing Block 2. The TL;DR + BUILD list at the top of this
+> file are updated to reflect Block 3 as next; this addendum is the
+> historical detail for anyone reading back through the trail.
+
+### Sub-task 2.5 — project.html three-tab shell + chat UI (`923108e`)
+
+`public/project.html` (731 lines, NEW) + `public/auth.css` (+471 lines)
+on `session-4-project-html`, ff-merged to main. All locked decisions
+V–AC implemented:
+
+- **Decision V** — single `applyState({ conversationId, tab })` routing
+  point. `history.replaceState` on every state change; never `pushState`,
+  never reload. Sidebar click, tab click, auto-create, default-to-most-
+  recent all flow through this function.
+- **Decision W** — IME-safe composer. `keydown` bails on `e.isComposing
+  || e.keyCode === 229` before checking Enter/Shift+Enter. Auto-resize
+  via scrollHeight; CSS-clamped at 140px max-height. Avatar initial =
+  `email[0].toUpperCase()` for user, hardcoded `EA` for assistant.
+- **Decision X** — server response is canonical for conversation title.
+  POST /messages always includes `conversation.title` in the response;
+  client updates sidebar row + chat-conv-title heading directly from
+  it, no refetch.
+- **Decision Y** — Members and Connections placeholders use `.state-card`
+  (Block 2 Session 2 primitive). The Members tab pill is added in
+  sub-task 2.6 alongside the real members UI.
+- **Decision Z** — every assistant message gets `.placeholder` class
+  client-side (no `placeholder` column in the messages schema). Block 5
+  removes the unconditional rule in the same diff that wires up real AI
+  generation. Echo banner copy verbatim, non-dismissible.
+- **Decision AA** — mobile drawer (≤700px) behind a hamburger. In-memory
+  boolean state, never persisted, never in URL. Closes on hamburger,
+  backdrop, conv-item, `+` (after creation), and Escape.
+- **Decision AB** — sidebar two-line rows: ellipsized title + `Nh ago ·
+  N message(s)` meta with ternary plural. `fmtRelativeShort` is a sibling
+  to `projects.html`'s `fmtRelative`, dropping the "Updated " prefix.
+- **Decision AC** — server enforces per-user conversation scoping
+  (`user_id = $session_user_id` filter on every read and insert); client
+  just renders what comes back. Verified scenarios 10/11/12 of the 2.4
+  matrix.
+
+### Sub-task 2.6 — members tab UI (`f0a3fe0`)
+
+`public/project.html` (modified) + `public/auth.css` (+192 lines) on
+`session-4-members-tab`, ff-merged to main. Replaces the placeholder
+Members tab with a real invite + list + remove flow against the 2.2
+members API:
+
+- Admins see invite-by-email row + Remove buttons (creator's disabled).
+- Non-admins see a read-only list (decision: `.read-only` modifier
+  collapses the trailing Remove column for non-admin viewers).
+- Members fetched eagerly in the boot pipeline so the tab count pill
+  (decision Y, deferred from 2.5) renders from initial paint.
+- Server error strings render verbatim via `.invite-error` slot per
+  decision N: `"Invalid email"` / `"No Elinno account with this email…"`
+  / `"User is already a member of this project"` / `"The project creator
+  cannot be removed"`.
+- Mobile (≤700px) drops the role badge to reclaim horizontal space —
+  Block 9 polish if anyone misses it.
+- 403 handling intentionally splits by endpoint: invite POST 403 bounces
+  to /projects.html (stale-admin recovery); remove DELETE 403 renders
+  verbatim (creator-block carries a user-facing message).
+
+### API patterns codified by Block 2
+
+These should apply directly to Block 3+ work — adopt as defaults.
+
+**Auth helpers** (in `functions/api/_lib/auth.js`):
+- `getSessionUser(request, db)` — returns the D1 user row or null. Used
+  upstream of every API handler.
+- `requireWorkspaceAdmin(request, env)` — D1 `is_admin = TRUE` gate.
+  Still inline in legacy `admin/users.js` and `admin/users/[id].js`;
+  migration deferred (see Open follow-ups below).
+- `requireProjectRole(request, env, projectId, role)` — project-scoped
+  auth helper. `role` is `'admin'` (creator) or `'member'` (any project
+  member). Returns `{ user, role }` or a Response object on failure.
+  403-collapse on access denial — caller pattern is
+  `const { error: errResp, user } = await requireProjectRole(...)`,
+  `if (errResp) return errResp;`.
+
+**URL shapes:**
+- Project-scoped: `/api/projects/:projectId/...`
+- Conversation-scoped: `/api/projects/:projectId/conversations/:conversationId/messages`
+- Member-scoped: `/api/projects/:projectId/members/:userId` (DELETE only)
+- Two-guard pattern: `requireProjectRole` (project) + in-handler
+  conv-belongs-to-project-and-user check (single SELECT collapses both).
+
+**Schema gotchas:**
+- `messages.project_id` is a denormalized NOT NULL column. Every INSERT
+  must populate it from `params.id`. Removing it reproduces the Block 2
+  Session 3 500-on-every-send bug (fixed `25a005c`).
+- `LEFT JOIN messages` for sidebar `message_count` must put
+  `m.deleted_at IS NULL` in the JOIN ON clause, **not** WHERE. Putting
+  it in WHERE drops zero-message conversations from the sidebar.
+- D1 INTEGER user_id ↔ Postgres TEXT user_id. Coerce at write
+  (`String(user.id)`) and at read for cross-DB lookups.
+
+**Decision H — title-state trigger:** auto-title fires when conversation
+title equals the literal `'New conversation'`, not when COUNT of user
+messages is 0. The COUNT-based reading was tried first; it failed on
+Hyperdrive's stale query cache. Title-state sidesteps the read-after-
+write round-trip entirely. Trade-off: a future user-renameable
+conversation that gets manually renamed back to `'New conversation'`
+would re-trigger auto-title. Stretch case; Block 9 if it surfaces.
+
+**Hyperdrive query caching** is disabled at the binding level on
+`elinno-agent-hyperdrive`:
+```
+npx wrangler hyperdrive update 78af00bbf464468cb902e35099aa0dfe \
+                               --caching-disabled true
+```
+Cost: ~10–50ms per read (every read round-trips to Neon Frankfurt).
+Acceptable for v1.1 chat scale. **Revisit before Block 5** when AI
+tool calls multiply read-after-write volume — the cache-bypass-by-
+real-NOW()-reference pattern is the documented escape hatch (the
+SQL-comment marker form in `0b793c3` was dead code; comments don't
+get parsed by Hyperdrive's STABLE-function detector).
+
+### Mockup file + verification matrix tracked this commit
+
+Both were "deferred to Block 2 closeout" per HANDOFF and project memory:
+
+- `block-2-mockups-v2.html` — visual reference for sub-tasks 2.3 / 2.5
+  / 2.6. Production-CSS-pinned mockup with four screens and design
+  annotations. Useful provenance for Block 9 polish revisits and any
+  re-design conversations.
+- `curl-matrix-2-4.md` — sub-task 2.4's 22-scenario verification matrix
+  (cross-project leakage, per-user scoping, conv-belongs-to-project,
+  auto-title timing, LEFT JOIN correctness with soft-deleted messages,
+  validation, JSON-error). Useful as a regression baseline when Block 5
+  replaces the echo placeholder with real AI generation — the schema
+  and API contract stay identical per decision Z, so the matrix should
+  still all PASS post-Block-5.
+
+### Block 3 kickoff — what's next
+
+Per BUILD_PLAN, Block 3 is the connector framework. **Backend-only block.**
+Deliverables:
+
+- Connector TypeScript interface — `Connector` + `ConnectorRegistry`
+  contracts.
+- Encryption helper for connector credentials (AES-GCM via Web Crypto;
+  master key from a Cloudflare Pages secret).
+- A dummy connector (returns hardcoded fake data) to validate the
+  framework end-to-end before Block 4's first real connector (Slack).
+- D1 table for connector instances (one row per project-connector pair):
+  schema TBD as part of Block 3.
+
+The Connections tab built in Block 2 stays as the placeholder state-card
+("No tools connected yet…") until Block 4 fills it with the first real
+"Connect" button.
+
+### Open follow-ups carried into Block 3
+
+- **`requireWorkspaceAdmin` migration of `admin/users.js` +
+  `admin/users/[id].js`.** Helper exists; legacy handlers still inline
+  the same check. Behavior-identical refactor; deferred from Block 2
+  Session 1 to keep commits scoped. Good "between blocks" task. While
+  there, fix `admin/users.js`'s POST returning 200 instead of 201 for
+  user-create.
+- **Stale cache-related comments** in `db-test.js:71`,
+  `projects/[id]/index.js:38`, `db-health.js:15` — doc-consistency
+  sweep; cache-disable made these slightly inaccurate but none affect
+  behavior.
+- **Cross-DB orphan in production data.** P1 has a `project_members`
+  row (`user_id="4"`) with no matching D1 user (Alice was deleted
+  during 2.2 verification). The orphan is preserved as live
+  documentation of the cross-DB cleanup TODO until the broader fix
+  lands.
+- **Soft-deleted test projects on Neon** (P1 + P2 from the 2.2
+  verification matrix). Invisible to the API; cosmetic only. Hard-
+  delete when noisy.
+- **Test data accumulation on Neon.** Conversations from the 2.4
+  diagnostic + auto-created `"New conversation"` rows from every 2.5
+  boot + invite test users from 2.6 verification. Combined cleanup
+  is a between-blocks task.
+- **Tab-switch loses textarea drafts** in the chat composer (Block 9
+  polish, NOT Block 3 scope).
+- **Tab strip overflow-scrolls horizontally** on narrow viewports if
+  all three tabs don't fit (Block 9 polish).
+- **Two leftover remote branches** — `origin/session-4-project-html`
+  and `origin/session-4-members-tab`. Local copies were deleted post-
+  merge; remote prune deferred to whenever convenient (no impact on
+  main).
+
+### Things that closed in Block 2 (don't re-flag)
+
+- Tooling switch from Cursor to Claude Code mid-Block-2-Session-3 —
+  WORKFLOW.md and CLAUDE.md updates landed in `efdac86` + `867df9a`.
+- IDE markdown-formatter policy — `.vscode/settings.json` workspace-
+  scope override committed earlier in Block 2; no further action.
+- Decision H regression risk — fixed at the Hyperdrive cache layer
+  (binding-level cache disabled), verified all 22 scenarios PASS.
+- Block 2 Session 4 / sub-task 2.6 invite-notification email (Resend-
+  based) — was a "bonus end-of-Block-2 task if time permits" per
+  BLOCK_2_PLAN line 633; deferred to Block 9 per decision M, not
+  shipped in 2.6.
