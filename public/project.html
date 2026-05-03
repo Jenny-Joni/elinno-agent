@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/auth.css" />
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <div class="app-nav-actions">
+        <span id="navUser" style="color:#fff;opacity:.85;font-size:14px;"></span>
+        <a href="/projects.html">Projects</a>
+        <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <button id="logoutBtn" class="btn-nav">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <div class="custom-container">
+      <div id="shellRoot">
+        <!-- JS renders one of: loading state-card / boot-error state-card / project shell -->
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ============================================================
+    // Block 2 Sub-task 2.5 — project.html three-tab shell + chat UI
+    //
+    // Decisions in force from BLOCK_2_PLAN.md:
+    //   F  default to most-recent conversation when ?c= missing
+    //   G  auto-create one conversation on first project open
+    //   H  auto-title (server-side; client just renders response.title)
+    //   I  echo placeholder format (server-side)
+    //   N  error-string strategy: terse → translate, validation → verbatim
+    //   V  history.replaceState only; single applyState() routing point
+    //   W  composer mechanics — Enter sends, Shift+Enter newline, IME-safe
+    //   X  POST /messages response is canonical for title; render directly
+    //   Y  placeholder Members + Connections tabs use .state-card primitive
+    //   Z  echo banner non-dismissible; .placeholder class on every assistant
+    //   AA mobile drawer (≤700px) behind hamburger; in-memory boolean state
+    //   AB sidebar two-line rows: title (ellipsized) + "Nh ago · N message(s)"
+    //   AC conversations are per-user; server scopes — client just renders
+    //
+    // The single source of truth for navigation is applyState({ conversationId, tab }).
+    // Sidebar click, tab click, auto-create, and default-to-most-recent all route through it.
+    // ============================================================
+
+    // ---------- Module state ----------
+    let me = null;             // { id, email, is_admin } from /api/me
+    let project = null;        // { id, name, description, role, ... } from GET /api/projects/:id
+    let conversations = [];    // sidebar list (with message_count) — sorted updated_at DESC
+    let activeConvId = null;
+    let activeTab = 'chat';
+    const messagesById = {};   // cache: conversationId → messages[] (avoids refetch on tab switch)
+    let drawerOpen = false;    // decision AA: in-memory only
+    let inFlight = false;      // global send-in-flight guard
+
+    const VALID_TABS = { chat: 1, members: 1, connections: 1 };
+
+    // Read URL params once at module init; resolved/overwritten during boot.
+    const initialParams = new URLSearchParams(location.search);
+    const projectId = initialParams.get('id');
+    let initialConvId = initialParams.get('c');
+    const initialTabRaw = initialParams.get('tab');
+
+    // ---------- Helpers ----------
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // Decision AB: sibling to projects.html's fmtRelative — drops the "Updated " prefix.
+    // Used by sidebar conv-meta and chat-msg-meta. Returns '' on parse failure so callers
+    // can gracefully omit; "now"/"yesterday" come from Intl.RelativeTimeFormat numeric:'auto'.
+    function fmtRelativeShort(value) {
+      if (!value) return '';
+      try {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) return '';
+        const diffMs  = Date.now() - date.getTime();
+        const diffMin = Math.round(diffMs / 60000);
+        const diffHr  = Math.round(diffMs / 3600000);
+        const diffDay = Math.round(diffMs / 86400000);
+        const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+        if (Math.abs(diffMin) < 60) return rtf.format(-diffMin, 'minute');
+        if (Math.abs(diffHr)  < 24) return rtf.format(-diffHr,  'hour');
+        if (Math.abs(diffDay) < 30) return rtf.format(-diffDay, 'day');
+        return rtf.format(-Math.round(diffDay / 30), 'month');
+      } catch {
+        return '';
+      }
+    }
+
+    // Decision AB: "Nh ago · N message(s)" with ternary plural.
+    function fmtConvMeta(updatedAt, messageCount) {
+      const rel = fmtRelativeShort(updatedAt);
+      const n = Number.isFinite(messageCount) ? messageCount : 0;
+      const count = n === 1 ? '1 message' : n + ' messages';
+      return rel ? rel + ' · ' + count : count;
+    }
+
+    // Decision W: avatar initials. User = first character of email, uppercase.
+    // Assistant = hardcoded "EA". Display-name + proper initials deferred to Block 9.
+    function deriveUserInitial(email) {
+      return (email && email.length > 0) ? email[0].toUpperCase() : '?';
+    }
+
+    function redirectToLogin() {
+      location.replace('/login.html?next=' + encodeURIComponent(location.pathname + location.search));
+    }
+
+    // ---------- Auth-gated nav setup ----------
+    // Same pattern as projects.html — /api/me returns { user: null } for unauthenticated.
+    // We do this BEFORE boot() to populate the static nav once; boot() re-uses `me`.
+    async function bootstrapMe() {
+      let res;
+      try {
+        res = await fetch('/api/me');
+      } catch {
+        return false;
+      }
+      if (res.status === 401) { redirectToLogin(); return false; }
+      if (!res.ok) return false;
+      const data = await res.json().catch(() => ({}));
+      if (!data || !data.user) {
+        location.replace('/');
+        return false;
+      }
+      me = data.user;
+      document.getElementById('navUser').textContent = me.email;
+      if (me.is_admin) {
+        document.getElementById('adminLink').style.display = '';
+      }
+      return true;
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+      location.replace('/');
+    });
+
+    // ---------- Boot states ----------
+    function renderLoadingShell() {
+      document.getElementById('shellRoot').innerHTML = `
+        <div class="state-card" aria-busy="true">
+          <div class="state-card-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M12 7v5l3 2"/>
+            </svg>
+          </div>
+          <h2 class="state-card-heading">Loading project…</h2>
+        </div>
+      `;
+    }
+
+    function renderBootError() {
+      document.getElementById('shellRoot').innerHTML = `
+        <div class="state-card" role="alert">
+          <div class="state-card-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l9.5 17H2.5L12 3z"/>
+              <line x1="12" y1="9" x2="12" y2="14"/>
+              <line x1="12" y1="17.5" x2="12" y2="17.51"/>
+            </svg>
+          </div>
+          <h2 class="state-card-heading">Couldn't load this project</h2>
+          <p class="state-card-body">Check your connection or refresh the page if this persists.</p>
+          <div class="state-card-actions">
+            <button class="btn btn-primary" id="bootRetryBtn">Retry</button>
+          </div>
+        </div>
+      `;
+      document.getElementById('bootRetryBtn').addEventListener('click', boot);
+    }
+
+    // ---------- Boot pipeline ----------
+    // Step ordering matches sub-task 2.5 spec. Auth-error mapping per decision N:
+    //   401 mid-flight → redirect to /login.html?next=...
+    //   403 / 404 on the project resource → /projects.html (don't leak existence)
+    //   Other non-OK → render boot-error state-card with Retry
+    async function boot() {
+      if (!projectId) { location.replace('/projects.html'); return; }
+      renderLoadingShell();
+
+      try {
+        // Step 1: GET /api/projects/:id (auth + project meta + role).
+        const projRes = await fetch('/api/projects/' + encodeURIComponent(projectId));
+        if (projRes.status === 401) { redirectToLogin(); return; }
+        if (projRes.status === 403 || projRes.status === 404) {
+          // 403-collapse from requireProjectRole, OR project soft-deleted between
+          // checks. Either way: don't leak existence — bounce to projects list.
+          location.replace('/projects.html'); return;
+        }
+        if (!projRes.ok) { renderBootError(); return; }
+        const projData = await projRes.json();
+        project = projData.project;
+        if (!project || !project.id) { renderBootError(); return; }
+
+        // Step 2: GET conversations (decision AC: server scopes to session user).
+        const convRes = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/conversations');
+        if (convRes.status === 401) { redirectToLogin(); return; }
+        if (convRes.status === 403) { location.replace('/projects.html'); return; }
+        if (!convRes.ok) { renderBootError(); return; }
+        const convData = await convRes.json();
+        conversations = Array.isArray(convData.conversations) ? convData.conversations : [];
+
+        // Step 3 (decision G): auto-create one if user has zero conversations
+        // in this project. Lower friction than an empty state.
+        if (conversations.length === 0) {
+          const createRes = await fetch(
+            '/api/projects/' + encodeURIComponent(projectId) + '/conversations',
+            { method: 'POST' }
+          );
+          if (createRes.status === 401) { redirectToLogin(); return; }
+          if (createRes.status === 403) { location.replace('/projects.html'); return; }
+          if (!createRes.ok) { renderBootError(); return; }
+          const createData = await createRes.json();
+          if (!createData || !createData.conversation) { renderBootError(); return; }
+          conversations = [createData.conversation];
+        }
+
+        // Step 4 (decisions F + V): resolve activeConvId — ?c= if it matches a
+        // real row, otherwise most-recent (conversations[0] is updated_at DESC).
+        if (initialConvId && conversations.some(c => c.id === initialConvId)) {
+          activeConvId = initialConvId;
+        } else {
+          activeConvId = conversations[0].id;
+        }
+
+        // Step 5: GET messages for active conversation.
+        const msgsRes = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/conversations/' + encodeURIComponent(activeConvId) + '/messages'
+        );
+        if (msgsRes.status === 401) { redirectToLogin(); return; }
+        if (msgsRes.status === 403) { location.replace('/projects.html'); return; }
+        if (!msgsRes.ok) { renderBootError(); return; }
+        const msgsData = await msgsRes.json();
+        messagesById[activeConvId] = Array.isArray(msgsData.messages) ? msgsData.messages : [];
+
+        // Step 6 (decision V): resolve activeTab and route through applyState
+        // so the URL bar reflects reality from the moment the page is interactive.
+        activeTab = (initialTabRaw && VALID_TABS[initialTabRaw]) ? initialTabRaw : 'chat';
+
+        renderShell();
+        applyState({ conversationId: activeConvId, tab: activeTab });
+      } catch {
+        renderBootError();
+      }
+    }
+
+    // ---------- Shell (static chrome — rendered once after boot succeeds) ----------
+    function renderShell() {
+      const projName = escapeHtml(project.name || 'Untitled project');
+      document.getElementById('shellRoot').innerHTML = `
+        <div class="project-shell" id="shell">
+          <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
+          <aside class="project-sidebar" id="sidebar">
+            <div class="project-sidebar-header">
+              <div class="project-sidebar-title">Conversations</div>
+              <button class="new-conv-btn" id="newConvBtn" type="button" title="New conversation" aria-label="New conversation">+</button>
+            </div>
+            <div id="convList"></div>
+          </aside>
+          <main class="project-main">
+            <div class="project-main-header">
+              <div class="project-header-left">
+                <button class="drawer-toggle" id="drawerToggle" type="button" aria-label="Toggle conversations">
+                  <span></span><span></span><span></span>
+                </button>
+                <div class="project-header-titles">
+                  <div class="project-breadcrumb">
+                    <a href="/projects.html">Projects</a> / <span>${projName}</span>
+                  </div>
+                  <h2 class="project-name-h">${projName}</h2>
+                </div>
+              </div>
+              <div class="project-tabs" id="tabStrip">
+                <button class="project-tab" type="button" data-tab="chat">Chat</button>
+                <button class="project-tab" type="button" data-tab="members">Members</button>
+                <button class="project-tab" type="button" data-tab="connections">Connections</button>
+              </div>
+            </div>
+            <div id="tabBody"></div>
+          </main>
+        </div>
+      `;
+
+      document.getElementById('newConvBtn').addEventListener('click', onNewConv);
+      document.getElementById('drawerToggle').addEventListener('click', toggleDrawer);
+      document.getElementById('drawerBackdrop').addEventListener('click', closeDrawer);
+      document.getElementById('tabStrip').addEventListener('click', onTabClick);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && drawerOpen) closeDrawer();
+      });
+    }
+
+    // ---------- Single state-update function (decision V) ----------
+    // Sidebar click, tab click, auto-create, default-to-most-recent all route through here.
+    // Always replaceState; never pushState; never reload.
+    function applyState({ conversationId, tab }) {
+      activeConvId = conversationId;
+      activeTab = VALID_TABS[tab] ? tab : 'chat';
+
+      // URL bar reflects reality. Always include ?id and ?c (when conv exists);
+      // omit ?tab when 'chat' (the implicit default) for cleaner shareable URLs.
+      const u = new URL(location.href);
+      u.searchParams.set('id', project.id);
+      if (activeConvId) u.searchParams.set('c', activeConvId);
+      else u.searchParams.delete('c');
+      if (activeTab !== 'chat') u.searchParams.set('tab', activeTab);
+      else u.searchParams.delete('tab');
+      history.replaceState(null, '', u.toString());
+
+      renderSidebar();
+      renderTabStrip();
+      renderTabBody();
+    }
+
+    // ---------- Sidebar ----------
+    function renderSidebar() {
+      const list = document.getElementById('convList');
+      list.innerHTML = conversations.map(c => {
+        const title = escapeHtml(c.title || 'Untitled');
+        const meta = escapeHtml(fmtConvMeta(c.updated_at, c.message_count));
+        const active = c.id === activeConvId ? ' active' : '';
+        const id = escapeHtml(c.id);
+        return `
+          <button class="conv-item${active}" type="button" data-conv-id="${id}">
+            <div class="conv-title">${title}</div>
+            <div class="conv-meta">${meta}</div>
+          </button>
+        `;
+      }).join('');
+      list.querySelectorAll('.conv-item').forEach(el => {
+        el.addEventListener('click', () => onConvClick(el.dataset.convId));
+      });
+    }
+
+    // ---------- Tab strip ----------
+    function renderTabStrip() {
+      document.querySelectorAll('#tabStrip .project-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === activeTab);
+      });
+    }
+
+    function onTabClick(e) {
+      const tab = e.target.closest('.project-tab');
+      if (!tab) return;
+      applyState({ conversationId: activeConvId, tab: tab.dataset.tab });
+    }
+
+    // ---------- Tab body ----------
+    function renderTabBody() {
+      const body = document.getElementById('tabBody');
+      if (activeTab === 'chat') renderChat(body);
+      else if (activeTab === 'members') renderMembersPlaceholder(body);
+      else renderConnectionsPlaceholder(body);
+    }
+
+    function renderChat(body) {
+      const conv = conversations.find(c => c.id === activeConvId);
+      const title = conv ? (conv.title || '') : '';
+      body.innerHTML = `
+        <div class="chat-area">
+          <div class="chat-conv-title" id="chatConvTitle"></div>
+          <div class="chat-messages" id="chatMessages"></div>
+          <div class="chat-composer">
+            <div class="chat-placeholder-banner">Block 2 placeholder — your messages persist, but the assistant just echoes back until Block 5 wires up the AI.</div>
+            <div class="chat-error" id="chatError" style="display:none;" role="alert"></div>
+            <div class="chat-composer-row">
+              <textarea class="chat-input" id="chatInput" placeholder="Ask anything about this project…" rows="1" aria-label="Message"></textarea>
+              <button class="chat-send-btn" id="chatSend" type="button" disabled>Send</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.getElementById('chatConvTitle').textContent = title;
+      renderMessages();
+      wireComposer();
+      // Defer focus to next frame so the textarea is in the layout tree.
+      requestAnimationFrame(() => {
+        const input = document.getElementById('chatInput');
+        if (input && !inFlight) input.focus();
+      });
+    }
+
+    function renderMessages() {
+      const list = document.getElementById('chatMessages');
+      const msgs = messagesById[activeConvId] || [];
+      list.innerHTML = msgs.map(m => renderMessageHtml(m)).join('');
+      list.scrollTop = list.scrollHeight;
+    }
+
+    function renderMessageHtml(m) {
+      const isUser = m.role === 'user';
+      // Decision Z: every assistant message in Session 3's render loop gets .placeholder.
+      // Block 5 removes this unconditional rule in the same diff that wires up real AI.
+      const placeholder = !isUser ? ' placeholder' : '';
+      const avatar = isUser ? deriveUserInitial(me.email) : 'EA';
+      const rel = fmtRelativeShort(m.created_at) || 'just now';
+      const meta = (isUser ? 'You · ' : 'Elinno Agent · ') + rel;
+      return `
+        <div class="chat-msg ${isUser ? 'user' : 'assistant'}${placeholder}">
+          <div class="chat-msg-avatar">${escapeHtml(avatar)}</div>
+          <div class="chat-msg-body">
+            <div class="chat-msg-meta">${escapeHtml(meta)}</div>
+            <div class="chat-msg-content">${escapeHtml(m.content || '')}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ---------- Composer (decision W) ----------
+    function wireComposer() {
+      const input = document.getElementById('chatInput');
+      const send = document.getElementById('chatSend');
+
+      // Auto-resize on input. Cap is enforced by CSS max-height; scrollHeight grows
+      // beyond cap, so we still set scrollHeight and let CSS clamp it.
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = input.scrollHeight + 'px';
+        send.disabled = inFlight || input.value.trim().length === 0;
+      });
+
+      // Enter sends; Shift+Enter newline; IME-safe (don't intercept while composing).
+      input.addEventListener('keydown', (e) => {
+        if (e.isComposing || e.keyCode === 229) return;
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      send.addEventListener('click', sendMessage);
+    }
+
+    function showChatError(msg) {
+      const slot = document.getElementById('chatError');
+      if (!slot) return;
+      slot.textContent = msg;
+      slot.style.display = '';
+    }
+
+    function clearChatError() {
+      const slot = document.getElementById('chatError');
+      if (!slot) return;
+      slot.style.display = 'none';
+      slot.textContent = '';
+    }
+
+    async function sendMessage() {
+      if (inFlight) return;
+      const input = document.getElementById('chatInput');
+      const send = document.getElementById('chatSend');
+      if (!input || !send) return;
+      const content = input.value.trim();
+      if (content.length === 0) return;
+
+      // Capture sendingConvId at send time. If user switches convs mid-flight, the
+      // returned messages still get cached against the conversation they were sent in.
+      const sendingConvId = activeConvId;
+
+      inFlight = true;
+      send.textContent = 'Sending…';
+      send.disabled = true;
+      input.disabled = true;
+      clearChatError();
+
+      let res;
+      try {
+        res = await fetch(
+          '/api/projects/' + encodeURIComponent(project.id) +
+          '/conversations/' + encodeURIComponent(sendingConvId) + '/messages',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content }),
+          }
+        );
+      } catch {
+        restoreComposer();
+        showChatError('Something went wrong. Please try again.');
+        return;
+      }
+
+      if (res.status === 401) { redirectToLogin(); return; }
+      if (res.status === 403) { location.replace('/projects.html'); return; }
+      if (res.status === 400) {
+        // Decision N: validation strings are user-facing-quality; render verbatim.
+        const data = await res.json().catch(() => ({}));
+        restoreComposer();
+        showChatError(data && data.error ? data.error : 'Something went wrong. Please try again.');
+        return;
+      }
+      if (!res.ok) {
+        restoreComposer();
+        showChatError('Something went wrong. Please try again.');
+        return;
+      }
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        restoreComposer();
+        showChatError('Something went wrong. Please try again.');
+        return;
+      }
+
+      // Append both messages to the conversation they were sent in (sendingConvId,
+      // not activeConvId — user might have switched mid-flight).
+      if (!messagesById[sendingConvId]) messagesById[sendingConvId] = [];
+      if (data.user_message) messagesById[sendingConvId].push(data.user_message);
+      if (data.assistant_message) messagesById[sendingConvId].push(data.assistant_message);
+
+      // Decision X: server response is canonical for title. Update sidebar row +
+      // chat-conv-title heading (when on chat tab and same conv) directly from the
+      // response — no refetch.
+      const idx = conversations.findIndex(c => c.id === sendingConvId);
+      if (idx >= 0) {
+        const newTitle = (data.conversation && data.conversation.title) || conversations[idx].title;
+        const bumpedAt = (data.assistant_message && data.assistant_message.created_at) || new Date().toISOString();
+        conversations[idx] = {
+          ...conversations[idx],
+          title: newTitle,
+          updated_at: bumpedAt,
+          message_count: (conversations[idx].message_count || 0) + 2,
+        };
+        // Re-sort matches the API's ORDER BY updated_at DESC, id DESC so the
+        // active conv naturally bumps to the top of the sidebar.
+        conversations.sort((a, b) => {
+          const at = new Date(a.updated_at).getTime();
+          const bt = new Date(b.updated_at).getTime();
+          if (bt !== at) return bt - at;
+          return a.id < b.id ? 1 : -1;
+        });
+      }
+
+      // Render — sidebar always; chat surface only when still viewing that conv.
+      renderSidebar();
+      if (activeConvId === sendingConvId && activeTab === 'chat') {
+        const heading = document.getElementById('chatConvTitle');
+        if (heading) {
+          const conv = conversations.find(c => c.id === sendingConvId);
+          heading.textContent = conv ? (conv.title || '') : '';
+        }
+        renderMessages();
+      }
+
+      // Decision W: clear textarea, reset min-height, refocus.
+      input.value = '';
+      input.style.height = '';
+      restoreComposer();
+    }
+
+    function restoreComposer() {
+      inFlight = false;
+      const input = document.getElementById('chatInput');
+      const send = document.getElementById('chatSend');
+      if (send) {
+        send.textContent = 'Send';
+        send.disabled = !input || input.value.trim().length === 0;
+      }
+      if (input) {
+        input.disabled = false;
+        input.focus();
+      }
+    }
+
+    // ---------- Conversation switch ----------
+    async function onConvClick(convId) {
+      if (!convId) return;
+      // No-op if we're already on this conv AND on chat tab. Still close drawer
+      // for the mobile "tap to dismiss" affordance (decision AA).
+      if (convId === activeConvId && activeTab === 'chat') {
+        closeDrawer();
+        return;
+      }
+
+      // Fetch messages if not cached.
+      if (!messagesById[convId]) {
+        let res;
+        try {
+          res = await fetch(
+            '/api/projects/' + encodeURIComponent(project.id) +
+            '/conversations/' + encodeURIComponent(convId) + '/messages'
+          );
+        } catch {
+          showChatError("Couldn't load that conversation. Please try again.");
+          return;
+        }
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (res.status === 403) {
+          // Conv was deleted or membership revoked between sidebar render and click.
+          // Bounce to the safe known state.
+          location.replace('/projects.html');
+          return;
+        }
+        if (!res.ok) {
+          showChatError("Couldn't load that conversation. Please try again.");
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        messagesById[convId] = Array.isArray(data.messages) ? data.messages : [];
+      }
+
+      closeDrawer();
+      // Sidebar click always lands on the chat tab — that's where active-conv state
+      // is meaningful. Matches consumer chat UX (Slack, ChatGPT).
+      applyState({ conversationId: convId, tab: 'chat' });
+    }
+
+    // ---------- New conversation ----------
+    async function onNewConv() {
+      const btn = document.getElementById('newConvBtn');
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      try {
+        let res;
+        try {
+          res = await fetch(
+            '/api/projects/' + encodeURIComponent(project.id) + '/conversations',
+            { method: 'POST' }
+          );
+        } catch {
+          // Network failure: surface in chat-error slot, switch to chat tab so the
+          // slot is visible. Stay on current conv.
+          applyState({ conversationId: activeConvId, tab: 'chat' });
+          showChatError("Couldn't create a new conversation. Please try again.");
+          closeDrawer();
+          return;
+        }
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (res.status === 403) { location.replace('/projects.html'); return; }
+        if (!res.ok) {
+          applyState({ conversationId: activeConvId, tab: 'chat' });
+          showChatError("Couldn't create a new conversation. Please try again.");
+          closeDrawer();
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!data || !data.conversation) {
+          applyState({ conversationId: activeConvId, tab: 'chat' });
+          showChatError("Couldn't create a new conversation. Please try again.");
+          closeDrawer();
+          return;
+        }
+        const newConv = data.conversation;
+        conversations.unshift(newConv);
+        messagesById[newConv.id] = [];
+        closeDrawer();
+        // Decision V: route through applyState. Lands on chat tab, fresh conv active.
+        applyState({ conversationId: newConv.id, tab: 'chat' });
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // ---------- Placeholder tabs (decision Y) ----------
+    function renderMembersPlaceholder(body) {
+      // Two-person SVG reused from projects.html's empty-non-admin state (decision Y).
+      body.innerHTML = `
+        <div class="tab-placeholder">
+          <div class="state-card">
+            <div class="state-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="8" r="3"/>
+                <path d="M3 19c0-2.8 2.7-5 6-5s6 2.2 6 5"/>
+                <circle cx="17" cy="10" r="2.5"/>
+                <path d="M15 15c.7-.3 1.3-.5 2-.5 2.5 0 4.5 2 4.5 4.5"/>
+              </svg>
+            </div>
+            <h2 class="state-card-heading">Members coming soon</h2>
+            <p class="state-card-body">You'll be able to invite people and manage roles from this tab in the next deploy.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderConnectionsPlaceholder(body) {
+      // Decision Y: link/plug-style icon. Locked copy split across heading + body.
+      body.innerHTML = `
+        <div class="tab-placeholder">
+          <div class="state-card">
+            <div class="state-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+              </svg>
+            </div>
+            <h2 class="state-card-heading">No tools connected yet</h2>
+            <p class="state-card-body">Slack, Jira, Monday, and Google Drive are coming.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // ---------- Mobile drawer (decision AA) ----------
+    function toggleDrawer() {
+      drawerOpen = !drawerOpen;
+      applyDrawerClass();
+    }
+
+    function closeDrawer() {
+      if (!drawerOpen) return;
+      drawerOpen = false;
+      applyDrawerClass();
+    }
+
+    function applyDrawerClass() {
+      const shell = document.getElementById('shell');
+      if (shell) shell.classList.toggle('drawer-open', drawerOpen);
+    }
+
+    // ---------- Kick off ----------
+    (async () => {
+      const ok = await bootstrapMe();
+      if (!ok) return;
+      boot();
+    })();
+  </script>
+</body>
+</html>
