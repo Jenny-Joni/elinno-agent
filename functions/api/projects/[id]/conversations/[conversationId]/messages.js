@@ -53,30 +53,50 @@
 //   Decision H says auto-title fires "from first user message." The natural
 //   reading is "count existing user messages, fire if zero." We tried that
 //   first; it failed in production verification because Hyperdrive's query
-//   result cache returns stale COUNT data: the previous send's INSERT lands
-//   in Postgres, but a SELECT COUNT(*) issued on the next send still hits
-//   the cached pre-INSERT result and returns 0 — so every send re-derives
-//   the title (matrix scenario 4 of the trimmed verification, plus the
-//   decisive 2-curl test that pinned the bug).
+//   result cache returns stale COUNT data. Replaced with a title-state check
+//   (if title equals the default literal 'New conversation', this is the
+//   first user-message-driven title-set; replace it). Sidesteps the COUNT
+//   round-trip entirely.
 //
-//   The fix substitutes a title-state check for the count check: if the
-//   current `conversations.title` equals the default literal 'New conversation'
-//   (set by the conversations POST handler on creation per decision G), this
-//   is the first user-message-driven title-set; replace it. Otherwise keep
-//   the existing title.
+//   Trade-off vs the count-based reading: in v1.1 the only thing that
+//   mutates `conversations.title` is this auto-title logic, so "title is
+//   default" and "no user messages yet" are equivalent. If a future Block
+//   adds user-renameable conversations (Block 9 polish bucket), the
+//   semantics shift slightly: a user who renames a conversation back to
+//   the literal string 'New conversation' would re-trigger auto-title on
+//   their next send. That's a stretch case the PRD doesn't address; Block 9
+//   to revisit if it surfaces.
 //
-//   This sidesteps the Hyperdrive cache entirely (the conv-guard SELECT
-//   above is the only read; we already have its result), and removes one
-//   round-trip per send.
+// HYPERDRIVE CACHE NOTE — read-after-write requires explicit uncacheable markers:
+//   Hyperdrive (https://developers.cloudflare.com/hyperdrive/concepts/query-caching/)
+//   caches read-only SELECTs by default with a 60-second TTL. Mutations
+//   are SUPPOSED to invalidate related cached SELECTs, but in practice
+//   that invalidation is unreliable for read-after-write within the same
+//   request or shortly after — Cloudflare staff confirmed this on Discord
+//   (December 2025) and the Cloudflare-recommended workaround is to mark
+//   the SELECT uncacheable.
 //
-//   Trade-off vs the count-based reading of Decision H: in v1.1 the only
-//   thing that mutates `conversations.title` is this auto-title logic, so
-//   "title is default" and "no user messages yet" are equivalent. If a
-//   future Block adds user-renameable conversations (Block 9 polish bucket),
-//   the semantics shift slightly: a user who renames a conversation back
-//   to the literal string 'New conversation' would re-trigger auto-title
-//   on their next send. That's a stretch case the PRD doesn't address;
-//   Block 9 to revisit if it surfaces.
+//   Per Cloudflare's February 2026 caching change, Hyperdrive uses
+//   text-based pattern matching to detect uncacheable functions: any
+//   reference to a STABLE function name like `NOW()` — even inside a SQL
+//   comment — marks the entire query as uncacheable. We use the comment
+//   form (`-- bypass Hyperdrive cache: NOW()`) on three SELECTs:
+//     a) the conv-guard SELECT in onRequestGet — could see stale title
+//        on read-after-update (currently doesn't read title, but defensive)
+//     b) the conv-guard SELECT in onRequestPost — observed stale title
+//        broke decision H verification before this fix (the bug that
+//        produced this NOTE)
+//     c) the messages list SELECT in onRequestGet — would otherwise miss
+//        a just-inserted message if a previous response was cached
+//
+//   Cost: ~10–50 ms additional latency per uncached query (the round-trip
+//   to Neon Frankfurt that the cache would otherwise have served from
+//   Cloudflare edge). Acceptable for v1.1 chat write paths. Revisit if
+//   chat throughput becomes a bottleneck.
+//
+//   FOLLOW-UP for the next sitting: audit other endpoints for the same
+//   read-after-write hazard (POST /projects' subsequent READs, members
+//   list after invite, etc.). Tracked in HANDOFF.
 
 import postgres from 'postgres';
 import { error, json, requireProjectRole } from '../../../../../_lib/auth.js';
@@ -123,7 +143,9 @@ export async function onRequestGet({ request, env, params }) {
   try {
     // Conversation guard: must belong to this project AND this user.
     // Single SELECT collapses both checks; either failure → 403.
+    // Marked uncacheable (see HYPERDRIVE CACHE NOTE in file header).
     const [conv] = await sql`
+      -- bypass Hyperdrive cache: NOW()
       SELECT id
       FROM conversations
       WHERE id          = ${params.conversationId}
@@ -137,7 +159,9 @@ export async function onRequestGet({ request, env, params }) {
     // Decision: messages ordered created_at ASC (oldest first; chat scroll
     // top-down). Soft-deleted filtered out, matching the LEFT JOIN's
     // m.deleted_at IS NULL filter from the conversations list endpoint.
+    // Marked uncacheable (see HYPERDRIVE CACHE NOTE in file header).
     const messages = await sql`
+      -- bypass Hyperdrive cache: NOW()
       SELECT id, conversation_id, role, content, created_at
       FROM messages
       WHERE conversation_id = ${params.conversationId}
@@ -196,7 +220,10 @@ export async function onRequestPost({ request, env, params }) {
     // Conversation guard (same as GET): belongs to this project AND user.
     // Includes current title — we use it for decision H's auto-title trigger
     // (see DECISION H IMPLEMENTATION NOTE in file header).
+    // Marked uncacheable (see HYPERDRIVE CACHE NOTE in file header) —
+    // this is the read that broke decision H verification before the marker.
     const [conv] = await sql`
+      -- bypass Hyperdrive cache: NOW()
       SELECT id, title
       FROM conversations
       WHERE id          = ${params.conversationId}
@@ -208,10 +235,7 @@ export async function onRequestPost({ request, env, params }) {
     if (!conv) return error('Forbidden', 403);
 
     // Decision H: auto-title fires once, when the title is still the default.
-    // No COUNT(*) round-trip — see DECISION H IMPLEMENTATION NOTE in header
-    // for why the count-based reading was abandoned (Hyperdrive query cache
-    // returns stale "0 messages" results, which fired auto-title on every
-    // send).
+    // No COUNT(*) round-trip — see DECISION H IMPLEMENTATION NOTE in header.
     const isFirstTitleSet = conv.title === DEFAULT_CONVERSATION_TITLE;
     const newTitle = isFirstTitleSet ? deriveTitleFromMessage(content) : conv.title;
 
