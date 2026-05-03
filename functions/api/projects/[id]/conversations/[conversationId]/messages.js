@@ -67,36 +67,30 @@
 //   their next send. That's a stretch case the PRD doesn't address; Block 9
 //   to revisit if it surfaces.
 //
-// HYPERDRIVE CACHE NOTE — read-after-write requires explicit uncacheable markers:
-//   Hyperdrive (https://developers.cloudflare.com/hyperdrive/concepts/query-caching/)
-//   caches read-only SELECTs by default with a 60-second TTL. Mutations
-//   are SUPPOSED to invalidate related cached SELECTs, but in practice
-//   that invalidation is unreliable for read-after-write within the same
-//   request or shortly after — Cloudflare staff confirmed this on Discord
-//   (December 2025) and the Cloudflare-recommended workaround is to mark
-//   the SELECT uncacheable.
+// HYPERDRIVE CACHING NOTE — disabled at the binding level for v1.1:
+//   Hyperdrive's default-on query cache (60s TTL) plus unreliable
+//   write-invalidation produced silent staleness on read-after-write —
+//   the conv-guard SELECT below would return the pre-UPDATE `title`
+//   on the second send, re-firing decision H's auto-title.
 //
-//   Per Cloudflare's February 2026 caching change, Hyperdrive uses
-//   text-based pattern matching to detect uncacheable functions: any
-//   reference to a STABLE function name like `NOW()` — even inside a SQL
-//   comment — marks the entire query as uncacheable. We use the comment
-//   form (`-- bypass Hyperdrive cache: NOW()`) on three SELECTs:
-//     a) the conv-guard SELECT in onRequestGet — could see stale title
-//        on read-after-update (currently doesn't read title, but defensive)
-//     b) the conv-guard SELECT in onRequestPost — observed stale title
-//        broke decision H verification before this fix (the bug that
-//        produced this NOTE)
-//     c) the messages list SELECT in onRequestGet — would otherwise miss
-//        a just-inserted message if a previous response was cached
+//   Resolved 2026-05-03 by disabling caching on the elinno-agent-
+//   hyperdrive binding:
+//     npx wrangler hyperdrive update 78af00bbf464468cb902e35099aa0dfe \
+//                                    --caching-disabled true
+//   Cost: ~10–50ms per query (every read round-trips to Neon Frankfurt).
+//   Acceptable for v1.1 chat scale.
 //
-//   Cost: ~10–50 ms additional latency per uncached query (the round-trip
-//   to Neon Frankfurt that the cache would otherwise have served from
-//   Cloudflare edge). Acceptable for v1.1 chat write paths. Revisit if
-//   chat throughput becomes a bottleneck.
+//   We initially tried a comment-form bypass marker
+//   (`-- bypass Hyperdrive cache: NOW()`) on the affected SELECTs.
+//   It didn't work — Hyperdrive's STABLE-function pattern detector
+//   appears not to match function references inside SQL comments,
+//   despite the docs reading as if it should. If a future block
+//   re-enables caching for hot-path latency, use a *real* `NOW()`
+//   reference inside the WHERE clause (e.g. `AND NOW() IS NOT NULL`)
+//   on every read-after-write SELECT, not a commented marker.
 //
-//   FOLLOW-UP for the next sitting: audit other endpoints for the same
-//   read-after-write hazard (POST /projects' subsequent READs, members
-//   list after invite, etc.). Tracked in HANDOFF.
+//   Revisit before Block 5 when AI tool calls multiply read-after-
+//   write volume.
 
 import postgres from 'postgres';
 import { error, json, requireProjectRole } from '../../../../../_lib/auth.js';
@@ -143,9 +137,7 @@ export async function onRequestGet({ request, env, params }) {
   try {
     // Conversation guard: must belong to this project AND this user.
     // Single SELECT collapses both checks; either failure → 403.
-    // Marked uncacheable (see HYPERDRIVE CACHE NOTE in file header).
     const [conv] = await sql`
-      -- bypass Hyperdrive cache: NOW()
       SELECT id
       FROM conversations
       WHERE id          = ${params.conversationId}
@@ -159,9 +151,7 @@ export async function onRequestGet({ request, env, params }) {
     // Decision: messages ordered created_at ASC (oldest first; chat scroll
     // top-down). Soft-deleted filtered out, matching the LEFT JOIN's
     // m.deleted_at IS NULL filter from the conversations list endpoint.
-    // Marked uncacheable (see HYPERDRIVE CACHE NOTE in file header).
     const messages = await sql`
-      -- bypass Hyperdrive cache: NOW()
       SELECT id, conversation_id, role, content, created_at
       FROM messages
       WHERE conversation_id = ${params.conversationId}
@@ -220,10 +210,7 @@ export async function onRequestPost({ request, env, params }) {
     // Conversation guard (same as GET): belongs to this project AND user.
     // Includes current title — we use it for decision H's auto-title trigger
     // (see DECISION H IMPLEMENTATION NOTE in file header).
-    // Marked uncacheable (see HYPERDRIVE CACHE NOTE in file header) —
-    // this is the read that broke decision H verification before the marker.
     const [conv] = await sql`
-      -- bypass Hyperdrive cache: NOW()
       SELECT id, title
       FROM conversations
       WHERE id          = ${params.conversationId}
