@@ -373,3 +373,181 @@ If a session changes a major decision, update the relevant section *and* mention
 ---
 
 *Generated 2026-05-02. Designed to be uploaded to a fresh Claude session as the first context.*
+## Session 3 mid-state — 2026-05-03 evening (sub-task 2.4 partial)
+
+> Append to HANDOFF after the Block 2 detailed status section (around line
+> 211, just before "How the developer wants to work with you"). Or merge
+> manually into the Block 2 status if you want it inline; this is a
+> standalone block on purpose so it's easy to read without rearranging.
+
+### Where the branch is right now
+
+`origin/session-3-conversations-and-chat` is **8 commits ahead of main**:
+
+```
+0b793c3 fix(block-2): mark conv-guard + messages SELECTs uncacheable for read-after-write
+9ef44f6 fix(block-2): replace count-based decision-H trigger with title-state check
+25a005c fix(block-2): add project_id to messages INSERTs (denormalized NOT NULL column)
+dee6ec1 feat(block-2): add messages API (GET/POST) with auto-title + echo
+8080684 feat(block-2): add conversations API (POST/GET) under projects/:id
+5186838 docs(block-2): lock Session 3 design decisions V–AC
+85a07d6 chore(docs): document working agreement
+362abbf chore(repo): expand workspace-scope formatter policy with files.* keys
+```
+
+**NOT merged to main.** Production is on `5a789c2` and unchanged.
+
+### What works
+
+- **Schema fix (`25a005c`)** is genuine and verified. The `messages` table has a NOT NULL `project_id` uuid column with no default; the original INSERTs in `dee6ec1` omitted it, every POST /messages threw and 500-d. Both INSERTs in `messages.js` now populate `project_id` from `params.id`. POST /messages returns 200 with the right shape.
+- **Decision I (echo format)** verified — `You said: "${content}" — Real AI coming in Block 5.` with em-dash U+2014, byte-exact.
+- **Decision X (title in response)** verified — POST /messages always returns `conversation: { id, title }`.
+- **All security/scoping scenarios pass:**
+  - Decision AC per-user scoping on GET conversations (bob can't see Jenny's).
+  - Decision AC per-user scoping on POST messages (bob can't post to Jenny's conversation).
+  - Cross-project leakage prevention (bob can't access P2 conversations).
+  - Conversation-belongs-to-project guard (Jenny can't access $C1 under P2's URL even as P2 admin).
+  - 401 on no session, 400 on empty/oversize content, 403-collapse on all auth failures.
+- **Decision AB LEFT JOIN preservation** verified via the empty-conversation proxy (`message_count: 0` when no messages exist; LEFT JOIN keeps the row).
+
+### What's broken
+
+- **Decision H (auto-title fires only on first user message) is broken.** Auto-title fires on EVERY user message, not just the first. Reproduced deterministically with two consecutive POST /messages calls to a fresh conversation: the second response shows `title` matching the second message's content, not preserving the first.
+
+### What we tried (and why it didn't work)
+
+Three diagnoses, three commits on the branch, none fixed H:
+
+1. **`9ef44f6` — count→title-state refactor.** Original implementation in `dee6ec1` used `SELECT COUNT(*) FROM messages WHERE role='user' AND ...` to decide if first message. Suspected Hyperdrive cache was returning stale 0. Replaced with `if (conv.title === 'New conversation')` — read title from the conv-guard SELECT we already have.
+
+2. **`0b793c3` — Hyperdrive cache-bypass markers.** When `9ef44f6` didn't fix H, realized the conv-guard SELECT itself is also being cached — it returns a stale title (`'New conversation'`) on the second send. Added `-- bypass Hyperdrive cache: NOW()` comment markers on three SELECTs (per [Cloudflare's documented workaround](https://developers.cloudflare.com/hyperdrive/concepts/query-caching/) — text-pattern detection of STABLE function names marks queries uncacheable).
+
+The third try also didn't fix H. The deployed file has the markers (verified by Cursor's diff review and post-push integrity check), the new preview built clean (`/api/db-health` returns 200 from the post-push deploy at `https://29715ffb.elinno-agent.pages.dev`), but the 2-curl test still shows `title` changing on the second send.
+
+### Tomorrow's first move
+
+**Don't write more code first. Diagnose whether the cache marker actually took effect.**
+
+```bash
+# Same setup as the broken 2-curl test, but with a tail running.
+# Terminal A:
+npx wrangler pages deployment tail [LATEST_DEPLOY_ID_HERE] --project-name=elinno-agent
+
+# Terminal B (after Terminal A says "Connected to deployment..."):
+BASE="[LATEST_PREVIEW_URL]"
+COOKIE_J=$(mktemp)
+# log in as Jenny (env var JENNY_PASSWORD set)
+curl -sS -c "$COOKIE_J" -X POST "$BASE/api/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"jenny@elinnovation.net\",\"password\":\"$JENNY_PASSWORD\"}" -o /dev/null
+# Use a fresh project, fresh conversation
+P1="f0f563f9-8f88-4f60-b645-7540fb911a1c"
+CONV=$(curl -sS -X POST "$BASE/api/projects/$P1/conversations" -b "$COOKIE_J" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['conversation']['id'])")
+echo "CONV=$CONV"
+# First send — should set title
+curl -sS -X POST "$BASE/api/projects/$P1/conversations/$CONV/messages" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"FIRST"}' -b "$COOKIE_J" | python3 -m json.tool
+# wait 3 seconds (Hyperdrive cache window)
+sleep 3
+# Second send — title should NOT change
+curl -sS -X POST "$BASE/api/projects/$P1/conversations/$CONV/messages" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"SECOND"}' -b "$COOKIE_J" | python3 -m json.tool
+rm "$COOKIE_J"
+```
+
+The Cloudflare tail should show two POST /messages requests. If it shows
+exception logs for either, the failure mode is different than we think.
+If both show clean `Ok` responses (which is what the prior tail showed),
+then we know the 500 catch-block isn't masking anything and the cache
+hypothesis was wrong from the start.
+
+**Branching from there:**
+
+- **If H breaks even WITH a 3-second sleep between sends** — Hyperdrive cache isn't the problem. The bug is in the application code somewhere. Re-read `messages.js` carefully without the cache hypothesis — maybe the conv-guard SELECT result isn't being used correctly, or the UPDATE isn't actually persisting the title (try a direct Neon query to see what the row looks like after each send).
+- **If H works correctly with a 3-second sleep** — Hyperdrive cache IS the issue but our marker syntax isn't right. Try alternatives: `-- @cache=off`, an actual `NOW()` reference in the WHERE clause (`AND ${sql`NOW()`} IS NOT NULL` as a no-op), a different STABLE function. Read the docs more carefully.
+- **If H works correctly even WITHOUT the sleep** — turn out the cache marker DID work, and tonight's repro was a transient. Unlikely given how reproducible the bug was, but worth ruling out.
+
+### Untracked files in working tree
+
+- `block-2-mockups-v2.html` — Session 3 mockup, deferred to closeout commit per Session 3 plan. Do not commit yet.
+- `curl-matrix-2-4.md` — the verification matrix doc Cursor added to repo root. Decide at closeout: leave at root or move to `docs/verification/`. Not tracked.
+- `verify-2-4-v2.sh` — the throwaway script from tonight's verification. Delete or leave as-is; not for commit. Has no inline credentials (env-var-based).
+
+### WORKFLOW.md drift
+
+Twice during tonight's session, `git status` showed `WORKFLOW.md` modified
+with only a trailing-newline change. Cause unclear — possibly the Cursor
+IDE auto-saving the file without changes, possibly an editor setting that
+strips final newlines on save. Resolved both times with `git checkout
+WORKFLOW.md`. Doesn't block work but worth investigating: check
+`.vscode/settings.json` for `files.insertFinalNewline: false` or similar.
+
+### Cursor co-author trailer
+
+Both fix commits (`25a005c`, `9ef44f6`, `0b793c3`) have a
+`Co-authored-by: Cursor <cursoragent@cursor.com>` trailer auto-appended
+by Cursor's IDE. Not malicious; just attribution. Decide at next
+between-sittings: keep, or disable via the relevant Cursor IDE setting
+or git hook.
+
+### Cross-DB orphan reminder + test data still in Neon
+
+Tonight's two failed-then-fixed-then-still-broken matrix runs created
+and deleted two `bob` users in D1 (user_id 6 from the first run, user_id
+7 from the second). Both leave orphaned `project_members` rows in
+Neon — same cross-DB orphan pattern HANDOFF already documents. Plus
+**four test projects** still soft-undeleted in Neon from tonight:
+
+```sql
+-- From the first matrix run:
+-- (also from the previous Block 2 verification, already documented)
+SELECT id, name, deleted_at FROM projects
+WHERE name LIKE 'matrix-test-project-%'
+  AND deleted_at IS NULL;
+```
+
+Soft-delete when convenient via:
+
+```sql
+UPDATE projects SET deleted_at = NOW()
+WHERE name LIKE 'matrix-test-project-%'
+  AND deleted_at IS NULL;
+```
+
+### Hyperdrive caching as a cross-cutting concern
+
+Even if tomorrow's H fix turns out to be unrelated to caching, **it is
+still likely that other read-after-write code paths in the codebase have
+the same hazard.** Add to follow-ups: audit every endpoint that does
+INSERT/UPDATE followed by SELECT on the same data, mark cacheable reads
+explicitly, or consider disabling Hyperdrive caching globally (via
+`wrangler hyperdrive update --caching-disabled true`) for v1.1 simplicity.
+
+The current `0b793c3` commit's HYPERDRIVE CACHE NOTE in `messages.js`
+header is a starting point — read it for the context. Suspect endpoints
+to audit:
+- `POST /api/projects` (then GET /api/projects from same user)
+- `POST /api/projects/:id/members` (then GET /api/projects/:id/members)
+- `POST /api/projects/:id/conversations` (then GET /api/projects/:id/conversations)
+- Any future endpoint that mutates and reads in the same request
+
+### Lessons from tonight (for future sittings)
+
+- **The matrix worked.** It caught the schema bug (which was the most
+  serious of the three issues) and the H bug (which would have shipped
+  silently otherwise). Continue the trimmed-matrix discipline.
+- **Cursor's role-as-executor pattern works well.** All three commits
+  flowed cleanly through propose → approve → commit → approve → push.
+  No security regressions. Spot-check discipline held.
+- **Hyperdrive caching is a foot-gun.** Default-on caching with
+  unreliable invalidation on writes is dangerous for any app with
+  read-after-write semantics. Worth a real architectural decision
+  before Block 5 (chat will multiply read-after-write volume).
+- **Three failed diagnoses in one sitting is the signal to stop.** This
+  HANDOFF amendment exists because we should have stopped two commits
+  earlier, after `9ef44f6` didn't fix H. Future-Claude: heed
+  WORKFLOW.md's stopping rules more aggressively when 2+ diagnoses
+  miss in succession.
