@@ -122,6 +122,83 @@ These were settled in the Block 2 design conversation. Each has a short rational
 - Invite-notification email via Resend (consider as bonus end-of-Block-2 task if time permits)
 - Pagination on message history (placeholder mode won't get long)
 
+### Session 2 additions (decisions N–U)
+
+These were locked at the start of Session 2, after Session 1 shipped the projects + members APIs. N, P, and Q are sticky and apply to Session 3+ (same fetch/render and form-submit patterns reused on `project.html`). O, R, S, T, U are Session-2 specific.
+
+### N. Error-string strategy — UI translates terse, renders validation verbatim
+- Auth helpers' strings (`"Not authenticated"`, `"Forbidden"`, `"Internal error"`) are deliberately terse for security. UI translates them to user-facing copy or routes to the right state. Never inline-rendered.
+- Create-handler validation strings (`"Project name is required"`, `"Project name must be 100 characters or fewer"`, etc.) are already user-facing-quality. Render verbatim in the form's error panel.
+- Mapping: 401 → redirect to `/login.html?next=...`. 403 on POST → flip page to unauthorized state (decision O). 500 → "Something went wrong. Please try again." 400 with validation message → render `body.error` verbatim. 400 `"Invalid JSON"` is not user-reachable; treat as 500 if it ever happens.
+- This pattern carries to Session 3 (conversations, messages).
+
+### O. `/projects/new.html` — three page states
+- **Loading**: initial render before `/api/me` resolves.
+- **Form**: `is_admin === true`. The mockup as drawn.
+- **Unauthorized**: `is_admin === false`. Form card replaced with: *"Only workspace admins can create projects. Ask your admin to create one and invite you."* Plus a back link to `/projects.html`.
+- API is the boundary; the client check is convenience. A spoofed client check that POSTs anyway gets 403 from `requireWorkspaceAdmin` and the page flips to unauthorized.
+
+### P. `/projects.html` — four page states + error overlay
+- **Loading**: skeleton grid (4 ghost cards).
+- **Empty (admin)**: heading/sub stay, grid replaced with centered card *"No projects yet. Create your first one to get started."* + "+ New project" CTA.
+- **Empty (non-admin)**: same shell, copy *"You haven't been added to any projects yet. Ask your admin to invite you."* No CTA.
+- **Populated**: the mockup as drawn.
+- **Error overlay**: fetch failed (network / 500). Replaces grid with *"Couldn't load your projects. [Retry]"*. Retry re-runs the fetch.
+- **No timeout fallback.** Explicit try/catch around `fetch()` with explicit error rendering. A real hang stays visible as stuck loading — that's the correct signal.
+- This four-state pattern carries to Session 3 (project.html — chat tab, members tab).
+
+### Q. Form validation — client-light, server-truth, panel-only errors
+- Client: submit button disabled while name field is empty after trim. No length checks client-side (server catches; rare to hit).
+- Server: every POST renders the response. Success → redirect (decision T). Failure → render `body.error` (translated per N) in `.form-msg.error` above the first field. Form values stay populated. Submit re-enables.
+- No per-field error markers in v1.1 — error panel is enough at this scale.
+- Submit button text while in-flight: "Creating…", disabled. Resets on response.
+- Pattern reused for invite form in Session 4 and message composer in Session 3.
+
+### R. Mobile floor — single 700px breakpoint
+- Matches the existing site precedent (auth.css has one `@media (max-width: 700px)` block, no other breakpoints).
+- At ≤700px: `.projects-grid` collapses from `repeat(2, 1fr)` to single column; `.section-head-row` stacks vertically (heading on top, "+ New project" full-width below).
+- `.section-heading` already shrinks 45px → 30px in production CSS (no change needed).
+- Form is already single-column in the mockup (no change).
+- Anything beyond this is ahead of the rest of the site.
+
+### S. Browser-back behavior — clear form on back, no preservation
+- Default browser behavior. No localStorage, no JS state preservation.
+- Reasoning: form is name + optional description (~10 seconds to retype). Preservation is more code than the value.
+- Cancel button is a plain `<a href="/projects.html">` (no JS) so back-from-cancel works naturally.
+
+### T. Success redirect — to `/project.html?id={NEW_ID}`, accept Session-3 404
+- Per decision C and sub-task 2.3 done-when. Target page doesn't exist until Session 3 ships it.
+- Implementation: `window.location.href = '/project.html?id=' + encodeURIComponent(project.id)`. Use `href`, not `replace` (back-button-friendly).
+
+### U. Card metadata — role badge + relative-time only
+- Mockup shows three meta items per card (role, "5 members", "Updated 2h ago"). The `GET /api/projects` response has `role` and `updated_at` but **not** `member_count`.
+- v1.1 cards show: role badge + "Updated Nh/Nd ago" (e.g. "Updated 2h ago", "Updated yesterday"). No member count.
+- Honest to the data we have. Don't retrofit Session 1's API for a UI nicety; revisit in a Block 9 polish pass if anyone misses it.
+- Relative-time formatting via `Intl.RelativeTimeFormat`, computed on page load only (no live ticking).
+
+### Session 2 roles (who does what)
+
+Three-way relay, established in Session 1 and unchanged for Session 2.
+
+- **Jenny** — owns decisions, owns the verification, owns every push to `main`.
+  - Approves each Cursor diff before commit.
+  - Runs the manual browser smoke test on the merged-main deploy at end of session (admin flow + non-admin flow + 700px mobile).
+  - Gives explicit "approve push" before Cursor pushes to `main`.
+  - Updates `HANDOFF.md` with end-of-session state (or directs Cursor to draft it for review).
+
+- **Claude** (this session) — owns design decisions and review.
+  - Locked decisions N–U above before any code was written.
+  - Reviews each Cursor diff after Cursor proposes it and before Jenny approves: catches scope creep, deviation from N–U, copyright/style drift from the production patterns, accessibility regressions, XSS gaps in HTML rendering of user content (project names).
+  - Doesn't write production code. Doesn't run git.
+
+- **Cursor** — owns implementation and git mechanics.
+  - Proposes diffs sub-section by sub-section in the implementation order at the end of this section.
+  - Stages, commits with Conventional Commits messages, opens a PR or pushes to a feature branch.
+  - Never pushes to `main` without Jenny's explicit "approve push" message.
+  - Owns the local dev server, schema introspection, and any `wrangler` invocations needed to verify behavior in preview.
+
+**Verification model for Session 2 specifically:** unlike Session 1's 16-scenario curl matrix, this is UI work — the verification is a manual browser smoke test on the merged-main deploy. Jenny runs it. Claude doesn't have a browser; Cursor's local dev server gives a preview-deploy approximation but isn't the production verification. The session closes when Jenny has clicked through admin-creates-project, non-admin-sees-unauthorized, and a 700px mobile pass on the live site.
+
 ---
 
 ## Schema prerequisites (Sub-task 2.0)
