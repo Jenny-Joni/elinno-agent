@@ -1,14 +1,55 @@
+// Workspace-scope formatter + file-mutation policy for .md files.
+//
+// HISTORY:
+//   - 2026-05-03 commit 5a789c2: original four-key block disabled
+//     editor.format* triggers for [markdown]. Resolved the format-on-*
+//     firing pattern observed in Block 2 Sessions 1+2 (BLOCK_2_PLAN.md,
+//     DESIGN.md, SETUP.md occurrences).
+//   - 2026-05-03 mid-Session-3: regression on WORKFLOW.md during
+//     Cursor's drop-before-commit step. Diagnostic: 1-byte off-by-one
+//     across SHA-1 / line count / byte count, last 3 bytes ended
+//     mid-content with no trailing newline. Signature of
+//     `files.insertFinalNewline: true` firing on file open/save —
+//     a `files.*` setting completely separate from the `editor.format*`
+//     mechanism the original four-key block targeted.
+//
+// FIX:
+//   The original four keys covered the formatter mechanism only. This
+//   update adds five `files.*` and `editor.codeActionsOnSave` keys that
+//   can mutate file content independently of the formatter:
+//     - files.insertFinalNewline: false — was the directly-observed culprit.
+//     - files.trimTrailingWhitespace: false — adjacent path; would explain
+//       the "trailing blank line at 146" mutation we saw earlier.
+//     - files.trimFinalNewlines: false — paired with insertFinalNewline.
+//     - editor.codeActionsOnSave: {} — empty object disables any
+//       extension-registered save action (markdownlint, etc.) running
+//       at save time.
+//     - editor.formatOnSaveMode: "file" — explicit; without this an
+//       extension can register "modifications" mode and partial-format.
+//
+// All five are workspace-scope ([markdown] selector) only, so other
+// file types (.js, .css, .html) keep their inherited defaults.
+//
+// REGRESSION CHECKLIST (if the formatter fires on .md again despite
+// this file being present):
+//   1. Verify this file is on disk and matches HEAD: git show HEAD:.vscode/settings.json
+//   2. Reload Cursor window (Cmd+Shift+P → "Developer: Reload Window") —
+//      settings.json changes don't always apply to already-open tabs.
+//   3. Check user-scope settings: ~/Library/Application Support/Cursor/User/settings.json
+//      may override workspace-scope for some keys.
+//   4. Extension audit: Cmd+Shift+X, look for any markdown-related
+//      extension. Disable at workspace scope via the extension's
+//      gear-icon menu.
 {
-  // Block 2 IDE markdown-formatter policy.
-  // The formatter has corrupted asterisks in code spans (e.g., `admin/*`)
-  // four times during Block 2 — pre-Session-3 investigation found the
-  // earlier user-scope fix never persisted on this Glass build of Cursor.
-  // Workspace-scoped disable of all four format-on-* channels for .md.
-  // See HANDOFF.md "open follow-ups" for context.
   "[markdown]": {
     "editor.formatOnSave": false,
     "editor.formatOnPaste": false,
     "editor.formatOnType": false,
-    "editor.defaultFormatter": null
+    "editor.defaultFormatter": null,
+    "editor.formatOnSaveMode": "file",
+    "editor.codeActionsOnSave": {},
+    "files.insertFinalNewline": false,
+    "files.trimTrailingWhitespace": false,
+    "files.trimFinalNewlines": false
   }
 }
