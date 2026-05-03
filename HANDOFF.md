@@ -551,3 +551,131 @@ to audit:
   earlier, after `9ef44f6` didn't fix H. Future-Claude: heed
   WORKFLOW.md's stopping rules more aggressively when 2+ diagnoses
   miss in succession.
+
+---
+
+## Session 3 closeout addendum — 2026-05-03 night (Decision H fixed)
+
+> Appended after the prior "Session 3 mid-state" amendment. The mid-
+> state stands as the historical record of the failed-diagnoses
+> sequence; this addendum captures the resolution. Switched tooling
+> mid-session from Cursor + Claude.ai chat to Claude Code (Desktop) —
+> WORKFLOW.md's role-split language is the old shape; agreement
+> substance (Jenny gates every commit and every push, security
+> carve-outs, stop-after-three-misses) is unchanged.
+
+### What changed
+
+- **Hyperdrive query caching disabled at the binding level.** Ran:
+  ```
+  npx wrangler hyperdrive update 78af00bbf464468cb902e35099aa0dfe \
+                                 --caching-disabled true
+  ```
+  Effect immediate on production (no redeploy). Verified via
+  `wrangler hyperdrive get` showing `"caching": {"disabled": true}`.
+  This is an **architectural decision for v1.1**: cache off everywhere,
+  every read round-trips to Neon Frankfurt (~10–50ms), no per-endpoint
+  uncacheable-marker discipline required. Revisit before Block 5 when
+  AI tool calls multiply read-after-write volume.
+- **Decision H verified fixed.** Fresh-conversation diagnostic with
+  ALPHA + BETA sends and no sleep: ALPHA → `title: "ALPHA"`,
+  BETA → `title: "ALPHA"` (preserved). Title-state check now fires
+  exactly once per conversation, as the decision specifies.
+- **Code cleanup in `messages.js`.** Three dead
+  `-- bypass Hyperdrive cache: NOW()` SQL-comment markers removed (one
+  in onRequestGet's conv guard, one in onRequestGet's messages list,
+  one in onRequestPost's conv guard); the HYPERDRIVE CACHE NOTE in the
+  file header rewritten to document the cache-off state plus a warning
+  for future cache-re-enable work.
+
+### The lesson
+
+The `0b793c3` markers were ineffective because Hyperdrive's text-pattern
+detector for STABLE function names appears not to match function
+references inside SQL comments. The Cloudflare docs read as if comment-
+form would work; in practice it doesn't. If a future block re-enables
+caching for hot-path latency, use a *real* `NOW()` reference inside the
+WHERE clause (e.g. `AND NOW() IS NOT NULL`) on every read-after-write
+SELECT, not a comment marker. The HYPERDRIVE CACHING NOTE in
+`messages.js`'s file header captures this so the next person doesn't
+repeat the mistake.
+
+### Anomalies observed (one, didn't repro)
+
+- **One 500 during the cache-disable diagnostic.** A "THIRD send" against
+  the conv `40a4c213-…` (which had been written to twice already during
+  the FIRST/SECOND repro) returned `{"error": "Internal error"}` after
+  the 65-second sleep, with no tail running and no detail captured. The
+  catch block in `messages.js` swallows the underlying exception (`_err`
+  unused). Did NOT repro on the next test (fresh conv, ALPHA + BETA,
+  both 200). Possible causes: transient Hyperdrive blip during the
+  config flip, or a state-dependent issue on a multiply-mutated conv.
+  Not blocking; track if it recurs. Worth a thought: changing the catch
+  block to `console.error(err)` (without exposing detail in the
+  response) so future 500s leave a tail-readable trace. Bucketed as a
+  follow-up rather than this commit's scope.
+
+### Sub-task 2.4 status
+
+API is now correct end-to-end:
+- Schema bug (`25a005c`) — fixed and verified.
+- Decision I echo, X title-in-response, AC per-user scoping, conv-
+  belongs-to-project guard, AB LEFT JOIN preservation — verified during
+  the prior matrix attempts (see prior mid-state amendment "What works"
+  list).
+- Decision H — fixed via cache-disable, verified post-cleanup.
+
+Closeout commit candidate: this HANDOFF addendum + the messages.js
+cleanup. After commit, sub-task 2.4 is done. Sub-task 2.5 (chat UI on
+`project.html`, decisions V–AC) is the next standalone unit;
+sub-task 2.6 (members tab) is Session 4.
+
+### Stale cache-related comments to sweep (deferred)
+
+Cache-disable made these slightly inaccurate; all are documentation,
+none affect behavior. Pick up on a follow-up doc-consistency pass:
+
+- `db-test.js:71` — "Cached by Hyperdrive after the first hit, so the
+  marginal cost is tiny." Marginal cost is now the round-trip latency.
+  Conclusion ("tiny") still holds in absolute terms; reword for
+  precision.
+- `projects/[id]/index.js:38` — "row likely cached by Hyperdrive from
+  the helper's join." Now false; the SELECT round-trips every time.
+  The defensive query is still cheap and still justified by the
+  refactor-protection rationale; just update the cost claim.
+- `db-health.js:15` — refers to **prepared-statement** caching, which
+  is a separate Hyperdrive layer from query caching; probably still
+  accurate. Verify on the same pass.
+
+### Tooling switch — file-delivery convention is dead
+
+Mid-session move from Cursor + Claude.ai chat (with `/mnt/user-data/
+outputs/` → Downloads → Cursor placement) to Claude Code (Desktop).
+Claude now writes files directly to the repo and runs `git`/`wrangler`/
+`curl` from in-terminal. WORKFLOW.md's "File delivery convention"
+section and the "Cursor as executor" / "Claude does NOT run git
+operations" lines are obsolete. Substance is unchanged: every commit
+gated on diff review, every push gated on per-push approval, security
+carve-outs flagged. WORKFLOW.md should get a session-close amendment
+to reflect the new tool reality, but that's a separate doc-only commit
+and can wait.
+
+**Worktree note.** Claude Code Desktop creates a `.claude/worktrees/
+<name>/` subtree per session that may be N commits behind the active
+branch. For doc reads + file edits + git ops, prefer the parent repo
+path (`/Users/jennyshane/elinno-agent/`) — Bash subshells reset cwd
+between calls but the Edit/Write tools accept absolute paths fine, and
+git ops can be `cd`-prefixed to the parent.
+
+### Test data accumulating in Neon (cleanup deferred)
+
+Tonight's diagnostic added several conversations to project P1
+(`f0f563f9-…`):
+- conv `40a4c213-…` (FIRST + SECOND, plus a failed THIRD)
+- conv `f09aa12b-…` (ALPHA + BETA from the pre-fix diag)
+- conv `5337c7ae-…` (ALPHA + BETA from the post-fix diag)
+
+Plus the four `matrix-test-project-*` rows in Neon and two cross-DB
+orphan `project_members` rows from the deleted bob users (already
+documented in the prior mid-state). Combined cleanup is a between-
+blocks task; soft-delete SQL is in the prior section.
