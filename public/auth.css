@@ -411,3 +411,262 @@ table.users-table {
   .users-table th, .users-table td { padding: 12px 14px; }
   .users-table .col-created { display: none; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Block 2 / Session 2 — projects list + create UI
+   Net-new components per BLOCK_2_PLAN.md decisions N–U.
+   No existing selectors are modified.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ---------- Section header with trailing CTA (e.g. "+ New project") ---------- */
+.section-head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 40px;
+}
+.section-head-row .section-sub { margin-bottom: 0; }
+.section-head-row .head-actions {
+  padding-bottom: 6px;
+  flex-shrink: 0;
+  margin-left: 24px;
+}
+
+/* ---------- Form additions: textarea, narrow form, action row, hint ---------- */
+.field textarea {
+  width: 100%;
+  background: var(--color-field-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 16px 16px;
+  color: var(--color-text-dark);
+  font-family: var(--font-regular);
+  font-size: 14px;
+  line-height: 140%;
+  transition: var(--t-form);
+  resize: vertical;
+  min-height: 110px;
+}
+.field textarea::placeholder { color: var(--color-text-placeholder); }
+.field textarea:focus {
+  outline: none;
+  background: rgba(0, 0, 0, 0.05);
+  border-color: var(--color-brand);
+}
+
+.field-hint {
+  color: var(--color-text-muted);
+  font-family: var(--font-regular);
+  font-size: 13px;
+  margin: -2px 0 8px;
+}
+
+.form-narrow { max-width: 640px; }
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+.form-actions .btn-primary { width: auto; }
+
+.btn-primary.auto { width: auto; }
+
+/* ---------- Projects grid + project card ---------- */
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.project-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  cursor: pointer;
+  transition: background var(--t-card), border-color var(--t-card);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-decoration: none;
+  color: inherit;
+}
+.project-card:hover {
+  background: var(--color-bg-wash);
+  border-color: transparent;
+}
+.project-card-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: var(--color-brand-tint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--t-card);
+}
+.project-card:hover .project-card-icon { background: var(--color-brand); }
+.project-card-icon svg path,
+.project-card-icon svg circle {
+  fill: none;
+  stroke: var(--color-brand);
+  stroke-width: 1.6;
+  transition: stroke var(--t-card);
+}
+.project-card:hover .project-card-icon svg path,
+.project-card:hover .project-card-icon svg circle { stroke: #fff; }
+
+.project-card-name {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-size: 22px;
+  line-height: 110%;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+}
+.project-card-desc {
+  color: var(--color-text-body);
+  font-family: var(--font-regular);
+  font-size: 15px;
+  line-height: 145%;
+  margin-top: 8px;
+}
+.project-card-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+.project-card:hover .project-card-meta {
+  border-top-color: rgba(98, 52, 252, 0.2);
+}
+.project-card-meta-item {
+  color: var(--color-text-muted);
+  font-family: var(--font-regular);
+  font-size: 13px;
+}
+
+.badge.muted {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-text-body);
+}
+
+/* ---------- Skeleton loading state (decision P: 4 ghost cards) ---------- */
+.project-card-skeleton {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  pointer-events: none;
+}
+.skeleton-shape {
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 0%,
+    var(--color-bg-soft) 50%,
+    var(--color-border) 100%
+  );
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+.skeleton-shape.icon   { width: 56px; height: 56px; border-radius: var(--radius-md); }
+.skeleton-shape.title  { height: 20px; width: 70%; }
+.skeleton-shape.line   { height: 14px; }
+.skeleton-shape.line.short  { width: 50%; }
+.skeleton-shape.line.medium { width: 75%; }
+.skeleton-shape.line.full   { width: 100%; }
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+/* ---------- State card — empty / error / unauthorized ----------
+   Used by:
+     • projects.html   empty (admin / non-admin) and error overlay (decision P)
+     • projects/new.html unauthorized state (decision O)
+   Reused in Session 3+ for the same four-state pattern on chat / members tabs. */
+.state-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 56px 32px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.state-card-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: var(--color-brand-tint);
+  color: var(--color-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+.state-card-heading {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-size: 18px;
+  line-height: 110%;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+.state-card-body {
+  color: var(--color-text-body);
+  font-family: var(--font-regular);
+  font-size: 15px;
+  line-height: 145%;
+  margin: 0;
+  max-width: 420px;
+}
+.state-card-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.state-card-actions .btn { width: auto; }
+
+/* ---------- Mobile floor (≤700px) — decision R ---------- */
+@media (max-width: 700px) {
+  .section-head-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .section-head-row .head-actions {
+    margin-left: 0;
+    padding-bottom: 0;
+  }
+  .section-head-row .head-actions .btn,
+  .section-head-row .head-actions .btn-primary,
+  .section-head-row .head-actions .btn-primary.auto {
+    width: 100%;
+  }
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+  .state-card {
+    padding: 40px 24px;
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shape { animation: none; }
+}
