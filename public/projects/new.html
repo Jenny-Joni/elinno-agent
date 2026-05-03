@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>New project — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/auth.css" />
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <div class="app-nav-actions">
+        <span id="navUser" style="color:#fff;opacity:.85;font-size:14px;"></span>
+        <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <button id="logoutBtn" class="btn-nav">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <div class="custom-container">
+      <p class="section-eyebrow">
+        <a href="/projects.html" style="color: var(--color-text-muted);">← Projects</a>
+      </p>
+      <span class="section-line"></span>
+      <h1 class="section-heading">New project</h1>
+      <p class="section-sub">A project is a separate workspace with its own connected tools, members, and conversation history.</p>
+
+      <div id="formContainer">
+        <!-- First-paint loading skeleton; JS swaps this for the form (admin) or unauthorized state (non-admin) once /api/me resolves. -->
+        <div class="card form-narrow" aria-busy="true" aria-label="Loading">
+          <div style="display:flex;flex-direction:column;gap:18px;">
+            <div>
+              <div class="skeleton-shape" style="height:14px;width:90px;margin-bottom:8px;"></div>
+              <div class="skeleton-shape" style="height:48px;border-radius:8px;"></div>
+            </div>
+            <div>
+              <div class="skeleton-shape" style="height:14px;width:140px;margin-bottom:8px;"></div>
+              <div class="skeleton-shape" style="height:120px;border-radius:8px;"></div>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:6px;">
+              <div class="skeleton-shape" style="height:48px;width:140px;border-radius:8px;"></div>
+              <div class="skeleton-shape" style="height:48px;width:80px;border-radius:8px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let me = null;
+
+    // Auth gate — match dashboard.html / admin.html pattern: redirect to '/' on missing user.
+    // Non-admins land in the unauthorized state (decision O); admins get the form.
+    fetch('/api/me').then(r => r.json()).then(d => {
+      if (!d.user) { location.replace('/'); return; }
+      me = d.user;
+      document.getElementById('navUser').textContent = d.user.email;
+      if (d.user.is_admin) {
+        document.getElementById('adminLink').style.display = '';
+        renderForm();
+      } else {
+        renderUnauthorized();
+      }
+    }).catch(() => location.replace('/'));
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+      location.replace('/');
+    });
+
+    function renderForm() {
+      const container = document.getElementById('formContainer');
+      container.innerHTML = `
+        <div class="card form-narrow">
+          <div id="formMsg" class="form-msg hidden" role="alert"></div>
+          <form id="createForm" novalidate>
+            <div class="field">
+              <label for="projectName">Project name</label>
+              <input id="projectName" name="name" type="text" required maxlength="100" placeholder="e.g. Q4 Product Launch" />
+            </div>
+            <div class="field">
+              <label for="projectDesc">Description (optional)</label>
+              <p class="field-hint">A short note about what this project is for. Members will see it on the projects list.</p>
+              <textarea id="projectDesc" name="description" maxlength="1000" placeholder="What is this project about?"></textarea>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary auto" id="submitBtn">Create project</button>
+              <a href="/projects.html" class="btn btn-ghost">Cancel</a>
+            </div>
+          </form>
+        </div>
+      `;
+      wireForm();
+    }
+
+    function renderUnauthorized() {
+      document.getElementById('formContainer').innerHTML = `
+        <div class="state-card">
+          <div class="state-card-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="11" width="14" height="9" rx="2"/>
+              <path d="M8 11V7a4 4 0 018 0v4"/>
+            </svg>
+          </div>
+          <h2 class="state-card-heading">Workspace admin only</h2>
+          <p class="state-card-body">Only workspace admins can create projects. Ask your admin to create one and invite you.</p>
+          <div class="state-card-actions">
+            <a href="/projects.html" class="btn btn-ghost">← Back to projects</a>
+          </div>
+        </div>
+      `;
+    }
+
+    // POST /api/projects with explicit try/catch — no timeout fallback per decision P.
+    // Decision N error mapping:
+    //   401 → /login.html?next=...
+    //   403 → flip to unauthorized (server is the truth; spoofed client gate ends here)
+    //   400 with body.error → render verbatim in .form-msg.error
+    //   500 / network / malformed JSON → "Something went wrong. Please try again."
+    // Form values stay populated on every failure path; submit button re-enables.
+    function wireForm() {
+      const form      = document.getElementById('createForm');
+      const nameInput = document.getElementById('projectName');
+      const descInput = document.getElementById('projectDesc');
+      const submitBtn = document.getElementById('submitBtn');
+      const formMsg   = document.getElementById('formMsg');
+
+      // Submit button disabled while name is empty after trim (decision Q — client-light).
+      function syncSubmitState() {
+        submitBtn.disabled = nameInput.value.trim().length === 0;
+      }
+      nameInput.addEventListener('input', syncSubmitState);
+      syncSubmitState();
+
+      function showError(text) {
+        formMsg.textContent = text;
+        formMsg.className   = 'form-msg error';
+      }
+      function hideMsg() {
+        formMsg.className   = 'form-msg hidden';
+        formMsg.textContent = '';
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideMsg();
+
+        const name        = nameInput.value.trim();
+        const description = descInput.value.trim();
+        if (name.length === 0) return; // belt-and-suspenders; button should be disabled
+
+        submitBtn.disabled    = true;
+        submitBtn.textContent = 'Creating…';
+
+        try {
+          const res = await fetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(description ? { name, description } : { name }),
+          });
+
+          if (res.status === 401) {
+            location.replace('/login.html?next=' + encodeURIComponent('/projects/new.html'));
+            return;
+          }
+
+          if (res.status === 403) {
+            // Decision O: spoofed client gate → server says no → page flips.
+            renderUnauthorized();
+            return;
+          }
+
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            const msg = (res.status >= 500)
+              ? 'Something went wrong. Please try again.'
+              : (data && typeof data.error === 'string' ? data.error : 'Something went wrong. Please try again.');
+            showError(msg);
+            submitBtn.textContent = 'Create project';
+            syncSubmitState();
+            return;
+          }
+
+          // Success: redirect via href (decision T — back-button-friendly).
+          if (data && data.project && data.project.id) {
+            window.location.href = '/project.html?id=' + encodeURIComponent(data.project.id);
+            return;
+          }
+
+          // Defensive: 2xx but malformed body — surface so the user isn't stuck on a half-success.
+          showError('Project created, but the response was malformed. Refresh the projects list to see it.');
+          submitBtn.textContent = 'Create project';
+          syncSubmitState();
+        } catch (err) {
+          showError('Something went wrong. Please try again.');
+          submitBtn.textContent = 'Create project';
+          syncSubmitState();
+        }
+      });
+    }
+  </script>
+</body>
+</html>
