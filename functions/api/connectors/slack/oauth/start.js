@@ -60,8 +60,8 @@
 // =========================================================================
 
 import postgres from 'postgres';
-import { error, requireProjectRole } from '../../../../../_lib/auth.js';
-import { getConnector } from '../../../../../_lib/connectors/registry.js';
+import { error, requireProjectRole } from '../../../../_lib/auth.js';
+import { getConnector } from '../../../../_lib/connectors/registry.js';
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
