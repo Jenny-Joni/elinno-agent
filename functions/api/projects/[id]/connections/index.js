@@ -121,12 +121,18 @@ export async function onRequestPost({ request, env, params }) {
     const ctx = { env, request, sql, projectId };
 
     // For zero-auth and token connectors, startAuth returns credentials
-    // immediately. For OAuth connectors it returns { authUrl, state }
-    // and the connect flow finishes via a callback — the OAuth path
-    // is NOT implemented in Block 3 (Block 4+ will add it for Slack).
+    // immediately. For OAuth connectors it returns { authUrl, state };
+    // OAuth flows are initiated via the dedicated start endpoint, not
+    // through this POST. Per BLOCK_4_PLAN.md decision K (full-page
+    // redirect from UI) the only OAuth entry path is GET
+    // /api/connectors/<source>/oauth/start?project_id=<uuid>; this 400
+    // routes API callers there with a verbatim guidance string.
     const startResult = await connector.startAuth(ctx);
     if (startResult.authUrl) {
-      return error('OAuth connector flow not yet implemented', 501);
+      return error(
+        `OAuth connectors must use the dedicated start endpoint (GET /api/connectors/${source}/oauth/start?project_id=${projectId})`,
+        400
+      );
     }
 
     const completeResult = await connector.completeAuth(ctx, body);
