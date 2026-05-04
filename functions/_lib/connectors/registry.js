@@ -16,6 +16,7 @@
 // =========================================================================
 
 import { dummy } from './dummy.js';
+import { slack } from './slack.js';
 
 /**
  * Static map of registered connectors, keyed by their `source` value.
@@ -24,6 +25,7 @@ import { dummy } from './dummy.js';
  */
 const connectors = {
   dummy,
+  slack,
 };
 
 /**

@@ -68,6 +68,15 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 MAIL_FROM = "Elinno Agent <noreply@elinnoagent.com>"
 SITE_URL = "https://elinnoagent.com"
+# SLACK_CLIENT_ID — Slack OAuth client ID (plaintext per Slack's docs;
+# visible in browser URLs during the consent flow). Populated by Jenny
+# during Block 4 Phase A after registering the Slack app at
+# api.slack.com/apps. The connector module reads this via
+# ctx.env.SLACK_CLIENT_ID; an empty value at deploy time will produce a
+# malformed authorize URL that Slack rejects, but no API endpoint reaches
+# the connector's startAuth in commit 2's deployed state (commit 3 wires
+# /oauth/start.js).
+SLACK_CLIENT_ID = ""
 
 [[d1_databases]]
 binding = "DB"
