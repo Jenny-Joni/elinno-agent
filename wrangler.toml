@@ -76,7 +76,7 @@ SITE_URL = "https://elinnoagent.com"
 # malformed authorize URL that Slack rejects, but no API endpoint reaches
 # the connector's startAuth in commit 2's deployed state (commit 3 wires
 # /oauth/start.js).
-SLACK_CLIENT_ID = ""
+SLACK_CLIENT_ID = "9269089169413.11054448308402"
 
 [[d1_databases]]
 binding = "DB"
