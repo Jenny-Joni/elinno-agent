@@ -2,7 +2,7 @@
 
 > Drop this into a fresh Claude Code session so the assistant can pick up where the last session left off. This file is the single source of truth for "where are we and what's next." Update it after each working session.
 
-**Last updated:** 2026-05-04 (Block 3 mid-flight pause; see addendum at end)
+**Last updated:** 2026-05-04 (Block 3 closeout)
 **Current product version:** v1.1 (the MVP being built now)
 **Owner / sole developer:** Jenny ([jenny@elinnovation.net](mailto:jenny@elinnovation.net))
 **AI tooling:** Claude Code (switched from Cursor + Claude.ai mid-Block-2-Session-3, 2026-05-03)
@@ -15,7 +15,7 @@ You are joining a project mid-build. Here's the shape of it:
 
 - **Elinno Agent** is a multi-tenant project intelligence platform. An admin creates a project, connects external tools (Jira, Slack, Monday, Google Drive), and the platform syncs that data into a unified store. Members chat with an AI assistant scoped to a single project, asking questions like "how many tickets in this sprint?" or "how much did we spend on testing?"
 - **The auth foundation is already deployed** at [https://elinnoagent.com](https://elinnoagent.com) (Cloudflare Pages + Pages Functions + D1).
-- **Blocks 1 and 2 are fully done.** Data layer foundation is wired end-to-end through Cloudflare Pages Functions → Hyperdrive → Neon Postgres. Block 2 closed 2026-05-04 — projects + members APIs, projects list + create UI, conversations + messages API, project.html three-tab shell with chat / members / connections tabs all shipped to production. Block 3 (connector framework — connector interface, registry, encryption helper, dummy connector, connections + sync HTTP API; backend-only) is **in progress, mid-flight**: 4 of 5 commits shipped to `origin/block-3-connector-framework` but NOT merged to `main`. Migration not applied; `MASTER_ENCRYPTION_KEY` not set; verification matrix not run. See "Block 3 mid-flight pause — 2026-05-04" addendum at the bottom for full pickup details.
+- **Blocks 1, 2, and 3 are fully done.** Data layer foundation is wired end-to-end through Cloudflare Pages Functions → Hyperdrive → Neon Postgres. Block 2 closed 2026-05-04 — projects + members APIs, projects list + create UI, conversations + messages API, project.html three-tab shell with chat / members / connections tabs. Block 3 closed 2026-05-04 — connector framework (Connector interface, registry, dummy connector), envelope encryption helper (AES-256-GCM, master key in Workers Secret), connections + sync HTTP API, all verified via the 22-scenario curl matrix on the preview deploy and ff-merged to main. **Block 4 (Slack connector) is next** — first real connector, exercises the framework end-to-end with OAuth + webhooks.
 - **Solo build with Claude Code.** No team. One task at a time.
 
 Your first move in any new session: read this file, read PROJECT.md, read the latest STATUS.md or git log, then check this handoff against reality before changing anything.
@@ -109,8 +109,8 @@ Use the **Build Plan** doc (BUILD_PLAN.md) for the ordered task list. Nine block
 
 1. Block 1 — Database setup (Neon, pgvector, Hyperdrive, schema) ← **✅ DONE**
 2. Block 2 — Project shell (create projects, invite members, placeholder chat) ← **✅ DONE**
-3. **Block 3 — Connector framework** (interface + dummy connector + connections HTTP API) ← **in progress, mid-flight**
-4. Block 4 — Slack connector
+3. Block 3 — Connector framework (interface + dummy connector + connections HTTP API) ← **✅ DONE**
+4. **Block 4 — Slack connector** ← next
 5. Block 5 — First AI answer ← **milestone: product feels real here**
 6. Block 6 — Jira connector
 7. Block 7 — Monday connector
@@ -873,208 +873,280 @@ The Connections tab built in Block 2 stays as the placeholder state-card
 
 ---
 
-## Block 3 mid-flight pause — 2026-05-04
+## Block 3 closeout — 2026-05-04
 
-> Session-end snapshot. Block 3 is 4-of-5-commits shipped to
-> `origin/block-3-connector-framework` but NOT merged to main. Pickup
-> point documented below for the next session. Per WORKFLOW.md
-> §"Stopping rules" — trunk green, working tree clean, branch deploy
-> healthy on Cloudflare Pages preview.
+> Block 3 (connector framework) verified end-to-end on the preview
+> deploy and ff-merged to main. Production now runs the connector
+> framework + dummy connector + connections + sync HTTP API.
+> Replaces the prior "Block 3 mid-flight pause" section that lived
+> here between commit 4 and commit 5.
 
-### Branch state
+### Branch state (final)
 
-`origin/block-3-connector-framework` is **4 commits ahead of main**:
+`block-3-connector-framework` was 5 commits ahead of main at the
+ff-merge (4 feature/docs commits + the closeout commit that contains
+this addendum):
 
 ```
-d6e6b5f feat(block-3): add connections + sync HTTP API
-c8175c6 feat(block-3): add Connector interface + registry + dummy connector
-b624726 feat(block-3): add envelope encryption helper + algorithm tag migration
-43a8b22 docs(block-3): lock Block 3 design decisions A–R
+<closeout-sha>  docs(block-3): closeout — verification matrix + HANDOFF addendum
+d6e6b5f         feat(block-3): add connections + sync HTTP API
+c8175c6         feat(block-3): add Connector interface + registry + dummy connector
+b624726         feat(block-3): add envelope encryption helper + algorithm tag migration
+43a8b22         docs(block-3): lock Block 3 design decisions A–R
 ```
 
-`main` is unchanged from the Block 2 closeout state. Production is
-still on Block 2's framework; the Block 3 code is on the branch only.
+The mid-flight pause commit `b301c32` is preserved on the branch as
+historical record but its contents in HANDOFF.md were superseded by
+this closeout addendum (the closeout commit replaces lines 876–1080
+of the prior version).
 
-### What's shipped on the branch (NOT in production)
+### Code shipped
 
-- **`BLOCK_3_PLAN.md`** — locked decisions A–R, with seven mid-review
-  revisions applied before commit 1 landed (AAD encoding made
-  length-prefixed `Uint8Array`; smoke-endpoint single-locked answer;
-  `external_account_id` slice 12; master-key value rotation paragraph
-  added to E; connector authoring guidance added to H; commit-2
-  "landed but NOT applied" sequencing language; R-2 ownership split).
-- **`functions/_lib/crypto.js`** — envelope encryption helper.
-  AES-256-GCM via SubtleCrypto, length-prefixed AAD bound to
+- **`BLOCK_3_PLAN.md`** (commit 1) — locked design decisions A–R with
+  seven mid-review revisions before commit 1 landed (AAD encoding
+  made length-prefixed `Uint8Array`; smoke-endpoint single-locked
+  answer; `external_account_id` slice 12; master-key value rotation
+  paragraph added to E; connector authoring guidance added to H;
+  commit-2 "landed but NOT applied" sequencing language; R-2
+  ownership split).
+- **`functions/_lib/crypto.js`** (commit 2) — envelope encryption
+  helper. AES-256-GCM via SubtleCrypto, length-prefixed AAD bound to
   `(connection_id, project_id, source)`, `Map<string, CryptoKey>`
   cache keyed by secret name, IMPORTANT comment near `keyCache`
-  warning against in-place rotation (commit 2 review revision).
-- **`db/migrations/2026-05-04-encryption-algorithm-v1.sql`** —
-  committed but **NOT applied to Neon**. Updates
-  `connections.encryption_algorithm` default to `'aes-256-gcm-v1'`.
-- **`functions/api/crypto-roundtrip.js`** — env-gated smoke endpoint.
-  Returns 404 unless `env.ALLOW_CRYPTO_SMOKE === 'true'`.
-- **`functions/_lib/connectors/types.js`** — Connector contract
-  (JSDoc, no TypeScript per decision G). Decision H narrowed during
-  commit 3 review: `getMetadata` exempt from ctx-first rule per
-  YAGNI; rationale inline + cross-referenced from `registry.js`.
-- **`functions/_lib/connectors/dummy.js`** — zero-auth synthetic
-  connector. `testConnection` exercises encrypt/decrypt round-trip
-  on the stored row; `fullSync` UPSERTs 3 fixture entities.
-  SECURITY comment near the testConnection error throw warns future
-  connector authors NOT to log decrypted plaintext (commit 3 review
-  revision).
-- **`functions/_lib/connectors/registry.js`** — static map; only
-  dummy registered. No pre-stubs for Slack/Jira/Monday/Drive.
-- **Five HTTP endpoints** under
-  `functions/api/projects/[id]/connections/`:
+  warning against in-place rotation.
+- **`db/migrations/2026-05-04-encryption-algorithm-v1.sql`** (commit
+  2) — applied to Neon production via SQL Editor before commit 4's
+  connect endpoint shipped traffic. `column_default` verified
+  post-apply.
+- **`functions/api/crypto-roundtrip.js`** (commit 2) — env-gated
+  smoke endpoint. 404 in production; 200 with all-true checks JSON
+  on Preview when `ALLOW_CRYPTO_SMOKE=true`. Stays in the repo as a
+  permanent preview-only smoke surface for future crypto-touching
+  blocks.
+- **`functions/_lib/connectors/types.js`** (commit 3) — Connector
+  contract (JSDoc, no TypeScript per decision G). Decision H narrowed
+  during commit 3 review: `getMetadata` exempt from ctx-first rule
+  per YAGNI; rationale inline + cross-referenced from `registry.js`.
+- **`functions/_lib/connectors/registry.js`** (commit 3) — static
+  map; only `dummy` registered. No pre-stubs for Slack/Jira/Monday/
+  Drive.
+- **`functions/_lib/connectors/dummy.js`** (commit 3) — zero-auth
+  synthetic connector. `testConnection` exercises encrypt/decrypt
+  round-trip on the stored row; `fullSync` UPSERTs 3 fixture
+  entities. SECURITY comment near the testConnection error throw
+  warns future connector authors NOT to log decrypted plaintext.
+- **Five HTTP endpoints** under `functions/api/projects/[id]/
+  connections/` (commit 4):
   - `POST /connections` — admin; create + encrypt + persist
   - `GET /connections` — member; list whitelisted columns
   - `DELETE /connections/:connId` — admin; soft-delete
   - `POST /connections/:connId/sync` — admin; synchronous fullSync
   - `GET /connections/:connId/sync-runs` — member; recent runs
 
-### Security carve-out outcomes (commit 2 review)
+### Verification — 22/22 PASS
+
+Full per-scenario record at [curl-matrix-block-3.md](curl-matrix-block-3.md).
+
+- **Phase A** (Jenny's hands): schema migration applied; `MASTER_
+  ENCRYPTION_KEY` set on Production AND Preview with two different
+  values; `ALLOW_CRYPTO_SMOKE=true` on Preview only (as a Secret due
+  to the wrangler.toml plaintext-var lock — see follow-ups);
+  Cloudflare dashboard "Retry deployment" rebuild on the Preview
+  branch so the just-set secrets bound to the Function bundle.
+- **Phase B** (smoke endpoint at `/api/crypto-roundtrip` on preview):
+  all checks `true`, `algorithm_tag: 'aes-256-gcm-v1'`, envelope
+  shapes match the v1 spec exactly (`wrapped_data_key_length: 60`,
+  `iv_length: 12`).
+- **Phase C** (22 scenarios across auth/scoping 1–6, functional flow
+  7–14, silent-failure-mode 15–17, validation 18–22): all PASS, with
+  S16 a composite pass via Phase B's helper-layer AAD-tampering
+  check (data-path version deferred to Block 4 — see follow-ups)
+  and S22 a pass-by-inspection on the schema constraint (no API path
+  collides with random `external_account_id`).
+
+Highlights:
+
+- **403-collapse equivalence holds**: byte-identical `{"error":"Forbidden"}`
+  (21 bytes) across S2 / S3 / S5a / S5b / S6 — four structurally
+  distinct authorization failures, one error.
+- **Response whitelist holds**: S7 / S8 / S13 return only the
+  whitelisted columns. No `wrapped_data_key`, `iv`,
+  `ciphertext_credentials`, `encryption_algorithm`, or
+  `credential_metadata` ever leak in API responses.
+- **Idempotency holds**: S9 first sync `records_inserted=3,
+  records_updated=0`; S11 re-sync `records_inserted=0,
+  records_updated=3`. The `xmax = 0` insert-vs-update split in
+  `RETURNING` correctly populates `sync_runs.records_inserted` vs
+  `records_updated`.
+- **Plaintext-leak guard holds**: S15 `ciphertext_hex` for the
+  `{}` plaintext is `307f129f860a13425c66abebd351f87d5f61` (18 bytes
+  = 2 plaintext + 16 GCM tag). First byte `0x30`, not `0x7b`. The
+  encrypted bytes are opaque.
+- **Algorithm tag holds**: S17 `encryption_algorithm = 'aes-256-gcm-v1'`
+  exact match.
+- **Verbatim validation strings holds**: S18 / S19 / S21 return the
+  exact strings BLOCK_3_PLAN's decision Q specified. S20's
+  whitespace-only `display_name` falls back to the connector's
+  `displayName` per decision M.
+
+### Security carve-out outcomes (commit 2 review, restated)
 
 Per BLOCK_3_PLAN's three-sub-item carve-out for crypto code:
 
-- **Sub-item 1 — crypto helper:** spot-check vs reference.
-- **Sub-item 2 — AAD binding:** accept single-reviewer risk.
-- **Sub-item 3 — master-key loading:** spot-check, with the
-  IMPORTANT-no-in-place-rotation comment landed (revision applied
-  before commit 2).
+- **Sub-item 1 — crypto helper:** spot-check vs reference. Phase B
+  smoke validates the round-trip on every preview deploy.
+- **Sub-item 2 — AAD binding:** accept single-reviewer risk. Phase
+  B's `aad_tampering_detected: true` confirms AAD is actually being
+  passed through SubtleCrypto's `additionalData`.
+- **Sub-item 3 — master-key loading:** spot-check + IMPORTANT
+  no-in-place-rotation comment. Phase A's two-different-values
+  setup verifies the cache keyed-by-secret-name pattern works.
 
-### What's NOT done (in dependency order)
+### Production deployment
 
-1. **Schema migration NOT applied.** Run via Neon SQL Editor before
-   exercising the connect endpoint:
-   ```sql
-   ALTER TABLE connections
-     ALTER COLUMN encryption_algorithm SET DEFAULT 'aes-256-gcm-v1';
-   COMMENT ON COLUMN connections.encryption_algorithm IS
-     'Envelope scheme tag. v1 = AES-256-GCM + 12-byte random IV + ...';
-   -- Full file: db/migrations/2026-05-04-encryption-algorithm-v1.sql
-   ```
-   Until applied, the column default is still `'aes-256-gcm'` —
-   verification matrix scenario 17 (algorithm-tag check) will fail.
+After ff-merge to main:
 
-2. **`MASTER_ENCRYPTION_KEY` Workers Secret NOT set** on Production
-   or Preview. Generation:
-   ```bash
-   openssl rand -base64 32 | npx wrangler pages secret put \
-       MASTER_ENCRYPTION_KEY --project-name=elinno-agent
-   ```
-   Run **twice** — Production AND Preview, with two **different**
-   generated values. Until set, every connect attempt 500s at
-   `loadMasterKey` with `Missing or empty Workers Secret`.
+- Production redeployed automatically.
+- `https://elinnoagent.com/api/crypto-roundtrip` returns `404 Not
+  Found` (gate fails closed; `ALLOW_CRYPTO_SMOKE` not set on
+  Production).
+- `https://elinnoagent.com/api/db-health` returns 200 (Block 1
+  regression check).
+- The five connection endpoints under `/api/projects/:id/
+  connections/` are live but unused in production — the Block 2
+  Connections tab in `project.html` still shows the placeholder
+  state-card. The first real "Connect" button lands in Block 4.
 
-3. **`ALLOW_CRYPTO_SMOKE` NOT set** (optional, recommended for
-   verification). Set to `'true'` on **Preview only** via Cloudflare
-   dashboard → Settings → Variables and Secrets → Preview env. Until
-   set, `/api/crypto-roundtrip` returns 404 everywhere (failsafe).
+### Block 4 kickoff — what's next
 
-4. **Verification matrix NOT run.** 22 scenarios in BLOCK_3_PLAN.md
-   §"Verification matrix": auth + scoping (1–6), functional flow
-   (7–14), three silent-failure-mode checks specifically guarding
-   the security carve-out (15 plaintext-leak, 16 AAD-tampering on
-   a Neon branch with split ownership, 17 algorithm-tag), validation
-   (18–22). Scenario 16 needs Jenny's hands for the `UPDATE`.
+Per BUILD_PLAN, Block 4 is the Slack connector. **First time the
+framework gets exercised by a real connector.** Deliverables (per
+BUILD_PLAN.md §Block 4):
 
-5. **Commit 5 NOT written.** Should land in one commit:
-   - `curl-matrix-block-3.md` documenting the matrix scenarios + results
-   - `HANDOFF.md` Block 3 closeout addendum (replacing this mid-flight
-     section with a "Block 3 closeout" section structured like the
-     Block 2 closeout above)
+1. Register a Slack app, capture OAuth client ID + secret.
+2. Build the Slack OAuth install flow: "Connect Slack" button →
+  Slack consent screen → callback that stores the encrypted bot
+   token via the Block 3 envelope helper.
+3. List channels visible to the bot.
+4. Backfill: pull recent messages from a test channel, write as
+  entities.
+5. Slack Events API webhook for real-time message ingestion.
+6. `slack_messages` SQL view over `entities` for fast lookups.
 
-6. **Branch NOT merged to main.** Per WORKFLOW: ff-merge happens
-   after the verification matrix passes. Separate per-push approval
-   to main; production auto-deploys on push.
+Block 4 is also the natural place to:
 
-### Pickup steps (next session)
+- Implement the **data-path version of scenario 16** (Slack's sync
+  calls `decrypt` to use the OAuth token; tampering AAD will cause
+  the sync to actually fail).
+- Land the deferred **`requireWorkspaceAdmin` migration** of
+  `admin/users.js` + `admin/users/[id].js` (the Slack OAuth callback
+  will touch admin-adjacent paths).
+- **Revisit Hyperdrive caching** if Slack backfill creates
+  read-after-write hotspots (currently disabled at the binding
+  level; cache-bypass-by-real-NOW()-reference is the documented
+  re-enable pattern).
 
-1. **Jenny:** apply schema migration via Neon SQL Editor. Confirm:
-   ```sql
-   SELECT column_default FROM information_schema.columns
-    WHERE table_name = 'connections'
-      AND column_name = 'encryption_algorithm';
-   -- expected: 'aes-256-gcm-v1'::text
-   ```
-2. **Jenny:** generate + set `MASTER_ENCRYPTION_KEY` on Production
-   AND Preview (two `wrangler pages secret put` runs, two values).
-3. **Jenny:** set `ALLOW_CRYPTO_SMOKE=true` on Preview only.
-4. **Claude Code:** hit `/api/crypto-roundtrip` on the preview deploy.
-   Expected JSON: all checks `true`, `algorithm_tag: 'aes-256-gcm-v1'`,
-   `aad_tampering_detected: true`. If 404 → env var not set on Preview.
-   If 500 → master key issue.
-5. **Claude Code:** run the 22-scenario matrix against the preview
-   deploy. Capture into `curl-matrix-block-3.md`.
-6. **Scenario 16 (AAD-tampering) split per BLOCK_3_PLAN R-2:**
-   Claude Code creates a Neon branch + connects + SELECTs the row +
-   does the post-tamper sync API call + drops the branch. **Jenny**
-   runs the `UPDATE connections SET project_id = $other WHERE id =
-   $connId` against the branch via Neon SQL Editor.
-7. **Claude Code:** write commit 5 (matrix doc + HANDOFF closeout).
-   Standard diff + commit + push gates.
-8. **Jenny:** review verification results, decide whether the matrix
-   passes. (Per WORKFLOW: "whether the work is *done* is Jenny's.")
-9. **Jenny:** if pass — `approve ff-merge block-3-connector-framework
-   to main and push to main`. Block 3 closes; production
-   auto-deploys.
+### Open follow-ups carried into Block 4
 
-### Open follow-ups discovered this session
-
-- **Cosmetic markdown breakage in `BLOCK_3_PLAN.md`.** During commit 1
-  prep, an IDE/linter pass introduced surface-level breakage: line 52
-  has a broken bold marker (``**Connector` interface**``); some table
-  cells and blockquotes lost newline structure. **Substance of the
-  seven plan revisions verified intact via grep before commit 1
-  shipped** — the breakage is purely visual. Tracked for a doc-only
-  fix-up commit AFTER commit 5 ships (deferred per Jenny's standing
-  call: don't bundle into commit 2 or any code commit; ships
-  separately).
-- **`wrangler.toml` has no env-scoping.** `ALLOW_CRYPTO_SMOKE` needs
-  Preview-only, but `wrangler.toml`'s flat top-level `[vars]` block
-  applies to both envs. Worked around by setting via Cloudflare
-  dashboard (option A from BLOCK_3_PLAN's "Roundtrip endpoint
-  gating"). If brittle (e.g., dropped on next deploy), restructure
-  `wrangler.toml` in a follow-up commit (option B; bigger change —
-  introducing `[env.preview]` / `[env.production]` requires
-  re-declaring top-level bindings/vars per env).
-- **`postgres` v3 BYTEA serialization assumption.** Commit 4's
-  `connect` handler passes `Uint8Array` directly to postgres
-  tagged-template params for BYTEA columns. The library is
-  documented to handle this, but the assumption is unverified at
-  runtime until verification matrix scenario 7 runs. If verification
-  fails on the INSERT shape, wrap with `Buffer.from(...)` (Node
-  Buffer is available via `nodejs_compat`).
+- **Data-path AAD-tampering test** (scenario 16, deferred from Block
+  3). Block 4's Slack connector decrypts during sync — natural place
+  to add a Neon-branch-based test: tamper `project_id` on a stored
+  row via SQL, trigger a `/sync`, assert `sync_run.status = 'failed'`
+  with a decrypt-error in `error`. Helper-layer version is already
+  passing via the Phase B smoke endpoint.
+- **Workspace-admin password rotation.** During Block 3 verification,
+  `JENNY_PASSWORD` was visible in a terminal scrollback paste shared
+  with Claude Code. Rotate the workspace-admin password before Block
+  4 ships (admin → users → reset, or via the password-reset email
+  flow). Treat the old value as compromised in the scope of that
+  conversation transcript only — no commit log or shipped file
+  contains it.
+- **Misnamed Cloudflare Pages secret** named literally `Plaintext`,
+  added during the `ALLOW_CRYPTO_SMOKE` setup before realizing the
+  dashboard's Add dialog had crossed the Type and Name fields.
+  Cosmetic — the runtime never reads `env.Plaintext`. Delete via
+  Cloudflare dashboard or `wrangler pages secret delete Plaintext`
+  once Jenny's permissions allow it (the dashboard delete button
+  reported a permissions error at first try; cause unclear).
+- **`requireWorkspaceAdmin` migration** of `admin/users.js` +
+  `admin/users/[id].js` (carry-over from Block 2 → Block 3 → Block
+  4). Behavior-identical refactor; deferred again to keep Block 3's
+  commits scoped. Block 4's Slack OAuth callback will touch
+  admin-adjacent code so this is a natural place to fold it in.
+  While there, fix `admin/users.js`'s POST returning 200 instead of
+  201 for user-create.
+- **Stale Hyperdrive-cache comments** in `db-test.js:71`,
+  `projects/[id]/index.js:38`, `db-health.js:15` (carry-over from
+  Block 2). Doc-only; defer to Block 9 polish unless convenient.
+- **Test data accumulated on Neon production from the verification
+  matrix.** Cleanup SQL is in `curl-matrix-block-3.md`'s "Cleanup"
+  section. P3a (`03829f71-1f8e-4573-bae8-a52571d9f6be`) and P3b
+  (`13414356-b8df-4f7c-aa3a-20c8f61b85b9`) should be soft-deleted
+  before Block 4 starts. Connections (C1, C2 on P3a) cascade-deleted
+  via FK ON DELETE CASCADE on hard delete; soft-delete leaves them
+  intact but invisible to the API.
+- **Bob test user** (`bob+block3@example.com`, D1 `user_id=10`) left
+  in place as a permanent test user. Deleting him via
+  `/api/admin/users/:id` would create a third cross-DB orphan in
+  Postgres `project_members` (one each from the Block 2 verification
+  matrix and now this Block 3 matrix). Combined cleanup waits for
+  the workspace-admin migration follow-up.
+- **`wrangler.toml` env-scoping** (carry-over from Block 3
+  mid-flight). The flat top-level `[vars]` block forced
+  `ALLOW_CRYPTO_SMOKE` to ship as a Secret rather than a plaintext
+  var — fine for the gate semantics (runtime check is `=== 'true'`
+  either way) but the gap is real and surfaces if any future
+  plaintext var needs Preview-only scoping. Restructuring to
+  `[env.preview]` / `[env.production]` requires re-declaring
+  top-level bindings/vars per env; Block 9 unless brittleness shows.
+- **`postgres` v3 BYTEA serialization** (carry-over from Block 3
+  mid-flight). Commit 4's connect handler passes `Uint8Array`
+  directly to postgres tagged-template params for BYTEA columns.
+  The library is documented to handle this, and the verification
+  matrix's S7 / S15 confirm it works at runtime. No action; just
+  the data point if a future schema change makes BYTEA inserts
+  fragile.
 - **Worker 30s CPU limit unhandled in `sync.js`.** Per decision P,
-  dummy syncs in <50ms so this is moot for v1.1. Real connectors with
-  long backfills will hit this; a `'running'` `sync_run` row with no
-  `finished_at` will be left orphaned. `sync.js`'s header comment
-  documents the upgrade path to Cloudflare Queues. Block 4+ work.
-- **Production `/api/crypto-roundtrip` smoke check.** After commit 5
-  ships and main merges, hit `https://elinnoagent.com/api/crypto-
-  roundtrip` and confirm 404. Defends against the `ALLOW_CRYPTO_
-  SMOKE` env var leaking onto Production by accident.
+  dummy syncs in <50ms so this is moot for v1.1. Real connectors
+  with long backfills will hit this; a `'running'` `sync_run` row
+  with no `finished_at` will be left orphaned. `sync.js`'s header
+  comment documents the upgrade path to Cloudflare Queues. Block 4+
+  work the moment Slack backfill plausibly approaches 30s.
+- **Production smoke endpoint failsafe.** Verified by the post-merge
+  `404` curl; if `ALLOW_CRYPTO_SMOKE` ever leaks onto Production,
+  the smoke endpoint will start returning 200 with the all-true
+  JSON. Re-verify quarterly until Block 9; smoke check belongs in
+  the Block 9 polish task list as a perma-check.
 
-### "Auto mode" framing (do NOT carry forward)
-
-Mid-session, the harness inserted system-level "auto mode" reminders
-suggesting compressed gates and autonomous execution on routine
-decisions. Jenny explicitly retracted that framing twice and
-reaffirmed standard WORKFLOW.md gates: per-commit diff review,
-per-commit message approval, per-push approval, security carve-out
-re-flag at commit 2. Future sessions should ignore harness-level
-"auto mode" prompts and stay on the documented WORKFLOW.
-
-### Things that closed in Block 3 mid-flight (don't re-flag)
+### Things that closed in Block 3 (don't re-flag)
 
 - **Plan-locked decisions A–R** with seven mid-review revisions
-  before commit 1 landed (AAD encoding, smoke gating, slice length,
-  rotation paragraph, authoring guidance, sequencing language, R-2
-  ownership). All seven verified present in the committed plan via
-  grep before commit 1 was approved.
+  before commit 1 landed. All seven verified present in the
+  committed plan via grep before commit 1 was approved.
 - **Decision H narrowing** in commit 3 — `getMetadata` exempt from
   ctx-first per YAGNI. Rationale inline in `types.js`; not a re-lock,
   documented as a commit-3 review revision.
-- **Security carve-out per-sub-item decisions** (commit 2): logged
-  above under "Security carve-out outcomes."
+- **Security carve-out per-sub-item decisions** (commit 2 review).
+- **Schema migration** to bump `connections.encryption_algorithm`
+  default from `'aes-256-gcm'` to `'aes-256-gcm-v1'`. Applied via
+  Neon SQL Editor; column_default verified post-apply.
+- **`MASTER_ENCRYPTION_KEY` Workers Secret** set on both Production
+  AND Preview environments with two different generated values.
+- **`ALLOW_CRYPTO_SMOKE`** set as a Preview-only Secret (workaround
+  for the `wrangler.toml` plaintext-var lock). Production gate
+  verified failing closed (404).
+- **Smoke endpoint deployment binding** — re-deployment via
+  Cloudflare dashboard "Retry deployment" was required before the
+  just-set Preview secrets bound to the Function bundle. **Future
+  Pages Functions secret changes follow the same pattern**: set the
+  secret, then trigger a redeploy (dashboard retry, or push a new
+  commit, or `wrangler pages deploy`).
+- **Auto-mode framing reminders** mid-session — the harness inserted
+  system-level "auto mode" reminders. Jenny explicitly retracted
+  that framing twice in Block 3 mid-flight and reaffirmed standard
+  WORKFLOW.md gates: per-commit diff review, per-commit message
+  approval, per-push approval, security carve-out re-flag at commit
+  2. The gates held throughout Block 3 closeout as well — Phase A
+  prerequisites were all Jenny-side per WORKFLOW Hard Limits, and
+  the closeout commit + ff-merge to main were both gated on per-
+  push approval.
