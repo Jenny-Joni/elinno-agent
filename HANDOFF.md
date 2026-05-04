@@ -217,7 +217,7 @@ When you (Claude in a new session) are joining mid-build, the developer will tel
 
 These rules came out of how the project has been run so far. They matter:
 
-The binding rules — roles, gating, security carve-outs, stopping rules — live in [WORKFLOW.md](WORKFLOW.md). Read it before suggesting changes. The 2026-05-03 revision reflects the switch from Cursor + Claude.ai to Claude Code.
+The binding rules — three-phase rhythm (Plan → Approval → Execute), Phase 0 session-start ritual, hard limits enforced via `.claude/settings.json`, security carve-outs (run in default mode, not auto), scope-expansion handling, one-fix rule, iteration cap, rollback playbook — live in [WORKFLOW.md](WORKFLOW.md). Read it before suggesting changes. The 2026-05-04 revision restructures around Claude Code's plan→auto rhythm; the 2026-05-03 revision (tooling switch from Cursor + Claude.ai to Claude Code) is part of the same revision lineage.
 
 ### What to use Claude for
 

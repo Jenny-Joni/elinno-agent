@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "deny": [
+      "Bash(git push:*main*)",
+      "Bash(git push:*origin main*)",
+      "Bash(git push:*HEAD:main*)",
+      "Bash(git commit:*--amend*)",
+      "Bash(git push:*--force*)",
+      "Bash(git push:*-f*)",
+      "Bash(git rebase:*-i*)",
+      "Bash(git reset:*--hard*HEAD~*)",
+      "Bash(wrangler d1 execute:*--remote*)",
+      "Bash(wrangler pages deployment rollback:*)",
+      "Bash(psql:*)",
+      "Write(**/.env*)",
+      "Write(**/secrets/**)",
+      "Write(**/.claude/secrets*)"
+    ],
+    "ask": [
+      "Bash(wrangler hyperdrive update:*)",
+      "Bash(wrangler pages deployment:*)",
+      "Bash(npm publish:*)",
+      "Bash(rm:*-rf*)",
+      "Bash(rm:*/*)"
+    ]
+  }
+}
