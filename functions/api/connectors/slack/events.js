@@ -45,7 +45,7 @@
 // =========================================================================
 
 import postgres from 'postgres';
-import { getConnector } from '../../../../_lib/connectors/registry.js';
+import { getConnector } from '../../../_lib/connectors/registry.js';
 
 export async function onRequestPost({ request, env }) {
   const sql = postgres(env.HYPERDRIVE.connectionString, {
