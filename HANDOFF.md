@@ -1264,3 +1264,308 @@ Phase 0 of next session finds:
 Recommended first move next session: pre-Block-4 PR's plan-mode
 session. Phase A doesn't gate it; once it lands on `main`, the
 `block-4-slack-connector` merge-from-main is mechanical.
+
+---
+
+## Block 4 mid-flight — 2026-05-04 evening
+
+> Block 4 feature commits 2–8 + two import-depth fix-ups (3a, 7a)
+> shipped to `block-4-slack-connector` on top of commit 1's plan doc.
+> All Block 4 connector-side decisions (A–P) are implemented in code.
+> End-to-end verification awaits Phase A (Jenny's hands); closeout
+> commit 10 awaits verification. Production is unchanged; no Block 4
+> code is on `main` yet — only this HANDOFF + the Phase 1 closeout
+> HANDOFF live there.
+
+### Branch state
+
+`block-4-slack-connector` is **10 commits ahead of `main`** (which
+sits at `c27593b` from the Phase 1 closeout HANDOFF, plus this
+mid-flight HANDOFF after this commit pushes). Local in sync with
+origin.
+
+| #   | SHA       | Subject                                                                                          |
+| --- | --------- | ------------------------------------------------------------------------------------------------ |
+| 1   | `c9fc501` | docs(block-4): lock Block 4 design decisions A–P                                                 |
+| 2   | `4bbf89f` | feat(block-4): add Slack connector — startAuth/completeAuth/refreshAuth/testConnection           |
+| 3   | `777a600` | feat(block-4): refactor connections POST for OAuth authUrl flow + Slack OAuth start endpoint    |
+| 3a  | `1a26c42` | fix(block-4): correct import depth in slack/oauth/start.js                                       |
+| 4   | `6af0a50` | feat(block-4): add Slack OAuth callback endpoint                                                 |
+| 5   | `f5ee0c5` | feat(block-4): add Slack channel listing endpoint                                                |
+| 6   | `e7258f3` | feat(block-4): add Slack fullSync + incrementalSync + slack_messages view migration             |
+| 7   | `495a142` | feat(block-4): add Slack Events API webhook handler                                              |
+| 7a  | `9945503` | fix(block-4): correct import depth in slack/events.js                                            |
+| 8   | `89785b0` | feat(block-4): wire Connect Slack UI in project.html + PATCH endpoint                            |
+
+### Sequencing-deltas vs Phase 1 closeout
+
+The Phase 1 HANDOFF entry recommended a **pre-Block-4 PR** (the
+`requireWorkspaceAdmin` migration of `admin/users.js` +
+`admin/users/[id].js` + 200→201 fix) as the first move next session.
+**That was deferred during this session** — Jenny chose "Commit 2
+now; defer all merges" when commit 2 work began. The pre-Block-4 PR
+remains on the open-follow-ups carry-forward list (still good
+"between blocks" work) but it didn't ship in this session.
+
+`block-4-slack-connector` and `origin/main` have diverged from common
+base `3659d55`:
+- `origin/main`: + Phase 1 closeout HANDOFF (`c27593b`) + this
+  mid-flight HANDOFF (next push).
+- `block-4-slack-connector`: + 10 Block 4 commits (`c9fc501` →
+  `89785b0`).
+
+Per Jenny's "defer all merges" call, no merge-from-main into the
+feature branch has happened. Block 3's precedent (commit `2f869b8`
+"Merge branch 'main' into block-3-connector-framework") is the
+pattern when merge becomes needed; for Block 4 the merge is
+deferred to closeout (after Phase A + verification + commit 10).
+
+### What's done (code-side)
+
+All Block 4 connector decisions (A–P) implemented:
+
+- **slack.js** ([functions/_lib/connectors/slack.js](functions/_lib/connectors/slack.js))
+  — full Connector interface: startAuth (commit 2) / completeAuth
+  (commit 2) / refreshAuth (commit 2 — no-op per O) / testConnection
+  (commit 2) / fullSync (commit 6) / incrementalSync (commit 6) /
+  handleWebhook (commit 7). Plus the `listChannels(ctx, connection)`
+  helper export (commit 2; consumed by commit 5's bespoke endpoint
+  per G).
+- **OAuth surface** — start endpoint
+  ([start.js](functions/api/connectors/slack/oauth/start.js), commit 3
+  + 3a depth fix), callback endpoint
+  ([callback.js](functions/api/connectors/slack/oauth/callback.js),
+  commit 4). Implements C2 single-use UPDATE on `status='pending'`,
+  C3 initiated-by-user binding, K hardcoded server-side redirect
+  destination, P scope shape with `user_scope` parameter omitted
+  entirely.
+- **Channel listing** —
+  [channels.js](functions/api/projects/[id]/connections/[connId]/slack/channels.js)
+  (commit 5) at depth 7 with 6-up imports.
+- **Events API webhook** —
+  [events.js](functions/api/connectors/slack/events.js) (commit 7 +
+  7a depth fix). Implements D1 constant-time HMAC verify via
+  `crypto.subtle.verify`, D2 symmetric ±5min timestamp window, D3
+  raw-body fidelity (read text → verify → parse on same bytes), D4
+  reject-before-dispatch single-canonical-403, F1 url_verification
+  challenge as first code path with JSON-only `{ challenge }`
+  response (per locked F1 contract-pinning comment dated 2026-05-04
+  in events.js header), F2 dispatch on `body.event.type`, F single-
+  connection-per-team_id v1.1 lock (multi-row → 500 with
+  console.error), I message_changed UPSERTs + message_deleted
+  hard-DELETEs.
+- **PATCH endpoint** for selected_channel — `onRequestPatch` on
+  [connections/[connId]/index.js](functions/api/projects/[id]/connections/[connId]/index.js)
+  (commit 8). Atomic JSONB `||` merge with allowlisted keys
+  (`selected_channel_id`, `selected_channel_name` per locked
+  sub-decision (a) for commit 8).
+- **Connections POST refactor** (commit 3) — replaces Block 3's 501
+  stub for OAuth source with a 400 + guidance string telling callers
+  to use `/oauth/start`. Plus Q whitelist extension (commit 8) via
+  JSONB projection: `selected_channel_id` + `selected_channel_name`
+  flow into GET/POST/PATCH responses; OAuth scopes / bot_user_id /
+  team_name remain off the wire.
+- **UI** in [project.html](public/project.html) (commit 8) — full
+  Connections-tab flow: Connect Slack button (full-page redirect per
+  K), channel-picker modal (per L; auto-opens on
+  `?just_connected=slack` once via `justConnectedHandled` guard),
+  connection-row with status pill derived from `selected_channel_id`
+  + `last_sync_at`, disconnect button with native `confirm()`. Boot
+  pipeline loads connections eagerly in parallel with members. Plus
+  [auth.css](public/auth.css) extended with connection-row + modal
+  + status-pill selectors (~189 lines).
+- **sync.js modifications** (commit 6 plan amendment) —
+  [sync.js](functions/api/projects/[id]/connections/[connId]/sync.js)
+  writes `syncResult.detail` to `sync_runs.detail` on the success
+  path (E3 cap-hit signal) and SKIPS the
+  `connections.last_sync_at` bump when `syncResult.detail?.inert`
+  (per L's freshness contract — inert syncs write a sync_runs row
+  but don't poison the freshness signal).
+- **Two schema migration files** committed but **NOT YET APPLIED**
+  to Neon production:
+  1. [db/migrations/2026-05-04-pending-oauth-state.sql](db/migrations/2026-05-04-pending-oauth-state.sql)
+     — C1 NULL-allow on encryption columns + CHECK constraint
+     enforcing presence at non-pending status + C3
+     `initiated_by_user_id` column.
+  2. [db/migrations/2026-05-04-slack-messages-view.sql](db/migrations/2026-05-04-slack-messages-view.sql)
+     — J's `slack_messages` view.
+- **wrangler.toml** — `SLACK_CLIENT_ID` added as plaintext var
+  (commit 2) but populated as empty string `""`. **Phase A populates
+  this with the real value from Slack app registration**; Claude
+  commits the change as a small fix-up before closeout.
+- **BLOCK_4_PLAN.md amended twice** during execute:
+  - Row 3a inserted after row 3 (start.js depth fix-up).
+  - Row 7a inserted after row 7 (events.js depth fix-up).
+  Both surface the same root cause: directory-depth miscount when
+  adding new function files. Pattern detail in "Anomalies" below.
+
+### What's NOT done — gates Block 4 going live
+
+**Phase A — Jenny's hands. Recommended order:**
+
+1. **Apply schema migrations to Neon production** via SQL Editor:
+   - `db/migrations/2026-05-04-pending-oauth-state.sql`
+   - `db/migrations/2026-05-04-slack-messages-view.sql`
+
+2. **Register Slack app at api.slack.com/apps:**
+   - **Bot Token Scopes** (exactly): `channels:read`,
+     `channels:history`, `users:read`. NO others.
+   - **User Token Scopes**: NONE (per P).
+   - **OAuth Redirect URLs** (both):
+     - `https://elinnoagent.com/api/connectors/slack/oauth/callback`
+     - `https://block-4-slack-connector.elinno-agent.pages.dev/api/connectors/slack/oauth/callback`
+   - **Token Rotation**: OFF (per O).
+   - **No Slash Commands. No Incoming Webhooks.**
+   - Capture **Client ID** (paste into the next-session
+     conversation — not secret), **Client Secret** (Workers
+     Secret), **Signing Secret** (Workers Secret).
+
+3. **Set Workers Secrets on BOTH Production AND Preview** (Cloudflare
+   dashboard → Pages → `elinno-agent` → Settings → Variables and
+   Secrets):
+   - `SLACK_CLIENT_SECRET`
+   - `SLACK_SIGNING_SECRET`
+
+4. **Tell Claude the SLACK_CLIENT_ID** so the wrangler.toml empty-
+   placeholder is replaced. Claude commits the change to
+   `block-4-slack-connector`; the push triggers a preview re-deploy
+   that picks up both the new var and the secrets.
+
+5. **Configure Events API URL in Slack app** (preview first):
+   - URL: `https://block-4-slack-connector.elinno-agent.pages.dev/api/connectors/slack/events`
+   - Slack POSTs `url_verification` challenge; F1 responds; "Verified ✓"
+     on success.
+   - Subscribe to bot event: `message.channels` (covers
+     `message_changed` and `message_deleted` via subtype dispatch
+     per F2 + I).
+
+6. **Add the bot to a test channel** in the test workspace.
+
+**Verification matrix run** (Phases B/C/D/E, S1–S26). Driven by Claude
+after Phase A signals complete; Jenny exports `JENNY_PASSWORD` in
+her shell for the curl commands that need an admin session.
+
+**Closeout commit 10:**
+- `curl-matrix-block-4.md` (per-scenario PASS/FAIL record)
+- HANDOFF Block 4 closeout addendum (replaces this mid-flight section)
+- BLOCK_3_PLAN.md AAD-on-both addendum stays as a **separate**
+  post-Block-4 doc-only commit per the locked plan.
+
+**ff-merge `block-4-slack-connector` → `main` + per-push approval +
+Cloudflare auto-deploy** to elinnoagent.com.
+
+**Production-side Phase A finishing touches** (after merge):
+- Switch the Slack app's Events API URL to
+  `https://elinnoagent.com/api/connectors/slack/events` (Slack
+  allows only one Events URL per app).
+- Re-verify the challenge handshake against production.
+- Production regression check: db-health 200; /oauth/start with
+  admin session 302 to slack.com consent.
+
+### Anomalies and lessons
+
+**Two import-depth bugs in Block 4** (3a + 7a), both due to
+miscounting directory depth when adding new function files. `node
+--check` passes on the broken state because it doesn't resolve
+imports; Cloudflare Pages' esbuild bundling is what fails the build,
+and that feedback loop is 60–180 seconds. Both fixes were 1-line
+edits.
+
+- **3a**: `start.js` at `functions/api/connectors/slack/oauth/start.js`
+  (depth 5) used 5 `../` segments instead of 4.
+- **7a**: `events.js` at `functions/api/connectors/slack/events.js`
+  (depth 4) used 4 `../` segments instead of 3.
+
+Pattern is real and actionable. **Block 9 polish opportunity:** a
+pre-push smoke check — either a tiny `find functions -name '*.js'
+| xargs grep '^import.*_lib'` cross-reference, or a local `wrangler
+pages dev` build that fails fast on resolution errors. Either would
+have caught both bugs locally without the Cloudflare build cycle.
+**Workflow conversation worth having before Block 6 starts** —
+Block 6 (Jira) will create new function files at varying depths
+under `functions/api/connectors/jira/`, same risk class.
+
+**Auto-mode UI signal kept firing** during Block 4 even though the
+plan locked DEFAULT mode for the security carve-out. Same as Block
+3 mid-flight pattern (recorded in HANDOFF). Worth a WORKFLOW
+re-lock conversation about UI guidance for carve-out blocks before
+Block 6 (also OAuth + webhooks).
+
+**Plan amendments during execute were small and well-scoped:**
+- Row 3a + row 7a in commit-ordering table (depth-bug fix-ups).
+- sync.js added to "To modify" list in commit 6 (for L's
+  inert-sync rule + E3 cap-hit signal write).
+- CONNECTION_PUBLIC_COLUMNS extension in commit 8 (Q whitelist
+  amendment for `selected_channel_*` fields via JSONB projection).
+
+All shipped without separate plan-amendment commits — folded into
+the substantive commits with documentation updates in the same
+diff. Acceptable per Jenny's "anything bigger goes through scope
+expansion" framing for plan amendments that don't require re-locking
+substantive decisions.
+
+### Where future-Claude resumes
+
+Phase 0 ritual on next session:
+- `git status` on the worktree → on `block-4-slack-connector`,
+  clean working tree.
+- `git log main..HEAD --oneline` → 10 commits visible.
+- `git fetch origin --dry-run` → verify nothing has moved.
+- Read this HANDOFF section for state; ask Jenny what's done from
+  Phase A.
+
+**Recommended first move next session:** ask Jenny what's done from
+Phase A. If she's worked through migration application + Slack app
+registration: Claude commits the wrangler.toml `SLACK_CLIENT_ID`
+update, then drives the verification matrix. If still in progress:
+stand by; offer step-by-step assistance with any specific Phase A
+task.
+
+After Phase A complete + verification passes:
+- Commit 10 (closeout) lands on `block-4-slack-connector`.
+- ff-merge to main + per-push approval + production deploy.
+
+### Open follow-ups carried INTO closeout / next sessions
+
+(Adds to Block 3's already-queued list, which carries forward
+unchanged.)
+
+- **BLOCK_3_PLAN.md AAD-on-both addendum** (drift item 3 from Block
+  4 Phase 1) ships as a separate post-Block-4 doc-only commit per
+  the locked plan.
+- **S22 `url_verification` response shape pinning** — re-verify
+  Slack's url_verification docs at the time of verification matrix
+  run; confirm the response shape locked in F1 still works.
+- **S12 `OperationError` substring pinning** — pin the exact
+  SubtleCrypto error string at verification time; doc-only update
+  if Workers runtime upgrades break the match.
+- **Pre-push depth-check / local wrangler dev smoke** (Block 9
+  polish; both 3a and 7a would have been caught by it). Worth a
+  WORKFLOW-level conversation before Block 6.
+- **Cross-sync `users.info` cache** (Block 9 polish; v1.1 uses
+  in-memory-per-sync only).
+- **`slack_messages` view subtype projection** edge-case
+  verification under Phase C — null subtype on plain messages,
+  thread_broadcast filtering.
+- **WORKFLOW re-lock on auto-mode UI signal** during carve-outs.
+  Same situation arose three times now (twice in Block 3, once+
+  in Block 4); the substantive contract holds but the UI churn is
+  real.
+- **`requireWorkspaceAdmin` migration** of `admin/users.js` +
+  `admin/users/[id].js` + 200→201 fix on user-create. Carry-over
+  from Block 2 → 3 → Phase 1 → mid-flight. Still good "between
+  blocks" work; not blocking Block 4 closeout.
+- **Test data accumulation on Neon production** — verification
+  matrix runs in Phase B/C/D will write entities + sync_runs + a
+  pending-then-active connection on the Rain project (or whatever
+  test project Jenny picks). Cleanup is a between-blocks task once
+  Block 4 closes.
+
+### Things that WON'T need re-flagging next session
+
+- The two depth-bug fix-ups (3a, 7a) are landed; the deploy is healthy.
+- All connector decisions (A–P) are implemented.
+- Schema migration files exist in repo and are reviewable; just
+  not applied yet.
+- The branch divergence with main is intentional ("defer all merges"
+  call); no rush to merge until closeout.
