@@ -2,11 +2,12 @@
 // =========================================================================
 // SECURITY-CARVE-OUT: do not edit in auto mode
 //
-// Slack connector. Implements decisions A, B-revised, C2, C3, E, E2, E3,
-// G (listChannels helper), H (entity mapping), K, L (inert sync signal),
-// O, P from BLOCK_4_PLAN.md. Decisions D/D1-D4 (webhook signature
-// verify), F/F1/F2 (webhook ingestion + url_verification + dispatch),
-// and I (edits/deletes) land in commit 7.
+// Slack connector. Implements decisions A, B-revised, C2, C3, D, D1-D4,
+// E, E2, E3, F, F1, F2, G (listChannels helper), H (entity mapping),
+// I (edits/deletes via webhook), K, L (inert sync signal), O, P from
+// BLOCK_4_PLAN.md. All Block 4 connector-side decisions are now
+// implemented; remaining Block 4 work lives in commit 8 (UI + PATCH
+// endpoint) and commit 10 (closeout).
 //
 // AUTH MODEL (A, B-revised, P, O)
 // -------------------------------
@@ -90,7 +91,53 @@
 // error" without leaking _err.message; do not rely on that — every
 // throw in this module must already be credential-free.
 //
-// handleWebhook lands in commit 7.
+// COMMIT 7 ADDITIONS (D, D1-D4, F, F1, F2, I)
+// -------------------------------------------
+// handleWebhook — Slack Events API entry, called by
+// functions/api/connectors/slack/events.js. Implements the locked
+// signature-verify + dispatch spec in full:
+//   D1: HMAC verify via crypto.subtle.verify (no === on hex digests;
+//       constant-time by contract).
+//   D2: Symmetric ±5min timestamp window; stale and future-dated reject
+//       with byte-identical responses (S15 paired-assertion in the
+//       verification matrix asserts on byte equality, not just status).
+//   D3: read text → verify → JSON.parse on the SAME bytes; post-verify
+//       parse failure logs rawBody marker + 403 (preserves D4's single-
+//       canonical-observable while routing the anomaly to ops via logs).
+//   D4: One canonical forbidden() 403 for every rejection path —
+//       missing/malformed headers, signature failure, unknown envelope
+//       type, missing team_id, etc.
+//   F:  Single connection per Slack team_id (v1.1 lock); 0-row → 200
+//       ack-only (Slack stops retrying); >1-row → 500 with
+//       console.error for ops alerting (schema-permitted but v1.2-only
+//       state).
+//   F1: url_verification challenge as the FIRST code path post-verify;
+//       returns application/json with { challenge: "..." }.
+//   F2: Dispatch on body.event.type (not body.type — body.type is
+//       always 'event_callback' for events); subtype switch handles
+//       plain new messages + thread_broadcast (single-entity collapse
+//       per H) + message_changed (UPSERT) + message_deleted (hard
+//       DELETE per I + entities' hard-delete-on-FK-cascade schema
+//       policy). Unhandled subtypes return 200 ack-only — Slack
+//       expects 200 even for events we don't process; non-200
+//       triggers Slack's 3-retry-then-fail loop.
+//
+// V1.1 CHANNEL-SCOPE FILTER
+// -------------------------
+// Webhook events are filtered to credential_metadata.selected_channel_id
+// only — keeping the entity store consistent with backfill scope (L's
+// single-channel selection). Events for other channels the bot sees
+// are 200-acked but not written. Block 9 polish: relax this when
+// multi-channel selection ships.
+//
+// MODULE-SCOPE WEBHOOK CACHES
+// ---------------------------
+// Hot-isolate caches for team_domain (per connection_id) and user
+// display names (per connection_id, then per user_id). Per-isolate;
+// cleared on cycling. Block 9 polish: cross-isolate persistence
+// (likely a slack_users cache table; see Open follow-ups in
+// BLOCK_4_PLAN.md). Keying by connection_id makes multi-connection
+// cleanup mechanical when v1.2 reopens multi-project-per-workspace.
 // =========================================================================
 
 import { aadFor, decrypt } from '../crypto.js';
@@ -114,6 +161,23 @@ const CPU_BUDGET_SECONDS = 25;
 // reach during normal backfills. Tightening this is exactly the kind
 // of "small efficiency" that creates new failure modes — leave alone.
 const PAGE_BACKOFF_MS = 250;
+
+// D2: timestamp window (BLOCK_4_PLAN.md decision D2). Symmetric ±300s.
+const WEBHOOK_TIMESTAMP_WINDOW_SECONDS = 300;
+
+// Module-scope caches for the webhook handler. Per-isolate; cleared on
+// isolate cycling. Block 9 polish: cross-isolate persistence.
+//
+// teamDomainCache: connection_id → team_domain. Avoids repeat
+// team.info calls per webhook event in a hot isolate.
+//
+// webhookUserCache: connection_id → Map<user_id, displayName|null>.
+// Avoids repeat users.info calls. Same null-on-error fallback as
+// resolveUserDisplayName's sync-local cache pattern.
+/** @type {Map<string, string>} */
+const teamDomainCache = new Map();
+/** @type {Map<string, Map<string, string|null>>} */
+const webhookUserCache = new Map();
 
 /** @type {import('./types.js').ConnectorMetadata} */
 const METADATA = {
@@ -524,6 +588,107 @@ async function _doSync(ctx, connection, options) {
   return result;
 }
 
+// --- Webhook helpers (D, D1-D4, F, F1, F2, I) -----------------------------
+
+/** Canonical 403 response for webhook rejection paths (D4). */
+function forbidden() {
+  return new Response(
+    JSON.stringify({ error: 'Forbidden' }),
+    { status: 403, headers: { 'content-type': 'application/json' } }
+  );
+}
+
+/**
+ * Hex-decode a string into a Uint8Array. Throws on invalid hex.
+ * Slack's signature header is "v0=<hex>"; the caller strips the prefix
+ * before calling.
+ */
+function hexToBytes(hex) {
+  if (typeof hex !== 'string' || hex.length === 0 || hex.length % 2 !== 0) {
+    throw new Error('hexToBytes: invalid hex string');
+  }
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    const byte = parseInt(hex.substr(i * 2, 2), 16);
+    if (Number.isNaN(byte)) throw new Error('hexToBytes: invalid hex digit');
+    out[i] = byte;
+  }
+  return out;
+}
+
+/**
+ * Process a single Slack message event (new / changed / thread_broadcast).
+ * Decrypts the bot token (per Block 3 decision L); resolves team_domain
+ * and the user display name via module-scope caches; UPSERTs the entity.
+ *
+ * Caller (handleWebhook's switch) is responsible for selecting the
+ * correct message payload per subtype: plain new and thread_broadcast
+ * receive body.event directly; message_changed receives body.event.message
+ * (the full updated message).
+ *
+ * @param {object} env - Pages Function env (HYPERDRIVE, MASTER_ENCRYPTION_KEY)
+ * @param {object} sql - postgres tagged-template client opened by events.js
+ * @param {object} connection - SELECTed connection row
+ * @param {object} message - Slack message payload
+ */
+async function processMessageEvent(env, sql, connection, message) {
+  // SECURITY: plaintext credentials live only on the call stack here
+  // through the API call below. Never cached at module scope, never
+  // logged. (Same SECURITY discipline as testConnection / _doSync.)
+  const aad = aadFor(connection);
+  const credsJson = await decrypt(env, connection, aad);
+  const creds = JSON.parse(credsJson);
+  const token = creds.access_token;
+  const teamId = creds.team_id || null;
+
+  // Resolve team_domain (cache hit avoids API call). Per locked
+  // sub-decision (b), webhook caches keyed by connection_id.
+  let teamDomain = teamDomainCache.get(connection.id);
+  if (!teamDomain) {
+    teamDomain = await resolveTeamDomain(token);
+    teamDomainCache.set(connection.id, teamDomain);
+  }
+
+  // Per-connection user cache (lazy init).
+  let userCache = webhookUserCache.get(connection.id);
+  if (!userCache) {
+    userCache = new Map();
+    webhookUserCache.set(connection.id, userCache);
+  }
+
+  // Channel metadata from event payload + credential_metadata for name.
+  // Selected channel name comes from credential_metadata (set by L's
+  // PATCH endpoint in commit 8); for events on a non-selected channel
+  // we'd return null name (but the v1.1 channel-scope filter in
+  // handleWebhook prevents non-selected events from reaching here).
+  const meta = connection.credential_metadata || {};
+  const channelMeta = {
+    id: message.channel || null,
+    name: meta.selected_channel_name || null,
+    team_id: teamId,
+  };
+  if (!channelMeta.id) {
+    // Defensive: some non-message subtypes might omit channel; this
+    // function is only called from the message-handling switch arms,
+    // but better to skip silently than throw.
+    return;
+  }
+
+  const entity = await mapMessageToEntity(
+    message,
+    channelMeta,
+    teamDomain,
+    userCache,
+    token
+  );
+  await upsertEntityRow(
+    sql,
+    connection.project_id,
+    connection.id,
+    entity
+  );
+}
+
 // --- Connector export -----------------------------------------------------
 
 /** @type {import('./types.js').Connector} */
@@ -650,8 +815,199 @@ export const slack = {
     return _doSync(ctx, connection, { oldest });
   },
 
-  // handleWebhook lands in commit 7. Optional in the Connector typedef;
-  // omission here is consistent with dummy.js (which never has webhooks).
+  /**
+   * Slack Events API webhook handler. Implements D1-D4 (verify spec),
+   * F1 (url_verification first), F2 (event_callback dispatch), I
+   * (edits/deletes), F (single-connection-per-team_id v1.1 lock).
+   *
+   * Called by functions/api/connectors/slack/events.js. ctx.projectId
+   * arrives as '' placeholder per locked sub-decision (a); we resolve
+   * the real project_id via the team_id-based connection lookup below.
+   *
+   * @param {import('./types.js').ConnectorCtx} ctx
+   * @param {Request} request
+   * @returns {Promise<Response>}
+   */
+  async handleWebhook(ctx, request) {
+    // === D3: read bytes ONCE for verify + parse ===
+    const rawBody = await request.text();
+
+    // === D2: timestamp window — symmetric ±5 min ===
+    const tsHeader = request.headers.get('X-Slack-Request-Timestamp');
+    const ts = parseInt(tsHeader || '', 10);
+    const now = Math.floor(Date.now() / 1000);
+    if (
+      !Number.isFinite(ts) ||
+      Math.abs(now - ts) > WEBHOOK_TIMESTAMP_WINDOW_SECONDS
+    ) {
+      return forbidden();
+    }
+
+    // === D1: HMAC verify via crypto.subtle.verify (constant-time) ===
+    const sigHeader = request.headers.get('X-Slack-Signature') || '';
+    if (!sigHeader.startsWith('v0=')) return forbidden();
+    let sigBytes;
+    try {
+      sigBytes = hexToBytes(sigHeader.slice(3));
+    } catch {
+      return forbidden();
+    }
+    const baseString = `v0:${tsHeader}:${rawBody}`;
+    const signingKey = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(ctx.env.SLACK_SIGNING_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+    const verified = await crypto.subtle.verify(
+      'HMAC',
+      signingKey,
+      sigBytes,
+      new TextEncoder().encode(baseString)
+    );
+    if (!verified) return forbidden();
+
+    // === D3 (continued): parse AFTER verify; post-verify parse failure
+    //     logs rawBody marker + 403 (preserves D4's single-canonical-
+    //     observable contract while routing the anomaly to ops via logs). ===
+    let body;
+    try {
+      body = JSON.parse(rawBody);
+    } catch (parseErr) {
+      console.error(
+        'slack:post_verify_parse_failure',
+        { rawBody, error: parseErr?.message }
+      );
+      return forbidden();
+    }
+
+    // === F1: url_verification challenge — FIRST code path post-verify ===
+    if (body.type === 'url_verification') {
+      return new Response(
+        JSON.stringify({ challenge: body.challenge }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }
+      );
+    }
+
+    // Unknown envelope type → 403-collapse (D4).
+    if (body.type !== 'event_callback') {
+      return forbidden();
+    }
+
+    // === F: single-connection-per-team_id (v1.1 lock) ===
+    const teamId = body.team_id;
+    if (typeof teamId !== 'string' || teamId.length === 0) {
+      return forbidden();
+    }
+
+    const sql = ctx.sql;
+    const connections = await sql`
+      SELECT id, project_id, source,
+             wrapped_data_key, iv, ciphertext_credentials,
+             encryption_algorithm, credential_metadata
+        FROM connections
+       WHERE source             = 'slack'
+         AND external_account_id = ${teamId}
+         AND status              = 'active'
+         AND deleted_at         IS NULL
+    `;
+    if (connections.length === 0) {
+      // No active connection for this team. 200 ack-only — Slack
+      // stops retrying. The event arrived for a workspace that has
+      // no v1.1 active connection in our system (all soft-deleted,
+      // never connected, etc.).
+      return new Response(null, { status: 200 });
+    }
+    if (connections.length > 1) {
+      // Schema permits multi-row for v1.2 (multi-project-per-workspace);
+      // v1.1 doesn't ship the project-grouping machinery to make this
+      // useful. 500 with ops alerting per F's lock.
+      console.error(
+        'slack:multi_connection_for_team',
+        { team_id: teamId, count: connections.length }
+      );
+      return new Response(
+        JSON.stringify({ error: 'Internal error' }),
+        { status: 500, headers: { 'content-type': 'application/json' } }
+      );
+    }
+    const connection = connections[0];
+
+    // === F2: dispatch on body.event.type (NOT body.type — that's
+    //     always 'event_callback' for events) ===
+    if (body.event?.type !== 'message') {
+      // Unknown / unhandled event kind — 200 ack-only. Slack expects
+      // 200 even for events we don't process; non-200 triggers
+      // Slack's 3-retry-then-fail loop.
+      return new Response(null, { status: 200 });
+    }
+
+    // V1.1 channel-scope filter: only process events for the selected
+    // channel (L's single-channel-selection lock). Events for other
+    // channels the bot can see are 200-acked but not written —
+    // keeping the entity store consistent with backfill scope. Block
+    // 9 polish: relax when multi-channel selection ships.
+    const selectedChannelId =
+      connection.credential_metadata?.selected_channel_id;
+    const eventChannel =
+      body.event.channel ||
+      body.event.message?.channel ||
+      body.event.previous_message?.channel ||
+      null;
+    if (
+      selectedChannelId &&
+      eventChannel &&
+      eventChannel !== selectedChannelId
+    ) {
+      return new Response(null, { status: 200 });
+    }
+
+    // === Subtype switch (F2 + H thread_broadcast + I edits/deletes) ===
+    switch (body.event.subtype) {
+      case undefined:           // plain new message
+      case 'thread_broadcast':  // H: collapses to one entity via UPSERT key
+        await processMessageEvent(ctx.env, sql, connection, body.event);
+        break;
+      case 'message_changed':
+        // Edits carry .message child = the full updated message.
+        if (body.event.message) {
+          await processMessageEvent(
+            ctx.env,
+            sql,
+            connection,
+            body.event.message
+          );
+        }
+        break;
+      case 'message_deleted': {
+        // I: hard-DELETE by source_id. (Schema's hard-delete-on-
+        // FK-cascade policy applies to entities; entity_embeddings
+        // cascade-delete via FK.)
+        const channelId =
+          body.event.channel || body.event.previous_message?.channel;
+        const deletedTs =
+          body.event.deleted_ts || body.event.previous_message?.ts;
+        if (channelId && deletedTs) {
+          await sql`
+            DELETE FROM entities
+             WHERE connection_id = ${connection.id}
+               AND source_type   = 'slack_message'
+               AND source_id     = ${`${channelId}:${deletedTs}`}
+          `;
+        }
+        break;
+      }
+      default:
+        // bot_message, channel_join, file_share, etc. — ack-only.
+        break;
+    }
+
+    return new Response(null, { status: 200 });
+  },
 };
 
 // --- Channel listing helper (commit 5 endpoint consumes this) -------------
