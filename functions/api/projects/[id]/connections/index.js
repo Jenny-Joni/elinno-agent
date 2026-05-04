@@ -48,6 +48,16 @@ import {
 } from '../../../../_lib/connectors/registry.js';
 
 // Whitelist for API responses. See SECURITY note above.
+//
+// Block 4 commit 8 plan amendment: extend the response shape with two
+// non-secret JSONB-extracted fields from credential_metadata —
+// selected_channel_id and selected_channel_name. These are user-config
+// (the admin's chosen Slack channel for backfill, set via L's PATCH
+// endpoint), NOT credential bytes or scope-disclosure surface. The
+// rest of credential_metadata stays out of the response per Q's
+// locked deny-list (OAuth scopes / refresh-expiry / bot_user_id are
+// reconnaissance surface; do NOT add to this list without re-locking
+// Q's rationale). Projections are done via JSONB `->>` in the SELECT.
 const CONNECTION_PUBLIC_COLUMNS = [
   'id',
   'project_id',
@@ -59,6 +69,8 @@ const CONNECTION_PUBLIC_COLUMNS = [
   'last_sync_at',
   'created_at',
   'updated_at',
+  'selected_channel_id',     // from credential_metadata->>'selected_channel_id'
+  'selected_channel_name',   // from credential_metadata->>'selected_channel_name'
 ];
 
 const DISPLAY_NAME_MAX = 100;
@@ -190,7 +202,9 @@ export async function onRequestPost({ request, env, params }) {
         )
         RETURNING
           id, project_id, source, display_name, external_account_id,
-          status, status_reason, last_sync_at, created_at, updated_at
+          status, status_reason, last_sync_at, created_at, updated_at,
+          credential_metadata->>'selected_channel_id'   AS selected_channel_id,
+          credential_metadata->>'selected_channel_name' AS selected_channel_name
       `;
     } catch (insertErr) {
       // PG 23505 — unique_violation. The connections UNIQUE NULLS NOT
@@ -247,7 +261,9 @@ export async function onRequestGet({ request, env, params }) {
     // WHERE deleted_at IS NULL.
     const connections = await sql`
       SELECT id, project_id, source, display_name, external_account_id,
-             status, status_reason, last_sync_at, created_at, updated_at
+             status, status_reason, last_sync_at, created_at, updated_at,
+             credential_metadata->>'selected_channel_id'   AS selected_channel_id,
+             credential_metadata->>'selected_channel_name' AS selected_channel_name
         FROM connections
        WHERE project_id = ${projectId}
          AND deleted_at IS NULL

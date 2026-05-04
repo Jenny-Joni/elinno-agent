@@ -28,6 +28,24 @@
     </div>
   </main>
 
+  <!-- Block 4 commit 8: channel-picker modal. Hidden by default; opened by
+       openChannelPicker() in the Connections-tab logic. Body-level so it
+       overlays the entire shell. Closes on Escape, click-outside (backdrop),
+       and the close button per locked sub-decision (g). -->
+  <div id="channelPickerModal" class="modal" style="display: none;"
+       role="dialog" aria-modal="true" aria-labelledby="channelPickerHeading">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" role="document">
+      <div class="modal-header">
+        <h2 id="channelPickerHeading" class="modal-heading">Select a Slack channel</h2>
+        <button class="modal-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body channel-picker-list">
+        Loading…
+      </div>
+    </div>
+  </div>
+
   <script>
     // ============================================================
     // Block 2 Sub-task 2.5 — project.html three-tab shell + chat UI
@@ -65,6 +83,15 @@
     // memberCount being null means "unknown"; the pill stays hidden.
     let members = null;
     let memberCount = null;
+    // Connections tab state (Block 4 commit 8). `connections` is null until
+    // first successful load — boot fetches eagerly so the Connections tab
+    // renders without a flash. Empty array = no connections (renders the
+    // Connect Slack empty state).
+    let connections = null;
+    // One-shot guard: ?just_connected=slack should auto-open the channel
+    // picker exactly once after OAuth callback redirects here. Subsequent
+    // tab switches must not re-trigger.
+    let justConnectedHandled = false;
 
     const VALID_TABS = { chat: 1, members: 1, connections: 1 };
 
@@ -249,6 +276,21 @@
           // Swallow — Members tab open will retry. Chat still works.
         }
 
+        // Step 3.5 (Block 4 commit 8): eager connections load (paralleling
+        // members). Same swallow-on-failure pattern — Connections tab will
+        // re-fetch on first open if this fails. Chat + Members still work.
+        try {
+          const connRes = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/connections');
+          if (connRes.status === 401) { redirectToLogin(); return; }
+          if (connRes.status === 403) { location.replace('/projects.html'); return; }
+          if (connRes.ok) {
+            const connData = await connRes.json().catch(() => ({}));
+            connections = Array.isArray(connData.connections) ? connData.connections : [];
+          }
+        } catch {
+          // Swallow — Connections tab open will retry.
+        }
+
         // Step 4 (decisions F + V): resolve activeConvId — ?c= if it matches a
         // real row, otherwise most-recent (conversations[0] is updated_at DESC).
         if (initialConvId && conversations.some(c => c.id === initialConvId)) {
@@ -385,7 +427,7 @@
       const body = document.getElementById('tabBody');
       if (activeTab === 'chat') renderChat(body);
       else if (activeTab === 'members') renderMembers(body);
-      else renderConnectionsPlaceholder(body);
+      else renderConnections(body);
     }
 
     function renderChat(body) {
@@ -1007,22 +1049,248 @@
       await loadMembers();
     }
 
-    function renderConnectionsPlaceholder(body) {
-      // Decision Y: link/plug-style icon. Locked copy split across heading + body.
-      body.innerHTML = `
-        <div class="tab-placeholder">
-          <div class="state-card">
-            <div class="state-card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
-              </svg>
+    // ---------- Connections tab (Block 4 commit 8) ----------
+    // Implements decisions K (full-page redirect to /oauth/start),
+    // L (channel-picker modal post-connect; selected_channel_* via PATCH;
+    // immediate POST sync after PATCH; disconnect+reconnect for re-sync).
+    // Two-tier error model per Block 2 decision N: 401 redirects to login;
+    // 5xx / network show generic message + retry. Validation and
+    // application errors render verbatim.
+
+    async function loadConnections() {
+      try {
+        const res = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/connections');
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok) { connections = []; return; }
+        const data = await res.json().catch(() => ({}));
+        connections = Array.isArray(data.connections) ? data.connections : [];
+      } catch {
+        connections = [];
+      }
+    }
+
+    async function renderConnections(body) {
+      // Render placeholder while we (re)load if needed.
+      if (connections === null) {
+        body.innerHTML = '<div class="tab-loading">Loading…</div>';
+        await loadConnections();
+      }
+
+      const slack = (connections || []).find(c => c.source === 'slack');
+
+      if (!slack) {
+        body.innerHTML = `
+          <div class="tab-content">
+            <div class="state-card">
+              <div class="state-card-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+                </svg>
+              </div>
+              <h2 class="state-card-heading">No tools connected yet</h2>
+              <p class="state-card-body">Connect Slack to ingest channel messages into this project.</p>
+              <div class="state-card-actions">
+                <button class="btn btn-primary" id="connectSlackBtn">Connect Slack</button>
+              </div>
             </div>
-            <h2 class="state-card-heading">No tools connected yet</h2>
-            <p class="state-card-body">Slack, Jira, Monday, and Google Drive are coming.</p>
+          </div>
+        `;
+        const btn = document.getElementById('connectSlackBtn');
+        if (btn) {
+          btn.addEventListener('click', () => {
+            // Decision K full-page redirect — server-side /oauth/start
+            // handles the 302 to Slack consent.
+            location.href = '/api/connectors/slack/oauth/start?project_id=' + encodeURIComponent(projectId);
+          });
+        }
+        return;
+      }
+
+      // Has a Slack connection. UI-derived "needs setup" state per L
+      // (selected_channel_id IS NULL → admin still needs to pick a channel).
+      const channelId = slack.selected_channel_id || null;
+      const channelName = slack.selected_channel_name || null;
+      const needsSetup = !channelId;
+      const lastSyncRel = slack.last_sync_at ? fmtRelativeShort(slack.last_sync_at) : null;
+      let pillText, pillClass;
+      if (needsSetup) {
+        pillText = 'Needs setup';
+        pillClass = 'pill-setup';
+      } else if (slack.last_sync_at) {
+        pillText = 'Active';
+        pillClass = 'pill-active';
+      } else {
+        pillText = 'Syncing…';
+        pillClass = 'pill-syncing';
+      }
+
+      body.innerHTML = `
+        <div class="tab-content">
+          <div class="connection-row">
+            <div class="connection-info">
+              <div class="connection-source">Slack</div>
+              <div class="connection-meta">
+                ${channelName ? '#' + escapeHtml(channelName) : 'No channel selected'}
+                ${lastSyncRel ? ' &middot; last sync ' + escapeHtml(lastSyncRel) : ''}
+              </div>
+            </div>
+            <div class="connection-pill ${pillClass}">${escapeHtml(pillText)}</div>
+            <div class="connection-actions">
+              ${needsSetup ? '<button class="btn btn-ghost" id="pickChannelBtn">Pick channel</button>' : ''}
+              <button class="btn btn-ghost" id="disconnectBtn">Disconnect</button>
+            </div>
           </div>
         </div>
       `;
+      if (needsSetup) {
+        document.getElementById('pickChannelBtn').addEventListener('click', () => openChannelPicker(slack.id));
+      }
+      document.getElementById('disconnectBtn').addEventListener('click', () => disconnectSlack(slack.id));
+
+      // ?just_connected=slack one-shot: auto-open the channel picker once
+      // after OAuth callback redirected here. Strip the param so a refresh
+      // doesn't re-open the modal.
+      if (!justConnectedHandled) {
+        justConnectedHandled = true;
+        const params = new URLSearchParams(location.search);
+        if (params.get('just_connected') === 'slack' && needsSetup) {
+          // Defer so the tab body has finished rendering before the modal mounts.
+          setTimeout(() => openChannelPicker(slack.id), 0);
+        }
+        if (params.has('just_connected')) {
+          const url = new URL(location.href);
+          url.searchParams.delete('just_connected');
+          history.replaceState(null, '', url.toString());
+        }
+      }
+    }
+
+    async function disconnectSlack(connId) {
+      const ok = confirm('Disconnect Slack? This will remove the connection from this project.');
+      if (!ok) return;
+      try {
+        const res = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId),
+          { method: 'DELETE' }
+        );
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok) {
+          alert('Could not disconnect. Please try again.');
+          return;
+        }
+        // Force re-fetch and re-render. Drops back to empty state.
+        connections = null;
+        if (activeTab === 'connections') renderTabBody();
+      } catch {
+        alert('Could not disconnect. Please try again.');
+      }
+    }
+
+    async function openChannelPicker(connId) {
+      const modal = document.getElementById('channelPickerModal');
+      if (!modal) return;
+      modal.style.display = '';
+      const list = modal.querySelector('.channel-picker-list');
+      list.innerHTML = '<div class="tab-loading">Loading channels…</div>';
+
+      // Wire close handlers idempotently.
+      modal.querySelector('.modal-close').onclick = closeChannelPicker;
+      modal.querySelector('.modal-backdrop').onclick = closeChannelPicker;
+      // Escape key — bind once via document so we don't re-add per open.
+      document.addEventListener('keydown', _channelPickerEscapeHandler);
+
+      try {
+        const res = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId) + '/slack/channels'
+        );
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok) {
+          list.innerHTML = '<p class="state-card-body">Could not load channels. The Slack app may need to be re-installed.</p>';
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        const channels = Array.isArray(data.channels) ? data.channels : [];
+        if (channels.length === 0) {
+          list.innerHTML = '<p class="state-card-body">No channels visible to the bot. Add the bot to a channel in Slack and re-open this picker.</p>';
+          return;
+        }
+        list.innerHTML = channels.map(c => `
+          <button class="channel-list-item" type="button"
+                  data-channel-id="${escapeHtml(c.id)}"
+                  data-channel-name="${escapeHtml(c.name)}">
+            <span class="channel-list-name">#${escapeHtml(c.name)}</span>
+            ${c.is_member ? '<span class="channel-list-tag">bot in channel</span>' : ''}
+          </button>
+        `).join('');
+        list.querySelectorAll('.channel-list-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const id = item.getAttribute('data-channel-id');
+            const name = item.getAttribute('data-channel-name');
+            selectChannel(connId, id, name);
+          });
+        });
+      } catch {
+        list.innerHTML = '<p class="state-card-body">Could not load channels. Please try again.</p>';
+      }
+    }
+
+    function closeChannelPicker() {
+      const modal = document.getElementById('channelPickerModal');
+      if (modal) modal.style.display = 'none';
+      document.removeEventListener('keydown', _channelPickerEscapeHandler);
+    }
+
+    function _channelPickerEscapeHandler(e) {
+      if (e.key === 'Escape') closeChannelPicker();
+    }
+
+    async function selectChannel(connId, channelId, channelName) {
+      const modal = document.getElementById('channelPickerModal');
+      const list = modal.querySelector('.channel-picker-list');
+      list.innerHTML = '<div class="tab-loading">Setting channel and starting sync…</div>';
+      try {
+        const patchRes = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId),
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              credential_metadata: {
+                selected_channel_id: channelId,
+                selected_channel_name: channelName,
+              },
+            }),
+          }
+        );
+        if (patchRes.status === 401) { redirectToLogin(); return; }
+        if (!patchRes.ok) {
+          let msg = 'Could not set channel. Please try again.';
+          if (patchRes.status >= 400 && patchRes.status < 500) {
+            const data = await patchRes.json().catch(() => ({}));
+            if (data && typeof data.error === 'string') msg = data.error;
+          }
+          list.innerHTML = '<p class="state-card-body">' + escapeHtml(msg) + '</p>';
+          return;
+        }
+        // Fire-and-don't-await sync — it can take several seconds for
+        // backfill. UI shows "Syncing…" pill until next refresh; admin
+        // can refresh the page to see updated state.
+        fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId) + '/sync',
+          { method: 'POST' }
+        ).catch(() => { /* surfaces in sync_runs row + Block 9 polish UI */ });
+
+        closeChannelPicker();
+        connections = null;  // force re-fetch on next render
+        if (activeTab === 'connections') renderTabBody();
+      } catch {
+        list.innerHTML = '<p class="state-card-body">Could not set channel. Please try again.</p>';
+      }
     }
 
     // ---------- Mobile drawer (decision AA) ----------

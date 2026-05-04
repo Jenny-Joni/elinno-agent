@@ -1333,3 +1333,192 @@ table.users-table {
   .member-email { font-size: 14px; }
   .member-meta { font-size: 11px; }
 }
+
+/* =========================================================================
+   Block 4 commit 8 — Connections tab + channel picker modal
+   ========================================================================= */
+
+/* Tab content wrapper (used by Connections tab; can be reused if other
+   tabs migrate from the .tab-placeholder pattern). */
+.tab-content {
+  padding: 24px 0;
+}
+
+.tab-loading {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* Single connection row (one per source). v1.1 only Slack ships, but the
+   shape is connector-agnostic so Block 6/7/8 can drop in additional rows. */
+.connection-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.connection-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.connection-source {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.connection-meta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status pill — derived UI state; see L's locked rule about
+   selected_channel_id-driven "needs setup" not being a schema status. */
+.connection-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.connection-pill.pill-setup {
+  background: var(--color-warn-bg, #fff4e5);
+  color: var(--color-warn, #b06a00);
+}
+.connection-pill.pill-active {
+  background: var(--color-success-bg, #e6f4ea);
+  color: var(--color-success, #1e7e34);
+}
+.connection-pill.pill-syncing {
+  background: var(--color-info-bg, #e6f0ff);
+  color: var(--color-info, #1f5fbf);
+}
+
+.connection-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Channel-picker modal. Body-level overlay; shows on top of the project
+   shell when openChannelPicker() flips display from none to default.
+   Click-outside (backdrop) and the close button both call
+   closeChannelPicker(); Escape is bound on document while open. */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  width: min(520px, 90vw);
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-heading {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  padding: 4px 8px;
+  color: var(--color-text-muted);
+}
+.modal-close:hover { color: var(--color-text); }
+
+.modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+.channel-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.channel-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--color-text);
+}
+.channel-list-item:hover {
+  background: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
+  border-color: var(--color-border);
+}
+
+.channel-list-name {
+  font-weight: 500;
+}
+
+.channel-list-tag {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-info-bg, #e6f0ff);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+@media (max-width: 700px) {
+  .connection-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .connection-actions {
+    justify-content: flex-end;
+  }
+  .modal-content { width: 95vw; max-height: 90vh; }
+}
