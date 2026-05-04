@@ -1150,3 +1150,117 @@ Block 4 is also the natural place to:
   prerequisites were all Jenny-side per WORKFLOW Hard Limits, and
   the closeout commit + ff-merge to main were both gated on per-
   push approval.
+
+---
+
+## Block 4 Phase 1 closeout — 2026-05-04
+
+> Phase 1 (plan + approval) of Block 4 closed. BLOCK_4_PLAN.md
+> committed and pushed to a non-main feature branch. Block 4 enters
+> Phase 3 (execute) under DEFAULT mode per the plan's security
+> carve-out lock (OAuth + webhooks per WORKFLOW.md).
+
+### Phase 1 closed at SHA c9fc5019
+
+`block-4-slack-connector` is one commit ahead of `main` (pre-this-
+HANDOFF state):
+
+- SHA: `c9fc5019938b58b7ffea753549b0ec1b1bfb9ae0`
+- Subject: `docs(block-4): lock Block 4 design decisions A–P`
+- Files: `BLOCK_4_PLAN.md` (1332 lines, new). Plan-doc only — no
+  code, no schema, no migration.
+
+Twenty-three substantive locks (A, B-revised, C1, C2, C3, D, D1–D4,
+E, E2, E3, F-revised, F1, F2, G, H-revised, I, J, K, L, N, O, P;
+M moved out) plus three pushback-driven revisions during plan-mode:
+
+- **D3 retraction** — first-pass D3 implied a 400 response on
+  post-verify parse failure, which would have conflicted with D4's
+  single-canonical-observable contract. Final D3: log the rawBody
+  with a marker for ops alerting and return the same `forbidden()`
+  403 as every other rejection path. Ops signal lives in logs, not
+  in HTTP response shape.
+- **F-base scope contraction** — first-pass F-base allowed
+  multi-connection fan-out by `team_id`. Final F: v1.1 enforces
+  single connection per `(source='slack', external_account_id =
+  team_id)`; multi-row lookup returns 500 with ops-alerted log
+  entry; v1.2 reopens with cross-project query support.
+- **B + H joint relock** — first-pass B was bot scopes
+  `channels:read` + `channels:history` only, with H deferring
+  `author_display_name` to null. Deferring would have forced every
+  Block 4 connection to re-install during Block 5's citation work.
+  Final B widened to add `users:read`; final H populates
+  `author_display_name` via in-memory-cached `users.info` lookups.
+
+### Two parallel work streams open for next session
+
+- **Phase A (Jenny's hands).** Slack app registration at
+  api.slack.com/apps; `SLACK_CLIENT_ID` plaintext var to
+  `wrangler.toml`; `SLACK_CLIENT_SECRET` + `SLACK_SIGNING_SECRET`
+  Workers Secrets (Production AND Preview); Token Rotation OFF
+  (per O); bot scope set verification — exactly `channels:read`,
+  `channels:history`, `users:read`, no User Token Scopes, no
+  commands, no incoming-webhook (per B + P); redirect URI
+  configuration (per K). Schema migrations (commit 3's C1+C3 file,
+  commit 6's J view file) wait for those commits to land. Gates
+  commits 3/4/6/7 in various ways but **not** commit 2 directly.
+- **Pre-Block-4 PR.** Fresh plan-mode session for the
+  `requireWorkspaceAdmin` migration of `admin/users.js` +
+  `admin/users/[id].js` + the POST 200→201 fix on user-create.
+  Branches from `main`, ff-merges to `main`. After it lands on
+  `origin/main`, `block-4-slack-connector` absorbs both this
+  HANDOFF commit AND the pre-Block-4 PR commits via
+  `git merge origin/main` (Block 3 precedent — the `2f869b8`
+  merge-main-into-feature-branch pattern), then commit 2 (Slack
+  connector module) starts.
+
+### Mid-session harness note (not blocking; for future re-lock)
+
+The Claude Code harness presented an "Accept & Automode" UI signal
+after the plan re-approval; the click fired but Claude Code held
+to DEFAULT mode per the plan's carve-out lock and CLAUDE.md hard
+rule "Security carve-outs run in default mode, never auto." Commit
+1 shipped under per-action review semantics. Same pattern occurred
+twice in Block 3 mid-flight (already recorded in HANDOFF). Worth a
+WORKFLOW re-lock conversation about UI-level guidance for carve-
+out blocks before Block 6 starts — the auto-mode UI signal keeps
+firing on every plan re-approval and creates churn even though the
+substantive contract holds.
+
+### Open follow-ups carried INTO Block 4 commit 2+
+
+(Adds to Block 3's already-queued list, which carries forward
+unchanged.)
+
+- **BLOCK_3_PLAN.md AAD-on-both addendum** — `crypto.js` applies
+  AAD to BOTH the DEK wrap AND the credential ciphertext, but
+  BLOCK_3_PLAN.md decision B only specified AAD on the credential.
+  Plan should match the helper. Doc-only commit; ships AFTER
+  Block 4 closes so it doesn't compete with Block 4 doc commits.
+- **S22 `url_verification` response shape pinning** — Slack has
+  changed the `url_verification` response shape multiple times
+  historically. At commit 7 coding time, pin the docs URL +
+  dated comment in `events.js` header per F1's contract-pinning
+  rule.
+- **S12 `OperationError` substring pinning** — SubtleCrypto's
+  exact error message could change between Workers runtime
+  versions. Pin at commit 7 coding time; doc-only update if
+  Workers runtime upgrades break the match.
+
+### Where future-Claude resumes
+
+Phase 0 of next session finds:
+- `origin/main` advanced by THIS HANDOFF commit on top of
+  `3659d554`.
+- `block-4-slack-connector` at SHA `c9fc5019`, one commit ahead of
+  `3659d554` but **NOT** including this HANDOFF on `main`. The
+  branch absorbs `main`'s new commits via `git merge origin/main`
+  after the pre-Block-4 PR also lands on `main`. Both the HANDOFF
+  commit and the pre-Block-4 commits enter `block-4-slack-
+  connector` in one merge before commit 2 begins.
+- `BLOCK_4_PLAN.md` at repo root on `block-4-slack-connector`,
+  1332 lines, locked decisions A–P. Read it as primary input.
+
+Recommended first move next session: pre-Block-4 PR's plan-mode
+session. Phase A doesn't gate it; once it lands on `main`, the
+`block-4-slack-connector` merge-from-main is mechanical.
