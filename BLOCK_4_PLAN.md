@@ -1217,6 +1217,11 @@ main per WORKFLOW Phase 3.
   — replace 501 stub with `authUrl`-handling branch
 - [functions/api/projects/[id]/connections/[connId]/index.js](functions/api/projects/[id]/connections/[connId]/index.js)
   — add `onRequestPatch` for L's allowlisted credential_metadata writes
+- [functions/api/projects/[id]/connections/[connId]/sync.js](functions/api/projects/[id]/connections/[connId]/sync.js)
+  — commit 6 modification (plan amendment): write `syncResult.detail` to
+  `sync_runs.detail` on success path (E3 cap-hit signal); skip
+  `last_sync_at` bump when `syncResult.detail?.inert` (per L's
+  inert-sync rule)
 - [functions/_lib/connectors/registry.js](functions/_lib/connectors/registry.js)
   — add `slack`
 - [public/project.html](public/project.html) — Connections tab Slack flow + channel picker modal

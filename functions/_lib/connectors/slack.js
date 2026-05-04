@@ -2,47 +2,80 @@
 // =========================================================================
 // SECURITY-CARVE-OUT: do not edit in auto mode
 //
-// Slack connector — Block 4 commit 2. Implements decisions A, B, C2, C3,
-// G (listChannels helper), K, O, P from BLOCK_4_PLAN.md. Decisions D/D1-D4
-// (webhook signature verify), E/E2/E3 (sync execution + cap + rate-limits),
-// F/F1/F2 (webhook ingestion + url_verification + dispatch), H (entity
-// mapping), and I (edits/deletes) land in commits 6 and 7.
+// Slack connector. Implements decisions A, B-revised, C2, C3, E, E2, E3,
+// G (listChannels helper), H (entity mapping), K, L (inert sync signal),
+// O, P from BLOCK_4_PLAN.md. Decisions D/D1-D4 (webhook signature
+// verify), F/F1/F2 (webhook ingestion + url_verification + dispatch),
+// and I (edits/deletes) land in commit 7.
 //
-// AUTH MODEL (decisions A, B-revised, P, O)
-// -----------------------------------------
-// authKind = 'oauth'. Single-workspace install for v1.1 (decision A);
-// Distribution disabled in Slack app settings. Bot scopes: channels:read,
-// channels:history, users:read (decision B-revised — users:read added as
-// a Block 5 prerequisite for human-readable citations). User scopes:
-// NONE; user_scope param omitted entirely from the install URL
-// (decision P). Token Rotation OFF in Slack app settings; refreshAuth is
-// a no-op (decision O — long-lived xoxb- bot token).
+// AUTH MODEL (A, B-revised, P, O)
+// -------------------------------
+// authKind = 'oauth'. Single-workspace install for v1.1 (A); Distribution
+// disabled in Slack app settings. Bot scopes: channels:read,
+// channels:history, users:read (B-revised — users:read added as a
+// Block 5 prerequisite for human-readable citations). User scopes:
+// NONE; user_scope param omitted entirely from the install URL (P).
+// Token Rotation OFF in Slack app settings; refreshAuth is a no-op
+// (O — long-lived xoxb- bot token).
 //
-// FLOW (this commit)
-// ------------------
-// startAuth(ctx) generates state = crypto.randomUUID() and returns
-// { authUrl, state }. State doubles as the future connection.id (commit 3's
-// functions/api/connectors/slack/oauth/start.js handler INSERTs the
-// pending row using this state as the row id, plus the C3
-// initiated_by_user_id column). Connector knows its OAuth URL format
-// and scopes; handler manages DB writes.
+// COMMIT 6 ADDITIONS (E2, E3, H, L)
+// ---------------------------------
+// fullSync, incrementalSync — backfill / catch-up of Slack messages
+// from the connection's selected channel. Read
+// credential_metadata.selected_channel_id (set by L's PATCH endpoint
+// in commit 8); inert if absent. Call team.info once per sync to
+// obtain team_domain for source_url construction (oauth.v2.access
+// response doesn't include domain). Commit 7's webhook handler will
+// share the team.info pattern with a module-scope cache for hot-
+// isolate efficiency.
 //
-// completeAuth(ctx, params) exchanges (code, state) at oauth.v2.access.
-// Returns plaintext credentials and accountInfo; the handler encrypts
-// the credentials via Block 3's envelope helper (functions/_lib/crypto.js
-// — encrypt/aadFor) before INSERT/UPDATE on the pending row (decision C2).
+// fullSync's oldest = now - 30 days; incrementalSync's oldest =
+// connection.last_sync_cursor (parsed) || now - 30 days. Both share
+// _doSync as the implementation core.
 //
-// refreshAuth(ctx, credentials) is a no-op (decision O).
+// E3 backfill cap: 5 paginated calls × 200 messages = 1000-message
+// ceiling. Stops when 5-page count is hit OR when a page returns
+// <200 records (last page) OR when cursor is empty. On 5-page-cap-hit
+// AND remaining cursor: result.detail = { cap_hit: true, cap_pages,
+// cap_records, oldest_synced_ts } so sync.js writes it to
+// sync_runs.detail (E3 cap-hit signal — Block 5's freshness layer
+// reads this).
 //
-// testConnection(ctx, connection) decrypts the bot token internally per
-// Block 3 decision L ("CONNECTORS DECRYPT INTERNALLY"), calls auth.test,
-// returns { ok: true, accountInfo: { id, displayName } } on success.
+// E2 rate-limit handling: on 429 response from conversations.history,
+// read Retry-After header. If retry-after fits within remaining CPU
+// budget (25s threshold under Workers' 30s wall, 5s margin for Neon
+// round-trip + cleanup, deliberately not optimized — abort-path
+// correctness > abort-path latency), sleep + retry. Else, abort:
+// SELECT own running sync_run id, UPDATE row with records counts +
+// detail (E2's locked detail shape), then throw rate_limited string
+// — sync.js's catch path UPDATEs status='failed' + error +
+// finished_at, preserving the records counts and detail we set.
 //
-// listChannels(ctx, connection) is a non-interface helper called by
-// commit 5's bespoke endpoint at GET
-// /api/projects/:id/connections/:connId/slack/channels (decision G).
-// Decrypts internally, paginates conversations.list, returns
-// { id, name, is_member } per public channel.
+// L inert-sync signal: when credential_metadata.selected_channel_id is
+// absent, _doSync returns SyncResult with detail.inert=true and zero
+// counts. sync.js (commit 6 modification) detects detail.inert and
+// skips the connections.last_sync_at bump — preserves freshness
+// signal honesty per L's locked rule.
+//
+// H entity mapping: source_id = `${channel_id}:${ts}`; source_type =
+// 'slack_message'; metadata = { channel_id, channel_name, thread_ts,
+// team_id, user, subtype, edited_ts }; source_url constructed from
+// team_domain + channel_id + ts. thread_broadcast collapses to single
+// entity via the UPSERT key — both events would arrive at the same
+// (connection_id, source_type, source_id) and the second UPDATEs the
+// first, effectively one row per logical message. users.info called
+// per first-sighting of each Slack user during a sync; cached
+// in-memory for sync lifetime. Block 9 polish: cross-sync cache.
+//
+// THREAD REPLY BACKFILL SCOPE (v1.1 deferral, locked sub-decision f)
+// ------------------------------------------------------------------
+// fullSync calls only conversations.history — captures top-level
+// messages, thread roots, thread_broadcast. It does NOT call
+// conversations.replies; thread reply messages are NOT backfilled in
+// v1.1. Webhooks (commit 7) ingest new replies going forward. Block 9
+// polish adds conversations.replies traversal to fullSync. Per H's
+// locked text the entity-mapping rules cover thread replies if they
+// arrive; v1.1 simply doesn't fetch them during backfill.
 //
 // SECURITY (echoes dummy.js's pattern)
 // ------------------------------------
@@ -50,14 +83,14 @@
 // not even truncated. The token is `xoxb-…` long-lived per O; any log
 // entry containing a prefix is a credential leak that survives until
 // admin-driven disconnect+reconnect (no auto-revocation per O).
-// Slack's `error` field on !ok responses is a short error code
-// ('invalid_auth', 'token_revoked', 'invalid_code', etc.) — safe to
-// include verbatim. NEVER concatenate creds.access_token into any
-// error or log line.
+// Slack's `error` field on !ok responses is a short error code (safe
+// to include verbatim). NEVER concatenate creds.access_token into any
+// error or log line. The catch blocks in upstream handlers (sync.js,
+// channels.js, callback.js) collapse internal errors to "Internal
+// error" without leaking _err.message; do not rely on that — every
+// throw in this module must already be credential-free.
 //
-// fullSync, incrementalSync, handleWebhook NOT in this commit; stubs
-// throw to fail-fast if the connections sync endpoint somehow dispatches
-// a Slack connection before commit 6 lands the real implementations.
+// handleWebhook lands in commit 7.
 // =========================================================================
 
 import { aadFor, decrypt } from '../crypto.js';
@@ -65,6 +98,22 @@ import { aadFor, decrypt } from '../crypto.js';
 const SLACK_API_BASE = 'https://slack.com/api';
 const SLACK_AUTHORIZE_URL = 'https://slack.com/oauth/v2/authorize';
 const BOT_SCOPES = 'channels:read,channels:history,users:read';
+
+// E3 backfill cap (BLOCK_4_PLAN.md decision E3)
+const PAGE_LIMIT = 200;
+const MAX_PAGES = 5;
+const BACKFILL_WINDOW_DAYS = 30;
+
+// E2 CPU budget (BLOCK_4_PLAN.md decision E2). 25s threshold under
+// Workers' 30s wall; 5s margin for Neon round-trip + closing logic +
+// response serialization. Generous, deliberately not optimized.
+const CPU_BUDGET_SECONDS = 25;
+
+// Linear backoff between paginated calls when no rate-limit hits
+// (BLOCK_4_PLAN.md decision E2). Keeps Slack's Tier 3 limit out of
+// reach during normal backfills. Tightening this is exactly the kind
+// of "small efficiency" that creates new failure modes — leave alone.
+const PAGE_BACKOFF_MS = 250;
 
 /** @type {import('./types.js').ConnectorMetadata} */
 const METADATA = {
@@ -77,9 +126,16 @@ const METADATA = {
 
 /**
  * POST to a Slack API method. Returns the parsed JSON body on HTTP 2xx.
- * Throws on HTTP non-2xx; callers handle Slack-level `{ ok: false, error }`
- * shapes themselves so each call site can include its own context in
- * the thrown error.
+ *
+ * Throws on HTTP non-2xx EXCEPT 429, which is structured into a
+ * ratelimited response shape so callers can read Retry-After. (E2's
+ * rate-limit handling needs the header value to make the
+ * sleep-vs-abort decision; throwing on 429 would lose it.) Existing
+ * non-fullSync callers' `if (!response.ok)` checks still catch the
+ * 429-shaped response.
+ *
+ * Slack-level errors `{ ok: false, error: 'x' }` flow through unchanged
+ * so each call site can include its own context in the thrown error.
  *
  * @param {string} method - e.g., 'oauth.v2.access', 'auth.test'
  * @param {Record<string, string>} params - form-encoded body params
@@ -95,11 +151,380 @@ async function slackApiPost(method, params, token) {
     headers,
     body,
   });
+
+  // E2 rate-limit handling: surface 429 as a structured response
+  // (preserving Retry-After) instead of throwing. Callers' !response.ok
+  // checks still match.
+  if (response.status === 429) {
+    const retryAfterStr = response.headers.get('retry-after') || '1';
+    const retryAfterSeconds = parseInt(retryAfterStr, 10) || 1;
+    return {
+      ok: false,
+      error: 'ratelimited',
+      retry_after_seconds: retryAfterSeconds,
+    };
+  }
+
   if (!response.ok) {
     throw new Error(`slack api http ${response.status} on ${method}`);
   }
   return await response.json();
 }
+
+// --- Sync helpers (E2 / E3 / H) ------------------------------------------
+
+/**
+ * Find the running sync_run row for this connection. Used on
+ * rate-limit abort + cap-hit paths to UPDATE detail/records counts
+ * directly from inside _doSync (sync.js's success/failure UPDATEs
+ * preserve fields they don't set, so writing here is durable).
+ *
+ * @param {object} sql
+ * @param {string} connectionId
+ * @returns {Promise<string|null>}
+ */
+async function fetchRunningSyncRunId(sql, connectionId) {
+  const [row] = await sql`
+    SELECT id FROM sync_runs
+     WHERE connection_id = ${connectionId}
+       AND status = 'running'
+     ORDER BY started_at DESC
+     LIMIT 1
+  `;
+  return row ? row.id : null;
+}
+
+/**
+ * Resolve the workspace's domain via team.info. Cached for the sync
+ * lifetime in the caller's local variable. Webhooks (commit 7) cache
+ * at module scope per connection_id for hot-isolate efficiency.
+ */
+async function resolveTeamDomain(token) {
+  const response = await slackApiPost('team.info', {}, token);
+  if (!response.ok || !response.team) {
+    throw new Error(
+      `slack team.info failed: ${response.error || 'unknown'}`
+    );
+  }
+  return response.team.domain;
+}
+
+/**
+ * Resolve a Slack user's display name. Cache hits return immediately;
+ * misses call users.info and cache. On 404 / non-ok response /
+ * unexpected throw: cache null and return null (graceful degradation
+ * per H — never 500 a sync over a name lookup).
+ *
+ * Display name preference: profile.display_name → profile.real_name →
+ * user.real_name → null.
+ */
+async function resolveUserDisplayName(token, userId, cache) {
+  if (cache.has(userId)) return cache.get(userId);
+  let value = null;
+  try {
+    const response = await slackApiPost(
+      'users.info',
+      { user: userId },
+      token
+    );
+    if (response.ok && response.user) {
+      const profile = response.user.profile || {};
+      const candidate =
+        (profile.display_name && profile.display_name.trim()) ||
+        (profile.real_name && profile.real_name.trim()) ||
+        (response.user.real_name && response.user.real_name.trim()) ||
+        null;
+      if (candidate) value = candidate;
+    }
+  } catch {
+    // Network blip or unexpected response shape — fall back to null
+    // (no-throw on lookup failure, mirroring auth.js's session-lookup
+    // pattern).
+  }
+  cache.set(userId, value);
+  return value;
+}
+
+/** Build a Slack permalink URL per H's locked construction. */
+function slackPermalinkUrl(teamDomain, channelId, ts) {
+  return `https://${teamDomain}.slack.com/archives/${channelId}/p${ts.replace('.', '')}`;
+}
+
+/** Slack ts is "1706140800.000100" (seconds.microseconds). Convert to
+ *  ISO 8601 for Postgres TIMESTAMPTZ. */
+function tsToTimestamptz(ts) {
+  if (typeof ts !== 'string') return null;
+  const seconds = parseFloat(ts);
+  if (!Number.isFinite(seconds)) return null;
+  return new Date(seconds * 1000).toISOString();
+}
+
+/**
+ * Map a Slack message payload to an entity row shape per H's locked
+ * mapping. Resolves author display name via users.info cache.
+ */
+async function mapMessageToEntity(message, channelMeta, teamDomain, userCache, token) {
+  const ts = message.ts;
+  const userId = message.user || null;
+  const sourceCreatedAt = tsToTimestamptz(ts);
+  const sourceUpdatedAt = message.edited?.ts
+    ? tsToTimestamptz(message.edited.ts)
+    : sourceCreatedAt;
+  const sourceUrl = slackPermalinkUrl(teamDomain, channelMeta.id, ts);
+
+  let displayName = null;
+  if (userId) {
+    displayName = await resolveUserDisplayName(token, userId, userCache);
+  }
+
+  return {
+    source_id: `${channelMeta.id}:${ts}`,
+    title: null,
+    content_text: message.text || null,
+    author_external_id: userId,
+    author_display_name: displayName,
+    source_created_at: sourceCreatedAt,
+    source_updated_at: sourceUpdatedAt,
+    metadata: {
+      channel_id: channelMeta.id,
+      channel_name: channelMeta.name || null,
+      thread_ts: message.thread_ts || null,
+      team_id: channelMeta.team_id || null,
+      user: userId,
+      subtype: message.subtype || null,
+      edited_ts: message.edited?.ts || null,
+    },
+    raw: message,
+    source_url: sourceUrl,
+  };
+}
+
+/**
+ * UPSERT an entity. Returns 'inserted' or 'updated' based on Postgres'
+ * `xmax = 0` trick (xmax is 0 for the inserting transaction's view of
+ * a fresh row; non-zero for an UPDATE-conflict resolution).
+ *
+ * @returns {Promise<'inserted'|'updated'>}
+ */
+async function upsertEntityRow(sql, projectId, connectionId, entity) {
+  const [row] = await sql`
+    INSERT INTO entities (
+      project_id, connection_id, source, source_type, source_id,
+      title, content_text, author_external_id, author_display_name,
+      source_created_at, source_updated_at, metadata, raw, source_url
+    ) VALUES (
+      ${projectId}, ${connectionId}, ${'slack'}, ${'slack_message'},
+      ${entity.source_id},
+      ${entity.title}, ${entity.content_text},
+      ${entity.author_external_id}, ${entity.author_display_name},
+      ${entity.source_created_at}, ${entity.source_updated_at},
+      ${entity.metadata}, ${entity.raw}, ${entity.source_url}
+    )
+    ON CONFLICT (connection_id, source_type, source_id) DO UPDATE
+       SET title              = EXCLUDED.title,
+           content_text       = EXCLUDED.content_text,
+           author_external_id = EXCLUDED.author_external_id,
+           author_display_name = EXCLUDED.author_display_name,
+           source_created_at  = EXCLUDED.source_created_at,
+           source_updated_at  = EXCLUDED.source_updated_at,
+           metadata           = EXCLUDED.metadata,
+           raw                = EXCLUDED.raw,
+           source_url         = EXCLUDED.source_url,
+           updated_at         = NOW()
+    RETURNING (xmax = 0) AS inserted
+  `;
+  return row.inserted ? 'inserted' : 'updated';
+}
+
+/**
+ * Shared core for fullSync and incrementalSync. options.oldest is the
+ * Slack ts (or Unix integer) cutoff for conversations.history.
+ *
+ * Returns SyncResult: { records_inserted, records_updated,
+ * records_skipped, cursor_after?, detail? }. detail.inert when no
+ * channel is selected; detail.cap_hit/etc when E3's 5-page cap fires
+ * before the time window closes.
+ *
+ * Throws on rate-limit-abort (after writing partial state to
+ * sync_runs) and on unrecoverable Slack errors. sync.js's catch path
+ * captures the throw and writes status='failed' + error + finished_at;
+ * fields written here (records counts + detail) persist.
+ */
+async function _doSync(ctx, connection, options) {
+  const sql = ctx.sql;
+
+  // 1. Inert detection (L). selected_channel_id absent → return zero
+  //    counts + detail.inert. sync.js skips last_sync_at on this signal.
+  const meta = connection.credential_metadata || {};
+  const channelId = meta.selected_channel_id;
+  if (typeof channelId !== 'string' || channelId.length === 0) {
+    return {
+      records_inserted: 0,
+      records_updated: 0,
+      records_skipped: 0,
+      detail: { inert: true, reason: 'no channel selected' },
+    };
+  }
+  const channelName = meta.selected_channel_name || null;
+
+  // 2. Decrypt the bot token. Block 3 decision L: connectors decrypt
+  //    internally. SECURITY: plaintext credentials live only on the
+  //    call stack from here through the API loop.
+  const aad = aadFor(connection);
+  const credsJson = await decrypt(ctx.env, connection, aad);
+  const creds = JSON.parse(credsJson);
+  const token = creds.access_token;
+  const teamId = creds.team_id || null;
+
+  // 3. team.info once per sync — gives team_domain for source_url
+  //    construction. Per locked sub-decision (b): no
+  //    credential_metadata UPDATE; one call per sync acceptable for
+  //    v1.1 scale (Slack team.info is Tier 4, low rate-limit risk).
+  const teamDomain = await resolveTeamDomain(token);
+  const channelMeta = { id: channelId, name: channelName, team_id: teamId };
+  const userCache = new Map();
+
+  // 4. Page through conversations.history with E3 cap mechanics.
+  const startedAt = performance.now();
+  let inserted = 0;
+  let updated = 0;
+  const skipped = 0;
+  let cursor;
+  let pages = 0;
+  let oldestTsSeen = null;
+  let latestTsSeen = null;
+
+  // E3 stop conditions:
+  //   - pages >= MAX_PAGES (5-page cap fires)
+  //   - response page returns < PAGE_LIMIT messages (Slack last-page convention)
+  //   - cursor is empty
+  while (pages < MAX_PAGES) {
+    const params = {
+      channel: channelId,
+      limit: String(PAGE_LIMIT),
+      oldest: String(options.oldest),
+      inclusive: 'false',
+    };
+    if (cursor) params.cursor = cursor;
+
+    // E2 rate-limit retry loop. Each attempt either completes, retries
+    // after a sleep that fits the budget, or aborts.
+    let response;
+    for (;;) {
+      response = await slackApiPost('conversations.history', params, token);
+      if (response.ok) break;
+
+      if (response.error === 'ratelimited') {
+        const retryAfter = response.retry_after_seconds || 1;
+        const elapsed = (performance.now() - startedAt) / 1000;
+        if (elapsed + retryAfter <= CPU_BUDGET_SECONDS) {
+          await new Promise((r) => setTimeout(r, retryAfter * 1000));
+          continue;
+        }
+        // Budget exceeded — abort with structured detail. SELECT own
+        // sync_run id and UPDATE records counts + detail BEFORE
+        // throwing; sync.js's catch only sets status/error/
+        // finished_at, preserving these fields.
+        const syncRunId = await fetchRunningSyncRunId(sql, connection.id);
+        if (syncRunId) {
+          const detail = {
+            reason: 'rate_limited',
+            retry_after_seconds: retryAfter,
+            records_so_far: inserted + updated,
+            recommendation:
+              'Re-run sync after Retry-After elapses; cursor resumes from the last paginated page.',
+          };
+          await sql`
+            UPDATE sync_runs
+               SET records_inserted = ${inserted},
+                   records_updated  = ${updated},
+                   records_skipped  = ${skipped},
+                   detail           = ${detail}
+             WHERE id = ${syncRunId}
+          `;
+        }
+        throw new Error(`rate_limited: Retry-After=${retryAfter}s`);
+      }
+
+      // Non-rate-limit Slack error — bubble up.
+      throw new Error(
+        `slack conversations.history failed: ${response.error}`
+      );
+    }
+
+    pages++;
+    const messages = response.messages || [];
+
+    for (const message of messages) {
+      // Track ts extremes for cursor + cap-hit oldest_synced_ts signal
+      if (message.ts) {
+        if (
+          oldestTsSeen === null ||
+          parseFloat(message.ts) < parseFloat(oldestTsSeen)
+        ) {
+          oldestTsSeen = message.ts;
+        }
+        if (
+          latestTsSeen === null ||
+          parseFloat(message.ts) > parseFloat(latestTsSeen)
+        ) {
+          latestTsSeen = message.ts;
+        }
+      }
+
+      const entity = await mapMessageToEntity(
+        message,
+        channelMeta,
+        teamDomain,
+        userCache,
+        token
+      );
+      const upsertResult = await upsertEntityRow(
+        sql,
+        connection.project_id,
+        connection.id,
+        entity
+      );
+      if (upsertResult === 'inserted') inserted++;
+      else updated++;
+    }
+
+    cursor = response.response_metadata?.next_cursor || null;
+    if (!cursor || messages.length < PAGE_LIMIT) {
+      break;
+    }
+
+    if (PAGE_BACKOFF_MS > 0) {
+      await new Promise((r) => setTimeout(r, PAGE_BACKOFF_MS));
+    }
+  }
+
+  // E3 cap-hit: 5-page count fired AND we still have a cursor (more
+  // messages exist beyond the cap). The plain "5 pages, last page
+  // <200 records" case is normal completion, not a cap-hit.
+  const capHit = pages >= MAX_PAGES && !!cursor;
+
+  /** @type {import('./types.js').SyncResult} */
+  const result = {
+    records_inserted: inserted,
+    records_updated: updated,
+    records_skipped: skipped,
+    cursor_after: latestTsSeen || null,
+  };
+
+  if (capHit) {
+    result.detail = {
+      cap_hit: true,
+      cap_pages: MAX_PAGES,
+      cap_records: PAGE_LIMIT * MAX_PAGES,
+      oldest_synced_ts: oldestTsSeen,
+    };
+  }
+
+  return result;
+}
+
+// --- Connector export -----------------------------------------------------
 
 /** @type {import('./types.js').Connector} */
 export const slack = {
@@ -109,7 +534,7 @@ export const slack = {
 
   // Decision P: scope param populated; user_scope param omitted entirely.
   // Decision A: single-workspace install — doesn't affect URL construction.
-  // Decision K: redirect_uri uses env.SITE_URL (already in wrangler.toml).
+  // Decision K: redirect_uri uses env.SITE_URL.
   // State doubles as the future connection.id (commit 3 INSERT).
   async startAuth(ctx) {
     const state = crypto.randomUUID();
@@ -126,8 +551,7 @@ export const slack = {
 
   // Exchange authorization code for the bot token. Returns plaintext
   // credentials; handler encrypts via Block 3 envelope helper before
-  // INSERT/UPDATE.
-  // params shape: { code, state } from the callback URL.
+  // INSERT/UPDATE. params shape: { code, state } from the callback URL.
   async completeAuth(ctx, params) {
     const tokenResponse = await slackApiPost(
       'oauth.v2.access',
@@ -194,25 +618,43 @@ export const slack = {
     };
   },
 
-  // Sync methods land in commit 6. Stubs fail-fast so a misconfigured
-  // dispatch (e.g., a Slack connection somehow reaching the sync endpoint
-  // before commit 6 ships) surfaces a meaningful error instead of a
-  // confusing TypeError on undefined.
-  async fullSync(_ctx, _connection) {
-    throw new Error(
-      'slack.fullSync not implemented in commit 2; lands in Block 4 commit 6'
-    );
+  /**
+   * Backfill: pulls Slack messages from the connection's selected
+   * channel into entities. E3 cap (1000 messages or 30 days, whichever
+   * comes first). E2 rate-limit handling. L inert-sync detection.
+   */
+  async fullSync(ctx, connection) {
+    const oldest =
+      Math.floor(Date.now() / 1000) - BACKFILL_WINDOW_DAYS * 86400;
+    return _doSync(ctx, connection, { oldest });
   },
 
-  async incrementalSync(_ctx, _connection) {
-    throw new Error(
-      'slack.incrementalSync not implemented in commit 2; lands in Block 4 commit 6'
-    );
+  /**
+   * Cursor-based catch-up. oldest = connection.last_sync_cursor (Slack
+   * ts string parsed to Unix seconds), falling back to the same 30-day
+   * window as fullSync if no cursor is set.
+   */
+  async incrementalSync(ctx, connection) {
+    const cursorTs = connection.last_sync_cursor;
+    let oldest = null;
+    if (typeof cursorTs === 'string' && cursorTs.length > 0) {
+      const parsed = parseFloat(cursorTs);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        oldest = Math.floor(parsed);
+      }
+    }
+    if (!oldest) {
+      oldest =
+        Math.floor(Date.now() / 1000) - BACKFILL_WINDOW_DAYS * 86400;
+    }
+    return _doSync(ctx, connection, { oldest });
   },
 
   // handleWebhook lands in commit 7. Optional in the Connector typedef;
   // omission here is consistent with dummy.js (which never has webhooks).
 };
+
+// --- Channel listing helper (commit 5 endpoint consumes this) -------------
 
 /**
  * List public channels visible to the bot. Paginates internally; returns

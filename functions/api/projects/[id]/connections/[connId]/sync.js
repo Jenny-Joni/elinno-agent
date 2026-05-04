@@ -148,8 +148,22 @@ export async function onRequestPost({ request, env, params }) {
       return json({ ok: false, sync_run: failedRun }, { status: 500 });
     }
 
-    // Success: complete the sync_run row + bump connection's
-    // last_sync_at/last_sync_cursor.
+    // Success: complete the sync_run row + (conditionally) bump
+    // connection's last_sync_at/last_sync_cursor.
+    //
+    // Block 4 commit 6 additions:
+    //   - syncResult.detail is written to sync_runs.detail. Slack
+    //     fullSync uses this for E3 cap-hit signals
+    //     ({cap_hit, cap_pages, cap_records, oldest_synced_ts}) and
+    //     L inert-sync signals ({inert: true, reason: 'no channel
+    //     selected'}). Block 5's freshness layer reads detail.cap_hit
+    //     to communicate "data as of <oldest_synced_ts>" honestly.
+    //   - last_sync_at bump is SKIPPED when syncResult.detail.inert
+    //     (per BLOCK_4_PLAN.md decision L). Inert syncs write a
+    //     sync_runs row but don't advance the freshness signal — an
+    //     admin who triggers sync-before-channel-pick shouldn't poison
+    //     "data as of now" reads against a connection holding zero
+    //     data.
     const [completedRun] = await sql`
       UPDATE sync_runs
          SET status           = 'succeeded',
@@ -157,7 +171,8 @@ export async function onRequestPost({ request, env, params }) {
              records_inserted = ${syncResult.records_inserted || 0},
              records_updated  = ${syncResult.records_updated || 0},
              records_skipped  = ${syncResult.records_skipped || 0},
-             cursor_after     = ${syncResult.cursor_after || null}
+             cursor_after     = ${syncResult.cursor_after || null},
+             detail           = ${syncResult.detail || null}
        WHERE id = ${syncRun.id}
       RETURNING id, connection_id, project_id, status, sync_mode,
                 started_at, finished_at,
@@ -165,13 +180,15 @@ export async function onRequestPost({ request, env, params }) {
                 error
     `;
 
-    await sql`
-      UPDATE connections
-         SET last_sync_at     = NOW(),
-             last_sync_cursor = ${syncResult.cursor_after || null},
-             updated_at       = NOW()
-       WHERE id = ${connection.id}
-    `;
+    if (!syncResult.detail?.inert) {
+      await sql`
+        UPDATE connections
+           SET last_sync_at     = NOW(),
+               last_sync_cursor = ${syncResult.cursor_after || null},
+               updated_at       = NOW()
+         WHERE id = ${connection.id}
+      `;
+    }
 
     return json({ ok: true, sync_run: completedRun });
   } catch (_err) {
