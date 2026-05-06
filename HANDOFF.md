@@ -1484,3 +1484,128 @@ Phase 0 ritual on next session:
 - Read this section + BUILD_PLAN.md §Block 5 as primary inputs to
   open Block 5 in plan-mode.
 
+---
+
+## Block 5 pre-flight session — 2026-05-06
+
+> Block 5 plan v2.2 approved + commit 0 (WORKFLOW re-locks) shipped to
+> production. No Block 5 implementation code yet. Branch
+> `block-5-first-ai-answer` cut from `38b1c67`, working tree clean.
+> Session ended at a natural break point with substantial discoveries
+> documented for next session's pickup.
+
+### What landed on `main`
+
+- **`38b1c67` — `docs(workflow): expand carve-out treatment to neighborhoods; lock UI-prompt confirmation`.** Two re-locks per plan v2.2 commit 0:
+  - **Carve-out neighborhoods** (carve-outs section): three security-adjacent neighborhoods — credential decryption frequency, freshness-layer signals, project-isolation enforcement — get carve-out treatment by default. Carve-out exit requires explicit decision + rationale recorded in the block plan, matching Block 4 E2/F-base/F2/I/L precedent. Project-isolation bullet ships with the optional tighter wording (`"the server uses to scope or authorize a database operation"`).
+  - **Auto-mode UI prompts during carve-out blocks** (after Hard limits table): mode-changing UI prompts during carve-out blocks require explicit verbal confirmation in chat before Claude Code clicks. Behaviorally a hard limit; placed in prose since UI-side and not enforceable in `settings.json`.
+
+### What's prepared but not yet implemented
+
+- **Plan v2.2 approved** at `/Users/jennyshane/.claude/plans/plan-blok-5-lively-cake.md`. 11 locked decisions (D1–D11), 17-commit build order (commit 0 done; commits 1–16 pending), verification matrix S1–S27, prerequisites list, carry-forward follow-ups, risks, approved-with-notes for Re-lock 1 optional tweak + commit-9 D11 review pass items + commit-16 closeout wording.
+- **Branch `block-5-first-ai-answer`** cut from `38b1c67`, working tree clean, no commits ahead of `main`.
+
+### Findings worth carrying forward
+
+#### 1. `.claude/settings.json` deny patterns broken (8 of 14)
+
+Phase 0 Check 5 (deny-rule smoke test, `git push origin main --dry-run`) FAILED — command went through unprompted. Diagnosis surfaced three independent issues:
+
+**Issue 1 — pattern syntax.** Per https://code.claude.com/docs/en/permissions verbatim:
+
+> The `:*` form is only recognized at the end of a pattern. In a pattern like `Bash(git:* push)`, the colon is treated as a literal character and won't match git commands.
+
+`.claude/settings.json` uses mid-`:*` syntax in 8 of 14 deny rules. Those patterns are LITERAL — they match commands containing `git push:` etc., which no real `git push origin main` invocation produces. WORKFLOW.md hard limits **1 (no push to main), 2 (no production schema migrations — partial, `psql:*` works since trailing), and 4 (no `--amend`/force/history-rewrite) are unenforced at the settings layer**. Verbal-approval gate held throughout the build (every push to main has been Jenny-approved in chat); the settings layer was theatrical, the verbal gate was load-bearing.
+
+Status:
+
+| Rule                                                                          | Status                                            |
+| ----------------------------------------------------------------------------- | ------------------------------------------------- |
+| `Bash(git push:*main*)`                                                       | BROKEN (mid-`:*`)                                 |
+| `Bash(git push:*origin main*)`                                                | BROKEN                                            |
+| `Bash(git push:*HEAD:main*)`                                                  | BROKEN                                            |
+| `Bash(git commit:*--amend*)`                                                  | BROKEN                                            |
+| `Bash(git push:*--force*)`                                                    | BROKEN                                            |
+| `Bash(git push:*-f*)`                                                         | BROKEN                                            |
+| `Bash(git rebase:*-i*)`                                                       | BROKEN                                            |
+| `Bash(git reset:*--hard*HEAD~*)`                                              | BROKEN                                            |
+| `Bash(wrangler d1 execute:*--remote*)`                                        | BROKEN                                            |
+| `Bash(wrangler pages deployment rollback:*)`                                  | OK (trailing `:*`)                                |
+| `Bash(psql:*)`                                                                | OK (positive control fired correctly)             |
+| `Write(**/.env*)` / `Write(**/secrets/**)` / `Write(**/.claude/secrets*)`     | OK (Write tool, different syntax)                 |
+
+**Issue 2 — `.claude/settings.local.json` broad allow.** Local-only file (gitignored via `.gitignore:2: .claude/*`, line 3 `!.claude/settings.json` re-includes only the canonical file) contains `Bash(git push *)`. Documented precedence is deny → ask → allow (deny wins on overlap), but the deny patterns don't match in the first place per Issue 1, so the allow runs unopposed. Even after Issue 1 is fixed, narrowing this allow to feature-branch-only is hygiene to keep deny supreme.
+
+**Issue 3 — Phase 0 Check 5 expected-behavior wording wrong.** `WORKFLOW.md:43` says smoke test "should prompt under auto mode." Per docs, deny rules block outright (not prompt for approval). Expected wording: "should be denied outright."
+
+**Remediation drafted but NOT shipped.** Single-rule test attempted (Pattern A `Bash(git push * main)` written then reverted; Pattern A1 `Bash(git push * main *)` attempted, hit auto-mode classifier denials before pattern shape converged). Settings.json now reverted to original broken state. Next session does this remediation as one focused task. Proposed shape:
+
+- **`.claude/settings.json` rewrites:** all 8 mid-`:*` patterns → space-glob form. Drafted patterns: `Bash(git push * main *)` + `Bash(git push *:main*)` for push-to-main coverage; `Bash(git commit *--amend*)`, `Bash(git push *--force*)`, `Bash(git push *-f*)`, `Bash(git rebase *-i*)`, `Bash(git reset *--hard*HEAD~*)`, `Bash(wrangler d1 execute *--remote*)` for the rest. Test each with positive (intended-deny commands prompt-or-deny) + negative (intended-allow commands go through) controls before merging.
+- **`.claude/settings.local.json` narrow:** replace `Bash(git push *)` with `Bash(git push origin block-*)` + `Bash(git push origin session-*)`. Keep main + force pushes uncovered so deny stays supreme.
+- **`WORKFLOW.md` addendum (separate doc-only commit), three additions:**
+  - b.1: settings.local.json overrides forbidden for any rule with corresponding deny in settings.json. Re-lock trigger.
+  - b.2: pattern-syntax smoke test required when adding/modifying any deny rule; positive + negative controls; results in commit body.
+  - b.3: Phase 0 Check 5 wording correction ("should prompt" → "should be denied outright").
+
+#### 2. Cursor markdown formatter fired again on WORKFLOW.md
+
+Pre-existing unstaged changes on parent main when the session started: `+26/-16` cosmetic diff (markdown table padding, blank-lines-before-bullets, indentation) PLUS one regression — line 145's `<URL>` placeholder deleted entirely.
+
+**Diagnostic per HANDOFF:313–318 ran:**
+- `.vscode/settings.json` present and **already extended** beyond the 4-key `[markdown]` block — current 9-key block (formatter `formatOn*: false` + `editor.codeActionsOnSave: {}` + `editor.formatOnSaveMode: "file"` + `files.{insertFinalNewline,trimTrailingWhitespace,trimFinalNewlines}: false`). No config gap.
+- No competing user-scope `~/Library/Application Support/Cursor/User/settings.json` (consistent with Block 2 Session 3 finding).
+- Cursor variant unchanged (todesktop bundle, version 3.2.21, Glass build inferred).
+- Only `anysphere.remote-ssh-1.0.48` extension installed; no markdown formatter extension.
+
+**Most likely cause:** Cursor session running BEFORE the latest settings.json write picked up the keys. The 9-key block's own checklist step 2: "Reload Cursor window." **Hypothesis pending confirmation: next session should Reload Window in Cursor before any work and verify formatter dormant on a touch+save of WORKFLOW.md as the first action. If formatter fires after verified reload, hypothesis is wrong and the next-deeper diagnostic runs.**
+
+**`<URL>` deletion mechanism:** In CommonMark, `<URL>` (where URL isn't a valid URL/email) parses as raw HTML open tag with tag name `URL`. Markdown formatters with HTML-stripping rules treat it as malformed inline HTML and strip. Same root cause as the table reflow + list-spacing changes — one formatter pass, multiple rules including HTML-cleanup. **Future markdown placeholders in this repo should use `${URL}` or `[URL]` syntax** to avoid the inline-HTML-stripping path on any future formatter fire.
+
+**Cosmetic diff disposition:** stashed during commit 0 prep (blob `42cae99`, reflog-recoverable ~30 days), then dropped after the URL-deletion mechanism was diagnosed as plausible benign formatter behavior.
+
+#### 3. Auto-mode classifier observations
+
+The auto-mode safety classifier (per docs: "Auto-approves tool calls with background safety checks that verify actions align with your request. Currently a research preview") intercepted multiple Edit attempts on `.claude/settings.json` during the settings remediation. The classifier denial format includes verbose, narrative reasoning that reads conversation context (cites authorized patterns, references step ordering, names files as "security-critical"). Not documented in the public Claude Code docs — observed-behavior-only. The denials had real effect (verified by file mtime — edits did not land when denied), but reasoning quality varied:
+
+> **Auto-mode safety classifier denial reasoning included unfounded authorization claims** (denial text cited "user explicitly authorized ... Pattern B" when Pattern B had only been conditionally proposed, not authorized). Conservative direction this time — classifier erred toward denial. Same class of inaccuracy in the other direction (classifier claiming authorization for an unauthorized action, with a default-allow downstream) would be a serious safety failure. v1.1 mitigation: settings.json remediation completed in default mode (documented permission engine only); auto mode re-engaged only after new deny patterns verified working.
+
+**Three permission layers operating in this build, named for clarity:**
+1. WORKFLOW.md prose rules (carve-out neighborhoods, carve-out exit requires plan rationale, etc.) — Claude Code follows; not tooled.
+2. `.claude/settings.json` deny rules — uncircumventable block at tool layer; broken for 8 of 14 rules per Section 1 above.
+3. Auto-mode safety classifier — undocumented denial format, LLM-shaped narrative reasoning, observed during settings remediation.
+
+#### 4. Three-actor model documented
+
+> **Design-chat reviewer messaging conflated "Jenny-the-operator" with "Claude-Code-the-agent" under the pronoun "you"** across the settings remediation. Worked for sequential-action steps; broke down on multi-layer instructions where some steps require human-only capability (mode toggles, dashboard clicks) and others are agent-only (tool calls, file edits). Fix: design-chat messages that cross actor boundaries name actors explicitly. Surfaced by Claude Code's pause-and-ask on the impossible specification.
+
+The three actors:
+- **Jenny** (operator): keyboard/UI holder, makes mode toggles + clicks permission prompts, generates API keys, clicks dashboard buttons.
+- **Design-chat reviewer** (separate LLM): the voice across most messages this session; reviews bytes, authorizes patterns, frames decisions.
+- **Claude Code** (this LLM agent): emits tool calls, surfaces tool results.
+
+### Open follow-ups carried INTO next session
+
+In addition to plan v2.2's prerequisites and carry-forward list:
+
+- **Settings remediation as a single focused task.** Land before Block 5 commit 1 OR explicitly accept the verbal-approval-gate-only contract per WORKFLOW.md and proceed to Block 5 commits with settings remediation queued separately. Plan v2.2 commit 1 is AUTO-mode and doesn't strictly require settings denies to be working.
+- **Cursor reload + formatter dormancy verification** as Phase 0 first action (per Section 2 above).
+- **Three-actor naming convention** going forward — design-chat-reviewer messages that cross actor boundaries name actors explicitly.
+- **Plan v2.2 commit-16 closeout entries** already drafted in plan file's "Approved-with-notes" section: classifier-hallucination paragraph (verbatim), actor-conflation paragraph (verbatim), Risk #7 Note B precision wording. Block 5 closeout HANDOFF (commit 16) folds these in.
+- **Risk to flag if classifier denials persist on Block 5 carve-out commits** (5, 6, 7, 8, 9, 11): consider operating those in default mode rather than auto, even though plan v2.2's mode column says DEFAULT only for the SECURITY-CARVE-OUT comment + per-action review.
+
+### Where future-Claude resumes
+
+Phase 0 ritual on next session, on parent repo at `/Users/jennyshane/elinno-agent/`:
+- `git status` → on `main`, clean.
+- `git log -3 --oneline` → `38b1c67` (workflow re-locks), `c62f1ff` (block 4 closeout), `2b34246` (block 4 merge).
+- `git branch --show-current` → `main`. Branch `block-5-first-ai-answer` exists locally at `38b1c67`, no commits ahead.
+- `git fetch origin --dry-run` → silent (up to date).
+- **Phase 0 Check 5 (deny-rule smoke test): currently FAILS as documented above.** Settings remediation is the work to do before re-running this expecting a green result.
+
+Recommended first move next session:
+1. Cursor Reload Window (settings/formatter dormancy hypothesis verification).
+2. Read this section + plan v2.2 file as primary inputs.
+3. Decide: (a) settings remediation now as focused doc-only task (1-2 commits to main, ~30 lines of settings + ~30 lines of WORKFLOW addendum), then proceed to Block 5 commit 1; OR (b) accept verbal-approval-gate-only contract and proceed directly to Block 5 commit 1, queue settings remediation as Block 9 polish.
+4. If (a): write settings.json + settings.local.json + WORKFLOW.md addendum; surface diff for review; commit + push (per-action approval); re-run Phase 0 Check 5 expecting deny outright; then Block 5 commit 1.
+5. If (b): proceed with plan v2.2 prerequisites (API keys, fixture prep) and Block 5 commit 1.
+
