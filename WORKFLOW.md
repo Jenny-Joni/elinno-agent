@@ -185,6 +185,14 @@ These never run autonomously, regardless of phase or mode. Prose alone is not a 
 
 The settings file is the load-bearing artifact for this table. If a deny rule is missing or weakened, the corresponding hard limit is effectively gone — flag it before working, don't discover it after.
 
+### Auto-mode UI prompts during carve-out blocks (added 2026-05-06)
+
+Auto-mode UI prompts that would change Claude Code's mode are a **separate gate from plan approval, even when plan approval is fresh.** During execute phase of a block that contains any carve-out commits, any such prompt (e.g., the "switch to auto mode" / "stay in default" prompt that can appear mid-execute, or a prompt to dismiss a denied-tool surface) requires explicit verbal confirmation in chat from Jenny **before Claude Code clicks**. Claude Code states the prompt verbatim, the proposed click, and waits.
+
+This holds even if the prompt offers what looks like the obvious safe choice — the rule is that the choice gets named in chat, not that Claude Code declines all prompts. Scope is **carve-out blocks only**; non-carve-out blocks continue under standard auto-mode UI behavior.
+
+Rationale: Block 4 saw the auto-mode UI signal fire 4 times across the block. The substantive carve-out contract held — every code commit in slack.js / events.js / OAuth files went through per-action review — but the recurrence of UI-driven mode-switch prompts is itself a pattern worth treating as a gate rather than a click-through. Behaviorally a hard limit; placed here rather than in settings.json because it's a UI-side rule the harness can't enforce.
+
 ---
 
 ## Rollback playbook — when a push to main breaks production
@@ -222,6 +230,16 @@ Some work shouldn't go through Phase 3 auto mode regardless of how good the plan
 - **Webhook handlers** — Slack/Jira webhooks if any block adds them. Signature verification and replay protection.
 - **Schema migrations** — anything that runs DDL on production D1 or Neon. (Already denied at the settings layer; default mode is for the design and dry-run conversation around them.)
 - **Rollback fixes when production is broken** — see playbook above. Drop to default mode for the duration, even if the fix itself is small.
+
+**Carve-out neighborhoods (added 2026-05-06).** The bulleted list above names specific code categories. Beyond those, code paths in security-adjacent *neighborhoods* get carve-out treatment by default — i.e., per-action review (default mode), not auto. The neighborhoods:
+
+- **Credential decryption frequency.** Any code path that calls into `crypto.js`, reads `ciphertext_credentials`, or expands the set of call sites where decryption happens. New decryption call sites are themselves a carve-out, even if the called helper is unchanged.
+- **Freshness-layer signals.** Any code that reads `sync_runs.detail`, computes "data as of" timestamps, or branches on rate-limited / inert sync status (Block 4 decisions E2 + L). These signals shape what the AI presents to the user as fresh; subtle bugs ship false-fresh answers.
+- **Project-isolation enforcement.** Any code that constructs a SQL `WHERE project_id = …` clause for user-data tables, AND any code path that touches an LLM-supplied or webhook-supplied identifier the server uses to scope or authorize a database operation (e.g., `project_id` echoed back in tool input, `team_id` from a webhook body).
+
+**Carve-out exit** (i.e., committing a code path in one of these neighborhoods in auto mode) requires an explicit decision + rationale recorded **in the block plan** before the commit lands. Matches Block 4's E2/F-base/F2/I/L precedent — rationale lives in the plan, not in commit messages or per-decision notes. The default is carve-out; auto is the exception.
+
+Rationale: Block 5's tool layer surfaced that "is this commit project-isolation-sensitive?" is a recurring per-commit judgment. Naming the neighborhoods up front makes the judgment a check ("is this in a named neighborhood?") rather than a vibe.
 
 The plan for any of the above must say at the top: `Execute mode: DEFAULT (security carve-out, no auto)`. Files in these categories carry a top-of-file `// SECURITY-CARVE-OUT: do not edit in auto mode` comment so future plans that touch them notice.
 
