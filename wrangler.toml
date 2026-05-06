@@ -78,34 +78,6 @@ SITE_URL = "https://elinnoagent.com"
 # /oauth/start.js).
 SLACK_CLIENT_ID = "9269089169413.11054448308402"
 
-# Preview environment override (Block 4 verification matrix).
-# -----------------------------------------------------------
-# Per Cloudflare Pages wrangler-configuration docs, [env.preview.vars]
-# REPLACES top-level [vars] for preview deploys (no merge). All three
-# vars must be redeclared here; only SITE_URL differs.
-#
-# Why: Block 4 Phase A registered TWO OAuth redirect URIs with Slack —
-# production (https://elinnoagent.com/...) AND the
-# block-4-slack-connector branch alias preview URL. The preview /oauth/start
-# must construct redirect_uri using the preview URL so the consent flow
-# loops back to preview's callback (not production's), keeping token
-# exchange + envelope encryption on the same Workers env that signed
-# the user in. Preview and Production share one Neon DB but use
-# DIFFERENT MASTER_ENCRYPTION_KEY values (intentional, per Block 3
-# matrix); a token encrypted on production is unreadable from preview
-# during sync. Per-env SITE_URL keeps each env's connections decryptable
-# from the env that created them.
-#
-# After Block 4 closes and ff-merges to main: any future feature branch
-# that exercises OAuth on its own preview alias must add a matching
-# OAuth redirect URI to the Slack app and update this block. This
-# pattern generalizes to Block 6 (Jira) and Block 8 (Drive) which also
-# have OAuth.
-[env.preview.vars]
-MAIL_FROM = "Elinno Agent <noreply@elinnoagent.com>"
-SITE_URL = "https://block-4-slack-connector.elinno-agent.pages.dev"
-SLACK_CLIENT_ID = "9269089169413.11054448308402"
-
 [[d1_databases]]
 binding = "DB"
 database_name = "elinno-agent-db"
