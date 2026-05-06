@@ -146,6 +146,42 @@ const SLACK_API_BASE = 'https://slack.com/api';
 const SLACK_AUTHORIZE_URL = 'https://slack.com/oauth/v2/authorize';
 const BOT_SCOPES = 'channels:read,channels:history,users:read';
 
+// Decision K (revised in Block 4 mid-flight 2026-05-06): per-environment
+// redirect_uri derivation via request.url.host + allowlist, replacing
+// ctx.env.SITE_URL for OAuth (the wrangler.toml [env.preview.vars] approach
+// broke the preview deploy at runtime — Cloudflare Worker exception 1101,
+// likely because Pages env overrides drop top-level bindings/compat at
+// runtime).
+//
+// Slack OAuth requires redirect_uri at startAuth + completeAuth to match
+// BYTE-EXACTLY. Both endpoints run on the SAME Workers env that received
+// the request, so deriving SITE_URL from request.url.host yields matching
+// values on each env automatically — preview deploys derive the preview
+// alias, production derives elinnoagent.com, no env-config plumbing.
+//
+// Allowlist closes the open-redirect class K targets. Cloudflare's edge
+// sets request.url.host from TLS SNI + verified Host header, but defense-
+// in-depth is cheap. Adding a new preview branch alias requires (a)
+// registering the redirect URI with Slack at api.slack.com/apps, AND (b)
+// adding the host here. Block 6 (Jira) + Block 8 (Drive) connectors should
+// mirror this pattern.
+//
+// SITE_URL stays in wrangler.toml [vars] for the password-reset email flow
+// (which doesn't have request.url to derive from — it constructs links from
+// the env). Only the OAuth flow switches to runtime derivation.
+const ALLOWED_OAUTH_HOSTS = new Set([
+  'elinnoagent.com',
+  'block-4-slack-connector.elinno-agent.pages.dev',
+]);
+
+function deriveSiteUrl(request) {
+  const u = new URL(request.url);
+  if (!ALLOWED_OAUTH_HOSTS.has(u.host)) {
+    throw new Error(`unrecognized OAuth host: ${u.host}`);
+  }
+  return `${u.protocol}//${u.host}`;
+}
+
 // E3 backfill cap (BLOCK_4_PLAN.md decision E3)
 const PAGE_LIMIT = 200;
 const MAX_PAGES = 5;
@@ -699,7 +735,8 @@ export const slack = {
 
   // Decision P: scope param populated; user_scope param omitted entirely.
   // Decision A: single-workspace install — doesn't affect URL construction.
-  // Decision K: redirect_uri uses env.SITE_URL.
+  // Decision K (revised v1.1.1): redirect_uri derived from request.url.host
+  // via deriveSiteUrl() with allowlist. See ALLOWED_OAUTH_HOSTS comment.
   // State doubles as the future connection.id (commit 3 INSERT).
   async startAuth(ctx) {
     const state = crypto.randomUUID();
@@ -709,7 +746,7 @@ export const slack = {
     url.searchParams.set('state', state);
     url.searchParams.set(
       'redirect_uri',
-      `${ctx.env.SITE_URL}/api/connectors/slack/oauth/callback`
+      `${deriveSiteUrl(ctx.request)}/api/connectors/slack/oauth/callback`
     );
     return { authUrl: url.toString(), state };
   },
@@ -724,7 +761,11 @@ export const slack = {
         code: params.code,
         client_id: ctx.env.SLACK_CLIENT_ID,
         client_secret: ctx.env.SLACK_CLIENT_SECRET,
-        redirect_uri: `${ctx.env.SITE_URL}/api/connectors/slack/oauth/callback`,
+        // Must match the redirect_uri sent at startAuth byte-for-byte
+        // (Slack OAuth requirement). deriveSiteUrl() yields the same
+        // value here as at startAuth because both endpoints run on the
+        // same Workers env that received the request.
+        redirect_uri: `${deriveSiteUrl(ctx.request)}/api/connectors/slack/oauth/callback`,
       }
       // no Authorization header — token exchange is unauthenticated
     );
