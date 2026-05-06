@@ -295,18 +295,36 @@ async function fetchRunningSyncRunId(sql, connectionId) {
 }
 
 /**
- * Resolve the workspace's domain via team.info. Cached for the sync
- * lifetime in the caller's local variable. Webhooks (commit 7) cache
- * at module scope per connection_id for hot-isolate efficiency.
+ * Resolve the workspace's domain. Cached for the sync lifetime in the
+ * caller's local variable. Webhooks (commit 7) cache at module scope
+ * per connection_id for hot-isolate efficiency.
+ *
+ * Implementation note (Block 4 mid-flight 2026-05-06): the original
+ * `team.info` call required `team:read` scope, which is NOT in the
+ * locked BOT_SCOPES per decision B (only channels:read + channels:history
+ * + users:read). Slack returned `missing_scope` and the first fullSync
+ * after channel-pick failed. Switched to `auth.test`, which requires NO
+ * scope and returns `url` shaped `https://<team-domain>.slack.com/`.
+ * Parse the subdomain to get team_domain — same value team.info would
+ * have returned.
  */
 async function resolveTeamDomain(token) {
-  const response = await slackApiPost('team.info', {}, token);
-  if (!response.ok || !response.team) {
+  const response = await slackApiPost('auth.test', {}, token);
+  if (!response.ok || !response.url) {
     throw new Error(
-      `slack team.info failed: ${response.error || 'unknown'}`
+      `slack auth.test failed: ${response.error || 'unknown'}`
     );
   }
-  return response.team.domain;
+  // url shape: "https://<domain>.slack.com/" (trailing slash) or without.
+  // Be strict — any deviation indicates a Slack API contract change worth
+  // a hard fail rather than a malformed permalink downstream.
+  const match = response.url.match(/^https?:\/\/([^.]+)\.slack\.com\/?$/);
+  if (!match) {
+    throw new Error(
+      `slack auth.test returned unparseable url: ${response.url}`
+    );
+  }
+  return match[1];
 }
 
 /**
