@@ -1609,3 +1609,93 @@ Recommended first move next session:
 4. If (a): write settings.json + settings.local.json + WORKFLOW.md addendum; surface diff for review; commit + push (per-action approval); re-run Phase 0 Check 5 expecting deny outright; then Block 5 commit 1.
 5. If (b): proceed with plan v2.2 prerequisites (API keys, fixture prep) and Block 5 commit 1.
 
+---
+
+## Block 5 pre-flight session — 2026-05-07 supplement (read-only-classification finding)
+
+> Path C diagnostic ran on settings deny patterns — surfaced that the
+> issue is read-only classification (or equivalent mechanism), not
+> pattern shape. Settings remediation closing as not-shippable in
+> current form. Block 5 picks up next session under same posture as
+> build's history (verbal-approval gate is load-bearing; settings
+> layer is theatrical for git).
+
+### Path C diagnostic — outcome B (read-only-classification confirmed inferentially)
+
+Tested temporary deny pattern `Bash(git commit --amend *)` (exact prefix + trailing-`*`, the strictest non-exact-match form) against `git commit --amend --no-edit` (real, write-capable, no `--dry-run`):
+
+- **Result:** Amend ran cleanly, SHA changed `463664b` → `ccd2c26`, NO denial bytes.
+- **Recovery:** `git restore .claude/settings.json` (revert temp rule) + `git reset --soft 463664b` (restore HEAD pointer). Final state: HEAD=`463664b`, working tree clean, equal to origin/main.
+- **Conclusion:** Two pattern shapes — mid-`*` (`Bash(git commit *--amend*)`) and exact-prefix-trailing-`*` (`Bash(git commit --amend *)`) — both fail to deny the same command. The trailing-`*` form is empirically verified to work on other commands (`psql:*`). So pattern shape isn't the issue. The bypass mechanism is upstream of pattern matching.
+
+### Agent query — broader context (GitHub issues + adversa.ai)
+
+- **Read-only git list NOT enumerated** in any public source the agent could find. The phrase "read-only forms of git" in https://code.claude.com/docs/en/permissions is opaque.
+- **Five git subcommands referenced as read-only** in GitHub Issues #2058 + #34429: `git status`, `git log`, `git diff`, `git branch`, `git show`. `git commit --amend` is NOT among them.
+- **Multiple GitHub issues document deny-rule unreliability** for git:
+  - #8961 — deny rules ignored in `settings.local.json`
+  - #10256 — git commands run despite deny rules
+  - #13009 — permission bypass for git commit/push
+- **Adversa.ai documents a separate bypass vulnerability**: commands exceeding 50 subcommands cause Claude Code to "skip all per-subcommand security analysis, including deny rule enforcement." Different mechanism than read-only classification, same result.
+- **Docs-vs-behavior contradiction** documented: https://code.claude.com/docs/en/permissions claims "to require a prompt for one of these commands, add an `ask` or `deny` rule for it." Empirically false for `git commit --amend`. Multiple GitHub issues report the same.
+
+### Decision: Option 3 close-out
+
+Settings remediation NOT shipping in current form:
+
+- **`.claude/settings.json` left in original (broken) state.** All 8 mid-`:*` deny patterns remain theatrical. Same posture as the entire build's history.
+- **WORKFLOW.md addendum (Edits 3a + 3b) NOT shipped.** Rule 2 (pattern-syntax smoke test) has a known blind spot — read-only-classified commands bypass deny regardless of pattern shape, and `--dry-run` smoke tests may themselves be read-only-classified. Drafting in chat history; not codified in WORKFLOW until rework.
+- **`.claude/settings.local.json` narrow allow stays** (gitignored, local-only). The narrowing is defense-in-depth not load-bearing — kept for hygiene since deny rules don't fire reliably anyway.
+- **Workflow-discipline is acknowledged as the load-bearing gate.** Verbal-approval-in-chat for every push to main has worked across the entire build. Settings layer was always supplementary; this session confirmed it's supplementary by being theatrical.
+
+### What's actually shipped to production from this session
+
+Three doc-only commits, all on `origin/main`:
+- `38b1c67` — `docs(workflow): expand carve-out treatment to neighborhoods; lock UI-prompt confirmation`
+- `463664b` — `docs(handoff): block 5 pre-flight session amendment`
+- (this supplement, landing now)
+
+Zero Block 5 feature code.
+
+### Anomalies and lessons from 2026-05-07
+
+The three paragraphs below were drafted verbatim earlier in this session for the eventual Block 5 closeout (commit 16). Pulling them into this supplement since the session is closing without commit 16 — they're this session's findings and would otherwise be carried forward across unknown future sessions, risking loss. **Note:** paragraph 1's reference to "v1.1 mitigation: settings.json remediation completed in default mode" describes the planned mitigation at the time of drafting; per the Decision section above, Option 3 close-out chose NOT to ship the remediation. The mitigation language reflects intent at draft time, not actual outcome.
+
+> **Auto-mode safety classifier denial reasoning included unfounded authorization claims** (denial text cited "user explicitly authorized ... Pattern B" when Pattern B had only been conditionally proposed, not authorized). Conservative direction this time — classifier erred toward denial. Same class of inaccuracy in the other direction (classifier claiming authorization for an unauthorized action, with a default-allow downstream) would be a serious safety failure. v1.1 mitigation: settings.json remediation completed in default mode (documented permission engine only); auto mode re-engaged only after new deny patterns verified working.
+
+> **Design-chat reviewer messaging conflated "Jenny-the-operator" with "Claude-Code-the-agent" under the pronoun "you"** across the settings remediation. Worked for sequential-action steps; broke down on multi-layer instructions where some steps require human-only capability (mode toggles, dashboard clicks) and others are agent-only (tool calls, file edits). Fix: design-chat messages that cross actor boundaries name actors explicitly. Surfaced by Claude Code's pause-and-ask on the impossible specification.
+
+> **`git reset --hard <ref>` gap demonstrated in this session.** `Bash(git reset *--hard*HEAD~*)` covers HEAD~ relative resets only; `git reset --hard <ref>` (non-HEAD~ — e.g., `ORIG_HEAD`, `origin/main`, a SHA) is also destructive and not covered by any deny rule. Faithful port of pre-existing gap; not introduced by 2026-05-07 remediation. The gap was hit empirically this session when `git reset --hard ORIG_HEAD` was used to recover from the amend test — local session state lost (the unstaged `settings.json` + `WORKFLOW.md` edits were wiped alongside the commit revert; recoverable via redo, but the loss is real). Reframes from "tracked gap" to "tracked gap demonstrated." Strengthens case for Block 9 (or sooner) extending the pattern to cover `--hard <ref>` generally — once settings-layer rework happens.
+
+### Design-chat ↔ Claude Code bridging hazard
+
+This session bridged messages between two LLM contexts (design-chat Claude in claude.ai web; Claude Code at the terminal) via Jenny copy-pasting. Bridging failed multiple times: messages truncated mid-sentence on paste, identical messages re-sent without movement, and at least one re-paste of an old turn instead of an intended new turn. Each failure was caught by Claude Code's pause-and-ask discipline ("your message cut off at X" / "this is the same content I already responded to") rather than by silent recovery.
+
+Suggests a re-lock candidate for WORKFLOW.md once settings-layer work resumes: when bridging long messages between LLM sessions, both sides default to surfacing bytes (not summarizing), and either side can request explicit verbatim quote-back of the first sentence when the message exceeds a threshold AND security-critical work is in progress. Same artifact-travel principle as the rest of the session's discipline.
+
+Not blocking. Document the pattern; rework the WORKFLOW with it later alongside the settings-layer rework.
+
+### Open follow-ups carried forward
+
+In addition to the queue from the 2026-05-06 amendment:
+
+- **Read-only-classification list enumeration** — needs source-code dive (or direct query to Anthropic) to settle. Defer until Block 5 actually needs it.
+- **WORKFLOW addendum rework** — once we know which commands are read-only-classified, draft a smoke-test methodology that distinguishes "rule fires under test" from "real command goes through." Until then, don't codify a methodology with known blind spots.
+- **`Bash(git commit -m ' *)` allow** matches single-quoted commit messages but not double-quoted. Surfaces as friction during Block 5 if commits use double quotes. Defer fix.
+- **All Block 5 prerequisites still pending:** API keys provisioned but not probed (probe at commit 1 boundary). Test fixture (≥100 indexed Slack messages) not prepared. D11 system prompt review pass not done.
+- **Plan v2.2 commit-16 closeout queue** preserved for the eventual Block 5 closeout: Note B Risk #7 wording precision (post-hoc `usage.input_tokens` measurement vs. pre-flight tokenizer); Cursor formatter Reload-Window hypothesis verification (also queued from 2026-05-06).
+
+### Next session pickup
+
+Phase 0 ritual on parent main:
+- `git status` → on `main`, clean, equal to origin.
+- `git log -3 --oneline` → this supplement, then `463664b`, then `38b1c67`.
+
+**Phase 0 Check 5 (deny-rule smoke test): SKIP indefinitely until WORKFLOW addendum is reworked.** The current Phase 0 Check 5 wording in `WORKFLOW.md` tests against `git push origin main --dry-run` and expects "auto mode would prompt." Per this supplement: (a) the expected-behavior wording is wrong (deny rules block, don't prompt — see https://code.claude.com/docs/en/permissions), (b) `--dry-run` may be read-only-classified independently of the destructive form (untested), so a passing smoke test wouldn't prove the destructive command is blocked. The check is structurally unreliable until both gaps are addressed. **Do NOT reinstate "smoke-test the gates" until the methodology distinguishes "rule fires under safe test" from "real destructive command would be blocked."**
+
+Recommended first move next session:
+1. Cursor Reload Window (formatter dormancy hypothesis, still pending from 2026-05-06).
+2. Read this supplement + plan v2.2 file.
+3. Decide settings-layer scope: invest in WORKFLOW rework (figure out what's actually deniable) before Block 5, OR proceed with verbal-approval-only contract and queue settings rework as Block 9 polish.
+4. If proceeding directly: provision keys (probe), prepare fixture, start Block 5 commit 1.
+
