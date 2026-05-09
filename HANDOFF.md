@@ -1699,3 +1699,152 @@ Recommended first move next session:
 3. Decide settings-layer scope: invest in WORKFLOW rework (figure out what's actually deniable) before Block 5, OR proceed with verbal-approval-only contract and queue settings rework as Block 9 polish.
 4. If proceeding directly: provision keys (probe), prepare fixture, start Block 5 commit 1.
 
+---
+
+## Block 5 mid-flight — 2026-05-09 OPENAI_API_KEY transcript exposure + posture acknowledgment + Cursor formatter still active
+
+> Three findings folded into one mid-flight entry:
+>   (1) OpenAI key transcript exposure during a probe (rotated at
+>       source, new key probed green);
+>   (2) Settings-layer posture resolved by inheritance from the
+>       2026-05-07 supplement — verbal-approval-only contract,
+>       WORKFLOW rework queued for Block 9;
+>   (3) Cursor markdown formatter dormancy hypothesis from
+>       2026-05-06 supplement is FALSIFIED — the .vscode/settings
+>       9-key block is insufficient.
+
+### Finding 1 — OPENAI_API_KEY transcript exposure
+
+Probe template Claude Code suggested for OpenAI key validation:
+
+    export OPENAI_API_KEY='PASTE_YOUR_REAL_KEY_HERE'
+    curl -sS https://api.openai.com/v1/embeddings ...
+
+Jenny replaced `PASTE_YOUR_REAL_KEY_HERE` with literal key bytes
+and sent the **entire shell block** back to chat (rather than only
+the `http=` + `embedding-length` output). Real key prefix
+`sk-proj-owyT…` is now in the conversation transcript. Rotation
+closed live exposure but did NOT undo the transcript record — if
+the transcript is logged / synced / reviewed downstream, the
+leaked key is recoverable from logs.
+
+Recovery: revoke + new-key issuance at platform.openai.com (Jenny,
+verified at source). New key value never entered chat; second
+probe used only `http=200 / embedding-length=1536` reply shape.
+
+Same failure mode as Block 4's two SLACK_SIGNING_SECRET transcript
+exposures (HANDOFF:1403). Workflow regression — recorded on main
+now rather than buried in commit-16 closeout.
+
+#### Why Block 4's lesson didn't carry forward
+
+Three causes, additive:
+
+1. **Block 4's mitigation was deferred, not codified.**
+   HANDOFF:1466 queued "SLACK_SIGNING_SECRET via launchctl pattern
+   for verification scripts" as an open follow-up — never landed
+   in WORKFLOW as a rule. The new session had no hard-rule to
+   enforce.
+2. **Probe template invited paste.** `export X='...'` accepts a
+   literal key in-line and survives in shell history. Safer
+   alternatives: `read -s OPENAI_API_KEY` prompts without echo;
+   pipe-from-password-manager (e.g., `op read 'op://…/credential'
+   | …`) avoids the chat round-trip entirely.
+3. **Bridging gap.** The 2026-05-07 supplement (HANDOFF:1670)
+   documented "Design-chat ↔ Claude Code bridging hazard" as a
+   pattern. The design-chat reviewer's prior guidance about safe
+   probe paths did not reach this Claude Code session through
+   Jenny's "move on the execution" handoff. The hazard
+   materialized.
+
+#### Mitigation
+
+- **Taken (this session).** Future key probes in Block 5+ use
+  `read -s` for input. Chat replies return only `http=` and
+  non-secret response shape (counts, lengths, model names).
+- **Queued for between-blocks PR or Block 9.** Codify the
+  read-s-or-passthrough rule in WORKFLOW.md alongside Block 4's
+  launchctl pattern. Absorbed by the deferred WORKFLOW addendum
+  rework (HANDOFF:1683).
+- **Queued for commit 16.** Closeout HANDOFF references this
+  section by line number — precedent for Block 6+ key probes.
+
+### Finding 2 — Settings-layer posture (resolved by inheritance, recording explicitly)
+
+The 2026-05-07 supplement's "Next session pickup" item 3 named
+the open question: "Decide settings-layer scope: invest in
+WORKFLOW rework before Block 5, OR proceed with verbal-approval-
+only contract and queue settings rework as Block 9 polish." The
+2026-05-09 session took the second option implicitly — Phase 0
+ran, settings posture was treated as inherited from the
+supplement, no re-decision conversation occurred. Recording
+explicitly: **Block 5 proceeds under verbal-approval-only
+contract; settings-layer WORKFLOW rework is queued as Block 9
+(or earlier between-blocks) task, not Block 5.** The implicit-
+decision pattern itself is a mild WORKFLOW-rework input
+("decisions inherited across sessions should be re-acknowledged
+in Phase 0, not silently carried"), but not a re-lock.
+
+### Finding 3 — Cursor formatter dormancy hypothesis FALSIFIED
+
+The 2026-05-06 supplement (HANDOFF:1550) hypothesized that
+Cursor's session running BEFORE the .vscode/settings.json 9-key
+block landed was the cause of the formatter firing on WORKFLOW.md;
+remediation was "Reload Window in Cursor before any work and
+verify formatter dormant on a touch+save of WORKFLOW.md as the
+first action."
+
+Test ran this session. Jenny did Cmd+S on WORKFLOW.md after a
+trailing-space touch through Cursor's editor. **Verdict: FIRED.**
+The diff showed:
+
+- `<URL>` placeholder deleted at WORKFLOW.md:89 — same CommonMark
+  inline-HTML stripping mechanism as 2026-05-06's supplement
+  documented (HANDOFF:1561). Recurrence on the same line.
+- Hard-limits table reflowed with full column-padding.
+- Sub-bullet indent: 4-space → 2-space at three locations.
+- Blank lines inserted after seven `**Bold paragraph:**` headers.
+- Final newline stripped at EOF.
+
+The 9-key block (`[markdown]` formatter `formatOn*: false` +
+`editor.codeActionsOnSave: {}` + `editor.formatOnSaveMode: "file"`
++ `files.{insertFinalNewline,trimTrailingWhitespace,
+trimFinalNewlines}: false`) is INSUFFICIENT. The reload-window
+hypothesis is wrong; the next-deeper diagnostic from
+HANDOFF:313–318 is the next move when settings-layer rework
+happens. Damaged WORKFLOW.md restored via `git restore` after the
+verdict; no formatter damage shipped.
+
+#### Editing-discipline implication for the rest of Block 5
+
+All HANDOFF and WORKFLOW edits go through Claude Code's Edit/Write
+tools (filesystem, no formatter pipeline) until the formatter is
+actually suppressed. Jenny does NOT open these files in Cursor
+between Edit-and-commit, since the next save would re-fire the
+formatter. JS/TS/SQL files are unaffected (no `[javascript]` or
+similar block in .vscode triggers reflow on save in this codebase
+empirically — Block 4's JS commits never showed reformatting).
+
+### Carry-forward additions to commit 16's HANDOFF closeout
+
+1. Reference this section by line number; this is the precedent
+   for any future key probe in Block 5+.
+2. Note the bridging gap recurrence (predicted at HANDOFF:1670,
+   materialized this session).
+3. Note the AUTO→DEFAULT mode shift on commit 3 — flagged from
+   self-review against post-commit-0 carve-out neighborhoods rule
+   (HANDOFF:1500), not against plan v2.2.
+4. Cursor-formatter status: still active despite 9-key block;
+   workaround is "edit markdown via filesystem only"; deeper
+   diagnostic deferred. Place in carry-forward queue alongside
+   settings-layer WORKFLOW rework.
+
+### Phase 0 next session
+
+If a Block 6 or post-Block-5 session opens:
+- Read this section as part of recency check.
+- Confirm the read-s probe pattern is being used before any
+  key-probe step.
+- Do NOT open HANDOFF.md or WORKFLOW.md in Cursor with intent to
+  save while the formatter is unfixed.
+
