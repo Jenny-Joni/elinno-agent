@@ -18,7 +18,9 @@
 // over both ranked lists.
 // =========================================================================
 
-import { EMBEDDING_MODEL_ID } from './embeddings.js';
+import { embedText, EMBEDDING_MODEL_ID } from './embeddings.js';
+
+const RRF_K = 60;
 
 /**
  * Keyword (FTS) search on the entities table, scoped to a project.
@@ -102,4 +104,61 @@ export async function searchVector(sql, projectId, queryEmbedding, limit) {
      ORDER BY ee.embedding <=> ${vectorLiteral}::vector
      LIMIT ${limit}
   `;
+}
+
+/**
+ * Hybrid search: reciprocal rank fusion of keyword + vector results.
+ *
+ * Embeds the query once (OpenAI), runs searchKeyword and searchVector
+ * in parallel, then combines each row's RRF contribution
+ * (1 / (RRF_K + rank), 1-indexed) across both ranked lists. Vec rows
+ * carry chunk_text (kw rows don't), so vec rows are preferred when a
+ * row appears in both lists — citation chunk display benefits from
+ * the matched chunk text.
+ *
+ * @param {object} sql
+ * @param {object} env       - Pages env (OPENAI_API_KEY for embedText)
+ * @param {string} projectId - URL-bound project id (trusted)
+ * @param {string} query     - user query
+ * @param {object} options   - { limit?: number, sources?: string[] }
+ * @returns {Promise<Array<object>>} merged top-N rows + rrf_score
+ */
+export async function searchHybrid(sql, env, projectId, query, options = {}) {
+  const limit = options.limit ?? 10;
+  const sources = Array.isArray(options.sources) ? options.sources : null;
+
+  const subLimit = Math.max(limit * 3, 30);
+
+  const queryEmbedding = await embedText(env, query);
+  const [kwRows, vecRows] = await Promise.all([
+    searchKeyword(sql, projectId, query, subLimit),
+    searchVector(sql, projectId, queryEmbedding, subLimit),
+  ]);
+
+  const scoreById = new Map();
+  const rowById = new Map();
+
+  const accrue = (rows) => {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rank = i + 1;
+      scoreById.set(row.id, (scoreById.get(row.id) || 0) + 1 / (RRF_K + rank));
+      rowById.set(row.id, row);
+    }
+  };
+
+  accrue(kwRows);
+  accrue(vecRows);
+
+  let merged = Array.from(rowById.values()).map((row) => ({
+    ...row,
+    rrf_score: scoreById.get(row.id),
+  }));
+
+  if (sources) {
+    merged = merged.filter((row) => sources.includes(row.source));
+  }
+
+  merged.sort((a, b) => b.rrf_score - a.rrf_score);
+  return merged.slice(0, limit);
 }
