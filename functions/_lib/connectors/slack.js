@@ -141,6 +141,7 @@
 // =========================================================================
 
 import { aadFor, decrypt } from '../crypto.js';
+import { embedText, EmbeddingError, EMBEDDING_MODEL_ID } from '../ai/embeddings.js';
 
 const SLACK_API_BASE = 'https://slack.com/api';
 const SLACK_AUTHORIZE_URL = 'https://slack.com/oauth/v2/authorize';
@@ -418,11 +419,12 @@ async function mapMessageToEntity(message, channelMeta, teamDomain, userCache, t
 }
 
 /**
- * UPSERT an entity. Returns 'inserted' or 'updated' based on Postgres'
- * `xmax = 0` trick (xmax is 0 for the inserting transaction's view of
- * a fresh row; non-zero for an UPDATE-conflict resolution).
+ * UPSERT an entity. Returns the row id and whether the row was just
+ * inserted (Postgres' `xmax = 0` trick — xmax is 0 for the inserting
+ * transaction's view of a fresh row; non-zero for an UPDATE-conflict
+ * resolution).
  *
- * @returns {Promise<'inserted'|'updated'>}
+ * @returns {Promise<{ id: string, inserted: boolean }>}
  */
 async function upsertEntityRow(sql, projectId, connectionId, entity) {
   const [row] = await sql`
@@ -449,9 +451,88 @@ async function upsertEntityRow(sql, projectId, connectionId, entity) {
            raw                = EXCLUDED.raw,
            source_url         = EXCLUDED.source_url,
            updated_at         = NOW()
-    RETURNING (xmax = 0) AS inserted
+    RETURNING id, (xmax = 0) AS inserted
   `;
-  return row.inserted ? 'inserted' : 'updated';
+  return { id: row.id, inserted: row.inserted };
+}
+
+/**
+ * Embed entity.content_text and UPSERT into entity_embeddings.
+ *
+ * SECURITY-CARVE-OUT NEIGHBORHOOD (project-isolation enforcement):
+ * if entity.metadata.project_id is present and does not equal the
+ * connection's projectId, the embedding write is SKIPPED and a
+ * structured warning is emitted. This is defence-in-depth for v1.1
+ * (mapMessageToEntity does not currently set metadata.project_id, so
+ * the check is normally a no-op) — but it's a tripwire for any future
+ * code path that lets an untrusted source populate metadata.
+ *
+ * Empty / whitespace-only content_text is skipped silently (system
+ * messages, file_share without text, etc.).
+ *
+ * Retryable embedding errors (network / 429 / 5xx) are logged and
+ * swallowed: commit 4's post-sync sweep is the catch-up. Non-retryable
+ * errors (4xx other than 429) are logged and swallowed too — those
+ * indicate a request-shape or auth bug, neither recoverable by retry,
+ * and we don't want one bad row to abort an entire sync.
+ *
+ * @param {object} env  - Pages env (OPENAI_API_KEY)
+ * @param {object} sql  - postgres tagged-template client
+ * @param {string} projectId    - the connection's projectId (trusted)
+ * @param {string} connectionId
+ * @param {string} entityId     - id returned from upsertEntityRow
+ * @param {object} entity
+ */
+async function embedEntityRow(env, sql, projectId, connectionId, entityId, entity) {
+  if (
+    entity.metadata &&
+    entity.metadata.project_id &&
+    entity.metadata.project_id !== projectId
+  ) {
+    console.warn(JSON.stringify({
+      level: 'warn',
+      event: 'embedding_skip_project_id_mismatch',
+      connection_id: connectionId,
+      connection_project_id: projectId,
+      entity_id: entityId,
+    }));
+    return;
+  }
+
+  const text = typeof entity.content_text === 'string' ? entity.content_text.trim() : '';
+  if (text.length === 0) return;
+
+  let vector;
+  try {
+    vector = await embedText(env, entity.content_text);
+  } catch (err) {
+    if (err instanceof EmbeddingError) {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        event: 'embedding_failed',
+        retryable: err.retryable,
+        status: err.status,
+        connection_id: connectionId,
+        entity_id: entityId,
+      }));
+      return;
+    }
+    throw err;
+  }
+
+  const vectorLiteral = '[' + vector.join(',') + ']';
+  await sql`
+    INSERT INTO entity_embeddings (
+      entity_id, project_id, chunk_index, chunk_text, embedding, model
+    ) VALUES (
+      ${entityId}, ${projectId}, ${0}, ${entity.content_text},
+      ${vectorLiteral}, ${EMBEDDING_MODEL_ID}
+    )
+    ON CONFLICT (entity_id, chunk_index, model) DO UPDATE
+       SET chunk_text = EXCLUDED.chunk_text,
+           embedding  = EXCLUDED.embedding,
+           project_id = EXCLUDED.project_id
+  `;
 }
 
 /**
@@ -603,7 +684,15 @@ async function _doSync(ctx, connection, options) {
         connection.id,
         entity
       );
-      if (upsertResult === 'inserted') inserted++;
+      await embedEntityRow(
+        ctx.env,
+        sql,
+        connection.project_id,
+        connection.id,
+        upsertResult.id,
+        entity
+      );
+      if (upsertResult.inserted) inserted++;
       else updated++;
     }
 
@@ -735,10 +824,18 @@ async function processMessageEvent(env, sql, connection, message) {
     userCache,
     token
   );
-  await upsertEntityRow(
+  const upsertResult = await upsertEntityRow(
     sql,
     connection.project_id,
     connection.id,
+    entity
+  );
+  await embedEntityRow(
+    env,
+    sql,
+    connection.project_id,
+    connection.id,
+    upsertResult.id,
     entity
   );
 }
