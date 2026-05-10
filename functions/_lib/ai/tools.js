@@ -51,7 +51,7 @@ const TOOL_RESULT_TEXT_TRIM = 600;
  */
 export const TOOL_DEFINITIONS = [
   {
-    name: 'search',
+    name: 'search_project_data',
     description:
       'Search the project\'s indexed content (Slack messages today; future connectors will expand) by hybrid keyword + semantic match. Returns up to 10 entities ranked by relevance.',
     input_schema: {
@@ -108,7 +108,7 @@ async function hashUserMessage(userMessage) {
 export async function executeTool(env, sql, urlContext, toolUse) {
   const { projectId, conversationId, userMessage } = urlContext;
 
-  if (toolUse.name !== 'search') {
+  if (toolUse.name !== 'search_project_data') {
     return {
       name: toolUse.name,
       content: [{
