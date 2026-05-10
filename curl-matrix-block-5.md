@@ -20,6 +20,85 @@ plan-locked acceptance. See HANDOFF 2026-05-09 entry's "S11/S23
 fixture-deferral" carry-forward and commit 16's closeout for the
 revisit task.
 
+## Post-merge runtime verification — 2026-05-10 (addendum)
+
+> Closeout of the PENDING cells after ff-merge. Production secrets confirmed
+> (Pages → Production env contains `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+> `MASTER_ENCRYPTION_KEY`, `SLACK_CLIENT_ID/SECRET`, `SLACK_SIGNING_SECRET`).
+> Slack Events API Request URL re-pointed from Block 4 preview alias to
+> `https://elinnoagent.com/api/connectors/slack/events` (Verified ✓).
+> All runtime probes against `elinnoagent.com` (production), not preview.
+
+### PASS-runtime upgrades (originally PENDING)
+
+| Cell | New verdict | Evidence |
+|---|---|---|
+| S2 | **PASS-runtime** | Posted `Block 5 S2 smoke attempt 3` 13:12 local. Entity `b11c8e23…` `created_at: 2026-05-10T10:12:33.727Z`. Embedding row `created_at: 2026-05-10T10:12:35.094Z`, `model='openai/text-embedding-3-small'`, `chunk_index=0`. Latency 1.4s, well under 10s. |
+| S3 | **PASS-runtime** | Two consecutive sync triggers without intervening Slack activity: second sync `records_inserted=0`, embedding count unchanged at 6. Soft observation: `records_updated=5` despite no real changes — sync reports metadata-only refreshes as updates. Block 9 polish: detect identical state and report `records_skipped` instead. |
+| S4 | **PASS-runtime (post-hotfix)** | First attempt: silent no-op (real bug — see "Hotfix" below). Post-hotfix re-test: edited message to `…EDITED v2` at 13:46 local, entity `updated_at: 10:45:54Z`, content_text reflects the edit. Embedding row id stable (`ON CONFLICT DO UPDATE` in place). |
+| S5 | **PASS-runtime** | Deleted message at 13:55 local. `entities` row count: 0. `entity_embeddings` row count: 0 (FK cascade). |
+| S6 | **PASS-by-inspection (with carry-forward finding)** | Sweep code path verified by inspection at [slack.js:763-799](functions/_lib/connectors/slack.js:763). Could not be runtime-verified in original "8 Block-4-era entities" form because those 8 unembedded entities are tied to a soft-deleted connection (`ad21837d…`) and the sweep filters `WHERE connection_id = ${connection.id}` of an active connection. **Finding:** orphan entities on disconnected connections never get swept — Block 9 carry-forward. |
+| S11 | **PASS-runtime** | Rain conversation: "tell me what you know so far" → returned multi-citation answer with `Eliran (Dev)` and `Elinno Agent` chips. UI renders chips below answer text. |
+| S12 | **PASS-runtime** | Citation chip click on the Rain conversation opened `https://rain-labss.slack.com/archives/C097U1FBJAF/p1778396105915499` — matches the locked `${team_domain}.slack.com/archives/${channel_id}/p${ts}` shape. |
+| S13 | **PASS-runtime** | Rain 2 (sparse-channel) "anything about jenny?" → "I couldn't find anything in this project's connected data about Jenny." Matches D11 prompt-locked copy. (Side observation: chips for unrelated entities still render when search returns non-empty results — minor UX wart, Block 9 polish.) |
+| S14 | **PASS-runtime** | New project `s14-zero-conn` (no connectors), "what do we know" → "no sources have been connected yet. Add a Slack workspace…" — distinct from the S13 copy, confirming the runAgent short-circuit at [loop.js:107](functions/_lib/ai/loop.js:107) fired before any Anthropic call. Zero citation chips rendered. |
+| S24 | **PASS-runtime** | Same as S12 evidence. Chip render at [renderCitationRailHtml](public/project.html) + click → Slack permalink confirmed end-to-end. |
+| S26 | **PASS-runtime** | Rain at ~375px viewport, "summarize everything we've discussed" → wrapped cleanly, no horizontal scroll, mobile sidebar collapsed. |
+
+### Hotfix during runtime verification — `3cdcea3`
+
+S4 first attempt failed silently (entity `content_text` not updated despite Slack
+event arriving at production with status 200). Cloudflare Real-Time Logs showed
+the POST to `/api/connectors/slack/events` had `logs:[]` and `exceptions:[]` —
+handler returned 200 cleanly but performed no UPSERT.
+
+**Root cause:** [slack.js:880](functions/_lib/connectors/slack.js:880)
+`processMessageEvent` reads channel from `message.channel`. Slack's
+`message_changed` event puts the channel at `body.event.channel` (top-level),
+NOT on the inner `body.event.message`. The dispatch arm at [slack.js:1198](functions/_lib/connectors/slack.js:1198) was passing `body.event.message` directly, leaving
+`message.channel` undefined → early-return at the channel-id check → silent skip.
+
+**Fix:** Stamp `body.event.channel` onto the inner message before passing:
+```js
+{ ...body.event.message, channel: body.event.channel }
+```
+4 lines changed (3 added, 1 modified). Commit `3cdcea3` on hotfix branch
+`block-5-hotfix-message-changed-channel`, ff-merged to main + pushed.
+
+**Why Block 4 testing didn't catch this:** Block 4's matrix verified S2 (new
+message webhook) and synced backfill paths, but did not exercise edits via
+webhook in production conditions. message_changed events were a Block 4 lock
+that landed in code but had no runtime cell in the original Block 4 matrix.
+
+### Pre-existing findings discovered during this session
+
+- **`slack:multi_connection_for_team` 500 design lock.** v1.1 hard-rejects
+  ([slack.js:1131-1160](functions/_lib/connectors/slack.js:1131)) when 2 active
+  connections share a team_id. Encountered when a temporary "Rain 2" project
+  was connected to the same Rain Labs Slack workspace as Rain. Resolved by
+  disconnecting Rain 2's Slack connection, restoring single-connection-per-team.
+  **Carry-forward (Block 9 / v1.2):** the 500 response causes Slack to retry
+  3× then disable the subscription. Safer behavior is to 200-ack with a
+  warn-log since the operation is non-recoverable from Slack's side regardless.
+- **Orphan entities on soft-deleted connections.** Sweep is connection-scoped;
+  entities on disconnected connections never get swept. Carry-forward.
+- **`entity_embeddings` lacks `updated_at`.** Cannot directly verify a
+  re-embed by timestamp; have to infer from entity row state. Block 9 polish:
+  add `updated_at` for observability.
+- **`Plaintext` named secret in Pages env.** Looks like a misnamed leftover
+  Variables/Secrets row. Block 9 cleanup.
+
+### Process observations
+
+- Production-env secret confirmation should explicitly include
+  `SLACK_SIGNING_SECRET`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` —
+  Block 5 Phase A only listed `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`.
+  WORKFLOW addendum input: pre-flight should grep all `env.*` references in
+  the deploy and confirm each is set per-environment.
+- The DevTools-console-fetch pattern (cookie auto-attaches; response shown in
+  console; no chat exposure) is the safe substitute for cookie-paste-into-chat
+  for admin-API runtime probes. Codify in WORKFLOW addendum.
+
 ## Phase A — Pre-flight
 
 | Check | Verified |

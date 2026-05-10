@@ -1951,3 +1951,117 @@ If Block 6 opens (next connector) the first task is a between-blocks PR or Block
 
 The build's "AI answers feel real" milestone (PRD principle 2) is met as of `e5b310f`: questions routed through `runAgent` now return citation-bearing responses against project-scoped Slack content, with substitution-enforced project isolation, a 6-iteration cap, and a UI that distinguishes confident answers (chips), no-result answers (muted italic), and error answers (error palette). Token/cost telemetry is captured per turn for Block 9's cap mechanism. Production deploy is gated only on the Production-env secret confirmation + the PENDING runtime cells in the verification matrix.
 
+---
+
+## Block 5 post-merge runtime verification — 2026-05-10
+
+> Closeout of the 10 PENDING runtime cells deferred by the 2026-05-10 ff-merge.
+> All cells now resolved (PASS-runtime or PASS-by-inspection-with-finding).
+> One real Block 4-era webhook bug uncovered and fixed in production at commit
+> `3cdcea3`. The "AI answers feel real" milestone now has end-to-end runtime
+> confirmation against `elinnoagent.com`, not just inspection-plus-preview.
+
+### Verification posture upgrade
+
+Originally per closeout: **S1 PASS-runtime, 19 cells PASS-by-inspection,
+S11+S23 DEFERRED-per-b1, 10 PENDING runtime**. After this session:
+
+- **PASS-runtime** (delta from closeout): S2, S3, S4 (post-hotfix), S5, S11, S12, S13, S14, S24, S26.
+- **PASS-by-inspection (with carry-forward finding)**: S6 (orphan-on-deleted-connection).
+- **PASS-by-inspection (unchanged)**: S2.5, S7, S8, S9, S10, S15, S16, S16b, S17, S18, S19, S20, S22, S23, S25, S27.
+- **DEFERRED-per-b1** (unchanged): S11/S23 fixture-scale re-run still queued for Block 9.
+
+Full per-cell evidence in [curl-matrix-block-5.md](curl-matrix-block-5.md)'s
+"Post-merge runtime verification — 2026-05-10 (addendum)" section.
+
+### The Block 4 webhook bug — `3cdcea3`
+
+S4 first runtime attempt failed silently. Cloudflare Real-Time Logs showed
+`POST /api/connectors/slack/events` returning 200 with `logs:[]` — handler
+ran cleanly but performed no UPSERT.
+
+**Root cause:** `slack.js`'s dispatch for `body.event.subtype === 'message_changed'`
+passed `body.event.message` directly into `processMessageEvent`. Slack's
+`message_changed` event puts the channel at `body.event.channel` (top-level),
+not on the inner message. `processMessageEvent`'s channel-id check at
+[slack.js:880](functions/_lib/connectors/slack.js:880) found `undefined` and
+early-returned — silent skip.
+
+**Fix:** 4-line change (commit `3cdcea3`) — stamp `body.event.channel` onto
+the inner message before passing. Hotfix branch `block-5-hotfix-message-changed-channel`,
+ff-merged to main, pushed. Re-test of S4 against post-hotfix prod confirmed
+the fix works end-to-end.
+
+**Why Block 4 testing didn't catch this:** Block 4 verified S2 (new-message
+webhook) and backfill sync paths, but did NOT have a cell that runtime-tested
+edits via webhook in production conditions. The `message_changed` decision
+landed in code (Block 4's "I" lock) without a corresponding runtime cell in
+[curl-matrix-block-4.md](curl-matrix-block-4.md). **WORKFLOW addendum input:**
+when a decision adds a code path, the verification matrix needs a runtime
+cell exercising that path, not just inspection.
+
+### Pre-existing v1.1 limitation surfaced — multi-connection-per-team
+
+When a temporary test project ("Rain 2") was connected to the same Rain Labs
+Slack workspace as the active Rain project, [slack.js:1131-1160](functions/_lib/connectors/slack.js:1131)'s
+"single-connection-per-team_id v1.1 lock" rejected all webhook events with 500.
+This is **expected v1.1 behavior**, not a bug — the schema permits multi-row
+for v1.2 (multi-project-per-workspace), and v1.1 doesn't ship the
+project-grouping machinery to disambiguate.
+
+**Practical implication discovered:** the 500 response causes Slack to retry
+3× then disable the Event Subscription. **Carry-forward (Block 9 / v1.2):**
+return 200-ack with a warn-log instead, since the operation is non-recoverable
+from Slack's side regardless. Resolved this session by disconnecting Rain 2.
+
+### Carry-forward additions (consolidate with existing queue)
+
+- **WORKFLOW: Production secret confirmation should grep all `env.*` references.**
+  Block 5 Phase A only listed `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`. We
+  ended up reactively confirming `SLACK_SIGNING_SECRET` mid-session when
+  diagnosing the webhook 500. WORKFLOW addendum: pre-flight should enumerate
+  every `env.*` reference and confirm each per-environment.
+- **WORKFLOW: DevTools-console-fetch pattern for admin-API runtime probes.**
+  Used this session to trigger `POST /sync` without exposing `ea_session`
+  cookie in chat. Codify alongside the `read -s` rule from Block 5 mid-flight
+  entry (HANDOFF:1716) and the launchctl pattern from Block 4 (HANDOFF:1466).
+- **Multi-connection-per-team 500 → 200-ack-with-warn-log.** Block 9 / v1.2.
+- **Orphan entities on soft-deleted connections.** Sweep is connection-scoped;
+  entities on disconnected connections never get swept. Block 9.
+- **`entity_embeddings.updated_at` column.** Currently can't verify a re-embed
+  by timestamp. Block 9 observability polish.
+- **Sync `records_updated` accuracy.** Sync reports rows as updated when only
+  metadata refreshes (not content). Block 9 polish: detect identical state
+  and report `records_skipped` instead, so idempotency is observable directly
+  from `sync_run`.
+- **`Plaintext` named secret row in Pages env.** Misnamed leftover. Block 9 cleanup.
+- **Block-4-era webhook matrix gap (lessons).** Decisions that add code paths
+  (like Block 4's "I" message_changed/deleted) need runtime cells, not just
+  inspection. Future block matrices should grep for `case '<subtype>'` arms
+  in dispatch logic and require a runtime cell per arm.
+
+### Where future-Claude resumes
+
+Phase 0 ritual on parent main:
+- `git status` → on `main`, clean, equal to origin.
+- `git log -5 --oneline` → top is the post-merge runtime confirmation doc
+  commit, then `3cdcea3` hotfix, then block-5 closeout.
+- **Cursor markdown editing discipline still in effect** — filesystem path
+  only for HANDOFF / WORKFLOW until the formatter is suppressed.
+
+Block 6 (next connector) is now unblocked. Open kickoff decisions per the
+existing Block 5 closeout queue:
+- `writeEntityWithEmbedding` shared-helper refactor as Block 6 commit 0?
+- Carry-forward queue items above to fold into Block 6 plan vs. Block 9.
+
+### Mid-section closure sentence
+
+Block 5's runtime surface is now confirmed end-to-end on production: webhooks
+(create + edit + delete) round-trip to entity + embedding + UI; sync trigger
+backfills correctly with idempotency at the embedding level; agent loop
+returns citation-bearing answers with chip clicks resolving to Slack
+permalinks. The Block 4-era `message_changed` webhook bug (caught only
+because Block 5's runtime verification touched edit events on production)
+is fixed at `3cdcea3`. Carry-forward queue picks up six new items above,
+all Block 9 candidates.
+
