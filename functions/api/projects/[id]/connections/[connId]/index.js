@@ -37,15 +37,19 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // L allowlist: keys that PATCH may merge into credential_metadata.
-// Per locked sub-decision (a) for commit 8: only the two channel-
-// selection keys. Future connectors with other config fields require
-// an explicit additions to this list (e.g., a Drive connector might
-// add 'selected_root_folder_id'). DO NOT widen casually — keys
+// Per Block 4 locked sub-decision (a) for commit 8: only channel-
+// selection keys for Slack. Block 6 commit 6a adds the Jira-equivalent
+// project-selection keys per BLOCK_6_PLAN.md decision D + L (single
+// project picker post-connect). Future connectors with other config
+// fields require explicit additions here (e.g., a Drive connector
+// might add 'selected_root_folder_id'). DO NOT widen casually — keys
 // merged here are visible to every project member via the
 // CONNECTION_PUBLIC_COLUMNS extension in connections/index.js.
 const ALLOWED_METADATA_KEYS = [
   'selected_channel_id',
   'selected_channel_name',
+  'selected_project_key',
+  'selected_project_name',
 ];
 
 export async function onRequestDelete({ request, env, params }) {
