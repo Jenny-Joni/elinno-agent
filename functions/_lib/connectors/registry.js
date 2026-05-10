@@ -17,6 +17,7 @@
 
 import { dummy } from './dummy.js';
 import { slack } from './slack.js';
+import { jira } from './jira.js';
 
 /**
  * Static map of registered connectors, keyed by their `source` value.
@@ -26,6 +27,7 @@ import { slack } from './slack.js';
 const connectors = {
   dummy,
   slack,
+  jira,
 };
 
 /**
