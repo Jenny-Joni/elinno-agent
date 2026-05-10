@@ -94,6 +94,7 @@
 
 import postgres from 'postgres';
 import { error, json, requireProjectRole } from '../../../../../_lib/auth.js';
+import { runAgent } from '../../../../../_lib/ai/loop.js';
 
 // Decision G: literal default title set by the conversations POST handler
 // at conversation creation. Decision H replaces this on the first user
@@ -112,11 +113,11 @@ function deriveTitleFromMessage(content) {
   return trimmed.slice(0, cutPoint) + '…';
 }
 
-// Decision I exact format. Block 5 will replace with real generation;
-// schema and API contract stay identical.
-function generateEcho(userContent) {
-  return `You said: "${userContent}" — Real AI coming in Block 5.`;
-}
+// S21 fallback when the agent loop throws (e.g., AnthropicError 429,
+// 5xx after retry). Stored as a normal assistant row with model=null
+// so the UI can render the failure state without a hung send.
+const AGENT_FAILURE_TEXT =
+  "I hit a temporary issue answering your question. Please try again in a moment.";
 
 export async function onRequestGet({ request, env, params }) {
   const { error: errResp, user } = await requireProjectRole(
@@ -208,16 +209,19 @@ export async function onRequestPost({ request, env, params }) {
 
   try {
     // Conversation guard (same as GET): belongs to this project AND user.
-    // Includes current title — we use it for decision H's auto-title trigger
-    // (see DECISION H IMPLEMENTATION NOTE in file header).
+    // Includes current title for decision H's auto-title trigger and the
+    // project name for the D11 system prompt's {{PROJECT_NAME}} substitution.
+    // c.project_id = URL-bound projectId stays the authorization clamp;
+    // the JOIN to projects only reads name from the already-scoped project.
     const [conv] = await sql`
-      SELECT id, title
-      FROM conversations
-      WHERE id          = ${params.conversationId}
-        AND project_id  = ${params.id}
-        AND user_id     = ${userIdText}
-        AND deleted_at IS NULL
-      LIMIT 1
+      SELECT c.id, c.title, p.name AS project_name
+        FROM conversations c
+        JOIN projects p ON p.id = c.project_id
+       WHERE c.id          = ${params.conversationId}
+         AND c.project_id  = ${params.id}
+         AND c.user_id     = ${userIdText}
+         AND c.deleted_at IS NULL
+       LIMIT 1
     `;
     if (!conv) return error('Forbidden', 403);
 
@@ -227,21 +231,95 @@ export async function onRequestPost({ request, env, params }) {
     const newTitle = isFirstTitleSet ? deriveTitleFromMessage(content) : conv.title;
 
     // Insert user message. project_id required (see SCHEMA NOTE in header).
+    // iteration=0 per schema convention (user input is the zeroth turn).
     const [userMessage] = await sql`
-      INSERT INTO messages (project_id, conversation_id, role, content)
-      VALUES (${params.id}, ${params.conversationId}, 'user', ${content})
+      INSERT INTO messages (project_id, conversation_id, role, content, iteration)
+      VALUES (${params.id}, ${params.conversationId}, 'user', ${content}, 0)
       RETURNING id, conversation_id, role, content, created_at
     `;
 
-    // Generate echo placeholder (decision I).
-    const echo = generateEcho(content);
-
-    // Insert assistant message. project_id required (see SCHEMA NOTE in header).
-    const [assistantMessage] = await sql`
-      INSERT INTO messages (project_id, conversation_id, role, content)
-      VALUES (${params.id}, ${params.conversationId}, 'assistant', ${echo})
-      RETURNING id, conversation_id, role, content, created_at
+    // Build priorMessages context for the agent loop. Text-only role IN
+    // ('user','assistant') turns from this conversation, including the
+    // user message just inserted. v1.1 simplification: skip role='tool'
+    // history rows (Anthropic shape requires reconstructing tool_use_id
+    // pairings; deferred to a future block if context-loss surfaces).
+    const priorRows = await sql`
+      SELECT role, content
+        FROM messages
+       WHERE conversation_id = ${params.conversationId}
+         AND deleted_at IS NULL
+         AND role IN ('user','assistant')
+         AND content IS NOT NULL
+       ORDER BY created_at ASC, id ASC
     `;
+    const priorMessages = priorRows.map((r) => ({
+      role: r.role,
+      content: r.content,
+    }));
+
+    const urlContext = {
+      projectId: params.id,
+      projectName: conv.project_name,
+      conversationId: params.conversationId,
+      userMessage: content,
+    };
+
+    let agentResult;
+    try {
+      agentResult = await runAgent(env, sql, urlContext, priorMessages);
+    } catch (err) {
+      // S21: AnthropicError after retries (or any other agent-loop
+      // failure). Log + substitute a single canned assistant turn so the
+      // chat row exists with model=null. UI renders failure state.
+      console.warn(JSON.stringify({
+        level: 'warn',
+        event: 'agent_loop_failed',
+        conversation_id: params.conversationId,
+        error: err && err.message ? String(err.message).slice(0, 200) : 'unknown',
+      }));
+      agentResult = {
+        text: AGENT_FAILURE_TEXT,
+        citations: [],
+        model: null,
+        input_tokens: 0,
+        output_tokens: 0,
+        iterations: 0,
+        db_turns: [{
+          role: 'assistant',
+          content: AGENT_FAILURE_TEXT,
+          tool_calls: null,
+          tool_result: null,
+          citations: null,
+          model: null,
+          input_tokens: 0,
+          output_tokens: 0,
+          iteration: 1,
+        }],
+      };
+    }
+
+    // Persist each turn from the agent loop. The last role='assistant'
+    // turn carrying content is the user-visible answer; we keep the
+    // RETURNING'd row for the response payload.
+    let assistantMessage = null;
+    for (const turn of agentResult.db_turns) {
+      const [row] = await sql`
+        INSERT INTO messages (
+          project_id, conversation_id, role, content,
+          tool_calls, tool_result, citations,
+          input_tokens, output_tokens, model, iteration
+        ) VALUES (
+          ${params.id}, ${params.conversationId}, ${turn.role}, ${turn.content},
+          ${turn.tool_calls}, ${turn.tool_result}, ${turn.citations},
+          ${turn.input_tokens}, ${turn.output_tokens}, ${turn.model}, ${turn.iteration}
+        )
+        RETURNING id, conversation_id, role, content, created_at,
+                  citations, model, input_tokens, output_tokens, iteration
+      `;
+      if (turn.role === 'assistant' && turn.content) {
+        assistantMessage = row;
+      }
+    }
 
     // Update conversation: title (if this was the first user message) AND
     // updated_at (always). One UPDATE for both; updated_at = NOW() ensures
@@ -249,14 +327,11 @@ export async function onRequestPost({ request, env, params }) {
     // to the top after every send.
     await sql`
       UPDATE conversations
-      SET title       = ${newTitle},
-          updated_at  = NOW()
-      WHERE id = ${params.conversationId}
+         SET title       = ${newTitle},
+             updated_at  = NOW()
+       WHERE id = ${params.conversationId}
     `;
 
-    // Decision X: response always includes the (possibly updated) title.
-    // Client renders directly from this — sidebar row + chat-conv-title
-    // heading both update without a refetch.
     return json({
       ok: true,
       user_message: userMessage,

@@ -114,19 +114,32 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
      LIMIT 1
   `;
   if (!hasConnection) {
+    const text = "I couldn't find anything in this project's connected data — no sources have been connected yet. Add a Slack workspace or other source from the project settings to get started.";
     return {
-      text: "I couldn't find anything in this project's connected data — no sources have been connected yet. Add a Slack workspace or other source from the project settings to get started.",
+      text,
       citations: [],
       model: null,
       input_tokens: 0,
       output_tokens: 0,
       iterations: 0,
+      db_turns: [{
+        role: 'assistant',
+        content: text,
+        tool_calls: null,
+        tool_result: null,
+        citations: null,
+        model: null,
+        input_tokens: 0,
+        output_tokens: 0,
+        iteration: 1,
+      }],
     };
   }
 
   const messages = priorMessages.slice();
   const citations = [];
   const seenEntityIds = new Set();
+  const dbTurns = [];
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let lastTextResponse = '';
@@ -145,22 +158,39 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
       messages,
     });
 
-    totalInputTokens += response.usage?.input_tokens || 0;
-    totalOutputTokens += response.usage?.output_tokens || 0;
+    const turnInput = response.usage?.input_tokens || 0;
+    const turnOutput = response.usage?.output_tokens || 0;
+    totalInputTokens += turnInput;
+    totalOutputTokens += turnOutput;
 
     messages.push({ role: 'assistant', content: response.content });
 
     const textBlocks = (response.content || []).filter((b) => b.type === 'text');
-    if (textBlocks.length > 0) {
-      lastTextResponse = textBlocks.map((b) => b.text).join('\n');
-    }
-
-    if (response.stop_reason !== 'tool_use') {
-      break;
-    }
-
     const toolUseBlocks = (response.content || []).filter((b) => b.type === 'tool_use');
-    if (toolUseBlocks.length === 0) {
+    const turnText = textBlocks.length > 0
+      ? textBlocks.map((b) => b.text).join('\n')
+      : null;
+
+    if (turnText) {
+      lastTextResponse = turnText;
+    }
+
+    dbTurns.push({
+      role: 'assistant',
+      content: turnText,
+      tool_calls: toolUseBlocks.length > 0
+        ? toolUseBlocks.map((b) => ({ id: b.id, name: b.name, input: b.input }))
+        : null,
+      tool_result: null,
+      citations: null,
+      model: MODEL_ID,
+      input_tokens: turnInput,
+      output_tokens: turnOutput,
+      iteration: iterations,
+    });
+
+    if (response.stop_reason !== 'tool_use' || toolUseBlocks.length === 0) {
+      dbTurns[dbTurns.length - 1].citations = citations.length > 0 ? citations : null;
       break;
     }
 
@@ -190,6 +220,21 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
         // Tool returned non-JSON — skip citation extraction.
       }
 
+      dbTurns.push({
+        role: 'tool',
+        content: null,
+        tool_calls: null,
+        tool_result: {
+          tool_use_id: toolUse.id,
+          result: result.content,
+        },
+        citations: null,
+        model: null,
+        input_tokens: null,
+        output_tokens: null,
+        iteration: iterations,
+      });
+
       toolResults.push({
         type: 'tool_result',
         tool_use_id: toolUse.id,
@@ -207,5 +252,6 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
     input_tokens: totalInputTokens,
     output_tokens: totalOutputTokens,
     iterations,
+    db_turns: dbTurns,
   };
 }
