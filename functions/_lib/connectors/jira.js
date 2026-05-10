@@ -486,6 +486,18 @@ async function sweepMissingEmbeddings(env, sql, connection) {
 
 async function _doSync(ctx, connection, options = {}) {
   const cursor = options.cursor || null;
+  // Order direction differs by sync mode:
+  //   fullSync (cursor=null) — DESC: get the NEWEST 500 issues first.
+  //     Active-sprint issues are typically the most-recent-updated, so
+  //     they land in our cap. Without DESC, fullSync gets oldest-500
+  //     and the active sprint is forever beyond the cap (Phase D
+  //     surfaced this — the synced 500 covered Sprints 1-9; Sprint 12
+  //     was missing entirely).
+  //   incrementalSync (cursor!=null) — ASC: cursor is max(updated) seen,
+  //     so we advance monotonically forward in time. ASC is required
+  //     for the cursor advancement to be correct (each page's max is
+  //     the next page's lower bound).
+  const order = options.order || (cursor ? 'ASC' : 'DESC');
 
   // Decision D + L: inert sync if no project picked.
   const meta = connection.credential_metadata || {};
@@ -572,7 +584,7 @@ async function _doSync(ctx, connection, options = {}) {
     // (one redundant fetch per sync, no missed records).
     jql += ` AND updated >= "${cursor}"`;
   }
-  jql += ' ORDER BY updated ASC';
+  jql += ` ORDER BY updated ${order}`;
 
   // /search/jql uses cursor-based pagination via `nextPageToken`. Pass
   // null on the first page; subsequent pages thread the previous response's
