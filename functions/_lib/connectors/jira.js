@@ -403,14 +403,22 @@ async function listSprintsForBoard(siteUrl, email, apiToken, boardId) {
   return collected;
 }
 
-async function searchIssues(siteUrl, email, apiToken, jql, startAt) {
+// /rest/api/3/search was deprecated by Atlassian in April 2025 and now
+// returns 410 Gone. Replaced by /rest/api/3/search/jql which uses
+// cursor-based pagination via `nextPageToken` instead of `startAt`.
+// Response shape: { issues: [...], nextPageToken?: string, isLast?: bool }.
+// Pass `nextPageToken` from the previous response to fetch the next page;
+// absence of `nextPageToken` (or `isLast: true`) signals end-of-results.
+async function searchIssues(siteUrl, email, apiToken, jql, nextPageToken) {
   const params = new URLSearchParams({
     jql,
-    startAt: String(startAt),
     maxResults: String(SEARCH_PAGE_SIZE),
     fields: ISSUE_FIELDS,
   });
-  const path = `/rest/api/${ATLASSIAN_API_VERSION}/search?${params.toString()}`;
+  if (nextPageToken) {
+    params.set('nextPageToken', nextPageToken);
+  }
+  const path = `/rest/api/${ATLASSIAN_API_VERSION}/search/jql?${params.toString()}`;
   return jiraGet(siteUrl, path, email, apiToken);
 }
 
@@ -563,9 +571,14 @@ async function _doSync(ctx, connection, options = {}) {
   }
   jql += ' ORDER BY updated ASC';
 
-  let startAt = 0;
+  // /search/jql uses cursor-based pagination via `nextPageToken`. Pass
+  // null on the first page; subsequent pages thread the previous response's
+  // nextPageToken. End-of-results signal: response.isLast === true OR
+  // response.nextPageToken absent OR issues.length < SEARCH_PAGE_SIZE.
+  let nextPageToken = null;
   let pages = 0;
   let lastPageWasFull = false;
+  let hasMorePages = false;
 
   while (pages < SEARCH_MAX_PAGES) {
     pages += 1;
@@ -576,7 +589,7 @@ async function _doSync(ctx, connection, options = {}) {
         creds.account_email,
         creds.api_token,
         jql,
-        startAt
+        nextPageToken
       );
     } catch (err) {
       if (err instanceof JiraApiError && err.status === 429) {
@@ -608,15 +621,21 @@ async function _doSync(ctx, connection, options = {}) {
       else updated++;
     }
 
-    if (issues.length < SEARCH_PAGE_SIZE) break;
-    startAt += issues.length;
+    // End-of-results: explicit isLast OR no nextPageToken OR partial page.
+    hasMorePages =
+      response.isLast !== true &&
+      typeof response.nextPageToken === 'string' &&
+      response.nextPageToken.length > 0 &&
+      lastPageWasFull;
+    if (!hasMorePages) break;
+    nextPageToken = response.nextPageToken;
   }
 
-  // E1 cap-hit signal: hit MAX_PAGES with the last page full means more
-  // issues exist beyond the cap. Subsequent sync runs catch up via the
-  // cursor (decision E1; v1.1 known limitation per E1's note: no
-  // nightly cron until Block 9, so admin must manually re-sync).
-  const capHit = pages >= SEARCH_MAX_PAGES && lastPageWasFull;
+  // E1 cap-hit signal: hit MAX_PAGES with more pages still available.
+  // Subsequent sync runs catch up via the cursor (decision E1; v1.1
+  // known limitation per E1's note: no nightly cron until Block 9, so
+  // admin must manually re-sync).
+  const capHit = pages >= SEARCH_MAX_PAGES && hasMorePages;
 
   /** @type {import('./types.js').SyncResult} */
   const result = {
