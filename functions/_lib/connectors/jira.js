@@ -168,6 +168,60 @@ async function fetchMyself(siteUrl, email, apiToken) {
 }
 
 // ---------------------------------------------------------------------------
+// listProjects — decision G's per-source endpoint helper. Called by
+// /api/projects/:id/connections/:connId/jira/projects (commit 4) to populate
+// the project picker modal in the Connect Jira UI (commit 9).
+//
+// Pagination cap: 5 pages × 50 results = 250 projects ceiling. Larger
+// instances would need a paginating-picker UI (Block 9 polish).
+// ---------------------------------------------------------------------------
+
+const PROJECT_SEARCH_PAGE_SIZE = 50;
+const PROJECT_SEARCH_MAX_PAGES = 5;
+
+/**
+ * List Jira projects accessible to the connection's API token.
+ *
+ * Decrypts credentials internally (Block 3 decision L); handler never sees
+ * plaintext. Returns array of { key, name } sorted by Atlassian's response
+ * order. Atlassian's project_search response shape:
+ *   { values: [{ id, key, name, ... }], isLast: bool, startAt, total }
+ *
+ * @param {import('./types.js').ConnectorCtx} ctx
+ * @param {import('./types.js').ConnectionRow} connection
+ * @returns {Promise<Array<{ key: string, name: string }>>}
+ */
+export async function listProjects(ctx, connection) {
+  const aad = aadFor(connection);
+  const credsJson = await decrypt(ctx.env, connection, aad);
+  const creds = JSON.parse(credsJson);
+
+  const collected = [];
+  let startAt = 0;
+  let pages = 0;
+
+  while (pages < PROJECT_SEARCH_MAX_PAGES) {
+    pages += 1;
+    const path = `/rest/api/${ATLASSIAN_API_VERSION}/project/search?startAt=${startAt}&maxResults=${PROJECT_SEARCH_PAGE_SIZE}`;
+    const response = await jiraGet(creds.site_url, path, creds.account_email, creds.api_token);
+
+    const values = Array.isArray(response.values) ? response.values : [];
+    for (const project of values) {
+      if (typeof project.key === 'string' && typeof project.name === 'string') {
+        collected.push({ key: project.key, name: project.name });
+      }
+    }
+
+    if (response.isLast === true || values.length < PROJECT_SEARCH_PAGE_SIZE) {
+      break;
+    }
+    startAt += values.length;
+  }
+
+  return collected;
+}
+
+// ---------------------------------------------------------------------------
 // Connector export (decision N: completeAuth is the canonical entry; the
 // startAuth method exists only to satisfy the Connector interface).
 // ---------------------------------------------------------------------------
