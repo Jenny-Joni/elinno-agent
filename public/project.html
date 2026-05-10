@@ -458,7 +458,15 @@
 
     function renderMessages() {
       const list = document.getElementById('chatMessages');
-      const msgs = (messagesById[activeConvId] || []).filter(m => m.role !== 'tool');
+      // Filter:
+      //   - role='tool' rows (intermediate tool results, not user-visible)
+      //   - role='assistant' with no content (intermediate tool-call turns;
+      //     they live in the DB for replay/observability but render empty)
+      const msgs = (messagesById[activeConvId] || []).filter(m => {
+        if (m.role === 'tool') return false;
+        if (m.role === 'assistant' && !(m.content && m.content.length > 0)) return false;
+        return true;
+      });
       list.innerHTML = msgs.map(m => renderMessageHtml(m)).join('');
       list.scrollTop = list.scrollHeight;
     }
@@ -469,8 +477,20 @@
       const rel = fmtRelativeShort(m.created_at) || 'just now';
       const meta = (isUser ? 'You · ' : 'Elinno Agent · ') + rel;
       const citations = !isUser && Array.isArray(m.citations) ? m.citations : [];
+
+      // Assistant visual states:
+      //   .error  — model=null: agent loop failed (S21) or zero-data-
+      //             source short-circuit; canned text with no AI involved.
+      //   .muted  — citations empty but model set: honest "couldn't
+      //             find that" answer with no sources to cite.
+      let stateClass = '';
+      if (!isUser) {
+        if (m.model === null || m.model === undefined) stateClass = ' error';
+        else if (citations.length === 0) stateClass = ' muted';
+      }
+
       return `
-        <div class="chat-msg ${isUser ? 'user' : 'assistant'}">
+        <div class="chat-msg ${isUser ? 'user' : 'assistant'}${stateClass}">
           <div class="chat-msg-avatar">${escapeHtml(avatar)}</div>
           <div class="chat-msg-body">
             <div class="chat-msg-meta">${escapeHtml(meta)}</div>

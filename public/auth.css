@@ -947,6 +947,24 @@ table.users-table {
   color: var(--color-text-dark);
 }
 
+/* Assistant 0-citation state (Block 5): agent answered honestly that it
+   couldn't find anything. Italic + muted text signals no-source-cited
+   without going as far as the error treatment. */
+.chat-msg.assistant.muted .chat-msg-content {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Assistant error state (Block 5): model=null path — either an
+   AnthropicError fallback (S21) or the zero-data-source short-circuit.
+   Reuses the form-msg.error palette (.chat-error already does the same
+   visually for composer-side errors). */
+.chat-msg.assistant.error .chat-msg-content {
+  background: rgba(255, 0, 131, 0.08);
+  color: var(--color-error);
+  border: 1px solid rgba(255, 0, 131, 0.3);
+}
+
 /* Citation rail (Block 5): chips below an assistant message linking to
    the source entities the answer cites. Each chip is a clickable
    anchor opening the source_url in a new tab. */
