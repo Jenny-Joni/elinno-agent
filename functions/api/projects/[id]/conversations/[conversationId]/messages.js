@@ -153,11 +153,12 @@ export async function onRequestGet({ request, env, params }) {
     // top-down). Soft-deleted filtered out, matching the LEFT JOIN's
     // m.deleted_at IS NULL filter from the conversations list endpoint.
     const messages = await sql`
-      SELECT id, conversation_id, role, content, created_at
-      FROM messages
-      WHERE conversation_id = ${params.conversationId}
-        AND deleted_at IS NULL
-      ORDER BY created_at ASC, id ASC
+      SELECT id, conversation_id, role, content, created_at,
+             citations, model, input_tokens, output_tokens, iteration
+        FROM messages
+       WHERE conversation_id = ${params.conversationId}
+         AND deleted_at IS NULL
+       ORDER BY created_at ASC, id ASC
     `;
 
     return json({ ok: true, messages });
