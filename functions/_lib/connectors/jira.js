@@ -73,9 +73,40 @@
 // =========================================================================
 
 import { aadFor, decrypt } from '../crypto.js';
+import { EMBEDDING_MODEL_ID } from '../ai/embeddings.js';
+import { embedEntityRow, writeEntityWithEmbedding } from './_shared/entity_writer.js';
 
 const ATLASSIAN_API_VERSION = '3';
+const ATLASSIAN_AGILE_API_VERSION = '1.0';
 const ATLASSIAN_USER_AGENT = 'elinno-agent/1.1';
+
+// Standard Atlassian Cloud custom field IDs. Verified at commit 5
+// coding time against rain-labs.atlassian.net; pinned per BLOCK_6_PLAN.md
+// decision B's instance-drift follow-up. Other Atlassian Cloud
+// instances can have different IDs (custom workflow imports,
+// instance-age artifacts); Block 9 polish: per-instance discovery.
+const SPRINT_FIELD_ID = 'customfield_10020';
+const STORY_POINTS_FIELD_ID = 'customfield_10016';
+
+const ISSUE_FIELDS = [
+  'summary', 'description', 'status', 'assignee', 'reporter',
+  'priority', 'issuetype', 'labels', 'created', 'updated',
+  SPRINT_FIELD_ID, STORY_POINTS_FIELD_ID,
+].join(',');
+
+// E1 pagination cap: 5 pages × 100 results = 500 issues per sync run.
+const SEARCH_PAGE_SIZE = 100;
+const SEARCH_MAX_PAGES = 5;
+const BOARD_PAGE_SIZE = 50;
+const SPRINT_PAGE_SIZE = 50;
+// Safety ceilings for sprint sync (sprints are O(10) per project; these
+// are way above realistic numbers, just guards against runaway pagination).
+const MAX_BOARDS_PER_PROJECT = 50;
+const MAX_SPRINTS_PER_BOARD = 200;
+
+// E2 rate-limit retry: at most one retry per request; cap retry-after
+// at 60s so a long Atlassian outage doesn't pin the Worker isolate.
+const MAX_RETRY_AFTER_SECONDS = 60;
 
 const METADATA = Object.freeze({
   source: 'jira',
@@ -136,7 +167,7 @@ function basicAuthHeader(email, apiToken) {
   return 'Basic ' + btoa(`${email}:${apiToken}`);
 }
 
-async function jiraGet(siteUrl, path, email, apiToken) {
+async function jiraGet(siteUrl, path, email, apiToken, _alreadyRetried = false) {
   const url = `https://${siteUrl}${path}`;
   const response = await fetch(url, {
     method: 'GET',
@@ -146,6 +177,26 @@ async function jiraGet(siteUrl, path, email, apiToken) {
       'User-Agent': ATLASSIAN_USER_AGENT,
     },
   });
+
+  // E2: rate-limit retry-once. On 429 with parseable Retry-After within
+  // the cap, sleep + retry the same request. Second 429 → propagate as
+  // JiraApiError(status=429); _doSync's catch path collapses to abort
+  // the sync_run with status='failed' + detail.reason='rate_limited'.
+  if (response.status === 429 && !_alreadyRetried) {
+    const retryAfterRaw = response.headers.get('Retry-After');
+    const retryAfter = parseInt(retryAfterRaw ?? '', 10);
+    if (
+      Number.isFinite(retryAfter) &&
+      retryAfter > 0 &&
+      retryAfter <= MAX_RETRY_AFTER_SECONDS
+    ) {
+      await new Promise((r) => setTimeout(r, retryAfter * 1000));
+      return jiraGet(siteUrl, path, email, apiToken, /* _alreadyRetried */ true);
+    }
+    // Retry-After missing / unparseable / too long → propagate as 429
+    // for the caller to handle; we don't sleep an unbounded interval.
+  }
+
   const text = await response.text();
   if (!response.ok) {
     throw new JiraApiError(`Atlassian ${response.status} on ${path}`, {
@@ -178,6 +229,427 @@ async function fetchMyself(siteUrl, email, apiToken) {
 
 const PROJECT_SEARCH_PAGE_SIZE = 50;
 const PROJECT_SEARCH_MAX_PAGES = 5;
+
+// ---------------------------------------------------------------------------
+// ADF → plain text. Atlassian description fields are ADF (Atlassian Document
+// Format) — a JSON tree of paragraph + heading + text nodes. v1.1 extracts
+// plain text only; structured rendering (headings, lists, tables) is Block 9
+// polish. Recursive content traversal handles paragraph + doc + heading +
+// listItem + bulletList + orderedList + blockquote + (any node with a
+// `content` array) — they all carry text in their leaves.
+// ---------------------------------------------------------------------------
+
+function adfToPlainText(node) {
+  if (!node || typeof node !== 'object') return '';
+  if (node.type === 'text' && typeof node.text === 'string') return node.text;
+  if (node.type === 'hardBreak') return '\n';
+  if (Array.isArray(node.content)) {
+    const inner = node.content.map(adfToPlainText).join('');
+    // Block-level nodes get a newline after their contents so paragraphs
+    // don't run together. Inline nodes (text, hardBreak) flow as-is.
+    if (node.type === 'paragraph' || node.type === 'heading' || node.type === 'listItem') {
+      return inner + '\n';
+    }
+    return inner;
+  }
+  return '';
+}
+
+// ---------------------------------------------------------------------------
+// Entity mappers (decision H). source_id includes the site host so the
+// UNIQUE(connection_id, source_type, source_id) constraint never collides
+// across instances on the same project (forward-compat for v1.2).
+// ---------------------------------------------------------------------------
+
+function mapIssueToEntity(issue, projectKey, siteUrl) {
+  const fields = issue.fields || {};
+  // SPRINT_FIELD_ID returns an array of sprint objects (issues can carry
+  // across sprints). For v1.1 take the first listed; multi-sprint history
+  // is Block 9 polish.
+  const sprintArray = fields[SPRINT_FIELD_ID];
+  const sprint =
+    Array.isArray(sprintArray) && sprintArray.length > 0 ? sprintArray[0] : null;
+
+  const summary = fields.summary || '';
+  const descriptionText = adfToPlainText(fields.description);
+  const contentText = descriptionText
+    ? `${summary}\n\n${descriptionText}`.trim()
+    : summary;
+
+  const storyPointsRaw = fields[STORY_POINTS_FIELD_ID];
+  const storyPoints =
+    typeof storyPointsRaw === 'number' && Number.isFinite(storyPointsRaw)
+      ? storyPointsRaw
+      : null;
+
+  return {
+    source: 'jira',
+    source_type: 'jira_issue',
+    source_id: `${siteUrl}:issue:${issue.key}`,
+    title: summary || issue.key,
+    content_text: contentText || null,
+    author_external_id: fields.reporter?.accountId || null,
+    author_display_name: fields.reporter?.displayName || null,
+    source_created_at: fields.created || null,
+    source_updated_at: fields.updated || null,
+    source_url: `https://${siteUrl}/browse/${issue.key}`,
+    metadata: {
+      issue_key: issue.key,
+      jira_project_key: projectKey,
+      status: fields.status?.name || null,
+      status_category: fields.status?.statusCategory?.key || null,
+      issue_type: fields.issuetype?.name || null,
+      assignee_display_name: fields.assignee?.displayName || null,
+      assignee_external_id: fields.assignee?.accountId || null,
+      reporter_display_name: fields.reporter?.displayName || null,
+      reporter_external_id: fields.reporter?.accountId || null,
+      priority: fields.priority?.name || null,
+      sprint_id: sprint?.id ?? null,
+      sprint_name: sprint?.name || null,
+      story_points: storyPoints,
+      labels: Array.isArray(fields.labels) ? fields.labels : [],
+    },
+    raw: issue,
+  };
+}
+
+function mapSprintToEntity(sprint, boardId, projectKey, siteUrl) {
+  // Sprint URL pinned at commit 5 coding time per BLOCK_6_PLAN.md decision H.
+  // Verified shape against rain-labs.atlassian.net's project boards. If a
+  // future Atlassian UI rev breaks this format, mapSprintToEntity is the
+  // single point of update.
+  const sourceUrl = `https://${siteUrl}/jira/software/projects/${projectKey}/boards/${boardId}?sprint=${sprint.id}`;
+  const name = sprint.name || `Sprint ${sprint.id}`;
+  const goal = typeof sprint.goal === 'string' ? sprint.goal.trim() : '';
+
+  return {
+    source: 'jira',
+    source_type: 'jira_sprint',
+    source_id: `${siteUrl}:sprint:${sprint.id}`,
+    title: name,
+    content_text: goal ? `${name}\n\n${goal}` : name,
+    author_external_id: null,
+    author_display_name: null,
+    source_created_at: sprint.startDate || null,
+    source_updated_at:
+      sprint.completeDate || sprint.endDate || sprint.startDate || null,
+    source_url: sourceUrl,
+    metadata: {
+      sprint_id: sprint.id,
+      board_id: boardId,
+      sprint_name: name,
+      state: sprint.state || null,
+      start_date: sprint.startDate || null,
+      end_date: sprint.endDate || null,
+      complete_date: sprint.completeDate || null,
+      goal: goal || null,
+      jira_project_key: projectKey,
+    },
+    raw: sprint,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Sync helpers — Atlassian REST endpoints used by _doSync (decision B).
+// ---------------------------------------------------------------------------
+
+async function listBoardsForProject(siteUrl, email, apiToken, projectKey) {
+  const collected = [];
+  let startAt = 0;
+  while (collected.length < MAX_BOARDS_PER_PROJECT) {
+    const path =
+      `/rest/agile/${ATLASSIAN_AGILE_API_VERSION}/board` +
+      `?projectKeyOrId=${encodeURIComponent(projectKey)}` +
+      `&startAt=${startAt}&maxResults=${BOARD_PAGE_SIZE}`;
+    const response = await jiraGet(siteUrl, path, email, apiToken);
+    const values = Array.isArray(response.values) ? response.values : [];
+    for (const board of values) {
+      if (board && (typeof board.id === 'number' || typeof board.id === 'string')) {
+        collected.push({
+          id: board.id,
+          name: board.name || `Board ${board.id}`,
+        });
+      }
+    }
+    if (response.isLast === true || values.length < BOARD_PAGE_SIZE) break;
+    startAt += values.length;
+  }
+  return collected;
+}
+
+async function listSprintsForBoard(siteUrl, email, apiToken, boardId) {
+  const collected = [];
+  let startAt = 0;
+  while (collected.length < MAX_SPRINTS_PER_BOARD) {
+    const path =
+      `/rest/agile/${ATLASSIAN_AGILE_API_VERSION}/board/${boardId}/sprint` +
+      `?state=active,closed,future` +
+      `&startAt=${startAt}&maxResults=${SPRINT_PAGE_SIZE}`;
+    let response;
+    try {
+      response = await jiraGet(siteUrl, path, email, apiToken);
+    } catch (err) {
+      // Kanban boards (and some other board types) don't support sprints
+      // and return 400 from this endpoint. Treat as "no sprints" and
+      // continue — not a sync-aborting error.
+      if (err instanceof JiraApiError && err.status === 400) return collected;
+      throw err;
+    }
+    const values = Array.isArray(response.values) ? response.values : [];
+    collected.push(...values);
+    if (response.isLast === true || values.length < SPRINT_PAGE_SIZE) break;
+    startAt += values.length;
+  }
+  return collected;
+}
+
+async function searchIssues(siteUrl, email, apiToken, jql, startAt) {
+  const params = new URLSearchParams({
+    jql,
+    startAt: String(startAt),
+    maxResults: String(SEARCH_PAGE_SIZE),
+    fields: ISSUE_FIELDS,
+  });
+  const path = `/rest/api/${ATLASSIAN_API_VERSION}/search?${params.toString()}`;
+  return jiraGet(siteUrl, path, email, apiToken);
+}
+
+// ---------------------------------------------------------------------------
+// sweepMissingEmbeddings — connector-scoped catch-up for entities written
+// without embeddings (writeEntityWithEmbedding swallows retryable errors).
+// Mirrors slack.js's sweep verbatim except for the source filter (none —
+// the LEFT JOIN already scopes by entity_id / connection_id).
+//
+// Block 7 polish candidate: move this helper into _shared/entity_writer.js
+// once Monday connector arrives and we have a third call site.
+// ---------------------------------------------------------------------------
+
+async function sweepMissingEmbeddings(env, sql, connection) {
+  const rows = await sql`
+    SELECT e.id, e.content_text, e.metadata
+      FROM entities e
+      LEFT JOIN entity_embeddings ee
+        ON ee.entity_id = e.id
+       AND ee.model = ${EMBEDDING_MODEL_ID}
+       AND ee.chunk_index = 0
+     WHERE e.connection_id = ${connection.id}
+       AND ee.id IS NULL
+       AND e.content_text IS NOT NULL
+       AND length(trim(e.content_text)) > 0
+     ORDER BY e.created_at DESC
+     LIMIT 50
+  `;
+
+  for (const row of rows) {
+    try {
+      await embedEntityRow(
+        env,
+        sql,
+        connection.project_id,
+        connection.id,
+        row.id,
+        { content_text: row.content_text, metadata: row.metadata }
+      );
+    } catch (err) {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        event: 'embedding_sweep_row_failed',
+        connection_id: connection.id,
+        entity_id: row.id,
+        error: err && err.message ? String(err.message).slice(0, 200) : 'unknown',
+      }));
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// _doSync — shared sync core. Handles selected_project_key inert detection
+// (decision D + L), credential decrypt, sprint refresh, paginated issue
+// search, embed-on-write, sweep, cap detection.
+//
+// options.cursor: ISO 8601 string or null. When set, JQL filters issues
+// updated >= cursor (decision O). When null, full backfill (commit 5
+// always passes null; commit 6 wires incrementalSync to pass the
+// connection's last_sync_cursor).
+// ---------------------------------------------------------------------------
+
+async function _doSync(ctx, connection, options = {}) {
+  const cursor = options.cursor || null;
+
+  // Decision D + L: inert sync if no project picked.
+  const meta = connection.credential_metadata || {};
+  const selectedProjectKey = meta.selected_project_key;
+  if (!selectedProjectKey || typeof selectedProjectKey !== 'string') {
+    return {
+      records_inserted: 0,
+      records_updated: 0,
+      records_skipped: 0,
+      detail: {
+        inert: true,
+        reason: 'no project selected',
+      },
+    };
+  }
+
+  // Decrypt credentials. plaintext lives only on the call stack from
+  // here through Atlassian API calls; never logged, never persisted raw.
+  const aad = aadFor(connection);
+  const credsJson = await decrypt(ctx.env, connection, aad);
+  const creds = JSON.parse(credsJson);
+
+  let inserted = 0;
+  let updated = 0;
+  const skipped = 0;
+  let latestUpdatedSeen = cursor;
+
+  // Step 1: sprint refresh (always full — sprints are O(10) per project,
+  // not worth incremental). Each board → its sprints → UPSERT each.
+  // Sprint sync errors don't abort issue sync; they're logged and we
+  // continue (sprints are observability-grade data, not critical-path).
+  try {
+    const boards = await listBoardsForProject(
+      creds.site_url,
+      creds.account_email,
+      creds.api_token,
+      selectedProjectKey
+    );
+    for (const board of boards) {
+      const sprints = await listSprintsForBoard(
+        creds.site_url,
+        creds.account_email,
+        creds.api_token,
+        board.id
+      );
+      for (const sprint of sprints) {
+        const entity = mapSprintToEntity(
+          sprint,
+          board.id,
+          selectedProjectKey,
+          creds.site_url
+        );
+        const result = await writeEntityWithEmbedding(
+          ctx.env,
+          ctx.sql,
+          connection.project_id,
+          connection.id,
+          entity
+        );
+        if (result.inserted) inserted++;
+        else updated++;
+      }
+    }
+  } catch (err) {
+    if (err instanceof JiraApiError && err.status === 429) {
+      throw new Error('rate_limited_during_sprint_sync');
+    }
+    console.warn(JSON.stringify({
+      level: 'warn',
+      event: 'jira_sprint_sync_failed',
+      connection_id: connection.id,
+      error: err && err.message ? String(err.message).slice(0, 200) : 'unknown',
+    }));
+    // Continue to issue sync.
+  }
+
+  // Step 2: issue search. JQL pinned at decision E + O. Always order
+  // by updated ASC so cursor advances monotonically; ties at exact
+  // millisecond are absorbed by the UPSERT idempotency.
+  let jql = `project = "${selectedProjectKey}"`;
+  if (cursor) {
+    // Atlassian JQL accepts ISO 8601 timestamp strings in quotes.
+    // The >= comparison + UPSERT idempotency handle the boundary safely
+    // (one redundant fetch per sync, no missed records).
+    jql += ` AND updated >= "${cursor}"`;
+  }
+  jql += ' ORDER BY updated ASC';
+
+  let startAt = 0;
+  let pages = 0;
+  let lastPageWasFull = false;
+
+  while (pages < SEARCH_MAX_PAGES) {
+    pages += 1;
+    let response;
+    try {
+      response = await searchIssues(
+        creds.site_url,
+        creds.account_email,
+        creds.api_token,
+        jql,
+        startAt
+      );
+    } catch (err) {
+      if (err instanceof JiraApiError && err.status === 429) {
+        throw new Error('rate_limited');
+      }
+      throw err;
+    }
+
+    const issues = Array.isArray(response.issues) ? response.issues : [];
+    lastPageWasFull = issues.length === SEARCH_PAGE_SIZE;
+
+    for (const issue of issues) {
+      const entity = mapIssueToEntity(issue, selectedProjectKey, creds.site_url);
+      // Track max(updated) for cursor advancement (decision O).
+      if (
+        entity.source_updated_at &&
+        (!latestUpdatedSeen || entity.source_updated_at > latestUpdatedSeen)
+      ) {
+        latestUpdatedSeen = entity.source_updated_at;
+      }
+      const result = await writeEntityWithEmbedding(
+        ctx.env,
+        ctx.sql,
+        connection.project_id,
+        connection.id,
+        entity
+      );
+      if (result.inserted) inserted++;
+      else updated++;
+    }
+
+    if (issues.length < SEARCH_PAGE_SIZE) break;
+    startAt += issues.length;
+  }
+
+  // E1 cap-hit signal: hit MAX_PAGES with the last page full means more
+  // issues exist beyond the cap. Subsequent sync runs catch up via the
+  // cursor (decision E1; v1.1 known limitation per E1's note: no
+  // nightly cron until Block 9, so admin must manually re-sync).
+  const capHit = pages >= SEARCH_MAX_PAGES && lastPageWasFull;
+
+  /** @type {import('./types.js').SyncResult} */
+  const result = {
+    records_inserted: inserted,
+    records_updated: updated,
+    records_skipped: skipped,
+    cursor_after: latestUpdatedSeen || null,
+  };
+
+  if (capHit) {
+    result.detail = {
+      cap_hit: true,
+      cap_pages: SEARCH_MAX_PAGES,
+      cap_records: SEARCH_PAGE_SIZE * SEARCH_MAX_PAGES,
+      latest_synced_updated_ts: latestUpdatedSeen,
+    };
+  }
+
+  // Sweep — catch any missing embeddings from this sync (or prior
+  // syncs that failed mid-embed). Errors logged; not sync-aborting.
+  try {
+    await sweepMissingEmbeddings(ctx.env, ctx.sql, connection);
+  } catch (err) {
+    console.warn(JSON.stringify({
+      level: 'warn',
+      event: 'embedding_sweep_failed',
+      connection_id: connection.id,
+      error: err && err.message ? String(err.message).slice(0, 200) : 'unknown',
+    }));
+  }
+
+  return result;
+}
 
 /**
  * List Jira projects accessible to the connection's API token.
@@ -329,26 +801,21 @@ export const jira = {
     }
   },
 
-  // Stubbed for commit 2. Real implementation lands in commit 5.
-  // Returns inert SyncResult (detail.inert: true) so the existing
-  // /sync endpoint doesn't 500 if called against a Jira connection
-  // in the commit-2-through-commit-4 window — and so connections.
-  // last_sync_at is NOT advanced (per Block 4 decision L).
-  async fullSync(_ctx, _connection) {
-    return {
-      records_inserted: 0,
-      records_updated: 0,
-      records_skipped: 0,
-      detail: { inert: true, reason: 'jira fullSync not implemented yet (commit 5)' },
-    };
+  // Full backfill — pulls all issues for the connection's
+  // selected_project_key from Atlassian, plus all sprints across all
+  // boards for that project. No date filter (cursor=null). E1
+  // pagination cap = 5 pages × 100 = 500 issues per sync run; larger
+  // backlogs require multiple manual sync clicks (decision E1's v1.1
+  // known limitation — Block 9 nightly cron mitigates).
+  async fullSync(ctx, connection) {
+    return _doSync(ctx, connection, { cursor: null });
   },
 
-  async incrementalSync(_ctx, _connection) {
-    return {
-      records_inserted: 0,
-      records_updated: 0,
-      records_skipped: 0,
-      detail: { inert: true, reason: 'jira incrementalSync not implemented yet (commit 6)' },
-    };
+  // Stubbed for commit 5. Real cursor-based incremental lands in
+  // commit 6 (JQL `updated >= last_sync_cursor`). For now, calling
+  // /sync with sync_mode='incremental' against a Jira connection
+  // falls through to full backfill via _doSync(cursor: null).
+  async incrementalSync(ctx, connection) {
+    return _doSync(ctx, connection, { cursor: null });
   },
 };
