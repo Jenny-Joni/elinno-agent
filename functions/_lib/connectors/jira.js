@@ -74,7 +74,10 @@
 
 import { aadFor, decrypt } from '../crypto.js';
 import { EMBEDDING_MODEL_ID } from '../ai/embeddings.js';
-import { embedEntityRow, writeEntityWithEmbedding } from './_shared/entity_writer.js';
+import {
+  embedEntityRow,
+  writeEntitiesWithEmbeddingsBatch,
+} from './_shared/entity_writer.js';
 
 const ATLASSIAN_API_VERSION = '3';
 const ATLASSIAN_AGILE_API_VERSION = '1.0';
@@ -511,7 +514,9 @@ async function _doSync(ctx, connection, options = {}) {
   let latestUpdatedSeen = cursor;
 
   // Step 1: sprint refresh (always full — sprints are O(10) per project,
-  // not worth incremental). Each board → its sprints → UPSERT each.
+  // not worth incremental). Each board → its sprints → batch UPSERT
+  // per board (one OpenAI subrequest per board's sprint set instead of
+  // one per sprint, per Cloudflare Workers' subrequest cap).
   // Sprint sync errors don't abort issue sync; they're logged and we
   // continue (sprints are observability-grade data, not critical-path).
   try {
@@ -528,20 +533,18 @@ async function _doSync(ctx, connection, options = {}) {
         creds.api_token,
         board.id
       );
-      for (const sprint of sprints) {
-        const entity = mapSprintToEntity(
-          sprint,
-          board.id,
-          selectedProjectKey,
-          creds.site_url
-        );
-        const result = await writeEntityWithEmbedding(
-          ctx.env,
-          ctx.sql,
-          connection.project_id,
-          connection.id,
-          entity
-        );
+      if (sprints.length === 0) continue;
+      const sprintEntities = sprints.map((sprint) =>
+        mapSprintToEntity(sprint, board.id, selectedProjectKey, creds.site_url)
+      );
+      const results = await writeEntitiesWithEmbeddingsBatch(
+        ctx.env,
+        ctx.sql,
+        connection.project_id,
+        connection.id,
+        sprintEntities
+      );
+      for (const result of results) {
         if (result.inserted) inserted++;
         else updated++;
       }
@@ -601,24 +604,32 @@ async function _doSync(ctx, connection, options = {}) {
     const issues = Array.isArray(response.issues) ? response.issues : [];
     lastPageWasFull = issues.length === SEARCH_PAGE_SIZE;
 
-    for (const issue of issues) {
-      const entity = mapIssueToEntity(issue, selectedProjectKey, creds.site_url);
-      // Track max(updated) for cursor advancement (decision O).
-      if (
-        entity.source_updated_at &&
-        (!latestUpdatedSeen || entity.source_updated_at > latestUpdatedSeen)
-      ) {
-        latestUpdatedSeen = entity.source_updated_at;
-      }
-      const result = await writeEntityWithEmbedding(
+    if (issues.length > 0) {
+      // Map all issues to entities; track max(updated) for cursor
+      // advancement (decision O); then batch-UPSERT + batch-embed
+      // (one OpenAI subrequest per page instead of one per issue,
+      // per Cloudflare Workers' subrequest cap).
+      const issueEntities = issues.map((issue) => {
+        const entity = mapIssueToEntity(issue, selectedProjectKey, creds.site_url);
+        if (
+          entity.source_updated_at &&
+          (!latestUpdatedSeen || entity.source_updated_at > latestUpdatedSeen)
+        ) {
+          latestUpdatedSeen = entity.source_updated_at;
+        }
+        return entity;
+      });
+      const results = await writeEntitiesWithEmbeddingsBatch(
         ctx.env,
         ctx.sql,
         connection.project_id,
         connection.id,
-        entity
+        issueEntities
       );
-      if (result.inserted) inserted++;
-      else updated++;
+      for (const result of results) {
+        if (result.inserted) inserted++;
+        else updated++;
+      }
     }
 
     // End-of-results: explicit isLast OR no nextPageToken OR partial page.
