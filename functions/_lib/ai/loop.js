@@ -107,6 +107,23 @@ function renderSystemPrompt(projectName, projectId) {
  */
 export async function runAgent(env, sql, urlContext, priorMessages) {
   const { projectId, projectName } = urlContext;
+
+  const [hasConnection] = await sql`
+    SELECT 1 AS one FROM connections
+     WHERE project_id = ${projectId}
+     LIMIT 1
+  `;
+  if (!hasConnection) {
+    return {
+      text: "I couldn't find anything in this project's connected data — no sources have been connected yet. Add a Slack workspace or other source from the project settings to get started.",
+      citations: [],
+      model: null,
+      input_tokens: 0,
+      output_tokens: 0,
+      iterations: 0,
+    };
+  }
+
   const messages = priorMessages.slice();
   const citations = [];
   const seenEntityIds = new Set();
