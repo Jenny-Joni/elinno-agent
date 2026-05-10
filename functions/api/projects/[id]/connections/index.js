@@ -69,8 +69,10 @@ const CONNECTION_PUBLIC_COLUMNS = [
   'last_sync_at',
   'created_at',
   'updated_at',
-  'selected_channel_id',     // from credential_metadata->>'selected_channel_id'
-  'selected_channel_name',   // from credential_metadata->>'selected_channel_name'
+  'selected_channel_id',     // from credential_metadata->>'selected_channel_id'   (Slack)
+  'selected_channel_name',   // from credential_metadata->>'selected_channel_name' (Slack)
+  'selected_project_key',    // from credential_metadata->>'selected_project_key'  (Jira, Block 6)
+  'selected_project_name',   // from credential_metadata->>'selected_project_name' (Jira, Block 6)
 ];
 
 const DISPLAY_NAME_MAX = 100;
@@ -204,7 +206,9 @@ export async function onRequestPost({ request, env, params }) {
           id, project_id, source, display_name, external_account_id,
           status, status_reason, last_sync_at, created_at, updated_at,
           credential_metadata->>'selected_channel_id'   AS selected_channel_id,
-          credential_metadata->>'selected_channel_name' AS selected_channel_name
+          credential_metadata->>'selected_channel_name' AS selected_channel_name,
+          credential_metadata->>'selected_project_key'  AS selected_project_key,
+          credential_metadata->>'selected_project_name' AS selected_project_name
       `;
     } catch (insertErr) {
       // PG 23505 — unique_violation. The connections UNIQUE NULLS NOT
@@ -263,7 +267,9 @@ export async function onRequestGet({ request, env, params }) {
       SELECT id, project_id, source, display_name, external_account_id,
              status, status_reason, last_sync_at, created_at, updated_at,
              credential_metadata->>'selected_channel_id'   AS selected_channel_id,
-             credential_metadata->>'selected_channel_name' AS selected_channel_name
+             credential_metadata->>'selected_channel_name' AS selected_channel_name,
+             credential_metadata->>'selected_project_key'  AS selected_project_key,
+             credential_metadata->>'selected_project_name' AS selected_project_name
         FROM connections
        WHERE project_id = ${projectId}
          AND deleted_at IS NULL

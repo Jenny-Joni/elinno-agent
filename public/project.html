@@ -46,6 +46,72 @@
     </div>
   </div>
 
+  <!-- Block 6 commit 9: Jira connect form. Jira uses API tokens (decision
+       A), not OAuth — so no consent redirect; the form POSTs directly to
+       /api/connectors/jira/auth/save (decision N). On success, redirects
+       to /project.html?…&just_connected=jira to trigger the project picker
+       below. Closes on Escape, click-outside, and the close button. -->
+  <div id="jiraConnectModal" class="modal" style="display: none;"
+       role="dialog" aria-modal="true" aria-labelledby="jiraConnectHeading">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" role="document">
+      <div class="modal-header">
+        <h2 id="jiraConnectHeading" class="modal-heading">Connect Jira</h2>
+        <button class="modal-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="state-card-body" style="margin-bottom: 16px;">
+          Generate an API token at
+          <a href="https://id.atlassian.com/manage-profile/security/api-tokens"
+             target="_blank" rel="noopener noreferrer">id.atlassian.com</a>
+          first, then enter your details below.
+        </p>
+        <form id="jiraConnectForm" autocomplete="off">
+          <div style="margin-bottom: 12px;">
+            <label for="jiraSiteUrl" style="display:block; margin-bottom:4px; font-weight:600;">Site URL</label>
+            <input type="text" id="jiraSiteUrl" required
+                   placeholder="mycompany.atlassian.net"
+                   style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label for="jiraEmail" style="display:block; margin-bottom:4px; font-weight:600;">Account email</label>
+            <input type="email" id="jiraEmail" required
+                   placeholder="you@example.com"
+                   style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
+          </div>
+          <div style="margin-bottom: 16px;">
+            <label for="jiraApiToken" style="display:block; margin-bottom:4px; font-weight:600;">API token</label>
+            <input type="password" id="jiraApiToken" required
+                   style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
+          </div>
+          <div id="jiraConnectError" style="display:none; color:#b00020; margin-bottom:12px; padding:8px; background:#fce8eb; border-radius:4px;"></div>
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <button class="btn btn-ghost" type="button" id="jiraConnectCancelBtn">Cancel</button>
+            <button class="btn btn-primary" type="submit" id="jiraConnectSubmitBtn">Connect</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Block 6 commit 9: Jira project picker. Mirrors channelPickerModal
+       structure. Opened by openJiraProjectPicker() — auto-opens after
+       ?just_connected=jira from the connect form's redirect, or via
+       "Pick project" button on a Jira connection that needs setup. -->
+  <div id="jiraProjectPickerModal" class="modal" style="display: none;"
+       role="dialog" aria-modal="true" aria-labelledby="jiraProjectPickerHeading">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" role="document">
+      <div class="modal-header">
+        <h2 id="jiraProjectPickerHeading" class="modal-heading">Select a Jira project</h2>
+        <button class="modal-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body jira-project-picker-list">
+        Loading…
+      </div>
+    </div>
+  </div>
+
   <script>
     // ============================================================
     // Block 2 Sub-task 2.5 — project.html three-tab shell + chat UI
@@ -1108,8 +1174,9 @@
       }
 
       const slack = (connections || []).find(c => c.source === 'slack');
+      const jira = (connections || []).find(c => c.source === 'jira');
 
-      if (!slack) {
+      if (!slack && !jira) {
         body.innerHTML = `
           <div class="tab-content">
             <div class="state-card">
@@ -1120,80 +1187,361 @@
                 </svg>
               </div>
               <h2 class="state-card-heading">No tools connected yet</h2>
-              <p class="state-card-body">Connect Slack to ingest channel messages into this project.</p>
-              <div class="state-card-actions">
+              <p class="state-card-body">Connect a tool to start indexing data into this project.</p>
+              <div class="state-card-actions" style="display:flex; gap:8px; justify-content:center;">
                 <button class="btn btn-primary" id="connectSlackBtn">Connect Slack</button>
+                <button class="btn btn-primary" id="connectJiraBtn">Connect Jira</button>
               </div>
             </div>
           </div>
         `;
-        const btn = document.getElementById('connectSlackBtn');
-        if (btn) {
-          btn.addEventListener('click', () => {
-            // Decision K full-page redirect — server-side /oauth/start
-            // handles the 302 to Slack consent.
-            location.href = '/api/connectors/slack/oauth/start?project_id=' + encodeURIComponent(projectId);
-          });
-        }
+        document.getElementById('connectSlackBtn')?.addEventListener('click', () => {
+          location.href = '/api/connectors/slack/oauth/start?project_id=' + encodeURIComponent(projectId);
+        });
+        document.getElementById('connectJiraBtn')?.addEventListener('click', openJiraConnectModal);
         return;
       }
 
-      // Has a Slack connection. UI-derived "needs setup" state per L
-      // (selected_channel_id IS NULL → admin still needs to pick a channel).
-      const channelId = slack.selected_channel_id || null;
-      const channelName = slack.selected_channel_name || null;
-      const needsSetup = !channelId;
-      const lastSyncRel = slack.last_sync_at ? fmtRelativeShort(slack.last_sync_at) : null;
-      let pillText, pillClass;
-      if (needsSetup) {
-        pillText = 'Needs setup';
-        pillClass = 'pill-setup';
-      } else if (slack.last_sync_at) {
-        pillText = 'Active';
-        pillClass = 'pill-active';
-      } else {
-        pillText = 'Syncing…';
-        pillClass = 'pill-syncing';
-      }
+      // Render rows for each connected source plus an "Add another" footer
+      // when only one of {slack, jira} is connected (v1.1 single-instance
+      // per source per BLOCK_6_PLAN.md decision F).
+      const rows = [];
+      if (slack) rows.push(renderSlackRowHtml(slack));
+      if (jira)  rows.push(renderJiraRowHtml(jira));
+
+      const addOtherHtml = (slack && !jira)
+        ? '<div class="tab-section-footer" style="margin-top:12px;"><button class="btn btn-ghost" id="connectJiraBtn">+ Connect Jira</button></div>'
+        : (!slack && jira)
+        ? '<div class="tab-section-footer" style="margin-top:12px;"><button class="btn btn-ghost" id="connectSlackBtn">+ Connect Slack</button></div>'
+        : '';
 
       body.innerHTML = `
         <div class="tab-content">
-          <div class="connection-row">
-            <div class="connection-info">
-              <div class="connection-source">Slack</div>
-              <div class="connection-meta">
-                ${channelName ? '#' + escapeHtml(channelName) : 'No channel selected'}
-                ${lastSyncRel ? ' &middot; last sync ' + escapeHtml(lastSyncRel) : ''}
-              </div>
-            </div>
-            <div class="connection-pill ${pillClass}">${escapeHtml(pillText)}</div>
-            <div class="connection-actions">
-              ${needsSetup ? '<button class="btn btn-ghost" id="pickChannelBtn">Pick channel</button>' : ''}
-              <button class="btn btn-ghost" id="disconnectBtn">Disconnect</button>
-            </div>
-          </div>
+          ${rows.join('')}
+          ${addOtherHtml}
         </div>
       `;
-      if (needsSetup) {
-        document.getElementById('pickChannelBtn').addEventListener('click', () => openChannelPicker(slack.id));
-      }
-      document.getElementById('disconnectBtn').addEventListener('click', () => disconnectSlack(slack.id));
 
-      // ?just_connected=slack one-shot: auto-open the channel picker once
-      // after OAuth callback redirected here. Strip the param so a refresh
-      // doesn't re-open the modal.
+      // Wire Slack row handlers.
+      if (slack) {
+        const slackNeedsSetup = !slack.selected_channel_id;
+        if (slackNeedsSetup) {
+          document.getElementById('pickChannelBtn')?.addEventListener('click', () => openChannelPicker(slack.id));
+        }
+        document.getElementById('disconnectSlackBtn')?.addEventListener('click', () => disconnectSlack(slack.id));
+      }
+
+      // Wire Jira row handlers.
+      if (jira) {
+        const jiraNeedsSetup = !jira.selected_project_key;
+        if (jiraNeedsSetup) {
+          document.getElementById('pickProjectBtn')?.addEventListener('click', () => openJiraProjectPicker(jira.id));
+        }
+        document.getElementById('disconnectJiraBtn')?.addEventListener('click', () => disconnectJira(jira.id));
+      }
+
+      // Wire "+ Connect Jira/Slack" footer button (whichever is shown).
+      document.getElementById('connectJiraBtn')?.addEventListener('click', openJiraConnectModal);
+      document.getElementById('connectSlackBtn')?.addEventListener('click', () => {
+        location.href = '/api/connectors/slack/oauth/start?project_id=' + encodeURIComponent(projectId);
+      });
+
+      // ?just_connected one-shot: auto-open the relevant picker.
       if (!justConnectedHandled) {
         justConnectedHandled = true;
         const params = new URLSearchParams(location.search);
-        if (params.get('just_connected') === 'slack' && needsSetup) {
-          // Defer so the tab body has finished rendering before the modal mounts.
+        const just = params.get('just_connected');
+        if (just === 'slack' && slack && !slack.selected_channel_id) {
           setTimeout(() => openChannelPicker(slack.id), 0);
+        } else if (just === 'jira' && jira && !jira.selected_project_key) {
+          setTimeout(() => openJiraProjectPicker(jira.id), 0);
         }
         if (params.has('just_connected')) {
           const url = new URL(location.href);
           url.searchParams.delete('just_connected');
           history.replaceState(null, '', url.toString());
         }
+      }
+    }
+
+    // ---------- per-source row HTML ----------
+
+    function renderSlackRowHtml(slack) {
+      const channelId = slack.selected_channel_id || null;
+      const channelName = slack.selected_channel_name || null;
+      const needsSetup = !channelId;
+      const lastSyncRel = slack.last_sync_at ? fmtRelativeShort(slack.last_sync_at) : null;
+      let pillText, pillClass;
+      if (needsSetup) { pillText = 'Needs setup'; pillClass = 'pill-setup'; }
+      else if (slack.last_sync_at) { pillText = 'Active'; pillClass = 'pill-active'; }
+      else { pillText = 'Syncing…'; pillClass = 'pill-syncing'; }
+
+      return `
+        <div class="connection-row">
+          <div class="connection-info">
+            <div class="connection-source">Slack</div>
+            <div class="connection-meta">
+              ${channelName ? '#' + escapeHtml(channelName) : 'No channel selected'}
+              ${lastSyncRel ? ' &middot; last sync ' + escapeHtml(lastSyncRel) : ''}
+            </div>
+          </div>
+          <div class="connection-pill ${pillClass}">${escapeHtml(pillText)}</div>
+          <div class="connection-actions">
+            ${needsSetup ? '<button class="btn btn-ghost" id="pickChannelBtn">Pick channel</button>' : ''}
+            <button class="btn btn-ghost" id="disconnectSlackBtn">Disconnect</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderJiraRowHtml(jira) {
+      const projectKey = jira.selected_project_key || null;
+      const projectName = jira.selected_project_name || null;
+      const needsSetup = !projectKey;
+      const lastSyncRel = jira.last_sync_at ? fmtRelativeShort(jira.last_sync_at) : null;
+      let pillText, pillClass;
+      if (needsSetup) { pillText = 'Needs setup'; pillClass = 'pill-setup'; }
+      else if (jira.last_sync_at) { pillText = 'Active'; pillClass = 'pill-active'; }
+      else { pillText = 'Syncing…'; pillClass = 'pill-syncing'; }
+
+      const metaText = projectName
+        ? `${escapeHtml(projectName)} (${escapeHtml(projectKey)})`
+        : (projectKey ? escapeHtml(projectKey) : 'No project selected');
+
+      return `
+        <div class="connection-row">
+          <div class="connection-info">
+            <div class="connection-source">Jira</div>
+            <div class="connection-meta">
+              ${metaText}
+              ${lastSyncRel ? ' &middot; last sync ' + escapeHtml(lastSyncRel) : ''}
+            </div>
+          </div>
+          <div class="connection-pill ${pillClass}">${escapeHtml(pillText)}</div>
+          <div class="connection-actions">
+            ${needsSetup ? '<button class="btn btn-ghost" id="pickProjectBtn">Pick project</button>' : ''}
+            <button class="btn btn-ghost" id="disconnectJiraBtn">Disconnect</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // ---------- Jira connect form (decision N + L) ----------
+
+    function openJiraConnectModal() {
+      const modal = document.getElementById('jiraConnectModal');
+      if (!modal) return;
+      modal.style.display = '';
+      // Reset form + error each time the modal opens.
+      const form = document.getElementById('jiraConnectForm');
+      if (form) form.reset();
+      const err = document.getElementById('jiraConnectError');
+      if (err) { err.style.display = 'none'; err.textContent = ''; }
+
+      modal.querySelector('.modal-close').onclick = closeJiraConnectModal;
+      modal.querySelector('.modal-backdrop').onclick = closeJiraConnectModal;
+      document.getElementById('jiraConnectCancelBtn').onclick = closeJiraConnectModal;
+      document.addEventListener('keydown', _jiraConnectEscapeHandler);
+
+      // Wire the form submit. Idempotent — reattaching is fine.
+      form.onsubmit = submitJiraConnect;
+
+      // Focus the first field for quick entry.
+      setTimeout(() => document.getElementById('jiraSiteUrl')?.focus(), 0);
+    }
+
+    function closeJiraConnectModal() {
+      const modal = document.getElementById('jiraConnectModal');
+      if (modal) modal.style.display = 'none';
+      document.removeEventListener('keydown', _jiraConnectEscapeHandler);
+    }
+
+    function _jiraConnectEscapeHandler(e) {
+      if (e.key === 'Escape') closeJiraConnectModal();
+    }
+
+    async function submitJiraConnect(event) {
+      event.preventDefault();
+      const errEl = document.getElementById('jiraConnectError');
+      const submitBtn = document.getElementById('jiraConnectSubmitBtn');
+      errEl.style.display = 'none';
+      errEl.textContent = '';
+
+      // Strip any accidentally-pasted protocol/path so the validator
+      // doesn't reject (matches jira.js's hostname-only requirement).
+      let siteUrl = (document.getElementById('jiraSiteUrl').value || '').trim();
+      siteUrl = siteUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      const accountEmail = (document.getElementById('jiraEmail').value || '').trim();
+      const apiToken = document.getElementById('jiraApiToken').value || '';
+
+      if (!siteUrl || !accountEmail || !apiToken) {
+        errEl.textContent = 'All three fields are required.';
+        errEl.style.display = '';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Connecting…';
+
+      try {
+        const res = await fetch('/api/connectors/jira/auth/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: projectId,
+            site_url: siteUrl,
+            account_email: accountEmail,
+            api_token: apiToken,
+          }),
+        });
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          let msg = (data && typeof data.error === 'string') ? data.error : 'Could not connect.';
+          if (msg === 'invalid_credentials') msg = 'Invalid credentials. Check the site URL, email, and API token.';
+          if (msg === 'already_connected') msg = 'A Jira connection already exists for this project.';
+          errEl.textContent = msg;
+          errEl.style.display = '';
+          return;
+        }
+        // Success — full reload with ?just_connected=jira so the project
+        // picker auto-opens once renderConnections re-runs.
+        const url = new URL(location.href);
+        url.searchParams.set('tab', 'connections');
+        url.searchParams.set('just_connected', 'jira');
+        location.href = url.toString();
+      } catch {
+        errEl.textContent = 'Could not connect. Please try again.';
+        errEl.style.display = '';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Connect';
+      }
+    }
+
+    // ---------- Jira project picker ----------
+
+    async function openJiraProjectPicker(connId) {
+      const modal = document.getElementById('jiraProjectPickerModal');
+      if (!modal) return;
+      modal.style.display = '';
+      const list = modal.querySelector('.jira-project-picker-list');
+      list.innerHTML = '<div class="tab-loading">Loading projects…</div>';
+
+      modal.querySelector('.modal-close').onclick = closeJiraProjectPicker;
+      modal.querySelector('.modal-backdrop').onclick = closeJiraProjectPicker;
+      document.addEventListener('keydown', _jiraProjectPickerEscapeHandler);
+
+      try {
+        const res = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId) + '/jira/projects'
+        );
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok) {
+          list.innerHTML = '<p class="state-card-body">Could not load projects. The Jira API token may be invalid or revoked.</p>';
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        const projects = Array.isArray(data.projects) ? data.projects : [];
+        if (projects.length === 0) {
+          list.innerHTML = '<p class="state-card-body">No projects visible to this API token.</p>';
+          return;
+        }
+        list.innerHTML = projects.map(p => `
+          <button class="channel-list-item" type="button"
+                  data-project-key="${escapeHtml(p.key)}"
+                  data-project-name="${escapeHtml(p.name)}">
+            <span class="channel-list-name">${escapeHtml(p.name)}</span>
+            <span class="channel-list-tag">${escapeHtml(p.key)}</span>
+          </button>
+        `).join('');
+        list.querySelectorAll('.channel-list-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const key = item.getAttribute('data-project-key');
+            const name = item.getAttribute('data-project-name');
+            selectJiraProject(connId, key, name);
+          });
+        });
+      } catch {
+        list.innerHTML = '<p class="state-card-body">Could not load projects. Please try again.</p>';
+      }
+    }
+
+    function closeJiraProjectPicker() {
+      const modal = document.getElementById('jiraProjectPickerModal');
+      if (modal) modal.style.display = 'none';
+      document.removeEventListener('keydown', _jiraProjectPickerEscapeHandler);
+    }
+
+    function _jiraProjectPickerEscapeHandler(e) {
+      if (e.key === 'Escape') closeJiraProjectPicker();
+    }
+
+    async function selectJiraProject(connId, projectKey, projectName) {
+      const modal = document.getElementById('jiraProjectPickerModal');
+      const list = modal.querySelector('.jira-project-picker-list');
+      list.innerHTML = '<div class="tab-loading">Setting project and starting sync…</div>';
+      try {
+        const patchRes = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId),
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              credential_metadata: {
+                selected_project_key: projectKey,
+                selected_project_name: projectName,
+              },
+            }),
+          }
+        );
+        if (patchRes.status === 401) { redirectToLogin(); return; }
+        if (!patchRes.ok) {
+          let msg = 'Could not set project. Please try again.';
+          if (patchRes.status >= 400 && patchRes.status < 500) {
+            const data = await patchRes.json().catch(() => ({}));
+            if (data && typeof data.error === 'string') msg = data.error;
+          }
+          list.innerHTML = '<p class="state-card-body">' + escapeHtml(msg) + '</p>';
+          return;
+        }
+        // Fire-and-don't-await sync — Jira backfill can take 10-30s
+        // (depending on project size). UI shows "Syncing…" pill until
+        // next refresh.
+        fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId) + '/sync',
+          { method: 'POST' }
+        ).catch(() => { /* surfaces in sync_runs row */ });
+
+        closeJiraProjectPicker();
+        connections = null;
+        if (activeTab === 'connections') renderTabBody();
+      } catch {
+        list.innerHTML = '<p class="state-card-body">Could not set project. Please try again.</p>';
+      }
+    }
+
+    async function disconnectJira(connId) {
+      const ok = confirm('Disconnect Jira? This will remove the connection from this project.');
+      if (!ok) return;
+      try {
+        const res = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId),
+          { method: 'DELETE' }
+        );
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok) {
+          alert('Could not disconnect. Please try again.');
+          return;
+        }
+        connections = null;
+        if (activeTab === 'connections') renderTabBody();
+      } catch {
+        alert('Could not disconnect. Please try again.');
       }
     }
 
