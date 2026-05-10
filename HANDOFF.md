@@ -1848,3 +1848,106 @@ If a Block 6 or post-Block-5 session opens:
 - Do NOT open HANDOFF.md or WORKFLOW.md in Cursor with intent to
   save while the formatter is unfixed.
 
+---
+
+## Block 5 closeout — 2026-05-10
+
+> First AI answer shipped. Sixteen commits on `block-5-first-ai-answer`
+> (commit 0's WORKFLOW re-locks landed on main pre-block; commits 1–16
+> are the feature work + closeout). Verification matrix split into PASS
+> (runtime + by-inspection), DEFERRED-per-b1, and PENDING-runtime cells
+> per `curl-matrix-block-5.md`. Production-env Pages secret confirmation
+> remains the hard gate before ff-merge to main.
+
+### What shipped on `block-5-first-ai-answer`
+
+| # | SHA | Subject | Mode |
+|---|---|---|---|
+| 0 | `38b1c67` | docs(workflow): expand carve-out treatment to neighborhoods (already on main pre-block) | AUTO |
+| 1 | `85a88a1` | feat(block-5): add minimal fetch-based Anthropic client | AUTO |
+| 2 | `3b52836` | feat(block-5): embedding helper with OpenAI text-embedding-3-small | AUTO |
+| - | `f4ffde3` / `b0de3e1` | chore: temporary `/api/probe-bindings` endpoint (added + deleted post-verification) | AUTO |
+| - | `42f573c` | merge: main → feature (HANDOFF mid-flight entry) | — |
+| 3 | `615540d` | feat(block-5): embed-on-write hook for slack entity upserts | DEFAULT (carve-out neighborhood) |
+| 4 | `ffbea4c` | feat(block-5): post-sync missing-embedding sweep | AUTO |
+| 5 | `0194835` | feat(block-5): keyword (FTS) search helper, project-scoped | DEFAULT |
+| 6 | `9b242c4` | feat(block-5): vector (HNSW) search helper, project-scoped | DEFAULT |
+| 7 | `db77b88` | feat(block-5): hybrid search via RRF over keyword + vector | DEFAULT |
+| 8 | `3cde018` | feat(block-5): tool definitions + executor for the agent loop | DEFAULT |
+| - | `c3074bb` | fix(block-5): rename tool from 'search' to 'search_project_data' | DEFAULT (cross-file naming fix per D11 review) |
+| 9 | `74dc36b` | feat(block-5): agent loop scaffold + locked D11 system prompt | DEFAULT |
+| 10 | `8bf6c62` | feat(block-5): zero-data-source short-circuit in agent loop | DEFAULT (carve-out file edit) |
+| 11 | `39da5ac` | feat(block-5): wire agent loop into POST messages | DEFAULT |
+| 12 | `b099889` | feat(block-5): include citations + tokens in GET messages | AUTO |
+| 13 | `54b2dd1` | feat(block-5): chat UI renders citation chips, removes placeholder banner | AUTO |
+| 14 | `8476e74` | feat(block-5): chat UI handles 0-citation + error responses | AUTO |
+| 15 | `e5b310f` | chore(block-5): add curl-matrix-block-5.md | AUTO |
+| - | `02a1b0f` | docs(handoff): block 5 mid-flight entry (key leak + posture + Cursor formatter) — landed on main mid-block | AUTO |
+
+**Mode posture, observed vs plan v2.2:** plan v2.2 assigned six commits DEFAULT mode (5, 6, 7, 8, 9, 11); execute-phase Claude Code added DEFAULT-mode treatment to commits 3 and 10 self-detected against post-commit-0 carve-out neighborhoods rule (commits 3 + 10 both touch slack.js / loop.js, files marked SECURITY-CARVE-OUT in their headers). Reviewer confirmed the AUTO→DEFAULT shift was correct. Plan v2.3 (if a future block writes one) should pre-classify per the file's banner, not the plan-time mode column.
+
+### Verification posture
+
+`curl-matrix-block-5.md` (commit 15) is the verification record. Status snapshot at closeout:
+
+- **PASS (runtime):** S1.
+- **PASS-by-inspection:** S2.5, S7, S8, S9, S10, S12, S13, S14, S15, S16, S16b, S17, S18, S19, S20, S21, S22, S25 (also confirmed at runtime via DOM inspection), S26, S27.
+- **DEFERRED-per-b1:** S11, S23 — see "b1 close-out" below.
+- **PENDING runtime:** S2, S3, S4, S5, S6, S14 (zero-data-source runtime probe), S16c, S21 (synthetic 429 trigger), S24 (chip-click smoke), S26 (mobile-viewport smoke). Jenny drives before ff-merge.
+
+### b1 close-out — fixture-deferral
+
+The plan-locked ≥100-entity test fixture for S11 (golden-path agent answer) and S23 (input-token-ceiling probe) was not posted in the 2026-05-10 session. Three options were surfaced (a) post manually, (b) seed script, (b1) lower the bar; **b1 was chosen**. Block 5 ships with the existing 8-entity Block 4 fixture.
+
+**Block 9 (or earlier between-blocks) re-runs** S11 and S23 against ≥100 indexed Slack messages and updates `curl-matrix-block-5.md`'s S11/S23 cells with PASS-runtime verdicts and the actual `total_input_tokens=<N>, iterations=<M>, query="..."` measurement.
+
+### First-sync backfill cost-cliff (per plan v2.2)
+
+When Block 5 ships and Block 4's existing connections sync, commit 4's post-sync sweep embeds all pre-Block-5 entities at ~50/run (LIMIT 50). For a connection with N pre-existing entities, ⌈N/50⌉ syncs are needed to fully embed. v1.1 cost: each new sync triggers `embedTextsBatch` for up to 50 messages — at OpenAI text-embedding-3-small pricing this is small (~$0.0001 per 1K tokens, ~50 messages × ~50 tokens average ≈ $0.000025 per sync). For larger backlogs (>1000 entities) the per-sync cost rises proportionally; nightly scheduled sweep is the Block 9 mitigation.
+
+### S22 nightly-sweep note (per plan v2.2)
+
+If OpenAI 429s persist longer than the next sync interval (e.g., 10+ minutes during incident), the embedding gap persists until the next manual or webhook-triggered sync. Nightly scheduled sweep is a Block 9 follow-up; v1.1 accepts the bounded backlog risk per the per-sync sweep covering 50 rows per call.
+
+### Carry-forward queue (consolidated)
+
+In addition to existing queues from Block 4 closeout + 2026-05-06/07 supplements + 2026-05-09 mid-flight entry:
+
+- **Production-env Pages secret confirmation.** Hard gate before ff-merge to main. Confirm `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are set in Pages → Settings → Variables and Secrets for **Production** environment (Preview already verified via `/api/probe-bindings` at `f4ffde3`).
+- **Cross-file naming consistency check.** Self-review missed the drift between the D11 system prompt's `search_project_data` reference (in `loop.js`'s `SYSTEM_PROMPT` constant) and `tools.js`'s initial `name: 'search'` for the tool definition. Caught at the D11 review pass; fix shipped at `c3074bb`. **Add to WORKFLOW addendum rework queue:** when locking a system prompt that references tool names, grep the codebase for the literal token before commit.
+- **S11 / S23 fixture-deferral re-run.** See "b1 close-out" above.
+- **S2.5 + S16c synthetic injection harness.** Both rows are PASS-by-inspection in v1.1 because we don't have an in-process test harness to inject mismatched `metadata.project_id` (S2.5) or mismatched `toolUse.input.project_id` (S16c). Block 9 candidate; the substitution / skip-and-warn logic is small enough that a vitest-style harness would land cleanly.
+- **Cursor markdown formatter still firing.** 2026-05-09 entry's Finding 3 confirmed the .vscode 9-key block insufficient; deeper diagnostic deferred. Mitigation in effect for Block 5: HANDOFF/WORKFLOW edits go through Claude Code's filesystem path, not Cursor save. Same mitigation needed for Block 6+ markdown work until the formatter is actually suppressed.
+- **Bridging gap recurrence.** 2026-05-07 supplement (HANDOFF:1670) predicted "Design-chat ↔ Claude Code bridging hazard" as a pattern; materialized 2026-05-10 when design-chat reviewer's safe-probe-path guidance didn't reach Claude Code through Jenny's "move on the execution" handoff. Reconciliation request mid-block (2026-05-10) caught it. WORKFLOW addendum rework should codify the artifact-travel discipline + verbatim quote-back protocol.
+- **OpenAI key transcript exposure precedent.** 2026-05-09 entry documents the failure mode + three additive causes + mitigation. Future key probes use `read -s` for input + chat-reply discipline returns only `http=` + non-secret response shape. Codify the rule in WORKFLOW addendum rework alongside the launchctl pattern from Block 4 (HANDOFF:1466).
+- **Note B Risk #7 wording (per plan v2.2 line 286–288).** Fold into v1.1 documentation: "Fetch-based Anthropic client measures `usage.input_tokens` post-hoc from API responses (sufficient for v1.1's S23 measurement need). Pre-flight token-counting via SDK tokenizer is deferred until a use case requires it (e.g., Block 9 day-cap enforcement that needs to estimate cost before sending)."
+- **Anomalies and lessons drafts (from 2026-05-07 supplement, HANDOFF:1660–1668).** Three paragraphs (classifier-hallucination, actor-conflation, `git reset --hard <ref>` gap) were drafted into the supplement preemptively because that session was closing without commit 16 reach. They're in HANDOFF main now; commit 16 cites them by line number. No re-emission required.
+- **`writeEntityWithEmbedding` shared helper refactor (Block 9, queued in 2026-05-06 amendment).** Block 5's inline-in-slack.js approach works for v1.1 but means every Block 6/7/8 connector has to remember to call the embedder. Refactor when Block 6 ships its first new connector.
+- **Cross-sync `users.info` cache (Block 9, queued in 2026-05-06 amendment).** v1.1 uses in-memory-per-sync only.
+- **Tool-call trace viewer (admin observability) → Block 9.** `tool_calls` and `tool_result` columns are populated by commit 11 but not surfaced in GET messages or UI. v1.1 has the data; v1.2 adds the viewer.
+- **Inline `[1]` citation markers → Block 9 polish.** D11 prompt explicitly tells the model NOT to inline reference markers; UI renders chips out-of-band. If a user reading mode prefers inline markers, that's a v1.2 toggle.
+- **Streaming Sonnet responses → Block 9.** Currently `runAgent` waits for the full response per iteration; UI sees one-shot text. Streaming + progressive citation reveal is a Block 9 polish item.
+- **Per-project day cap on AI cost → Block 9.** Cost-side telemetry now exists (`messages.input_tokens` + `output_tokens` per turn); the cap mechanism is the work.
+- **Cross-project mode (`project_ids: string[]`) → v1.2.** Tool schema (D4a) designed for non-breaking evolution.
+- **"Refresh and ask again" action / "Data as of" timestamp surfacing → Block 9.** `source_updated_at` is in the citation payload; surfacing is UI polish.
+- **Chunked embeddings for long docs → Block 8.** `chunk_index` is ready in schema; v1.1 always writes 0.
+- **Cloudflare Queues for embedding retry → defer until volume justifies.**
+- **Materialized views for hot search paths → Block 9.**
+- **UI "Change channel" affordance.** Once a Slack channel is selected, the project page shows only "Disconnect" — no in-place channel switch. Block 9 polish to add a channel-change affordance without disconnect+reconnect cascading the entity history.
+
+### Where future-Claude resumes (next session pickup)
+
+Phase 0 ritual on parent main, after closeout commit + ff-merge + push to main:
+- `git status` → on `main`, clean, equal to origin.
+- `git log -5 --oneline` → block-5 closeout, mid-flight entry, supplement, amendment, workflow re-locks.
+- **Phase 0 Check 5 STILL SKIPPED** (per 2026-05-07 supplement; WORKFLOW addendum rework still deferred).
+- **Cursor markdown editing discipline:** filesystem path only for HANDOFF / WORKFLOW until the formatter is actually suppressed.
+
+If Block 6 opens (next connector) the first task is a between-blocks PR or Block 6 commit 0 reading this closeout + the open follow-ups. Specifically:
+- Decide whether `writeEntityWithEmbedding` shared-helper refactor lands as Block 6 commit 0 prerequisite (avoids every Block 6 connector having to re-implement the embed-on-write pattern).
+- Decide whether Production-env Pages secret confirmation can be folded into a between-blocks PR or stays gated to ff-merge time.
+
+### Mid-block closure sentence
+
+The build's "AI answers feel real" milestone (PRD principle 2) is met as of `e5b310f`: questions routed through `runAgent` now return citation-bearing responses against project-scoped Slack content, with substitution-enforced project isolation, a 6-iteration cap, and a UI that distinguishes confident answers (chips), no-result answers (muted italic), and error answers (error palette). Token/cost telemetry is captured per turn for Block 9's cap mechanism. Production deploy is gated only on the Production-env secret confirmation + the PENDING runtime cells in the verification matrix.
+
