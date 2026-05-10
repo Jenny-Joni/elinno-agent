@@ -30,13 +30,20 @@ const MAX_TOKENS = 1024;
 
 /**
  * D11 system prompt, locked verbatim per the commit-9 review pass
- * (Note A folds 1+2 applied). Two template tokens substituted at call
- * time: {{PROJECT_NAME}} and {{PROJECT_ID}}.
+ * (Note A folds 1+2 applied). Three template tokens substituted at call
+ * time: {{PROJECT_NAME}}, {{PROJECT_ID}}, and {{AVAILABLE_SOURCES}}.
+ *
+ * Block 6 commit 8 added the {{AVAILABLE_SOURCES}} slot + the
+ * surrounding "data sources connected" sentence per BLOCK_6_PLAN.md
+ * decision K (scoped re-lock for the slot + the new sentence; existing
+ * Block 5 prose untouched).
  */
 export const SYSTEM_PROMPT = `You are Elinno Agent, a project intelligence assistant. You answer
 questions for a member of project {{PROJECT_NAME}} (id {{PROJECT_ID}})
 using data their team has connected from Slack and (over time) other
 tools. The current chat is scoped exclusively to this project.
+
+This project has the following data sources connected: {{AVAILABLE_SOURCES}}. Only call Jira tools (query_jira_issues, list_jira_sprints, get_jira_sprint_summary) if Jira is in that list. If a user asks about a source not in the list, tell them the source isn't connected to this project — don't claim you searched for it.
 
 — Citation contract (PRD principle 2). —
 Every factual claim in your answer MUST cite at least one source
@@ -83,10 +90,76 @@ channel where the message was posted, the author who wrote it); the UI
 renders citation chips separately, so you don't need to format
 reference markers like [1] inline.`;
 
-function renderSystemPrompt(projectName, projectId) {
+// Decision K human-readable join: 1 source = bare name; 2 = "X and Y";
+// 3+ = Oxford comma "X, Y, and Z". Display names mapped from connector
+// source enum values (matches connections.source CHECK).
+const SOURCE_DISPLAY_NAMES = {
+  slack: 'Slack',
+  jira: 'Jira',
+  monday: 'Monday',
+  drive: 'Google Drive',
+  dummy: 'Dummy',
+};
+
+function formatAvailableSources(sources) {
+  const display = sources.map((s) => SOURCE_DISPLAY_NAMES[s] || s);
+  if (display.length === 0) {
+    // Per decision K: empty case is UNREACHABLE under current loop.js
+    // because runAgent short-circuits at the hasConnection check before
+    // calling renderSystemPrompt. If the short-circuit query and this
+    // helper drift apart (e.g., hasConnection finds a pending row but
+    // distinct active-sources finds none), degrade gracefully rather
+    // than throwing. Block 9 polish: tighten the short-circuit query.
+    console.warn(JSON.stringify({
+      level: 'warn',
+      event: 'available_sources_empty_post_short_circuit',
+    }));
+    return '(no active sources)';
+  }
+  if (display.length === 1) return display[0];
+  if (display.length === 2) return `${display[0]} and ${display[1]}`;
+  return `${display.slice(0, -1).join(', ')}, and ${display[display.length - 1]}`;
+}
+
+function renderSystemPrompt(projectName, projectId, availableSourcesText) {
   return SYSTEM_PROMPT
     .replace(/\{\{PROJECT_NAME\}\}/g, projectName)
-    .replace(/\{\{PROJECT_ID\}\}/g, projectId);
+    .replace(/\{\{PROJECT_ID\}\}/g, projectId)
+    .replace(/\{\{AVAILABLE_SOURCES\}\}/g, availableSourcesText);
+}
+
+/**
+ * Per-runAgent query of the project's distinct active source types.
+ * Failure semantics per BLOCK_6_PLAN.md decision K:
+ *   - On query failure: substitute fallback string, log warning, agent
+ *     loop continues with degraded prompt. NO retry (avoid amplifying
+ *     a slow Hyperdrive call into multi-second loop start latency).
+ *   - No caching across requests (per-runAgent only).
+ *
+ * @param {object} sql
+ * @param {string} projectId
+ * @returns {Promise<string>} formatted human-readable source list
+ */
+async function loadAvailableSourcesText(sql, projectId) {
+  try {
+    const rows = await sql`
+      SELECT DISTINCT source
+        FROM connections
+       WHERE project_id  = ${projectId}
+         AND status      = 'active'
+         AND deleted_at IS NULL
+       ORDER BY source
+    `;
+    return formatAvailableSources(rows.map((r) => r.source));
+  } catch (err) {
+    console.warn(JSON.stringify({
+      level: 'warn',
+      event: 'system_prompt_available_sources_query_failed',
+      project_id: projectId,
+      error_message: err && err.message ? String(err.message).slice(0, 200) : 'unknown',
+    }));
+    return '(temporarily unavailable; tool call decisions may be conservative)';
+  }
 }
 
 /**
@@ -145,7 +218,8 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
   let lastTextResponse = '';
   let iterations = 0;
 
-  const system = renderSystemPrompt(projectName, projectId);
+  const availableSourcesText = await loadAvailableSourcesText(sql, projectId);
+  const system = renderSystemPrompt(projectName, projectId, availableSourcesText);
 
   for (let i = 0; i < ITERATION_CAP; i++) {
     iterations = i + 1;
