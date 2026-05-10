@@ -1196,13 +1196,15 @@ export const slack = {
         await processMessageEvent(ctx.env, sql, connection, body.event);
         break;
       case 'message_changed':
-        // Edits carry .message child = the full updated message.
+        // Edits carry .message child = the full updated message. Slack
+        // puts the channel at body.event.channel for changed events;
+        // stamp it onto the inner message so processMessageEvent finds it.
         if (body.event.message) {
           await processMessageEvent(
             ctx.env,
             sql,
             connection,
-            body.event.message
+            { ...body.event.message, channel: body.event.channel }
           );
         }
         break;
