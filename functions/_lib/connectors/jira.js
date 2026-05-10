@@ -811,11 +811,25 @@ export const jira = {
     return _doSync(ctx, connection, { cursor: null });
   },
 
-  // Stubbed for commit 5. Real cursor-based incremental lands in
-  // commit 6 (JQL `updated >= last_sync_cursor`). For now, calling
-  // /sync with sync_mode='incremental' against a Jira connection
-  // falls through to full backfill via _doSync(cursor: null).
+  // Cursor-based incremental sync (decision O). Reads
+  // connection.last_sync_cursor (ISO 8601 string seeded by the
+  // previous sync's cursor_after); _doSync builds JQL with
+  // `AND updated >= "<cursor>"`. First incremental on a connection
+  // with no prior cursor falls through to full backfill (cursor=null).
+  //
+  // Boundary safety: cursor is set to max(updated), not max(updated)+1ms.
+  // JQL >= plus the entity UPSERT idempotency (UNIQUE on
+  // connection_id + source_type + source_id) absorbs one duplicate
+  // fetch per sync. Atlassian's JQL doesn't expose milliseconds
+  // reliably, so the simpler >= + idempotent UPSERT is safer than
+  // attempting to bump the cursor by 1ms (which risks losing issues
+  // whose `updated` matches the cursor exactly).
   async incrementalSync(ctx, connection) {
-    return _doSync(ctx, connection, { cursor: null });
+    const cursor =
+      typeof connection.last_sync_cursor === 'string' &&
+      connection.last_sync_cursor.length > 0
+        ? connection.last_sync_cursor
+        : null;
+    return _doSync(ctx, connection, { cursor });
   },
 };
