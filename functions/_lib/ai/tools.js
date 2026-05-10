@@ -260,23 +260,46 @@ export async function executeTool(env, sql, urlContext, toolUse) {
 
   // D4b: discard input.project_id. Per-tool helpers receive only the
   // URL-bound projectId.
+  // Per-tool dispatch wrapped in try/catch so a SQL error or unexpected
+  // exception in one tool's helper returns an error-as-tool-result
+  // payload (model can recover or surface to user) instead of
+  // propagating up to runAgent → POST handler's catch-all "I hit a
+  // temporary issue" collapse. The error gets logged with full
+  // context for diagnosis.
   let resultPayload;
-  switch (toolUse.name) {
-    case 'search_project_data':
-      resultPayload = await runSearchProjectData(env, sql, projectId, input);
-      break;
-    case 'query_jira_issues':
-      resultPayload = await runQueryJiraIssues(sql, projectId, input);
-      break;
-    case 'list_jira_sprints':
-      resultPayload = await runListJiraSprints(sql, projectId, input);
-      break;
-    case 'get_jira_sprint_summary':
-      resultPayload = await runGetJiraSprintSummary(sql, projectId, input);
-      break;
-    default:
-      // KNOWN_TOOL_NAMES gate above prevents this; defensive only.
-      resultPayload = { error: `unknown_tool: ${toolUse.name}` };
+  try {
+    switch (toolUse.name) {
+      case 'search_project_data':
+        resultPayload = await runSearchProjectData(env, sql, projectId, input);
+        break;
+      case 'query_jira_issues':
+        resultPayload = await runQueryJiraIssues(sql, projectId, input);
+        break;
+      case 'list_jira_sprints':
+        resultPayload = await runListJiraSprints(sql, projectId, input);
+        break;
+      case 'get_jira_sprint_summary':
+        resultPayload = await runGetJiraSprintSummary(sql, projectId, input);
+        break;
+      default:
+        // KNOWN_TOOL_NAMES gate above prevents this; defensive only.
+        resultPayload = { error: `unknown_tool: ${toolUse.name}` };
+    }
+  } catch (err) {
+    const errorMessage = err && err.message ? String(err.message).slice(0, 500) : 'unknown error';
+    console.warn(JSON.stringify({
+      level: 'warn',
+      event: 'tool_execution_failed',
+      tool_name: toolUse.name,
+      conversation_id: conversationId,
+      project_id: projectId,
+      error_message: errorMessage,
+    }));
+    resultPayload = {
+      error: 'tool_execution_failed',
+      tool_name: toolUse.name,
+      error_message: errorMessage,
+    };
   }
 
   return {
@@ -357,8 +380,10 @@ async function runQueryJiraIssues(sql, projectId, input) {
   const priority =
     typeof input.priority === 'string' && input.priority.length > 0 ? input.priority : null;
 
-  // Conditional filter fragments via postgres-js nested templates;
-  // empty fragment when filter is null. Project_id always present.
+  // NULL-coalescing predicates: every parameter is bound; null values
+  // become no-op WHERE clauses. Avoids postgres-js empty-fragment
+  // composition (`sql\`\``) which has unreliable behavior across
+  // versions. Pattern: `AND (${val}::type IS NULL OR col = ${val})`.
   const rows = await sql`
     SELECT id, source_id, title, status, status_category, issue_type, priority,
            assignee_display_name, assignee_external_id,
@@ -367,13 +392,13 @@ async function runQueryJiraIssues(sql, projectId, input) {
            source_url, source_created_at, source_updated_at, content_text
       FROM jira_issues
      WHERE project_id = ${projectId}
-       ${statusCategory ? sql`AND status_category = ${statusCategory}` : sql``}
-       ${status ? sql`AND status = ${status}` : sql``}
-       ${assigneeDisplayName ? sql`AND assignee_display_name = ${assigneeDisplayName}` : sql``}
-       ${sprintId !== null ? sql`AND sprint_id = ${sprintId}` : sql``}
-       ${issueType ? sql`AND issue_type = ${issueType}` : sql``}
-       ${projectKey ? sql`AND project_key = ${projectKey}` : sql``}
-       ${priority ? sql`AND priority = ${priority}` : sql``}
+       AND (${statusCategory}::text IS NULL OR status_category = ${statusCategory})
+       AND (${status}::text IS NULL OR status = ${status})
+       AND (${assigneeDisplayName}::text IS NULL OR assignee_display_name = ${assigneeDisplayName})
+       AND (${sprintId}::integer IS NULL OR sprint_id = ${sprintId})
+       AND (${issueType}::text IS NULL OR issue_type = ${issueType})
+       AND (${projectKey}::text IS NULL OR project_key = ${projectKey})
+       AND (${priority}::text IS NULL OR priority = ${priority})
      ORDER BY source_updated_at DESC NULLS LAST
      LIMIT ${limit}
   `;
@@ -416,6 +441,9 @@ async function runListJiraSprints(sql, projectId, input) {
 
   // No jira_sprints view (decision J: one view per primary tool surface).
   // Read entities directly with WHERE source_type = 'jira_sprint'.
+  // NULL-coalescing predicate for the optional state filter (same
+  // pattern as runQueryJiraIssues; avoids postgres-js empty-fragment
+  // composition).
   const rows = await sql`
     SELECT id, source_id, title, source_url,
            metadata->>'sprint_id' AS sprint_id_text,
@@ -432,7 +460,7 @@ async function runListJiraSprints(sql, projectId, input) {
      WHERE project_id = ${projectId}
        AND source = 'jira'
        AND source_type = 'jira_sprint'
-       ${state ? sql`AND metadata->>'state' = ${state}` : sql``}
+       AND (${state}::text IS NULL OR metadata->>'state' = ${state})
      ORDER BY source_updated_at DESC NULLS LAST
      LIMIT ${limit}
   `;
