@@ -438,7 +438,6 @@
           <div class="chat-conv-title" id="chatConvTitle"></div>
           <div class="chat-messages" id="chatMessages"></div>
           <div class="chat-composer">
-            <div class="chat-placeholder-banner">Block 2 placeholder — your messages persist, but the assistant just echoes back until Block 5 wires up the AI.</div>
             <div class="chat-error" id="chatError" style="display:none;" role="alert"></div>
             <div class="chat-composer-row">
               <textarea class="chat-input" id="chatInput" placeholder="Ask anything about this project…" rows="1" aria-label="Message"></textarea>
@@ -459,28 +458,40 @@
 
     function renderMessages() {
       const list = document.getElementById('chatMessages');
-      const msgs = messagesById[activeConvId] || [];
+      const msgs = (messagesById[activeConvId] || []).filter(m => m.role !== 'tool');
       list.innerHTML = msgs.map(m => renderMessageHtml(m)).join('');
       list.scrollTop = list.scrollHeight;
     }
 
     function renderMessageHtml(m) {
       const isUser = m.role === 'user';
-      // Decision Z: every assistant message in Session 3's render loop gets .placeholder.
-      // Block 5 removes this unconditional rule in the same diff that wires up real AI.
-      const placeholder = !isUser ? ' placeholder' : '';
       const avatar = isUser ? deriveUserInitial(me.email) : 'EA';
       const rel = fmtRelativeShort(m.created_at) || 'just now';
       const meta = (isUser ? 'You · ' : 'Elinno Agent · ') + rel;
+      const citations = !isUser && Array.isArray(m.citations) ? m.citations : [];
       return `
-        <div class="chat-msg ${isUser ? 'user' : 'assistant'}${placeholder}">
+        <div class="chat-msg ${isUser ? 'user' : 'assistant'}">
           <div class="chat-msg-avatar">${escapeHtml(avatar)}</div>
           <div class="chat-msg-body">
             <div class="chat-msg-meta">${escapeHtml(meta)}</div>
             <div class="chat-msg-content">${escapeHtml(m.content || '')}</div>
+            ${citations.length > 0 ? renderCitationRailHtml(citations) : ''}
           </div>
         </div>
       `;
+    }
+
+    function renderCitationRailHtml(citations) {
+      const chips = citations.map(c => {
+        const label = c.title || c.author || (c.source ? c.source[0].toUpperCase() + c.source.slice(1) : 'Source');
+        const url = c.source_url || '';
+        const safeLabel = escapeHtml(label);
+        if (url) {
+          return `<a class="chat-citation" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
+        }
+        return `<span class="chat-citation chat-citation-noref">${safeLabel}</span>`;
+      }).join('');
+      return `<div class="chat-citation-rail">${chips}</div>`;
     }
 
     // ---------- Composer (decision W) ----------
