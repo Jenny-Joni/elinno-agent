@@ -9,7 +9,8 @@
 // Three exports:
 //   - upsertEntityRow(sql, projectId, connectionId, entity)
 //       UPSERT an entity row. entity must carry source + source_type.
-//       Returns { id, inserted } via Postgres' xmax = 0 trick.
+//       Returns { id, inserted, changed } — see Block 9.5 decision A
+//       (WHERE-DO-UPDATE pattern below).
 //   - embedEntityRow(env, sql, projectId, connectionId, entityId, entity)
 //       Embed entity.content_text + UPSERT into entity_embeddings.
 //       Standalone — used by sweep paths where the entity already exists.
@@ -23,21 +24,74 @@
 // decision; previously slack.js:508-521) stays — retryable + non-retryable
 // errors are logged and swallowed. Sync continues; sweep recovery picks up
 // missing rows on next sync. The combined helper inherits this contract.
+//
+// Block 9.5 amendment (decision A — WHERE-DO-UPDATE + xmax+updated_at idiom)
+// ----------------------------------------------------------------------------
+// upsertEntityRow's ON CONFLICT DO UPDATE carries a WHERE clause that
+// suppresses the UPDATE when every content column is unchanged. The
+// RETURNING clause returns (xmax = 0) AS inserted and (xmax <> 0 AND
+// updated_at = NOW()) AS changed, letting the caller distinguish three
+// states:
+//   - inserted = true                  → fresh INSERT
+//   - inserted = false, changed = true  → real UPDATE
+//   - inserted = false, changed = false → no-op write (idempotent re-sync)
+//
+// writeEntityWithEmbedding + writeEntitiesWithEmbeddingsBatch gate the
+// embedding subrequest on (inserted || changed) — skipping the OpenAI
+// call on idempotent re-syncs of unchanged rows. The sweep path
+// (embedEntityRow standalone) is untouched and continues to catch
+// genuinely-missing embeddings on next sync.
+//
+// Fallback (NOT shipped; documented for future swap-in if canary fails):
+// If V5-3 ever fails the exactness check (records_updated > 1 on a
+// single upstream edit) the WHERE-DO-UPDATE / updated_at = NOW() pair
+// is false-positiving. Swap upsertEntityRow's body wholesale to a CTE
+// that captures OLD values with FOR UPDATE and compares them in the
+// final SELECT — one extra round-trip per upsert, no updated_at = NOW()
+// reliance. Sketch:
+//
+//   WITH existing AS (
+//     SELECT title, content_text, /* ...9 columns... */
+//       FROM entities
+//      WHERE connection_id = $1 AND source_type = $2 AND source_id = $3
+//      FOR UPDATE
+//   ), upserted AS (
+//     INSERT INTO entities (...) VALUES (...) ON CONFLICT (...) DO UPDATE SET ...
+//     RETURNING id, (xmax = 0) AS inserted
+//   )
+//   SELECT u.id, u.inserted,
+//          (e.title IS DISTINCT FROM /* new */ OR ...) AS changed
+//     FROM upserted u LEFT JOIN existing e ON TRUE
+//
+// Do not try to patch the WHERE clause in place — swap to the CTE.
+//
+// TODO: when adding a content column to entities, update the WHERE
+// IS DISTINCT FROM list below or the upsert will misclassify real
+// updates as skipped.
 // =========================================================================
 
 import { embedText, embedTextsBatch, EmbeddingError, EMBEDDING_MODEL_ID } from '../../ai/embeddings.js';
 
 /**
- * UPSERT an entity. Returns the row id and whether the row was just
- * inserted (Postgres' `xmax = 0` trick — xmax is 0 for the inserting
- * transaction's view of a fresh row; non-zero for an UPDATE-conflict
- * resolution).
+ * UPSERT an entity. Returns the row id and a three-state classification:
+ *   - inserted = true                  → fresh INSERT (xmax = 0)
+ *   - inserted = false, changed = true  → real UPDATE (content differed,
+ *                                          DO UPDATE fired, updated_at bumped)
+ *   - inserted = false, changed = false → no-op write (content identical,
+ *                                          DO UPDATE's WHERE filtered it out)
+ *
+ * The WHERE clause on DO UPDATE suppresses no-op updates at the database
+ * level. `changed` is derived from the pair (xmax <> 0, updated_at = NOW()) —
+ * xmax is set on any conflict path (lock acquired during conflict
+ * resolution), but updated_at is bumped to NOW() ONLY when the SET clause
+ * fired. PostgreSQL's NOW() returns transaction-start time, stable within
+ * a single transaction, so the equality is exact.
  *
  * @param {object} sql                 - postgres tagged-template client
  * @param {string} projectId           - the connection's projectId (trusted)
  * @param {string} connectionId
  * @param {object} entity              - must carry source, source_type, source_id, content_text, metadata, raw, source_url
- * @returns {Promise<{ id: string, inserted: boolean }>}
+ * @returns {Promise<{ id: string, inserted: boolean, changed: boolean }>}
  */
 export async function upsertEntityRow(sql, projectId, connectionId, entity) {
   const [row] = await sql`
@@ -64,9 +118,20 @@ export async function upsertEntityRow(sql, projectId, connectionId, entity) {
            raw                = EXCLUDED.raw,
            source_url         = EXCLUDED.source_url,
            updated_at         = NOW()
-    RETURNING id, (xmax = 0) AS inserted
+       WHERE  entities.title              IS DISTINCT FROM EXCLUDED.title
+           OR entities.content_text       IS DISTINCT FROM EXCLUDED.content_text
+           OR entities.author_external_id IS DISTINCT FROM EXCLUDED.author_external_id
+           OR entities.author_display_name IS DISTINCT FROM EXCLUDED.author_display_name
+           OR entities.source_created_at  IS DISTINCT FROM EXCLUDED.source_created_at
+           OR entities.source_updated_at  IS DISTINCT FROM EXCLUDED.source_updated_at
+           OR entities.metadata           IS DISTINCT FROM EXCLUDED.metadata
+           OR entities.raw                IS DISTINCT FROM EXCLUDED.raw
+           OR entities.source_url         IS DISTINCT FROM EXCLUDED.source_url
+    RETURNING id,
+              (xmax = 0)                          AS inserted,
+              (xmax <> 0 AND updated_at = NOW())  AS changed
   `;
-  return { id: row.id, inserted: row.inserted };
+  return { id: row.id, inserted: row.inserted, changed: row.changed };
 }
 
 /**
@@ -150,16 +215,25 @@ export async function embedEntityRow(env, sql, projectId, connectionId, entityId
  * Combined upsert + embed. Connector sync paths use this; sweep paths
  * use embedEntityRow standalone (entity already exists).
  *
+ * Block 9.5 decision C: the embedding subrequest is skipped when the
+ * upsert was a no-op (inserted = false AND changed = false). The row
+ * is unchanged at the entity level, so by definition the embedding is
+ * unchanged too — no need to re-call OpenAI. Free cost + perf win on
+ * idempotent re-syncs. The sweep path continues to catch genuinely-
+ * missing embeddings on subsequent invocations.
+ *
  * @param {object} env
  * @param {object} sql
  * @param {string} projectId
  * @param {string} connectionId
  * @param {object} entity
- * @returns {Promise<{ id: string, inserted: boolean }>}
+ * @returns {Promise<{ id: string, inserted: boolean, changed: boolean }>}
  */
 export async function writeEntityWithEmbedding(env, sql, projectId, connectionId, entity) {
   const upsertResult = await upsertEntityRow(sql, projectId, connectionId, entity);
-  await embedEntityRow(env, sql, projectId, connectionId, upsertResult.id, entity);
+  if (upsertResult.inserted || upsertResult.changed) {
+    await embedEntityRow(env, sql, projectId, connectionId, upsertResult.id, entity);
+  }
   return upsertResult;
 }
 
@@ -184,12 +258,18 @@ export async function writeEntityWithEmbedding(env, sql, projectId, connectionId
  * disagrees with the connection's projectId is UPSERTed without an
  * embedding (parallel to embedEntityRow's per-entity check).
  *
+ * Block 9.5 decision C: entities whose upsert was a no-op (inserted =
+ * false AND changed = false) are excluded from the embedding batch. The
+ * row is unchanged so the embedding is unchanged — no need to re-call
+ * OpenAI. Free cost + perf win on idempotent re-syncs. The sweep path
+ * continues to catch genuinely-missing embeddings.
+ *
  * @param {object} env
  * @param {object} sql
  * @param {string} projectId
  * @param {string} connectionId
  * @param {Array<object>} entities
- * @returns {Promise<Array<{ id: string, inserted: boolean }>>}
+ * @returns {Promise<Array<{ id: string, inserted: boolean, changed: boolean }>>}
  */
 export async function writeEntitiesWithEmbeddingsBatch(env, sql, projectId, connectionId, entities) {
   if (!Array.isArray(entities) || entities.length === 0) return [];
@@ -201,13 +281,17 @@ export async function writeEntitiesWithEmbeddingsBatch(env, sql, projectId, conn
   }
 
   // Step 2: collect (entityId, content_text) pairs that need embedding.
-  // Skip empties (no content), skip cross-project entities (defence-in-
-  // depth tripwire matching embedEntityRow:486-500).
+  // Skip no-op upserts (Block 9.5 decision C), empties (no content), and
+  // cross-project entities (defence-in-depth tripwire matching
+  // embedEntityRow:486-500).
   /** @type {Array<{ entityId: string, text: string }>} */
   const toEmbed = [];
   for (let i = 0; i < entities.length; i++) {
     const entity = entities[i];
     const upsert = upsertResults[i];
+
+    // Skip no-op upserts: row is unchanged, embedding is unchanged.
+    if (!upsert.inserted && !upsert.changed) continue;
 
     if (
       entity.metadata &&
