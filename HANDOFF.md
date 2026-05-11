@@ -2253,3 +2253,142 @@ picks up four new items, all Block-9-or-WORKFLOW-addendum candidates.
 Branch is one ff-merge away from main; production re-run of
 S6/S7/S17 is the gate.
 
+---
+
+## Block 7 + 8 skip + Block 9/10 split — 2026-05-11
+
+> Scope decision recorded after Block 6 ff-merged to `main` at
+> `c9e240a` and S6/S7/S17 ran PASS-runtime on `elinnoagent.com`.
+> Monday + Google Drive connectors (originally Blocks 7 + 8) deferred
+> to v1.2; PRD §11.2 picks up the locked connector designs. The
+> original BUILD_PLAN Block 9 ("Polish for launch", 7 tasks) splits
+> into Block 9 (Polish: launch-blocking, 5 tasks) + Block 10 (Polish:
+> nice-to-have, 6 tasks). Block numbers 7 + 8 stay reserved as
+> deferred stubs so historical references in this file resolve.
+
+### Decision
+
+v1.1 ships with **two MVP connectors (Slack + Jira)**. The path to a
+non-Jenny user is shorter via polish-then-onboard than via two more
+connector blocks. Slack + Jira already cover the chat-and-tickets
+question shapes that drove the product hypothesis; Monday's budget /
+time-tracking story and Drive's unstructured-document story are
+genuine product gaps but not gates on first-user activation.
+
+### What shipped from this session
+
+| # | SHA | Subject | Mode |
+|---|---|---|---|
+| 1 | `434099f` | docs(scope): defer Monday + Drive connectors to v1.2 | AUTO |
+| 2 | `4baa59c` | docs(scope): split Block 9 into launch-blocking + nice-to-have; defer Blocks 7 & 8 | AUTO |
+| 3 | (this commit) | docs(handoff): record Block 7 + 8 skip + Block 9/10 split + CLAUDE.md staleness fix | AUTO |
+
+All three on branch `block-9-scope-split`, based on `main` at
+`c9e240a`. Awaiting per-push approval to ff-merge to local main and
+push to origin.
+
+### Doc deltas applied
+
+- **PRD v1.1 → v1.2** (commit `434099f`):
+  - §1, §2.1, §4: connector lists scoped to v1.1; Monday/Drive
+    parentheticals point at §11.2.
+  - §5.3: connectors table holds Jira + Slack rows only.
+  - §5.5: views list scoped to `jira_issues` + `slack_messages`;
+    Monday + Drive views noted as v1.2 additions.
+  - §5.7: tool catalogue scoped to v1.1 tools; Monday + Drive tools
+    moved to a §11.2 cross-reference line.
+  - §10: Monday-board-heterogeneity risk row dropped (follows the
+    connector to §11.2's risk-carried-forward bullet).
+  - §11.2 (new): full Monday + Drive connector design (auth, sync
+    mode, surface, storage view, tools, risks). Old §11.2 renumbered
+    to §11.3 with the "Drive: images and OCR" item updated to
+    reference §11.2 as its prerequisite.
+- **BUILD_PLAN v1.1 → v1.2** (commit `4baa59c`):
+  - "Already Done (skip)" gains a Blocks 1–6 bullet.
+  - Blocks 7 + 8 task lists replaced with one-paragraph deferred
+    stubs pointing at PRD §11.2.
+  - Block 9 renamed to Block 9 — Polish: launch-blocking. New 5-task
+    list per the mapping below.
+  - Block 10 — Polish: nice-to-have inserted after Block 9. 6-task
+    list per the mapping below.
+  - "Right Now" section updated: next step is a fresh plan-mode
+    session to draft BLOCK_9_PLAN.md.
+- **CLAUDE.md** (this commit): line 5 "Block 2 in progress" →
+  "Block 9 in progress (post Block 6 ff-merge)" — staleness fix
+  bundled because the block context is changing anyway. Not a
+  WORKFLOW or rules change.
+
+### 11 → 5 + 6 task mapping
+
+The original BUILD_PLAN Block 9 had 7 tasks; Block 6's carry-forward
+queue earmarked 4 more items as Block-9 candidates. 11 total split into:
+
+| New | Source | Task |
+|---|---|---|
+| **9.1** | BUILD_PLAN orig #1 | Connection management UI (status, last sync, manual re-sync 1/hour, disconnect) |
+| **9.2** | BUILD_PLAN orig #5 | "Data as of" timestamp on every AI answer |
+| **9.3** | BUILD_PLAN orig #6 | Suggested example questions on first project open |
+| **9.4** | Block 6 carry-forward | Nightly cron via Cloudflare Cron Triggers (fullSync DESC long-tail mitigation) |
+| **9.5** | Block 6 carry-forward | `records_updated` overcount fix (report `records_skipped` for identical state) |
+| **10.1** | BUILD_PLAN orig #2 | Member "refresh and ask again" action |
+| **10.2** | BUILD_PLAN orig #3 | Per-project AI cost cap with admin notification |
+| **10.3** | BUILD_PLAN orig #4 | Daily message limits per project |
+| **10.4** | BUILD_PLAN orig #7 | "How to add a new connector" guide (also v1.2 Monday + Drive scaffold prompt) |
+| **10.5** | Block 6 carry-forward | Sweep-path batching (extend `writeEntitiesWithEmbeddingsBatch` to embedding-sweep) |
+| **10.6** | Block 6 carry-forward | Tool-call trace viewer (surface per-tool errors `f7fc540` started persisting) |
+
+Block 6 carry-forward item "fullSync long-tail unreachable until
+nightly cron" is the same item as 9.4 above — the cron *is* the
+mitigation. The "first non-Jenny customer naming" sub-bullet from
+that carry-forward entry rolls up into the broader Block 9 done-when
+("non-Jenny user can sign up, connect Slack and Jira, see freshness").
+
+### Cross-reference: Block 6 closeout
+
+Phase A landed at `c9e240a` per the prior session's closeout
+(HANDOFF lines 2068-2254). S6 (project picker via
+`?just_connected=jira`), S7 (sync backfill writes entities +
+embeddings), and S17 (done-when end-to-end agent answer for "how
+many tickets in this sprint?") all PASS-runtime on `elinnoagent.com`
+on 2026-05-11. No `block-6-hotfix-*` branch was created — the
+preview-deploy verification posture transferred cleanly to
+production.
+
+### Where future-Claude resumes
+
+Phase 0 ritual on parent main (which will be at the post-skip-
+commits tip once B4 push is approved):
+
+- `git status` → on `main`, clean.
+- `git branch --show-current` → `main`.
+- `git fetch origin --dry-run` → no fetch needed unless someone
+  pushed since session end.
+
+Next session pickup:
+
+1. **Open a fresh plan-mode session** with topic **"Draft
+   BLOCK_9_PLAN.md"**. Same Phase 1–3 shape Block 6 used:
+   exploration → Plan agents → AskUserQuestion → final plan file →
+   ExitPlanMode.
+2. **Lock Block 9's five sub-tasks as a single artifact** in
+   BLOCK_9_PLAN.md. Each sub-task gets locked decisions A–N (or
+   however many are needed) before any code edits. Phase A–E
+   verification matrix posture inherits from BLOCK_6_PLAN.md's
+   shape.
+3. **Sub-tasks 9.4 (nightly cron) and 9.5 (`records_skipped`) are
+   smaller-surface items** that can ship before the larger UI work
+   if Jenny prefers a quick win first.
+
+### Mid-section closure sentence
+
+Block 7 + 8 (Monday, Drive) defer to v1.2; their connector designs
+freeze in PRD §11.2 with auth method, sync mode, storage views, and
+tool lists already locked. The original Block 9 Polish-for-launch
+surface splits into Block 9 (5 launch-blocking tasks: connection UI,
+data-as-of timestamp, suggested questions, nightly cron, records_skipped
+accounting) + Block 10 (6 nice-to-have tasks: refresh-and-ask-again,
+cost cap, message limits, connector guide, sweep batching, trace
+viewer). v1.1 is now two connectors and two polish blocks away from
+"non-Jenny user can onboard." Branch `block-9-scope-split` holds
+three doc commits awaiting per-push approval to main.
+
