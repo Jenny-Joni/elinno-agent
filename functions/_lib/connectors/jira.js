@@ -522,7 +522,7 @@ async function _doSync(ctx, connection, options = {}) {
 
   let inserted = 0;
   let updated = 0;
-  const skipped = 0;
+  let skipped = 0; // Block 9.5 decision B: now incremented on no-op upserts
   let latestUpdatedSeen = cursor;
 
   // Step 1: sprint refresh (always full — sprints are O(10) per project,
@@ -556,9 +556,12 @@ async function _doSync(ctx, connection, options = {}) {
         connection.id,
         sprintEntities
       );
+      // Block 9.5 decision B: three-branch counter — no-op upserts
+      // (inserted = false AND changed = false) increment skipped.
       for (const result of results) {
         if (result.inserted) inserted++;
-        else updated++;
+        else if (result.changed) updated++;
+        else skipped++;
       }
     }
   } catch (err) {
@@ -638,9 +641,12 @@ async function _doSync(ctx, connection, options = {}) {
         connection.id,
         issueEntities
       );
+      // Block 9.5 decision B: three-branch counter — no-op upserts
+      // (inserted = false AND changed = false) increment skipped.
       for (const result of results) {
         if (result.inserted) inserted++;
-        else updated++;
+        else if (result.changed) updated++;
+        else skipped++;
       }
     }
 
