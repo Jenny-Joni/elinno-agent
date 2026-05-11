@@ -4,19 +4,19 @@
 
 | Field | Value |
 |---|---|
-| Document | PRD v1.1 |
+| Document | PRD v1.2 |
 | Owner | Jenny (jenny@elinnovation.net) |
 | Status | Draft — ready for review |
-| Last updated | 2026-05-02 |
-| Related | Build Plan v1.1, HANDOFF.md, PROJECT.md |
+| Last updated | 2026-05-11 |
+| Related | Build Plan v1.2, HANDOFF.md, PROJECT.md |
 
 ---
 
 ## 1. Summary
 
-Elinno Agent is a multi-tenant project intelligence platform. An admin creates a project, connects the team's existing tools (Jira, Slack, Monday, Google Drive), and the platform syncs and indexes that data into a unified store. Team members then chat with an AI assistant scoped to a single project, asking questions like "How many tickets are still open in this sprint?" or "How much did we spend on testing this quarter?"
+Elinno Agent is a multi-tenant project intelligence platform. An admin creates a project, connects the team's existing tools (Jira and Slack in v1.1; Monday and Google Drive in v1.2 — see §11.2), and the platform syncs and indexes that data into a unified store. Team members then chat with an AI assistant scoped to a single project, asking questions like "How many tickets are still open in this sprint?" or "How much did we spend on testing this quarter?"
 
-The AI does not guess. Every answer is derived from a tool call against the synced data, and every fact in a response links back to its source so the user can verify. The four MVP connectors are deliberate; the architecture is built so additional connectors (Notion, Telegram, GitHub, etc.) can be added later as plug-in modules without core changes.
+The AI does not guess. Every answer is derived from a tool call against the synced data, and every fact in a response links back to its source so the user can verify. The v1.1 MVP set (Slack + Jira) is deliberate; the architecture is built so additional connectors (Monday and Google Drive ship in v1.2; Notion, Telegram, GitHub, etc. as plug-in modules later) can be added without core changes.
 
 ---
 
@@ -24,7 +24,7 @@ The AI does not guess. Every answer is derived from a tool call against the sync
 
 ### 2.1 The problem
 
-Project information lives across at least four tools. Status updates require humans to manually aggregate from Jira, cross-reference Monday for budget, scan Slack for context, and hunt through Drive for the relevant spec. This is slow, error-prone, and produces stale answers by the time a question is asked twice.
+Project information lives across at least four tools. Status updates require humans to manually aggregate from Jira, cross-reference Monday for budget, scan Slack for context, and hunt through Drive for the relevant spec. This is slow, error-prone, and produces stale answers by the time a question is asked twice. v1.1 covers the Jira + Slack pieces; Monday and Drive ship in v1.2 (see §11.2).
 
 ### 2.2 Goals (what success looks like)
 
@@ -58,7 +58,7 @@ Project information lives across at least four tools. Status updates require hum
 ### As an Admin
 
 - I can create a new project with a name and description.
-- I can add connections to Jira, Slack, Monday, and Google Drive using each service's recommended auth method (OAuth where supported, API token otherwise).
+- I can add connections to Jira and Slack in v1.1 (Monday and Google Drive in v1.2) using each service's recommended auth method (OAuth where supported, API token otherwise).
 - I can see the sync status of each connection: last sync time, record counts, and any errors.
 - I can disconnect or reconnect a service, and trigger a manual full re-sync.
 - I can invite teammates to the project as Members.
@@ -66,7 +66,7 @@ Project information lives across at least four tools. Status updates require hum
 ### As a Member
 
 - I can open a project and see a chat interface.
-- I can ask natural-language questions and get answers with citations linking back to Jira issues, Monday items, Slack threads, or Drive files.
+- I can ask natural-language questions and get answers with citations linking back to Jira issues or Slack threads (Monday items and Drive files in v1.2).
 - I can see when data was last synced, so I know how fresh the answer is.
 - I can view my conversation history within a project.
 
@@ -98,8 +98,8 @@ Project information lives across at least four tools. Status updates require hum
 |---|---|---|---|
 | **Jira** | OAuth 2.0 (3LO) or API token + email | Incremental every 15 min; webhooks where available | Tickets, sprints, statuses, story points |
 | **Slack** | OAuth bot token (workspace-scoped) | Real-time via Events API; backfill on connect | Channel messages, threads, reactions |
-| **Monday** | API token (GraphQL) | Incremental every 30 min | Boards, items, custom columns (budget/time) |
-| **Google Drive** | OAuth 2.0 (read-only scopes) | Incremental every 60 min; change notifications | Docs, Sheets, PDFs only in v1.1 (text extracted). Images/OCR deferred. |
+
+Monday and Google Drive deferred to v1.2 — see §11.2 for connector designs (auth, sync modes, tools, storage views).
 
 ### 5.4 Credential storage
 
@@ -111,7 +111,7 @@ Project information lives across at least four tools. Status updates require hum
 ### 5.5 Data ingestion & storage
 
 - All synced records are normalized into a single `entities` table with: project_id, source, source_type, source_id, title, body, url, author, metadata (jsonb), raw payload, timestamps.
-- Specialized SQL views (`jira_issues`, `monday_items`, `slack_messages`, `drive_files`) provide fast typed access for structured queries.
+- Specialized SQL views (`jira_issues`, `slack_messages`) provide fast typed access for structured queries. v1.2 adds `monday_items` and `drive_files` views.
 - Vector embeddings are computed at sync time for searchable content and stored in pgvector.
 - Sync jobs run on a queue with retries, backoff, dead-letter handling, and per-connector rate limiting.
 
@@ -128,11 +128,9 @@ Project information lives across at least four tools. Status updates require hum
 - Backed by a tool-calling LLM (Anthropic Claude). The model never produces facts directly; it picks tools and synthesizes results.
 - Tool catalogue (MVP):
   - `search_project_data` — hybrid keyword + semantic search across all sources.
-  - `query_jira_issues`, `list_jira_sprints`, `get_jira_sprint_summary`.
-  - `list_monday_boards`, `get_monday_board_schema`, `query_monday_items`, `aggregate_monday`.
+  - `query_jira_issues`, `list_jira_sprints`, `get_jira_sprint_summary`, `aggregate_jira` (counts, sums by group).
   - `list_slack_channels`, `query_slack_messages`.
-  - `list_drive_files`, `read_drive_file`.
-  - `aggregate_jira` (counts, sums by group).
+  - Monday + Drive tools (`list_monday_boards`, `get_monday_board_schema`, `query_monday_items`, `aggregate_monday`, `list_drive_files`, `read_drive_file`) ship in v1.2 — see §11.2.
 - Every tool requires `project_id` as the first argument; the server rejects cross-project calls regardless of LLM input.
 - Every response includes citations (links to source records). Responses with zero citations are treated as a model failure and surfaced as such.
 - Hard cap of ~6 tool iterations per user message to bound cost and latency.
@@ -250,7 +248,6 @@ Free in v1.1 is a deliberate choice for adoption, not a permanent commitment. Po
 | Cross-project data leakage via prompt injection | Project ID enforced server-side on every tool call; cannot be overridden by user/model input. Tool implementations re-verify caller authorization. |
 | Source-system rate limits | Per-connector token-bucket rate limiter, exponential backoff, queued retries, prefer webhooks over polling where supported. |
 | Infrastructure cost runaway (no revenue offset) | Hard per-project monthly AI cost cap with auto-pause. Daily message limits. Cheap-model routing before strong-model synthesis. Aggressive caching of stable lookups. Trimmed tool result payloads. Embed once at sync, never at query. Watch metrics closely; ratchet caps down if needed. |
-| Monday board heterogeneity (custom columns) | Schema-discovery tool (`get_monday_board_schema`) called before aggregation; defensive type handling and currency normalization. |
 | Stale data at query time | "Data as of" timestamp shown in every answer; high-stakes queries can opt into a synchronous pre-fetch. |
 
 ---
@@ -307,10 +304,32 @@ This is the highest-privacy-risk feature in the system, so it is deliberately de
 - v1.1 tool signatures should accept `project_id` as a string today but be defined in code in a way that extending to `project_ids: string[]` in v1.2 is non-breaking.
 - v1.1 storage already keys all entities by `project_id`, so cross-project queries are a question of authorization + UI, not a data migration.
 
-### 11.2 Other deferred items
+### 11.2 Monday + Google Drive connectors (planned for v1.2)
+
+Originally locked as MVP connectors in v1.1; deferred to v1.2 to shorten the path to the first non-Jenny user. v1.1 ships with Slack + Jira. The connector designs are already settled at the shape level — what changes in v1.2 is execution, not architecture.
+
+#### Monday
+
+- **Auth:** API token (GraphQL).
+- **Sync mode:** incremental every 30 min.
+- **Surface:** boards, items, custom columns (budget/time tracking).
+- **Storage:** `monday_items` SQL view over `entities`.
+- **Tools:** `list_monday_boards`, `get_monday_board_schema` (boards have custom columns — schema must be checked before aggregation), `query_monday_items`, `aggregate_monday`.
+- **Risk carried forward:** board heterogeneity (custom columns) — mitigated by the schema-discovery tool plus defensive type handling and currency normalization.
+
+#### Google Drive
+
+- **Auth:** OAuth 2.0 (read-only scopes).
+- **Sync mode:** incremental every 60 min; change notifications.
+- **Surface in v1.2:** Docs, Sheets, PDFs (text extracted). Images and OCR deferred further.
+- **Storage:** `drive_files` SQL view over `entities`.
+- **Tools:** `list_drive_files`, `read_drive_file`.
+- **Long-document handling:** chunk + embed each chunk; the v1.1 hybrid keyword + semantic search handles unstructured retrieval without further changes.
+
+### 11.3 Other deferred items
 
 - **Audit log for admin actions.** Track who connected/disconnected what, who invited/removed members, who triggered re-syncs. Add when there are multi-admin projects or compliance pressure.
-- **Drive: images and OCR.** Extract text from screenshots, scanned PDFs, and image files in Drive.
+- **Drive: images and OCR.** Extract text from screenshots, scanned PDFs, and image files in Drive (after core Drive lands in v1.2 per §11.2).
 - **Additional connectors.** Notion, Telegram, GitHub, Linear, HubSpot, etc. — added as plug-ins via the connector registry.
 - **Write-back actions.** Creating Jira tickets, posting Slack messages, updating Monday items from chat. v1.1 is read-only by design.
 - **Paid tiers.** Higher message caps, priority sync, longer history, more connectors. Architecture is ready; pricing is the open question.
