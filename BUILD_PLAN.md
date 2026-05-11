@@ -4,10 +4,10 @@
 
 | Field | Value |
 |---|---|
-| Document | Build Plan v1.1 |
-| Companion to | PRD v1.1, HANDOFF.md |
+| Document | Build Plan v1.2 |
+| Companion to | PRD v1.2, HANDOFF.md |
 | For | Solo build with Cursor + Claude |
-| Last updated | 2026-05-02 |
+| Last updated | 2026-05-11 |
 
 ---
 
@@ -25,6 +25,7 @@ Don't work on everything at once. The right order matters more than the speed. E
 - Login, password reset, admin user management.
 - D1 database for users/sessions.
 - Resend for emails.
+- **Blocks 1–6 shipped (database, project shell, connector framework, Slack connector, AI loop, Jira connector). See HANDOFF.md for closeout SHAs and verification posture per block.**
 
 Everything below builds on top of this. Don't touch the auth code unless you have a reason.
 
@@ -131,51 +132,46 @@ Each block is one focused chunk. Finish it, deploy it, see it work, then move on
 
 ### Block 7 — Monday connector
 
-*Why next: Monday is the budget/time-tracking story. Adding it unlocks the "how much did we spend" questions.*
-
-**Tasks (in order):**
-
-1. Add Monday as a connector with API token auth (their GraphQL API).
-2. Sync boards, items, and column values.
-3. Add a `monday_items` SQL view.
-4. Add tools: `list_monday_boards`, `get_monday_board_schema` (boards have custom columns — the AI must check the schema first), `query_monday_items`, `aggregate_monday`.
-5. Test "how much did we spend on testing?" against a real board.
-
-**Done when:** Sum/aggregation queries against your Monday board return numbers computed in the database, not guessed by the AI.
+**Deferred to v1.2 — see PRD §11.2.** v1.1 ships with two MVP connectors (Slack + Jira). The Monday connector design (API token auth, `monday_items` view, four tools including `get_monday_board_schema` for custom-column heterogeneity) is locked in PRD §11.2 and picks up in v1.2 alongside cross-project mode (PRD §11.1). Block number reserved so HANDOFF cross-references resolve.
 
 ---
 
 ### Block 8 — Google Drive connector
 
-*Why last: Drive is mostly unstructured documents. The semantic search you already built handles them well.*
-
-**Tasks (in order):**
-
-1. Add Google Drive as a connector with OAuth (read-only scopes).
-2. Sync file metadata: name, type, owner, folder, modified time.
-3. Extract text from Google Docs (export-as-text), Sheets (cell ranges), and PDFs. Skip images and OCR.
-4. Chunk long documents and embed each chunk.
-5. Add tools: `list_drive_files`, `read_drive_file`.
-
-**Done when:** "Find the spec for feature X" returns the right doc with a snippet.
+**Deferred to v1.2 — see PRD §11.2.** v1.1 ships with two MVP connectors (Slack + Jira). The Drive connector design (OAuth read-only, `drive_files` view, `list_drive_files` + `read_drive_file` tools, chunk-and-embed for long documents) is locked in PRD §11.2 and picks up in v1.2. Images and OCR remain deferred further (PRD §11.3). Block number reserved so HANDOFF cross-references resolve.
 
 ---
 
-### Block 9 — Polish for launch
+### Block 9 — Polish: launch-blocking
 
-*Why now: the product works end-to-end. This block makes it usable by people who aren't you.*
+*Why now: the product works end-to-end with Slack + Jira. This block holds only what's required to onboard a non-Jenny user. Block 10 picks up the rest of the polish surface.*
 
 **Tasks (in order):**
 
-1. Connection management UI: status, last sync time, manual re-sync (admin), disconnect.
-2. Member "refresh and ask again" action on each AI response.
-3. Per-project AI cost cap with admin notification when hit.
-4. Daily message limits per project.
-5. "Data as of" timestamp on every AI answer.
-6. Suggested example questions on first project open.
-7. Write the "how to add a new connector" guide — it's also the prompt template you'll use to scaffold the next connector with Claude.
+1. **Connection management UI:** status, last sync time, manual re-sync (admin, 1/hour per connection per PRD §5.6), disconnect.
+2. **"Data as of" timestamp on every AI answer**, per source cited (PRD §5.6).
+3. **Suggested example questions on first project open** — Slack + Jira shapes only in v1.1.
+4. **Nightly cron via Cloudflare Cron Triggers** driving incrementalSync — mitigates the Jira fullSync DESC long-tail (per HANDOFF Block 6 carry-forward queue).
+5. **`records_updated` overcount fix** — detect identical state and report `records_skipped` so admins see a meaningful sync delta (per HANDOFF Block 6 carry-forward queue).
 
-**Done when:** Someone other than you can sign up, connect their tools, and ask their first question without asking you for help.
+**Done when:** Someone other than you can sign up, connect Slack and Jira, see freshness on every answer, and have nightly sync keep their data current without intervention.
+
+---
+
+### Block 10 — Polish: nice-to-have
+
+*Why split off from Block 9: these tasks improve the product but don't block launching to a non-Jenny user. Sequence after Block 9 ships.*
+
+**Tasks (in order):**
+
+1. **Member "refresh and ask again" action** on each AI response (PRD §5.6, 5/user/hour rate limit).
+2. **Per-project AI cost cap** with admin notification when hit.
+3. **Daily message limits per project.**
+4. **"How to add a new connector" guide** — also serves as the Claude prompt template for v1.2 Monday + Drive scaffolds.
+5. **Sweep-path batching** — extend `writeEntitiesWithEmbeddingsBatch` to the embedding-sweep path so it doesn't trip the Workers subrequest cap on large recoveries (per HANDOFF Block 6 carry-forward queue).
+6. **Tool-call trace viewer** — surface the per-tool errors that Block 6's `f7fc540` started persisting as `tool_result` payloads (per HANDOFF Block 6 carry-forward queue).
+
+**Done when:** Cost caps + message limits guard infrastructure; "refresh and ask again" works end-to-end; the connector guide reads cleanly enough that v1.2's Monday + Drive scaffolds can be driven from it.
 
 ---
 
@@ -223,17 +219,16 @@ Each block is one focused chunk. Finish it, deploy it, see it work, then move on
 
 ---
 
-## Right Now: Your First Task
+## Right Now: Your Next Task
 
-Don't plan more. Don't read more docs. Just do this:
+Blocks 1–6 are shipped (HANDOFF for SHAs and verification posture). Blocks 7 + 8 deferred to v1.2 (PRD §11.2). Block 9 is the launch-blocking polish layer.
 
-1. Sign up for Neon. Create a database. Enable pgvector.
-2. Open Cursor. Open this plan and the PRD as context.
-3. Ask Claude to draft the schema for: `projects`, `project_members`, `connections`, `entities`, `entity_embeddings`, `sync_runs`, `conversations`, `messages`.
-4. Review it. Apply it. Confirm tables exist in Neon.
+1. Open a fresh plan-mode session with topic **"Draft BLOCK_9_PLAN.md"** — same Phase 1–3 shape Block 6 used.
+2. Lock the five Block 9 sub-tasks (connection management UI, data-as-of timestamp, suggested example questions, nightly cron, `records_skipped` accounting) into BLOCK_9_PLAN.md as a single artifact before any code edits.
+3. Execute one sub-task per session, branch → preview → ff-merge → push, per WORKFLOW.
 
-That's Block 1, Task 1. Do that, then come back to this plan and pick the next task. If you do this on each session, you'll ship.
+That's the next thing. Block 10 follows once Block 9 is at "non-Jenny user can onboard."
 
 ---
 
-*End of Build Plan v1.1.*
+*End of Build Plan v1.2.*
