@@ -2065,3 +2065,191 @@ because Block 5's runtime verification touched edit events on production)
 is fixed at `3cdcea3`. Carry-forward queue picks up six new items above,
 all Block 9 candidates.
 
+## Block 6 closeout — 2026-05-11
+
+> Closeout of Block 6 (Jira connector). All Phase A–E verification cells
+> PASS-runtime or PASS-by-inspection on the preview deploy
+> `https://block-6-jira-connector.elinno-agent.pages.dev` against
+> rain-labs.atlassian.net (RAINONE project, Sprint 12 active = sprint_id 704).
+> BLOCK_6_PLAN.md bumped to v1.2 with two locked-decision amendments
+> (E + O per-mode JQL ordering; B endpoint migration to `/search/jql`)
+> plus a v1.2 note on Decision M (batched-embedding helper added).
+> Branch `block-6-jira-connector` is at tip `c1c1aec`, based on main
+> `0c1bf5b`, pushed to origin, clean tree. NOT YET merged to main —
+> ff-merge + production verification of S6/S7/S17 is a separate phase
+> per WORKFLOW per-push-to-main approval.
+
+### What shipped on `block-6-jira-connector`
+
+| # | SHA | Subject | Mode |
+|---|---|---|---|
+| 0 | `9a4b58d` | refactor(block-6): extract writeEntityWithEmbedding to _shared/entity_writer.js | DEFAULT |
+| 1 | `68a4111` | docs(block-6): lock Block 6 design decisions A–P | AUTO |
+| 2 | `dd81f36` | feat(block-6): add Jira connector — getMetadata/completeAuth/refreshAuth/testConnection | DEFAULT |
+| 3 | `946b812` | feat(block-6): bespoke POST /api/connectors/jira/auth/save endpoint | DEFAULT |
+| 4 | `24ff16b` | feat(block-6): jira_issues view migration + Jira project listing endpoint | AUTO + DEFAULT (migration) |
+| 4a | `949a870` | fix(block-6): add selected_project_key + selected_project_name to PATCH allowlist | DEFAULT |
+| 5 | `3d503de` | feat(block-6): Jira fullSync + entity mapping for jira_issue + jira_sprint | DEFAULT |
+| 6 | `a51e642` | feat(block-6): Jira incrementalSync via JQL updated >= cursor | DEFAULT |
+| 6a | `73d1df0` | fix(block-6): migrate Jira issue search to /search/jql (deprecated /search → 410) | DEFAULT |
+| 6b | `1d84cf7` | fix(block-6): batch embeddings in Jira sync to stay under Workers subrequest cap | DEFAULT |
+| 7 | `e6db369` | feat(block-6): add 3 Jira tools to TOOL_DEFINITIONS + executor handlers | DEFAULT |
+| 7a | `f7fc540` | fix(block-6): NULL-coalesce conditional filters in Jira tools + log tool errors | DEFAULT |
+| 8 | `e1f440d` | feat(block-6): SYSTEM_PROMPT {{AVAILABLE_SOURCES}} slot + render-time query | DEFAULT |
+| 9 | `9bd0a6e` | feat(block-6): Connect Jira UI in project.html + project picker modal | AUTO |
+| 9a | `c1c1aec` | fix(block-6): per-mode JQL order — DESC for fullSync, ASC for incrementalSync | DEFAULT |
+| 10 | (this commit) | docs(block-6): closeout — verification matrix + HANDOFF addendum + plan v1.2 amendments | AUTO |
+
+Plan-reserved fixup slots 3a + 7a went unused; the five actual fixups (4a,
+6a, 6b, 7a, 9a in the table above) landed inline at the points the
+issues surfaced, naming-conventionally tied to the preceding feature
+commit's phase. Reserved-slot discipline held: each fixup was a single-
+issue commit, no fix-bundles.
+
+### Verification posture
+
+22 numbered cells in the curl matrix plus 5 sub-cells (S1a/b/c, S22a/b/c/d),
+total 27 cells. Status distribution:
+
+- **PASS-runtime: 26.** All Phase A–E cells with a runtime verdict ran live
+  on the preview deploy against rain-labs.atlassian.net + a Neon branch
+  (for the S20 byte check and S22c synthetic seed + S22d query-failure
+  simulation). S6/S7/S11/S12/S14/S15/S17 PASS-runtime is **post-fixup**
+  (each was caught failing on first attempt and ran green after the
+  corresponding fix shipped — see the mid-flight fixes table in the
+  curl matrix).
+- **PASS-by-inspection: 1.** S21 response-whitelist guard verified via
+  code-inspection on the PATCH allowlist + GET-connections projection
+  (commit `949a870`'s body asserts the separation).
+- **Unreachable-by-design: 1.** S22-empty per Block 5's zero-data-source
+  short-circuit at [loop.js:111-115](functions/_lib/ai/loop.js).
+- **PENDING / DEFERRED: 0.** No cells left untested or deferred to
+  Block 9 within Block 6's scope.
+
+Full matrix at [curl-matrix-block-6.md](curl-matrix-block-6.md).
+
+### Plan amendments (v1.1 → v1.2)
+
+Two locked-decision amendments + one supporting amendment + one helper-
+module API addition, all folded into BLOCK_6_PLAN.md as v1.2.
+
+- **Decision B endpoint migration (commit `73d1df0`).** Endpoint 3
+  migrated from `/rest/api/3/search` to `/rest/api/3/search/jql`.
+  Atlassian deprecated the older endpoint in April 2025; it now returns
+  HTTP 410. The new endpoint uses `nextPageToken` cursor-based pagination
+  instead of `startAt` offset-based. End-of-results detection now reads
+  `response.isLast === true` OR `!response.nextPageToken` OR partial
+  page. The other four endpoints (`/myself`, `/project/search`, and the
+  two Agile API endpoints) are unchanged and still use `startAt`.
+- **Decision E + O per-mode JQL ordering (commit `c1c1aec`, new
+  sub-decision E4).** v1.1 locked `ORDER BY updated ASC` for both
+  fullSync and incrementalSync. Phase D revealed that fullSync's
+  `MAX_PAGES = 5` cap × ASC ordering returned the **oldest** 500 issues
+  on RAINONE — Sprint 12 (the active sprint) had 0 issues in synced data
+  while Sprints 1–9 were fully present. Per-mode resolution: **fullSync
+  uses DESC** (newest 500 first; active-sprint issues land in the cap);
+  **incrementalSync keeps ASC** (required for cursor monotonicity).
+  Decision O's cursor-advancement contract is scoped to incrementalSync
+  only — fullSync leaves `last_sync_cursor` unset, so subsequent fullSync
+  clicks idempotently re-fetch the newest 500.
+- **Decision E1 supporting amendment.** Cap-hit detection signal updated
+  to `pages >= MAX_PAGES AND hasMorePages` (now derived from
+  `nextPageToken` presence or `isLast === false`), more authoritative
+  than the v1.1-implied "last page was full" heuristic.
+- **Decision M v1.2 helper note (commit `1d84cf7`).** A fourth export —
+  `writeEntitiesWithEmbeddingsBatch(env, sql, projectId, connectionId,
+  entities[])` — was added to `_shared/entity_writer.js`. It UPSERTs all
+  entities + makes ONE OpenAI `embedTextsBatch` call + UPSERTs all
+  embedding rows. Used from Jira's `_doSync` (per page for issues, per
+  board for sprints) to stay under Cloudflare Workers' subrequest cap.
+  Slack's per-message pattern unchanged. Sweep path still uses per-entity
+  `embedEntityRow`. NOT a decision rewrite — Decision M's three-export
+  contract is preserved, the batch helper is additive.
+
+### Carry-forward queue (Block-6-specific additions)
+
+- **fullSync long-tail unreachable until nightly cron.** Per v1.2 DESC
+  fullSync + E1's known limitation: a 10k-issue project's older 9500
+  issues are only reachable via incrementalSync runs after the first
+  fullSync. Block 9 nightly cron via Cloudflare Cron Triggers is the
+  only mitigation. Name explicitly to first non-Jenny customer at
+  onboarding.
+- **Sweep path still uses per-entity `embedEntityRow`.** If sweep
+  recovers >50 missing embeddings in one invocation, hits the same
+  Workers subrequest cap that forced commit `1d84cf7`. Block 9
+  mitigation: extend the batching helper to the sweep path.
+- **`records_updated` overcount on metadata-only refreshes (Block 5
+  carry-forward, still applies to Jira).** Sync currently reports rows
+  as updated when only `fields.updated` ticks without content change.
+  Block 9 polish: detect identical state and report `records_skipped`.
+- **Tool errors persisted but not surfaced.** Commit `f7fc540`'s
+  try/catch wrapper persists per-tool failures as tool_result payloads
+  + `console.warn` lines; no admin UI surfaces them. Block 9: tool-call
+  trace viewer (already in the broader queue, now sharpened by Jira's
+  multi-tool surface).
+- **WORKFLOW addendum candidates surfaced by Block 6:**
+  - "Decisions naming external API endpoints need a deprecation-check
+    step in pre-flight" (forced by `/search` → 410).
+  - "Pagination-cap + ORDER BY decisions need disambiguation by sync
+    mode in the plan, not just a single ASC/DESC default" (forced by
+    `c1c1aec`).
+  - "Connector sync paths that batch embeddings need a Workers
+    subrequest budget noted in the plan" (forced by `1d84cf7`).
+  - "Reserved fixup-slot naming convention: slots fire at the phase
+    where the issue surfaces, not at the position the plan reserves
+    them" (Block 6 used 4a/6a/6b/7a/9a, not 3a/7a as plan named).
+
+### Where future-Claude resumes
+
+Phase 0 ritual on parent main (which currently lags the branch):
+
+- `git status` → on `main`, clean, equal to origin at `0c1bf5b`.
+- `git branch --show-current` → `main`. The Block 6 work lives on
+  `block-6-jira-connector` at `c1c1aec`, in worktree
+  `.claude/worktrees/recursing-bhaskara-e69c65/`.
+- `git fetch origin --dry-run` → no fetch needed unless someone pushed
+  to origin since session end.
+- **Cursor markdown discipline still active** — HANDOFF / WORKFLOW
+  edits go through Claude Code filesystem path, not Cursor save, until
+  the formatter is suppressed.
+
+Named pre-merge-to-main tasks:
+
+1. **Production-env secret confirmation.** Re-confirm
+   `MASTER_ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` set
+   on Pages → Production AND Preview. No new env vars introduced by
+   Block 6 (Atlassian API tokens are per-connection encrypted blobs,
+   not Worker secrets).
+2. **ff-merge to local main.** `git switch main; git merge --ff-only
+   block-6-jira-connector`. Should be a clean fast-forward since
+   `block-6-jira-connector` is directly based on `main` (merge-base =
+   `0c1bf5b`).
+3. **Push to main with per-push approval.** Each `git push origin main`
+   is a separate explicit approval per WORKFLOW; never standing.
+4. **Production verification re-run (preview was all PASS-runtime; re-run
+   subset on production):**
+   - S6 (project picker via `?just_connected=jira`)
+   - S7 (sync backfill writes entities + embeddings on rain-labs Jira
+     project, this time against `elinnoagent.com`)
+   - S17 (done-when end-to-end agent answer for "how many tickets in
+     this sprint?")
+5. **If production verification surfaces any new bug**, fix on a
+   `block-6-hotfix-*` branch + ff-merge + push, per the Block 5
+   precedent (Block 5's `3cdcea3` `message_changed` hotfix is the
+   reference shape).
+
+### Mid-section closure sentence
+
+Block 6 ships the Jira connector v1.1 with three structured-query
+tools, per-mode JQL pagination, batched-embedding sync (to clear the
+Cloudflare Workers subrequest cap), and the `{{AVAILABLE_SOURCES}}`
+system-prompt slot that lets the model distinguish "no Jira data"
+from "Jira not connected." Five Phase-A–E surfacing fixups (PATCH
+allowlist, `/search` → `/search/jql` deprecation, subrequest-cap
+batching, NULL-coalesce + tool-error logging, per-mode JQL ordering)
+landed inline and were folded back into the plan as v1.2 amendments
+where they touched locked decisions (B, E, O, M). Carry-forward queue
+picks up four new items, all Block-9-or-WORKFLOW-addendum candidates.
+Branch is one ff-merge away from main; production re-run of
+S6/S7/S17 is the gate.
+

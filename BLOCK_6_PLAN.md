@@ -104,7 +104,7 @@ v1.1 calls exactly five Atlassian REST endpoints:
 
 1. `GET /rest/api/3/myself` — connection test (decision C's `testConnection`).
 2. `GET /rest/api/3/project/search?expand=description` — list accessible projects for the picker (decision G).
-3. `GET /rest/api/3/search?jql=...&fields=summary,status,assignee,reporter,priority,issuetype,labels,customfield_10020` — issue search for backfill + incremental (decision E). `customfield_10020` is the standard sprint field; story points is `customfield_10016`.
+3. `GET /rest/api/3/search/jql?jql=...&fields=summary,status,assignee,reporter,priority,issuetype,labels,customfield_10020,customfield_10016` — issue search for backfill + incremental (decision E). Cursor-based pagination via `nextPageToken`; response shape `{ issues, nextPageToken?, isLast? }`. `customfield_10020` is the standard sprint field; story points is `customfield_10016`.
 4. `GET /rest/agile/1.0/board?projectKeyOrId=...` — list boards for the project (decision E).
 5. `GET /rest/agile/1.0/board/{boardId}/sprint?state=active,closed,future` — list sprints per board (decision E).
 
@@ -112,6 +112,8 @@ No Jira admin events, no user listing, no comment ingestion, no attachments, no 
 
 **Rationale:** matches PRD §3 ("issues, sprints, statuses"); small surface keeps Atlassian-side scope review (if v1.2 adds OAuth) lightweight.
 **Tradeoff:** non-standard custom field IDs require per-instance customization — out of scope for v1.1. Both `customfield_10020` (sprint) AND `customfield_10016` (story points) are the standard Atlassian Cloud defaults but are NOT guaranteed across instances; instances with custom workflows or imported data can have different IDs. **Pin both IDs at commit 5 coding time against Jenny's test instance**; instance-specific custom field discovery is Block 9.
+
+**v1.2 amendment (2026-05-11, commit `73d1df0`).** Endpoint 3 migrated from `/rest/api/3/search` to `/rest/api/3/search/jql`. Atlassian deprecated the older path in April 2025; the deprecated endpoint now returns HTTP 410 Gone. The new endpoint uses cursor-based pagination (`nextPageToken`) instead of offset-based (`startAt`), and end-of-results is signalled by `response.isLast === true` OR `!response.nextPageToken` OR a partial page (any of the three breaks the pagination loop). The other four endpoints are unchanged and continue to use `startAt`. Surfaced during Phase C verification on rain-labs.atlassian.net (sync_run.error captured the literal 410 response).
 
 ### C. Credential storage — reuse Block 3 envelope encryption; `credential_metadata` holds non-secret config
 
@@ -139,25 +141,40 @@ After Connect succeeds, the post-connect modal lists projects from B's `/project
 2. Call B's `/project/search` once to get the project's display name (cache-via-`connection.credential_metadata`-update if needed; otherwise re-fetch each fullSync).
 3. Call `/agile/1.0/board?projectKeyOrId=${selected_project_key}` to enumerate boards (typically 1–3 per project).
 4. For each board, `/agile/1.0/board/{id}/sprint?state=active,closed,future` to enumerate sprints. UPSERT sprints as `entities` rows with `source_type='jira_sprint'`.
-5. Call `/rest/api/3/search?jql=project=${selected_project_key} ORDER BY updated ASC&fields=summary,status,assignee,reporter,priority,issuetype,labels,customfield_10020,customfield_10016&maxResults=100`. Paginate via `startAt`. UPSERT issues as `entities` rows with `source_type='jira_issue'`.
-6. Per-row: call decision M's `writeEntityWithEmbedding` (combined upsert+embed). Sweep recovery via `sweepMissingEmbeddings` (existing pattern from Slack).
-7. Persist max(`updated`) of synced issues to `connection.last_sync_cursor` (ISO 8601 string).
+5. Call `/rest/api/3/search/jql?jql=project=${selected_project_key} ORDER BY updated DESC&fields=summary,status,assignee,reporter,priority,issuetype,labels,customfield_10020,customfield_10016&maxResults=100`. Paginate via `nextPageToken`. UPSERT issues as `entities` rows with `source_type='jira_issue'`. **Note (v1.2):** DESC order, not ASC — see decision E4 below.
+6. Per-page: call decision M's `writeEntitiesWithEmbeddingsBatch` (one OpenAI embed subrequest per page, not per entity — see decision M v1.2 note). Sweep recovery via `sweepMissingEmbeddings` (existing pattern from Slack).
+7. Cursor is NOT advanced on fullSync — see decision O v1.2 note. Subsequent fullSync clicks idempotently re-fetch the newest 500.
 
 `incrementalSync(ctx, connection)`:
 1. Read `last_sync_cursor` (ISO 8601) or fall back to `now() - 30d` (mirror Slack's full-sync-window default).
-2. Call `/rest/api/3/search?jql=project=${selected_project_key} AND updated >= "${cursor}" ORDER BY updated ASC&fields=...&maxResults=100`. Paginate.
+2. Call `/rest/api/3/search/jql?jql=project=${selected_project_key} AND updated >= "${cursor}" ORDER BY updated ASC&fields=...&maxResults=100`. Paginate via `nextPageToken`. ASC order is required for cursor monotonicity.
 3. Sprints: re-fetch entirely via E step 4 (sprints are O(10) per project; not worth incremental).
-4. UPSERT + embed; advance cursor.
+4. UPSERT + embed (batched per page, per decision M v1.2); advance cursor to max(`updated`) seen.
 
 **Rationale:** matches Block 4's E2/E3 pagination + cursor pattern; zero new infrastructure beyond the JQL incremental query.
 **Tradeoff:** changes between sync runs are invisible until next sync (vs. webhook-driven real-time). Manual "Sync now" button + Block 9 nightly cron mitigate.
+
+### E4. Per-mode JQL ordering — DESC for fullSync, ASC for incrementalSync (v1.2)
+
+**v1.2 amendment (2026-05-11, commit `c1c1aec`).** v1.1 locked `ORDER BY updated ASC` for both sync modes (mirrored Slack's E2 pattern). Phase D revealed that fullSync's 500-issue cap (E1) combined with ASC ordering returned the *oldest* 500 issues in projects with >500 issues, making the active sprint's issues forever beyond the cap. RAIN test instance: Sprint 12 (sprint_id=704, the active sprint) had 0 issues in synced data; Sprints 1–9 were fully present.
+
+Per-mode resolution:
+
+- **`fullSync` (cursor=null) uses `ORDER BY updated DESC`.** Newest 500 issues land in the cap. Subsequent fullSync clicks idempotently re-fetch the same newest 500 (UPSERT is no-op when content is unchanged). Active-sprint issues — typically the most-recently-updated — are reachable on first sync. The long-tail (older 9500 issues in a 10k-issue project) is unreachable from fullSync alone; Block 9 nightly cron via incrementalSync catches up the tail.
+- **`incrementalSync` (cursor!=null) uses `ORDER BY updated ASC`.** Required for cursor monotonic advancement: each page's max(updated) becomes the next page's lower bound, and the cursor at end-of-sync is the global max(updated) seen. DESC ordering would break this invariant (the cursor would point at the oldest, not newest, issue).
+
+The `_doSync` implementation accepts an `order` option; default is DESC when no cursor (fullSync), ASC when cursor present (incrementalSync). Plan-locked ASC was correct only for incrementalSync; the v1.1 lock was ambiguous because it didn't disambiguate by sync mode.
 
 ### E1. Pagination cap — `MAX_PAGES = 5` ≈ 500 issues per sync run
 
 Mirror Slack's E3. Cap at 5 pages × 100 results = 500 issues per `_doSync` invocation. Cap-hit produces `sync_runs.detail = { cap_hit: true, cap_pages: 5, cap_records: 500, oldest_unsynced_updated_ts: '...' }`. Subsequent sync runs catch up via the cursor.
 
+**v1.2 amendment (2026-05-11, commit `73d1df0`).** Cap-hit detection signal is now `pages >= MAX_PAGES AND hasMorePages` (where `hasMorePages` derives from `nextPageToken` presence or `isLast === false`), more authoritative than the v1.1-implied "last page was full" heuristic. Tied to the `/search/jql` migration: cursor-based pagination exposes end-of-results explicitly via `isLast`/`nextPageToken`, removing the inference step.
+
+**v1.2 follow-on (per decision E4):** "subsequent sync runs catch up via the cursor" only applies to incrementalSync. Repeated fullSync clicks on a >500-issue project re-fetch the same DESC newest-500; long-tail catch-up requires that at least one fullSync succeed (to seed the cursor implicitly via incrementalSync's first run, OR Block 9's nightly cron explicitly).
+
 **Rationale:** bounded per-request cost; Atlassian rate limits reward small page sizes; large backfills happen over multiple sync runs.
-**Tradeoff + v1.1 known limitation:** **v1.1 has no nightly cron.** A 10,000-issue project requires the admin to click "Sync now" ~20 times to fully backfill. Between Block 6 ship and Block 9 cron, this is the operational reality — name it explicitly to the first non-Jenny customer at onboarding. Block 9 mitigation: Cloudflare Cron Triggers running incrementalSync per active connection nightly. Until then, the only automation is whatever the admin builds externally (cron-triggered curl against the existing `/sync` endpoint).
+**Tradeoff + v1.1 known limitation (sharpened in v1.2):** **v1.1 has no nightly cron.** A 10,000-issue project requires the admin to click "Sync now" ~20 times to fully backfill — but ONLY if the cursor advances between clicks (incrementalSync mode). In v1.2's per-mode model, the first sync click is fullSync (cursor=null) and produces the newest 500; only the *second* and subsequent clicks (now incrementalSync, cursor!=null) advance through the tail. Long-tail-only projects require Block 9's nightly cron. Name explicitly to first non-Jenny customer at onboarding. Block 9 mitigation: Cloudflare Cron Triggers running incrementalSync per active connection nightly. Until then, the only automation is whatever the admin builds externally (cron-triggered curl against the existing `/sync` endpoint).
 
 ### E2. Rate-limit handling — Atlassian's 429 + `Retry-After`; sleep + retry once, then abort
 
@@ -455,6 +472,8 @@ Slack's three call sites change to:
 
 **Specific failure mode the lock prevents:** every future connector (Block 7 Monday, Block 8 Drive) re-implementing the embed-on-write pattern. Drift across connectors silently breaks the "every entity has an embedding" invariant that hybrid search depends on. The shared helper is a one-line call site; missing it is a code-review red flag.
 
+**v1.2 amendment (2026-05-11, commit `1d84cf7`).** A fourth export — `writeEntitiesWithEmbeddingsBatch(env, sql, projectId, connectionId, entities[])` — was added to `_shared/entity_writer.js`. It UPSERTs all entities in one Hyperdrive round-trip, makes ONE OpenAI `embedTextsBatch` call for all non-empty `content_text` (with the same project-isolation tripwire filter as `embedEntityRow`), then UPSERTs all embedding rows. Same swallow-and-log contract as `embedEntityRow`. Used from Jira's `_doSync` (per page for issues, per board for sprints) to stay under Cloudflare Workers' subrequest cap (50 free / 1000 paid), which the per-entity pattern hit on Jira projects with >50 issues. Slack's per-message pattern remains unchanged (Slack syncs rarely exceed a few dozen messages). The sweep path still uses per-entity `embedEntityRow` (≤50 entities per sweep call → ≤50 subrequests); batching the sweep is a Block 9 polish item if hot syncs surface it as a bottleneck.
+
 ### N. Bespoke save endpoint — `POST /api/connectors/jira/auth/save` (NOT POST `/connections`)
 
 The Block 4-era `POST /api/projects/:id/connections` handler is OAuth-shaped: it returns `{authUrl}` and expects the connector's `startAuth` to produce a redirect URL. Jira has no `authUrl` to return — credentials come in via form POST, not callback.
@@ -486,6 +505,8 @@ Boundary safety: cursor is set to max(updated), not max(updated)+1ms. JQL's `>=`
 
 **Rationale:** Atlassian's JQL doesn't expose milliseconds reliably; idempotent UPSERT covers the boundary. Slack uses an analogous approach (Slack `ts` cursor, OR-equal not strict-greater).
 **Tradeoff:** one redundant API call per sync run on the boundary issue. Negligible.
+
+**v1.2 amendment (2026-05-11, commit `c1c1aec`).** Cursor advancement applies to **incrementalSync only**. Per decision E4, `fullSync` runs `ORDER BY updated DESC` and does NOT write `last_sync_cursor`. Two reasons: (1) fullSync's first page is the global max(updated) at that moment; advancing the cursor to that value would mean the next incrementalSync run only catches issues updated *after* the fullSync ran, never the older 9500 in a 10k-issue project; (2) fullSync DESC pages traverse newest→oldest, so the "last page seen" is the oldest of the 500 — using *that* as the cursor would skip everything between the max(updated) of page 1 and the max(updated) of page 5. Leaving the cursor unset (null) after fullSync means the next sync click — whether manual or Block 9 cron — defaults to "30 days ago" and incrementalSync's ASC pagination walks the tail. Idempotency holds across repeat fullSync clicks (UPSERT is a no-op when content hasn't changed).
 
 ---
 
@@ -760,7 +781,15 @@ Jenny eyeballs the preview, then approves the push to main per WORKFLOW Phase 3 
 
 ---
 
-*End of Block 6 Build Plan v1.1. Generated 2026-05-10 in the design session for the Jira connector block, post-Block-5 closeout. Mirrors the structure of BLOCK_4_PLAN.md for consistency. Updates to locked decisions require a re-lock from Jenny per WORKFLOW.md.*
+*End of Block 6 Build Plan v1.2. Generated 2026-05-10 (v1.1) and amended 2026-05-11 (v1.2) in the design session for the Jira connector block, post-Block-5 closeout. Mirrors the structure of BLOCK_4_PLAN.md for consistency. Updates to locked decisions require a re-lock from Jenny per WORKFLOW.md.*
+
+*v1.2 rework round (vs. v1.1) — amendments folded in from commit 10 closeout:*
+- *Decision B endpoint 3 migrated from `/rest/api/3/search` to `/rest/api/3/search/jql` (Atlassian deprecation; old endpoint returns 410). Cursor-based pagination via `nextPageToken` replaces `startAt`. Surfaced commit `73d1df0`.*
+- *Decision E fullSync step 5 and incrementalSync step 2 updated to the new endpoint + `nextPageToken` pagination. fullSync step 5 also uses `ORDER BY updated DESC` (was ASC); incrementalSync step 2 keeps ASC for cursor monotonicity.*
+- *Decision E1 cap-hit detection signal updated to `pages >= MAX_PAGES AND hasMorePages`; long-tail catch-up clarified per per-mode model.*
+- *Decision E4 added — per-mode JQL ordering rationale. fullSync DESC, incrementalSync ASC. Surfaced commit `c1c1aec`.*
+- *Decision M v1.2 note — `writeEntitiesWithEmbeddingsBatch` added as a fourth export to `_shared/entity_writer.js` to stay under Cloudflare Workers subrequest cap. Surfaced commit `1d84cf7`.*
+- *Decision O v1.2 note — cursor advancement applies to incrementalSync only; fullSync leaves `last_sync_cursor` unset. Surfaced commit `c1c1aec`.*
 
 *v1.1 rework rounds (vs. v1.0):*
 - *Added I4 (no general-purpose `aggregate_jira` tool — missing-by-design lock with clamp-flag mitigation).*
