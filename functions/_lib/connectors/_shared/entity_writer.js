@@ -25,16 +25,19 @@
 // errors are logged and swallowed. Sync continues; sweep recovery picks up
 // missing rows on next sync. The combined helper inherits this contract.
 //
-// Block 9.5 amendment (decision A — WHERE-DO-UPDATE + xmax+updated_at idiom)
+// Block 9.5 amendment (decision A — CTE pattern with existing-row capture)
 // ----------------------------------------------------------------------------
-// upsertEntityRow's ON CONFLICT DO UPDATE carries a WHERE clause that
-// suppresses the UPDATE when every content column is unchanged. The
-// RETURNING clause returns (xmax = 0) AS inserted and (xmax <> 0 AND
-// updated_at = NOW()) AS changed, letting the caller distinguish three
-// states:
-//   - inserted = true                  → fresh INSERT
-//   - inserted = false, changed = true  → real UPDATE
-//   - inserted = false, changed = false → no-op write (idempotent re-sync)
+// upsertEntityRow uses a three-CTE chain: `existing` SELECTs the pre-
+// upsert row (FOR UPDATE locks it), `upserted` runs the INSERT ... ON
+// CONFLICT DO UPDATE (no WHERE clause — always fires), and the outer
+// SELECT joins them to derive `changed` by comparing OLD column values
+// from `existing` against the new values being inserted.
+//
+// Caller reads three states from the returned row:
+//   - inserted = true                  → fresh INSERT (xmax = 0)
+//   - inserted = false, changed = true  → real UPDATE (OLD values differed
+//                                          from proposed values)
+//   - inserted = false, changed = false → no-op write (OLD = proposed)
 //
 // writeEntityWithEmbedding + writeEntitiesWithEmbeddingsBatch gate the
 // embedding subrequest on (inserted || changed) — skipping the OpenAI
@@ -42,32 +45,37 @@
 // (embedEntityRow standalone) is untouched and continues to catch
 // genuinely-missing embeddings on next sync.
 //
-// Fallback (NOT shipped; documented for future swap-in if canary fails):
-// If V5-3 ever fails the exactness check (records_updated > 1 on a
-// single upstream edit) the WHERE-DO-UPDATE / updated_at = NOW() pair
-// is false-positiving. Swap upsertEntityRow's body wholesale to a CTE
-// that captures OLD values with FOR UPDATE and compares them in the
-// final SELECT — one extra round-trip per upsert, no updated_at = NOW()
-// reliance. Sketch:
+// Block 9.5 hotfix history (2026-05-12):
+// The first attempt used a WHERE clause on the ON CONFLICT DO UPDATE
+// to suppress no-op writes at the database level, deriving `changed`
+// from the pair (xmax <> 0, updated_at = NOW()). It shipped to
+// production at commit 5282436 and broke every Jira/Slack sync
+// immediately with "Cannot read properties of undefined (reading
+// 'id')". Root cause: in PostgreSQL, when ON CONFLICT DO UPDATE's
+// WHERE clause evaluates false, NO row is returned by RETURNING — the
+// destructured [row] is undefined and `row.id` throws. The plan-time
+// canary cells (V5-2, V5-3) would have caught this had they run
+// before the push to main; they didn't. Production was rolled back to
+// a21b19b; this hotfix swaps to the CTE pattern documented in this
+// block. See HANDOFF 2026-05-12 "Block 9.5 hotfix" for the full
+// rollback + hotfix narrative.
 //
-//   WITH existing AS (
-//     SELECT title, content_text, /* ...9 columns... */
-//       FROM entities
-//      WHERE connection_id = $1 AND source_type = $2 AND source_id = $3
-//      FOR UPDATE
-//   ), upserted AS (
-//     INSERT INTO entities (...) VALUES (...) ON CONFLICT (...) DO UPDATE SET ...
-//     RETURNING id, (xmax = 0) AS inserted
-//   )
-//   SELECT u.id, u.inserted,
-//          (e.title IS DISTINCT FROM /* new */ OR ...) AS changed
-//     FROM upserted u LEFT JOIN existing e ON TRUE
+// Why the CTE works where WHERE-DO-UPDATE didn't:
+//   - DO UPDATE always fires (no WHERE), so RETURNING always returns
+//     1 row from `upserted`.
+//   - `existing` captures OLD values BEFORE the UPDATE writes them
+//     (modifying CTEs in PostgreSQL operate on the pre-statement
+//     snapshot from the reading-CTE's perspective).
+//   - `changed` is derived by direct OLD-vs-NEW column comparison in
+//     the outer SELECT, not by xmax/updated_at gymnastics.
+//   - One extra row lookup per upsert (the `existing` SELECT). On
+//     Hyperdrive this is a Hyperdrive query, not a Workers subrequest;
+//     cost is negligible.
 //
-// Do not try to patch the WHERE clause in place — swap to the CTE.
-//
-// TODO: when adding a content column to entities, update the WHERE
-// IS DISTINCT FROM list below or the upsert will misclassify real
-// updates as skipped.
+// TODO: when adding a content column to entities, update both the
+// `existing` SELECT's column list AND the outer SELECT's IS DISTINCT
+// FROM comparison list, or `changed` will misclassify real updates as
+// skipped.
 // =========================================================================
 
 import { embedText, embedTextsBatch, EmbeddingError, EMBEDDING_MODEL_ID } from '../../ai/embeddings.js';
@@ -75,17 +83,25 @@ import { embedText, embedTextsBatch, EmbeddingError, EMBEDDING_MODEL_ID } from '
 /**
  * UPSERT an entity. Returns the row id and a three-state classification:
  *   - inserted = true                  → fresh INSERT (xmax = 0)
- *   - inserted = false, changed = true  → real UPDATE (content differed,
- *                                          DO UPDATE fired, updated_at bumped)
- *   - inserted = false, changed = false → no-op write (content identical,
- *                                          DO UPDATE's WHERE filtered it out)
+ *   - inserted = false, changed = true  → real UPDATE (OLD column values
+ *                                          differed from proposed values)
+ *   - inserted = false, changed = false → no-op write (OLD = proposed)
  *
- * The WHERE clause on DO UPDATE suppresses no-op updates at the database
- * level. `changed` is derived from the pair (xmax <> 0, updated_at = NOW()) —
- * xmax is set on any conflict path (lock acquired during conflict
- * resolution), but updated_at is bumped to NOW() ONLY when the SET clause
- * fired. PostgreSQL's NOW() returns transaction-start time, stable within
- * a single transaction, so the equality is exact.
+ * Uses a CTE chain: `existing` captures the pre-upsert row (FOR UPDATE
+ * locks it); `upserted` runs the INSERT ... ON CONFLICT DO UPDATE
+ * (always fires — no WHERE filter); the outer SELECT joins them and
+ * computes `changed` by IS DISTINCT FROM comparison between OLD values
+ * (from `existing`) and the proposed values.
+ *
+ * For a fresh INSERT, `existing` returns 0 rows; the LEFT JOIN yields
+ * NULL columns; `NOT u.inserted AND ...` short-circuits false. For an
+ * idempotent re-sync, OLD = proposed on every column so every
+ * `IS DISTINCT FROM` returns false and `changed` evaluates false.
+ *
+ * Hotfix history: prior attempt used WHERE clause on DO UPDATE to
+ * suppress no-op writes; broke prod immediately because PostgreSQL
+ * returns 0 rows from RETURNING when DO UPDATE's WHERE is false. See
+ * header docblock for narrative + reasoning.
  *
  * @param {object} sql                 - postgres tagged-template client
  * @param {string} projectId           - the connection's projectId (trusted)
@@ -95,41 +111,55 @@ import { embedText, embedTextsBatch, EmbeddingError, EMBEDDING_MODEL_ID } from '
  */
 export async function upsertEntityRow(sql, projectId, connectionId, entity) {
   const [row] = await sql`
-    INSERT INTO entities (
-      project_id, connection_id, source, source_type, source_id,
-      title, content_text, author_external_id, author_display_name,
-      source_created_at, source_updated_at, metadata, raw, source_url
-    ) VALUES (
-      ${projectId}, ${connectionId}, ${entity.source}, ${entity.source_type},
-      ${entity.source_id},
-      ${entity.title}, ${entity.content_text},
-      ${entity.author_external_id}, ${entity.author_display_name},
-      ${entity.source_created_at}, ${entity.source_updated_at},
-      ${entity.metadata}, ${entity.raw}, ${entity.source_url}
+    WITH existing AS (
+      SELECT title, content_text, author_external_id, author_display_name,
+             source_created_at, source_updated_at, metadata, raw, source_url
+        FROM entities
+       WHERE connection_id = ${connectionId}
+         AND source_type   = ${entity.source_type}
+         AND source_id     = ${entity.source_id}
+         FOR UPDATE
+    ), upserted AS (
+      INSERT INTO entities (
+        project_id, connection_id, source, source_type, source_id,
+        title, content_text, author_external_id, author_display_name,
+        source_created_at, source_updated_at, metadata, raw, source_url
+      ) VALUES (
+        ${projectId}, ${connectionId}, ${entity.source}, ${entity.source_type},
+        ${entity.source_id},
+        ${entity.title}, ${entity.content_text},
+        ${entity.author_external_id}, ${entity.author_display_name},
+        ${entity.source_created_at}, ${entity.source_updated_at},
+        ${entity.metadata}, ${entity.raw}, ${entity.source_url}
+      )
+      ON CONFLICT (connection_id, source_type, source_id) DO UPDATE
+         SET title              = EXCLUDED.title,
+             content_text       = EXCLUDED.content_text,
+             author_external_id = EXCLUDED.author_external_id,
+             author_display_name = EXCLUDED.author_display_name,
+             source_created_at  = EXCLUDED.source_created_at,
+             source_updated_at  = EXCLUDED.source_updated_at,
+             metadata           = EXCLUDED.metadata,
+             raw                = EXCLUDED.raw,
+             source_url         = EXCLUDED.source_url,
+             updated_at         = NOW()
+      RETURNING id, (xmax = 0) AS inserted
     )
-    ON CONFLICT (connection_id, source_type, source_id) DO UPDATE
-       SET title              = EXCLUDED.title,
-           content_text       = EXCLUDED.content_text,
-           author_external_id = EXCLUDED.author_external_id,
-           author_display_name = EXCLUDED.author_display_name,
-           source_created_at  = EXCLUDED.source_created_at,
-           source_updated_at  = EXCLUDED.source_updated_at,
-           metadata           = EXCLUDED.metadata,
-           raw                = EXCLUDED.raw,
-           source_url         = EXCLUDED.source_url,
-           updated_at         = NOW()
-       WHERE  entities.title              IS DISTINCT FROM EXCLUDED.title
-           OR entities.content_text       IS DISTINCT FROM EXCLUDED.content_text
-           OR entities.author_external_id IS DISTINCT FROM EXCLUDED.author_external_id
-           OR entities.author_display_name IS DISTINCT FROM EXCLUDED.author_display_name
-           OR entities.source_created_at  IS DISTINCT FROM EXCLUDED.source_created_at
-           OR entities.source_updated_at  IS DISTINCT FROM EXCLUDED.source_updated_at
-           OR entities.metadata           IS DISTINCT FROM EXCLUDED.metadata
-           OR entities.raw                IS DISTINCT FROM EXCLUDED.raw
-           OR entities.source_url         IS DISTINCT FROM EXCLUDED.source_url
-    RETURNING id,
-              (xmax = 0)                          AS inserted,
-              (xmax <> 0 AND updated_at = NOW())  AS changed
+    SELECT u.id,
+           u.inserted,
+           (NOT u.inserted AND (
+                e.title              IS DISTINCT FROM ${entity.title}
+             OR e.content_text       IS DISTINCT FROM ${entity.content_text}
+             OR e.author_external_id IS DISTINCT FROM ${entity.author_external_id}
+             OR e.author_display_name IS DISTINCT FROM ${entity.author_display_name}
+             OR e.source_created_at  IS DISTINCT FROM ${entity.source_created_at}
+             OR e.source_updated_at  IS DISTINCT FROM ${entity.source_updated_at}
+             OR e.metadata           IS DISTINCT FROM ${entity.metadata}
+             OR e.raw                IS DISTINCT FROM ${entity.raw}
+             OR e.source_url         IS DISTINCT FROM ${entity.source_url}
+           )) AS changed
+      FROM upserted u
+ LEFT JOIN existing e ON TRUE
   `;
   return { id: row.id, inserted: row.inserted, changed: row.changed };
 }
