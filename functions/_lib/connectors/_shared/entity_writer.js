@@ -99,6 +99,15 @@
 
 import { embedText, embedTextsBatch, EmbeddingError, EMBEDDING_MODEL_ID } from '../../ai/embeddings.js';
 
+// =========================================================================
+// TEMPORARY Block 9.5 diagnostic — REMOVE before merge.
+// Logs per-column IS DISTINCT FROM flags for the first 5 rows where
+// changed=true && !inserted, per Worker isolate. Used to identify which
+// column is drifting between calls in V5-2 retry (records_updated=514,
+// records_skipped=0). Module-scope counter resets per cold start.
+// =========================================================================
+let DIAGNOSTIC_LOGS_REMAINING = 5;
+
 /**
  * UPSERT an entity. Returns the row id and a three-state classification:
  *   - inserted = true                  → fresh INSERT (xmax = 0)
@@ -175,10 +184,38 @@ export async function upsertEntityRow(sql, projectId, connectionId, entity) {
              OR e.source_updated_at   IS DISTINCT FROM ${entity.source_updated_at}::timestamptz
              OR e.metadata            IS DISTINCT FROM ${entity.metadata}::jsonb
              OR e.source_url          IS DISTINCT FROM ${entity.source_url}
-           )) AS changed
+           )) AS changed,
+           -- Block 9.5 diagnostic — per-column distinct flags. REMOVE.
+           (e.title               IS DISTINCT FROM ${entity.title})                                AS d_title,
+           (e.content_text        IS DISTINCT FROM ${entity.content_text})                         AS d_content,
+           (e.author_external_id  IS DISTINCT FROM ${entity.author_external_id})                   AS d_author_id,
+           (e.author_display_name IS DISTINCT FROM ${entity.author_display_name})                  AS d_author_name,
+           (e.source_created_at   IS DISTINCT FROM ${entity.source_created_at}::timestamptz)       AS d_src_created,
+           (e.source_updated_at   IS DISTINCT FROM ${entity.source_updated_at}::timestamptz)       AS d_src_updated,
+           (e.metadata            IS DISTINCT FROM ${entity.metadata}::jsonb)                      AS d_metadata,
+           (e.source_url          IS DISTINCT FROM ${entity.source_url})                           AS d_src_url
       FROM upserted u
  LEFT JOIN existing e ON TRUE
   `;
+  // Block 9.5 diagnostic — REMOVE before merge.
+  if (row.changed && !row.inserted && DIAGNOSTIC_LOGS_REMAINING > 0) {
+    DIAGNOSTIC_LOGS_REMAINING--;
+    console.warn(JSON.stringify({
+      level: 'warn',
+      event: 'block95_distinct_flags',
+      source_id: entity.source_id,
+      source_type: entity.source_type,
+      d_title: row.d_title,
+      d_content: row.d_content,
+      d_author_id: row.d_author_id,
+      d_author_name: row.d_author_name,
+      d_src_created: row.d_src_created,
+      d_src_updated: row.d_src_updated,
+      d_metadata: row.d_metadata,
+      d_src_url: row.d_src_url,
+      remaining: DIAGNOSTIC_LOGS_REMAINING,
+    }));
+  }
   return { id: row.id, inserted: row.inserted, changed: row.changed };
 }
 
