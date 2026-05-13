@@ -473,7 +473,7 @@ async function _doSync(ctx, connection, options) {
   const startedAt = performance.now();
   let inserted = 0;
   let updated = 0;
-  let skipped = 0; // Block 9.5 decision B: now incremented on no-op upserts
+  const skipped = 0;
   let cursor;
   let pages = 0;
   let oldestTsSeen = null;
@@ -515,7 +515,7 @@ async function _doSync(ctx, connection, options) {
           const detail = {
             reason: 'rate_limited',
             retry_after_seconds: retryAfter,
-            records_so_far: inserted + updated + skipped,
+            records_so_far: inserted + updated,
             recommendation:
               'Re-run sync after Retry-After elapses; cursor resumes from the last paginated page.',
           };
@@ -571,13 +571,8 @@ async function _doSync(ctx, connection, options) {
         connection.id,
         entity
       );
-      // Block 9.5 decision B: three-branch counter — no-op upserts
-      // (inserted = false AND changed = false) increment skipped, so
-      // sync_runs.records_skipped reflects true idempotent re-syncs
-      // rather than overcounting them as updates.
       if (upsertResult.inserted) inserted++;
-      else if (upsertResult.changed) updated++;
-      else skipped++;
+      else updated++;
     }
 
     cursor = response.response_metadata?.next_cursor || null;
