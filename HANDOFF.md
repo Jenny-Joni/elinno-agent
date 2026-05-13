@@ -2530,3 +2530,182 @@ via the DevTools-console-fetch admin pattern; if V5-3 fails exactness
 documented in entity_writer.js's header is the swap-in. Block 9.2
 (data-as-of timestamp) is the next sub-task in the locked sequencing.
 
+> ⚠️ The closeout above (commit `6615b30`, written pre-rollback) describes
+> a state that didn't materialize. V5-2 actually FAILED on production with
+> a different bug than the canary anticipated. The "Block 9.5 production
+> incident + hotfix attempt" section below supersedes this one. Read both;
+> the older section is preserved as the snapshot of what was believed at
+> ship time, not what actually happened.
+
+---
+
+## Block 9.5 production incident + hotfix attempt — 2026-05-12 → 2026-05-13
+
+> Block 9.5's WHERE-DO-UPDATE pattern broke production on first
+> verification attempt. Root cause: PostgreSQL returns ZERO rows from
+> RETURNING when `ON CONFLICT DO UPDATE`'s WHERE evaluates false — not
+> the existing row as the plan assumed. Rolled back via Cloudflare
+> dashboard ~30s after detection. Hotfix attempt swapped to a CTE
+> pattern; structurally sound but `changed` flag always true (one
+> curated column drifts between Atlassian calls). Diagnostic
+> instrumentation hit Worker CPU limit. **Option F selected for next
+> session: redesign around a `content_hash` column.** Production is
+> on the rolled-back deploy serving pre-9.5 code; never re-shipped
+> with any 9.5 logic.
+>
+> Separately during the hotfix work: `MASTER_ENCRYPTION_KEY` was
+> rotated because the original value was not in the password manager
+> when needed. First rotation used the wrong format (hex instead of
+> base64) and broke Jira reconnect. Second rotation with correct
+> format succeeded; Slack + Jira both reconnected and synced fine on
+> production.
+
+### Timeline (UTC)
+
+| Time | Event |
+|---|---|
+| 2026-05-11 ~15:00 | Block 9.5 pushed to main at `5282436`. Cloudflare auto-deploys to `d3ebe4fb`. Doc closeout `6615b30` committed on LOCAL main (never pushed). |
+| 2026-05-12 ~07:30 | V5-2 verification run on production. Both consecutive Jira syncs return HTTP 500 with `"error": "Cannot read properties of undefined (reading 'id')"`. |
+| 2026-05-12 ~07:40 | Root cause identified: PostgreSQL semantics of `INSERT ... ON CONFLICT DO UPDATE ... WHERE <false> RETURNING` — no row returned. Destructured `[row]` is `undefined`. Sync fails on first unchanged row of every re-sync. |
+| 2026-05-13 ~07:30 | Rollback approved + executed via Cloudflare dashboard. Production reverts to `a21b19b` deploy (`388df3bb`). Verified working: 94s sync, 514 records_updated (pre-9.5 overcount visible again — expected). |
+| 2026-05-13 ~07:35 | `MASTER_ENCRYPTION_KEY` rotation begins. Jenny's password manager doesn't have the value; Pages secrets are write-only after creation. First rotation: `openssl rand -hex 32` → set on Production + Preview → "Retry deployment" on both. |
+| 2026-05-13 ~07:40 | Jira reconnect on production fails with 500 "Internal error". Diagnosis via the connector's silent catch + code-read: `crypto.js` decodes `MASTER_ENCRYPTION_KEY` as base64 then enforces 32-byte length. Hex string fails the length check; entire crypto path throws into silent catch. |
+| 2026-05-13 ~07:42 | Second rotation: `openssl rand -base64 32` → set on Production + Preview → retry deployments to `1e09cab4` (prod) and `89e866e4` (hotfix preview). |
+| 2026-05-13 ~07:44 | Slack reconnect succeeds. Jira reconnect creates connection `64dca3e8-f427-4060-b80a-ef26400d4774`. Initial auto-sync orphans (sync_run in `'running'`, Worker killed). |
+| 2026-05-13 ~07:56 | Manual sync trigger on production: succeeds, 91s, 300 inserted + 214 updated + 0 skipped. New Jira connection populated. |
+| 2026-05-13 ~08:02 | Hotfix branch `block-9-5-hotfix-cte-fallback` deployed to preview `89e866e4` with CTE pattern (commits `88fd99f` + `93c76cb`). V5-2 retry on preview: succeeds, 514 updated + 0 skipped. CTE structurally works; `changed` flag is always true even though Jira data hasn't changed. |
+| 2026-05-13 ~08:17 | Fix attempt: drop `raw` from comparison, add `::jsonb` cast for `metadata`, `::timestamptz` casts for timestamps. Commit `0a217de`. Preview redeploys to `c86f5557`. V5-2 retry: identical result — 514 updated + 0 skipped. One-fix rule fires. |
+| 2026-05-13 ~08:25 | Diagnostic instrumentation: per-column `IS DISTINCT FROM` flags in RETURNING + `console.warn` for first 5 changed rows per Worker. Commit `b09ef4b`. Preview redeploys to `3cef2df8`. First sync succeeded (96s, returns 514 updated) but log lines never appeared in `wrangler tail`. Second sync hit "Worker exceeded CPU time limit." |
+| 2026-05-13 ~11:55 | Option F selected: content-hash redesign in a fresh session. Stop. Session-end doc work begins. |
+
+### What we know for certain (carry into F-session)
+
+**A. PostgreSQL WHERE-DO-UPDATE semantics.** When `ON CONFLICT DO UPDATE`'s
+`WHERE` evaluates false, **no row is returned by `RETURNING`** — not the
+existing row as a casual reading of the docs might suggest. This invalidates
+any "in-SQL no-op detection via WHERE clause" strategy that relies on
+RETURNING returning a row in the no-op path. Documented in [Postgres §6.4
+INSERT](https://www.postgresql.org/docs/current/sql-insert.html) but easy
+to miss. **Future schema/upsert design must avoid this trap.**
+
+**B. `MASTER_ENCRYPTION_KEY` format is base64-encoded 32 bytes.** Decoded
+via `atob` then length-checked at exactly 32 bytes per
+[crypto.js:142-147](functions/_lib/crypto.js:142). `openssl rand -base64
+32` produces the correct format (44-char string ending in `=` or `==`).
+**Encode in any future rotation runbook or onboarding doc.**
+
+**C. Cloudflare Pages secrets are scoped per-environment.** Production
+and Preview are separate scopes. A secret set only on Production is
+invisible to Preview deploys. **Phase 0 pre-flight on every block
+needs to enumerate every `env.*` reference and confirm bound on BOTH
+environments.** (WORKFLOW addendum candidate already in the queue from
+Block 5 closeout — Block 9.5 confirms its necessity.)
+
+**D. Cloudflare Pages secrets are write-only after creation.** Dashboard
+does not display the value, even on edit. The value lives in exactly one
+place: the developer's password manager. Loss requires rotation
+(generate new + set + reconnect all integrations). **Confirm
+password-manager entry exists before considering a session complete.**
+
+**E. CTE upsert with per-column `IS DISTINCT FROM` is CPU-marginal for
+Jira-scale full syncs (~500 rows).** 96s wall-clock was right on the edge
+of the Workers per-invocation budget. Adding 8 diagnostic columns + 5
+`console.warn(JSON.stringify(...))` calls tipped over. **The
+content-hash redesign in F should target O(1) per-upsert comparison,
+not O(n_columns).**
+
+**F. The `changed` flag drift root cause is still unidentified.** With
+`raw` excluded, with `::jsonb` cast on `metadata`, with `::timestamptz`
+casts on timestamps — `changed` was still always true. Some curated
+column (`title`, `content_text`, `author_external_id`,
+`author_display_name`, `source_created_at`, `source_updated_at`,
+`metadata`, `source_url`) is drifting between Atlassian calls for
+unchanged issues. Diagnostic data was lost when the instrumentation
+hit CPU limit. **F-session should not depend on identifying this; a
+content-hash approach side-steps the per-column drift problem
+entirely.**
+
+### Current state at session close
+
+**Production:**
+- `elinnoagent.com` serves `1e09cab4.elinno-agent.pages.dev` (git `a21b19b`, rolled-back pre-9.5 code).
+- New `MASTER_ENCRYPTION_KEY` (base64-32) bound on Production + Preview environments.
+- Slack + Jira reconnected. Active Jira connection: `64dca3e8-f427-4060-b80a-ef26400d4774` (the original `2273f6b5-f01e-4e18-bd3b-edf9cfd3716b` is soft-deleted).
+- Pre-9.5 `records_updated` overcount bug is back (every re-sync of unchanged data inflates `records_updated`). This is the bug Block 9.5 was supposed to fix.
+
+**Branches:**
+- `origin/main` at `5282436` — **the original broken WHERE-DO-UPDATE code is still on origin/main** (production deploy is decoupled from git tip via rollback). Cosmetically misleading.
+- `local main` at `6615b30` — one commit ahead of origin (the stale `docs(block-9-5): closeout doc commit` from 2026-05-11). This `HANDOFF.md` addendum lands as a NEW commit on top of `6615b30`.
+- `origin/block-9-5-hotfix-cte-fallback` at `b09ef4b` — 4 hotfix commits (CTE swap + empty redeploy + cast fix + diagnostic). Contains the diagnostic logging that must be removed before any future merge to main; archive-only as postmortem reference for F session.
+
+**Working tree:** Clean except untracked `scripts/delete-all-projects.sql` (Jenny's working file, unrelated).
+
+### Cleanup pending before F-session execute phase
+
+1. **Decide whether to revert origin/main's 4 broken commits**
+   (`725f942`, `7ba0fdf`, `6014ca8`, `5282436`) via `git revert`.
+   Cleanest: origin/main returns to pre-9.5 functional code matching the
+   running deploy. Alternative: leave them on origin/main since deploy is
+   rolled-back. Decision belongs to F-session Phase 0.
+
+2. **Decide what to do with local main's `6615b30` commit + this new
+   HANDOFF commit.** They're unpushed. Options: push as-is (carries the
+   stale narrative AND the corrected one); reset locally and rewrite
+   cleanly. Decision belongs to F-session Phase 0.
+
+3. **Decide branch lifecycle for `block-9-5-hotfix-cte-fallback`.**
+   Recommend keeping it on origin (tag as `attempt-1-cte` so it's
+   archivable) so future-Claude can reference the postmortem.
+
+### Option F next-session plan — content-hash redesign
+
+Phase 1 (plan-mode session, fresh):
+- Design `entities.content_hash` column. `TEXT` or `BYTEA`. Indexed or
+  not (probably not — only read alongside the row itself).
+- Design the canonical-content function in JS:
+  - Which fields: title + content_text + author_* + source_* +
+    metadata (excluding raw — known cosmetic drift).
+  - Normalization: JSON.stringify of an object with sorted keys, or a
+    dedicated canonicalization helper.
+  - Hash: SHA-256 hex. Cheap.
+- Decide upsert flow:
+  - Compute hash JS-side.
+  - INSERT path: hash written alongside row, `changed = false`,
+    `inserted = true`.
+  - UPDATE path: SQL compares stored hash with proposed hash. If
+    equal, no-op write (don't even fire DO UPDATE since WHERE returns
+    false again — see lesson A). Use a different mechanism: SELECT
+    first, then branch in JS.
+  - OR: use the CTE shape but compare on the hash column only (O(1)).
+
+Phase 2 — locked decisions to lock:
+- Schema migration: `ALTER TABLE entities ADD COLUMN content_hash TEXT`
+  (nullable).
+- Backfill strategy: first re-sync of each connection populates
+  `content_hash`. Existing 514 entities for the Jira connection have
+  NULL → first sync re-writes them all with hash. They count as
+  "updated" once, "skipped" forever after.
+- Counter logic in slack.js + jira.js stays the same (three-branch),
+  no change there.
+
+Phase 3 — execute:
+- New branch `block-9-5-v2-content-hash` off cleaned `origin/main`
+  (after the Phase 0 revert decision lands).
+- Schema migration applied via Jenny in Neon SQL Editor (per
+  WORKFLOW: no production DDL from Claude).
+- Update entity_writer.js.
+- Verify on preview before push to main. **V5-2 + V5-3 BOTH must pass
+  before push approval requested.** No more ship-ahead-of-canary.
+
+### Mid-section closure sentence
+
+Block 9.5's first ship broke production; the rollback was clean (~30s);
+the hotfix attempt taught the team three things (Postgres semantics,
+`MASTER_ENCRYPTION_KEY` format, CPU budget) and surfaced a fourth
+(per-column drift in Atlassian API responses) that the content-hash
+redesign in F will side-step rather than solve. Production is on the
+rolled-back deploy and stable; `records_updated` overcount is the cost
+of running pre-9.5 code, accepted until F lands. Next session: plan-mode
+draft of the content-hash design, then execute on a fresh branch off a
+cleaned origin/main.
+

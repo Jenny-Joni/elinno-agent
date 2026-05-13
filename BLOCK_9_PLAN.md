@@ -98,6 +98,26 @@ Letters A–U; cite in commit messages as `feat(block-9-N): … per decision <le
 
 ### 9.5 — records_skipped
 
+> ⚠️ **Attempted 2026-05-11 → 2026-05-13. Failed twice; redesign pending.**
+>
+> Decision A (WHERE-DO-UPDATE) shipped to main at `5282436` and broke
+> production immediately — PostgreSQL returns zero rows from `RETURNING`
+> when `DO UPDATE`'s WHERE evaluates false (not the existing row as the
+> plan assumed). Rolled back ~30s after detection.
+>
+> Hotfix attempt on `block-9-5-hotfix-cte-fallback` swapped to a CTE
+> pattern. CTE works structurally but `changed` flag is always true even
+> on idempotent re-syncs of unchanged Jira data — at least one curated
+> column drifts between Atlassian API calls. Type casts (`::jsonb`,
+> `::timestamptz`) + dropping `raw` from comparison didn't fix it.
+> Diagnostic instrumentation hit Worker CPU limit.
+>
+> **Option F (content-hash redesign) selected for fresh session pickup.**
+> See [HANDOFF.md](HANDOFF.md) "Block 9.5 production incident + hotfix
+> attempt — 2026-05-12 → 2026-05-13" for full timeline + lessons learned
+> + F-pickup plan. Decisions A, B, C below are preserved as the locked
+> design that was attempted, not the design that will ship.
+
 **A. Use the WHERE-DO-UPDATE pattern in `upsertEntityRow` to detect no-op writes.**
 Modify the `ON CONFLICT DO UPDATE` clause to include a `WHERE entities.<col>
 IS DISTINCT FROM EXCLUDED.<col> OR …` predicate over the nine SET columns.

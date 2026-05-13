@@ -1,5 +1,16 @@
 # Block 9.5 — Curl Verification Matrix
 
+> ⚠️ **Superseded.** This matrix was written pre-rollback and describes the
+> verification posture at the moment Block 9.5 first shipped to main.
+> V5-2 actually FAILED on production; production was rolled back; the
+> CTE hotfix attempt also failed to populate `records_skipped`; Option F
+> (content-hash redesign) selected for a fresh session.
+>
+> **Read the "Block 9.5 production incident + hotfix attempt" section in
+> [HANDOFF.md](HANDOFF.md) for the actual outcome.** The cell-by-cell
+> table below is preserved as the original intent, not as evidence of
+> what shipped.
+
 Verification record for Block 9.5 (records_skipped + no-op upsert
 detection). Branch `block-9-5-records-skipped` ff-merged to `main` at
 `5282436` on 2026-05-11. Production deploy at `elinnoagent.com`
