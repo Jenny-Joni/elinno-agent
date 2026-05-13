@@ -72,10 +72,29 @@
 //     Hyperdrive this is a Hyperdrive query, not a Workers subrequest;
 //     cost is negligible.
 //
+// Comparison-list rationale (8 columns compared, not 9):
+//   - title, content_text, author_external_id, author_display_name,
+//     source_url: TEXT columns, direct comparison.
+//   - source_created_at, source_updated_at: explicit ::timestamptz casts
+//     on the parameter side to avoid text-vs-timestamptz canonicalization
+//     drift between calls.
+//   - metadata: explicit ::jsonb cast on the parameter side so the
+//     comparison is structural (key-order-independent), not text-based.
+//   - raw is INTENTIONALLY EXCLUDED. Atlassian's API response for the
+//     same unchanged issue varies cosmetically between calls (expand
+//     field ordering, internal hints, rendering metadata). Including
+//     `raw` in the comparison would mark every row as changed on every
+//     re-sync — the bug we're trying to fix. The curated columns above
+//     capture every semantic change that affects search / tools / UI.
+//     If Atlassian materially changes the raw shape without touching the
+//     curated fields, that change rides through silently on next sync
+//     and is still stored — but it doesn't trigger an embed re-run.
+//
 // TODO: when adding a content column to entities, update both the
 // `existing` SELECT's column list AND the outer SELECT's IS DISTINCT
 // FROM comparison list, or `changed` will misclassify real updates as
-// skipped.
+// skipped. New JSONB columns need ::jsonb casts; new timestamp columns
+// need ::timestamptz casts.
 // =========================================================================
 
 import { embedText, embedTextsBatch, EmbeddingError, EMBEDDING_MODEL_ID } from '../../ai/embeddings.js';
@@ -113,7 +132,7 @@ export async function upsertEntityRow(sql, projectId, connectionId, entity) {
   const [row] = await sql`
     WITH existing AS (
       SELECT title, content_text, author_external_id, author_display_name,
-             source_created_at, source_updated_at, metadata, raw, source_url
+             source_created_at, source_updated_at, metadata, source_url
         FROM entities
        WHERE connection_id = ${connectionId}
          AND source_type   = ${entity.source_type}
@@ -148,15 +167,14 @@ export async function upsertEntityRow(sql, projectId, connectionId, entity) {
     SELECT u.id,
            u.inserted,
            (NOT u.inserted AND (
-                e.title              IS DISTINCT FROM ${entity.title}
-             OR e.content_text       IS DISTINCT FROM ${entity.content_text}
-             OR e.author_external_id IS DISTINCT FROM ${entity.author_external_id}
+                e.title               IS DISTINCT FROM ${entity.title}
+             OR e.content_text        IS DISTINCT FROM ${entity.content_text}
+             OR e.author_external_id  IS DISTINCT FROM ${entity.author_external_id}
              OR e.author_display_name IS DISTINCT FROM ${entity.author_display_name}
-             OR e.source_created_at  IS DISTINCT FROM ${entity.source_created_at}
-             OR e.source_updated_at  IS DISTINCT FROM ${entity.source_updated_at}
-             OR e.metadata           IS DISTINCT FROM ${entity.metadata}
-             OR e.raw                IS DISTINCT FROM ${entity.raw}
-             OR e.source_url         IS DISTINCT FROM ${entity.source_url}
+             OR e.source_created_at   IS DISTINCT FROM ${entity.source_created_at}::timestamptz
+             OR e.source_updated_at   IS DISTINCT FROM ${entity.source_updated_at}::timestamptz
+             OR e.metadata            IS DISTINCT FROM ${entity.metadata}::jsonb
+             OR e.source_url          IS DISTINCT FROM ${entity.source_url}
            )) AS changed
       FROM upserted u
  LEFT JOIN existing e ON TRUE
