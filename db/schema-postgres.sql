@@ -292,6 +292,21 @@ CREATE TABLE IF NOT EXISTS entities (
     -- (PRD design principle 2: every answer needs a citation).
     source_url      TEXT,
 
+    -- Block 9.5 (Option F) — JS-side SHA-256 hex of canonical content
+    -- (sorted-keys JSON of title, content_text, author_external_id,
+    -- author_display_name, source_created_at, source_updated_at, metadata,
+    -- source_url). `raw` is excluded due to known cosmetic drift across
+    -- Atlassian API calls. Used by upsertEntityRow for O(1) no-op detection:
+    -- ON CONFLICT DO UPDATE WHERE entities.content_hash IS DISTINCT FROM
+    -- EXCLUDED.content_hash suppresses idempotent re-writes and lets the
+    -- sync_run report records_skipped accurately. Nullable: existing rows
+    -- are backfilled on first re-sync (NULL IS DISTINCT FROM any → true →
+    -- UPDATE fires once, then row is skipped on subsequent re-syncs).
+    -- TODO: when adding a column to entities that should affect change-
+    -- detection, also include it in canonicalContent in
+    -- functions/_lib/connectors/_shared/content_hash.js.
+    content_hash    TEXT,
+
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
