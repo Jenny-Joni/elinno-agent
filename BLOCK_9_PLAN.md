@@ -8,8 +8,8 @@
 | Field | Value |
 |---|---|
 | Block | 9 — Polish: launch-blocking |
-| Branch shape | One branch per sub-task: `block-9-1-connection-ui`, `block-9-2-data-as-of`, `block-9-3-suggested-questions`, `block-9-4-nightly-cron`, `block-9-5-records-skipped` |
-| Base | `main` at `a21b19b` (post Block 7+8 skip + Block 9/10 split commits) |
+| Branch shape | One branch per sub-task: `block-9-1-connection-ui`, `block-9-2-data-as-of`, `block-9-3-suggested-questions`, `block-9-4-nightly-cron`, `block-9-5-v2-content-hash` (was `block-9-5-records-skipped`; renamed after the Option F redesign per §9.5 ⚠️ block) |
+| Base | `main` at `7f8c421` (post Block 9.5 revert commits on 2026-05-13; functionally equivalent to `a21b19b` for the three connector files) |
 | Sub-task count | 5 |
 | Decisions | A–U (21 locked decisions) |
 | Verification cells | 36 (across 5 matrices) |
@@ -98,120 +98,150 @@ Letters A–U; cite in commit messages as `feat(block-9-N): … per decision <le
 
 ### 9.5 — records_skipped
 
-> ⚠️ **Attempted 2026-05-11 → 2026-05-13. Failed twice; redesign pending.**
+> ⚠️ **Original decisions A / B / C failed twice in production
+> (2026-05-11 → 2026-05-13).** Decision A's WHERE-DO-UPDATE shipped to
+> main at `5282436` and broke production on first verification — Postgres
+> returns zero rows from `RETURNING` when `DO UPDATE`'s WHERE evaluates
+> false. The CTE hotfix attempt was structurally sound but `changed`
+> stayed always-true due to per-column drift in Atlassian API responses;
+> diagnostic instrumentation hit the Workers CPU limit. See
+> [HANDOFF.md](HANDOFF.md) "Block 9.5 production incident + hotfix attempt
+> — 2026-05-12 → 2026-05-13" for the full timeline + lessons learned.
 >
-> Decision A (WHERE-DO-UPDATE) shipped to main at `5282436` and broke
-> production immediately — PostgreSQL returns zero rows from `RETURNING`
-> when `DO UPDATE`'s WHERE evaluates false (not the existing row as the
-> plan assumed). Rolled back ~30s after detection.
->
-> Hotfix attempt on `block-9-5-hotfix-cte-fallback` swapped to a CTE
-> pattern. CTE works structurally but `changed` flag is always true even
-> on idempotent re-syncs of unchanged Jira data — at least one curated
-> column drifts between Atlassian API calls. Type casts (`::jsonb`,
-> `::timestamptz`) + dropping `raw` from comparison didn't fix it.
-> Diagnostic instrumentation hit Worker CPU limit.
->
-> **Option F (content-hash redesign) selected for fresh session pickup.**
-> See [HANDOFF.md](HANDOFF.md) "Block 9.5 production incident + hotfix
-> attempt — 2026-05-12 → 2026-05-13" for full timeline + lessons learned
-> + F-pickup plan. Decisions A, B, C below are preserved as the locked
-> design that was attempted, not the design that will ship.
+> **Active locked design: A' / B' / C' (content-hash redesign).** Source
+> plan-mode artifact:
+> [.claude/plans/what-is-the-status-stateful-deer.md](.claude/plans/what-is-the-status-stateful-deer.md).
+> The three broken code commits were reverted from `origin/main` on
+> 2026-05-13 (`685ee07`, `4d0108b`, `7f8c421`); local `main` and origin
+> match the deployed pre-9.5 functional state. Original A/B/C are
+> preserved below as historical context — the design that was attempted
+> but did not ship.
 
-**A. Use the WHERE-DO-UPDATE pattern in `upsertEntityRow` to detect no-op writes.**
-Modify the `ON CONFLICT DO UPDATE` clause to include a `WHERE entities.<col>
-IS DISTINCT FROM EXCLUDED.<col> OR …` predicate over the nine SET columns.
-When the proposed row is identical, the UPDATE is suppressed and Postgres
-returns the row from RETURNING with its existing `updated_at`. Caller
-detects three states via the pair `(xmax = 0, updated_at = NOW())`:
+#### Active decisions
+
+**A'. Add `content_hash TEXT` column to `entities`; single-column hash compare in upsert.**
+
+Schema change (Jenny applies in Neon SQL Editor before code hits preview;
+no production DDL by Claude):
 
 ```sql
-INSERT INTO entities (…) VALUES (…)
+ALTER TABLE entities ADD COLUMN content_hash TEXT;
+```
+
+New JS helper `functions/_lib/connectors/_shared/content_hash.js` computes
+a SHA-256 hex digest of the canonical content: a sorted-keys JSON of
+`title`, `content_text`, `author_external_id`, `author_display_name`,
+`source_created_at`, `source_updated_at`, `metadata`, `source_url`. `raw`
+is excluded — known cosmetic drift across Atlassian API calls (HANDOFF
+2617-2626). Workers-native `crypto.subtle.digest('SHA-256', …)`, no new
+dependency.
+
+`upsertEntityRow` SQL becomes:
+
+```sql
+INSERT INTO entities (
+  project_id, connection_id, source, source_type, source_id,
+  title, content_text, author_external_id, author_display_name,
+  source_created_at, source_updated_at, metadata, raw, source_url,
+  content_hash
+) VALUES (...)
 ON CONFLICT (connection_id, source_type, source_id) DO UPDATE
-   SET title = EXCLUDED.title,
-       content_text = EXCLUDED.content_text,
+   SET title              = EXCLUDED.title,
+       content_text       = EXCLUDED.content_text,
        author_external_id = EXCLUDED.author_external_id,
        author_display_name = EXCLUDED.author_display_name,
-       source_created_at = EXCLUDED.source_created_at,
-       source_updated_at = EXCLUDED.source_updated_at,
-       metadata = EXCLUDED.metadata,
-       raw = EXCLUDED.raw,
-       source_url = EXCLUDED.source_url,
-       updated_at = NOW()
-   WHERE  entities.title              IS DISTINCT FROM EXCLUDED.title
-       OR entities.content_text       IS DISTINCT FROM EXCLUDED.content_text
-       OR entities.author_external_id IS DISTINCT FROM EXCLUDED.author_external_id
-       OR entities.author_display_name IS DISTINCT FROM EXCLUDED.author_display_name
-       OR entities.source_created_at  IS DISTINCT FROM EXCLUDED.source_created_at
-       OR entities.source_updated_at  IS DISTINCT FROM EXCLUDED.source_updated_at
-       OR entities.metadata           IS DISTINCT FROM EXCLUDED.metadata
-       OR entities.raw                IS DISTINCT FROM EXCLUDED.raw
-       OR entities.source_url         IS DISTINCT FROM EXCLUDED.source_url
-RETURNING id,
-          (xmax = 0)                              AS inserted,
-          (xmax <> 0 AND updated_at = NOW())      AS changed
+       source_created_at  = EXCLUDED.source_created_at,
+       source_updated_at  = EXCLUDED.source_updated_at,
+       metadata           = EXCLUDED.metadata,
+       raw                = EXCLUDED.raw,
+       source_url         = EXCLUDED.source_url,
+       content_hash       = EXCLUDED.content_hash,
+       updated_at         = NOW()
+   WHERE entities.content_hash IS DISTINCT FROM EXCLUDED.content_hash
+RETURNING id, (xmax = 0) AS inserted
 ```
 
-`upsertEntityRow` returns `{ id, inserted, changed }` (was: `{ id, inserted }`).
-The `updated_at = NOW()` check is reliable because PostgreSQL's `NOW()`
-returns transaction-start time, stable within a single transaction.
-
-**B. Caller logic updates to three-branch.**
-Replace `if (upsertResult.inserted) inserted++; else updated++;` in
-`slack.js:574-575`, `jira.js:559-561`, `jira.js:641-643` with:
+JS-side three-state derivation handles the no-rows-returned path
+explicitly:
 
 ```js
-if (result.inserted)     inserted++;
-else if (result.changed) updated++;
-else                     skipped++;
+const rows = await sql`<above>`;
+if (rows.length === 1) {
+  return { id: rows[0].id, inserted: rows[0].inserted, changed: !rows[0].inserted };
+}
+// rows.length === 0 → WHERE suppressed DO UPDATE → no-op write.
+const [existing] = await sql`
+  SELECT id FROM entities
+   WHERE connection_id = ${connectionId}
+     AND source_type = ${entity.source_type}
+     AND source_id = ${entity.source_id}
+`;
+return { id: existing.id, inserted: false, changed: false };
 ```
 
-`SyncResult.records_skipped` already accumulated as 0 by all connectors —
-just route the skip count into it. `sync_runs.records_skipped` column
-already exists (no schema change).
+**Why A' works where A failed:**
+- Single-column compare side-steps the per-column drift root cause —
+  any of the 8 curated columns can drift, they all roll up into one hash.
+- The crash path (`[row] = await sql\`...\`` on undefined) is now
+  explicit and handled: `rows.length === 1` is checked first.
+- No `updated_at = NOW()` precision reliance — classification is
+  derived from `(xmax = 0)` and `rows.length`.
 
-**C. Skip the embed call on `!changed` rows.**
-Inside `writeEntityWithEmbedding`: `if (upsertResult.inserted || upsertResult.changed)
-await embedEntityRow(…); return upsertResult;` — skip the OpenAI subrequest
-when the row is unchanged. Inside `writeEntitiesWithEmbeddingsBatch`: when
-building `toEmbed`, additionally filter by `upsert.inserted || upsert.changed`.
-The sweep path is untouched (calls `embedEntityRow` directly) and continues
-to catch genuinely-missing embeddings on the next sync. Free perf + cost
-win on idempotent re-syncs.
+**B'. Three-branch counters in `_doSync`** (unchanged from B). In
+`slack.js::_doSync` and `jira.js::_doSync` (sprint + issue loops):
 
-**Canary cells for the WHERE-DO-UPDATE + updated_at=NOW() idiom:** **both
-V5-2 AND V5-3 must pass on the first run.** V5-2 alone (idempotent re-sync
-produces `records_skipped > 0`) is necessary but not sufficient — the
-discriminator is V5-3 (one upstream edit produces `records_updated = 1`
-EXACTLY). If V5-3 returns 2+ on the first run, that's the signal the
-`(xmax <> 0 AND updated_at = NOW())` predicate is false-positiving (e.g.,
-another transaction's UPDATE landed on the same row in the same wall-clock
-microsecond, leaving the row's existing `updated_at` coincidentally equal
-to this transaction's `NOW()`). Extremely unlikely on a single-writer
-sync path but the discriminator catches it.
-
-**Fallback (documented in entity_writer.js comment block, NOT shipped
-default):** If V5-3 fails the exactness check, fall back to a CTE that
-explicitly captures OLD column values from a pre-INSERT subselect (with
-`FOR UPDATE` to lock the row) and compares them in the RETURNING clause.
-One extra SELECT round-trip, no `updated_at = NOW()` reliance. Swap in
-the CTE wholesale — do not try to patch the WHERE clause in place. The
-CTE sketch:
-
-```sql
-WITH existing AS (
-  SELECT title, content_text, /* ... 9 columns ... */
-    FROM entities
-   WHERE connection_id = $1 AND source_type = $2 AND source_id = $3
-   FOR UPDATE
-), upserted AS (
-  INSERT INTO entities (...) VALUES (...) ON CONFLICT (...) DO UPDATE SET ...
-  RETURNING id, (xmax = 0) AS inserted
-)
-SELECT u.id, u.inserted,
-       (e.title IS DISTINCT FROM /* new */ OR ...) AS changed
-  FROM upserted u LEFT JOIN existing e ON TRUE
+```js
+if (result.inserted)      inserted++;
+else if (result.changed)  updated++;
+else                      skipped++;
 ```
+
+`sync_runs.records_skipped` column already exists.
+
+**C'. Skip embed on `!inserted && !changed`** (unchanged from C).
+`writeEntityWithEmbedding` and `writeEntitiesWithEmbeddingsBatch` gate
+the OpenAI embedding subrequest on `inserted || changed`. The sweep
+path (`embedEntityRow` standalone) is untouched and continues to catch
+genuinely-missing embeddings on next sync.
+
+**Canary discriminator for A':** **V5-7 (hash determinism)** is the new
+canary, replacing A's `(xmax <> 0 AND updated_at = NOW())` discriminator.
+Temporary `console.log(JSON.stringify({source_id, content_hash}))` for
+first 5 rows of two consecutive idempotent syncs; per-row hashes must
+match. If they don't, the canonical function is non-deterministic —
+surface the specific field via the log and amend (likely candidate:
+`metadata.labels` array order if Atlassian doesn't guarantee order).
+**V5-2 + V5-3 + V5-7 must all PASS-runtime on preview before push
+approval.** No ship-ahead-of-canary.
+
+**Backfill posture:** existing 514 entities for the active Jira
+connection have `content_hash = NULL`. First re-sync after deploy
+sees `NULL IS DISTINCT FROM 'abc...'` → true → UPDATE fires → hash
+populated → that sync counts as `records_updated = 514` once. From
+then on, idempotent re-syncs report `records_skipped = N`. Sync IS the
+backfill; no corrective pass.
+
+#### Historical context — original A / B / C (did not ship)
+
+~~**A. Use the WHERE-DO-UPDATE pattern in `upsertEntityRow` to detect no-op writes.**~~
+Per-column `IS DISTINCT FROM` predicate over 9 SET columns;
+`(xmax <> 0 AND updated_at = NOW())` discriminator. **Broke prod on
+first verification:** Postgres returns 0 rows from RETURNING when
+WHERE filters out the UPDATE, and the JS destructure crashed. Reverted
+in `7f8c421`.
+
+~~**B. Caller logic updates to three-branch.**~~ Counter logic itself was
+correct — preserved as B' above. Reverted in `685ee07` + `4d0108b`;
+re-introduced via the A'/B'/C' commit-set.
+
+~~**C. Skip the embed call on `!changed` rows.**~~ Same gate as C'.
+Preserved verbatim.
+
+~~Fallback CTE sketch with per-column `FOR UPDATE` SELECT.~~ Moot — A'
+abandons per-column comparison in favor of single-column content_hash
+compare. The CTE pattern was also tried on the hotfix branch
+`block-9-5-hotfix-cte-fallback` and failed for the same per-column
+drift reason.
 
 ### 9.2 — Data-as-of timestamp
 
@@ -466,23 +496,33 @@ No global abort. Captured failure detail goes into `sync_runs.error`
 The scope contract per WORKFLOW.md §"Scope expansion during execute" —
 any file edit outside this list stops execute and surfaces.
 
-### Branch `block-9-5-records-skipped`
+### Branch `block-9-5-v2-content-hash`
 
+- **`db/schema-postgres.sql`** *(modified, DEFAULT)*
+  - Add `content_hash TEXT` column to `entities` table definition per
+    decision A'. Jenny applies the DDL in Neon SQL Editor before code
+    deploys (no production DDL by Claude).
+- **`functions/_lib/connectors/_shared/content_hash.js`** *(new, DEFAULT)*
+  - Pure helper. Exports `computeContentHash(entity)`. SHA-256 hex of
+    sorted-keys canonical JSON over 8 curated columns (`raw` excluded).
+    SECURITY-CARVE-OUT header — embed-on-write neighborhood by
+    inception.
 - **`functions/_lib/connectors/_shared/entity_writer.js`** *(modified, DEFAULT)*
-  - Update `upsertEntityRow` SQL per decision A (add `WHERE` clause to DO
-    UPDATE, return `(xmax = 0) AS inserted, (xmax <> 0 AND updated_at = NOW())
-    AS changed`).
-  - Return shape change to `{ id, inserted, changed }`. Update jsdoc.
+  - Rewrite `upsertEntityRow` SQL per decision A' (single-column
+    `content_hash IS DISTINCT FROM` predicate; explicit handling of
+    `rows.length === 0` no-op path via a follow-up SELECT for the row id).
+  - Return shape stays `{ id, inserted, changed }` (additive to pre-9.5).
   - In `writeEntityWithEmbedding`: gate embed on `inserted || changed`
-    per decision C.
+    per decision C'.
   - In `writeEntitiesWithEmbeddingsBatch`: filter `toEmbed` by `inserted
     || changed`.
-  - Add a docblock paragraph naming the fallback CTE pattern (decision A
-    notes) — text-only, not the active code.
+  - Header docblock updated for A'; obsolete CTE fallback sketch removed.
 - **`functions/_lib/connectors/slack.js`** *(modified, DEFAULT)*
-  - Three-branch counter logic at lines 567-576 per decision B.
+  - Re-introduce three-branch counter logic at `_doSync` (was reverted
+    in `4d0108b`) per decision B'.
 - **`functions/_lib/connectors/jira.js`** *(modified, DEFAULT)*
-  - Three-branch counter logic at lines 559-561 and 641-643 per decision B.
+  - Re-introduce three-branch counter logic at sprint loop + issue loop
+    (was reverted in `685ee07`) per decision B'.
 
 ### Branch `block-9-2-data-as-of`
 
@@ -588,7 +628,7 @@ eyeball before each push-to-main request.
 | V5-4 | Embed call count drops on idempotent re-sync | Add temporary log counter in `embedTextsBatch`; expect 0 batch-embed calls on V5-2 re-run |
 | V5-5 | Slack message_changed webhook idempotency | Re-process the same `message_changed` event (push twice in dev): first time updated++, second time skipped++ |
 | V5-6 | Sweep still catches missing embeddings on `!changed` rows | Delete one `entity_embeddings` row for a row that returns `skipped`; trigger sweep; embed re-created |
-| V5-7 | Per-action self-review confirms WHERE-clause SQL safety | Inspect the modified SQL in entity_writer.js; verify `IS DISTINCT FROM` correctly handles NULLs in source_updated_at / author / etc |
+| V5-7 | **Hash determinism across two consecutive Atlassian API calls** (new canary discriminator per A') | Add temporary `console.log(JSON.stringify({source_id, content_hash}))` for first 5 rows of two consecutive Jira syncs; confirm hashes match per-row. **Replaces the original "WHERE-clause SQL safety" V5-7** — under A' the SQL is single-column compare, so NULL-handling is no longer the risk. The risk is canonical-content drift; this cell surfaces it. If hashes drift on unchanged data, amend the canonical function to exclude the drifting field (likely `metadata.labels` order, per the per-column drift documented in HANDOFF 2617-2626). |
 | V5-8 | Existing Block 5 + 6 verification cells still PASS-runtime | Re-run the 27-cell Block 6 matrix locally — counts should differ in distribution but sums match |
 
 ### 9.2 verification (6 cells)
@@ -649,8 +689,9 @@ for each branch's lead commit:
 
 | Branch | Lead commit | Mode | Why |
 |---|---|---|---|
-| `block-9-5-records-skipped` | SQL + return-shape change in `_shared/entity_writer.js` | **DEFAULT** | SECURITY-CARVE-OUT file, embed-on-write path |
-| `block-9-5-records-skipped` | Three-branch counters in slack.js + jira.js | **DEFAULT** | Freshness-layer (sync_run record counts shape the freshness display) |
+| `block-9-5-v2-content-hash` | Schema commit (db/schema-postgres.sql add `content_hash`) | **DEFAULT** | Schema-migration neighborhood |
+| `block-9-5-v2-content-hash` | New `content_hash.js` + `entity_writer.js` rewrite | **DEFAULT** | SECURITY-CARVE-OUT file, embed-on-write path |
+| `block-9-5-v2-content-hash` | Three-branch counters in slack.js + jira.js | **DEFAULT** | Freshness-layer (sync_run record counts shape the freshness display) |
 | `block-9-2-data-as-of` | Citation enrichment in messages.js | **DEFAULT** | New WHERE project_id query; project-isolation neighborhood |
 | `block-9-2-data-as-of` | UI render in project.html + auth.css | AUTO | UI-only on existing payload + new field |
 | `block-9-3-suggested-questions` | All commits | AUTO | UI-only, reads connections array already in scope |
@@ -677,7 +718,7 @@ Per Jenny's selection: **9.5 → 9.2 → 9.3 → 9.1 → 9.4**.
 
 | Order | Branch | Why this slot |
 |---|---|---|
-| 1 | `block-9-5-records-skipped` | Smallest surface, ~3 files modified, zero new files. SQL idiom is the riskiest claim — verify cell V5-2 produces non-zero `records_skipped` early so the WHERE-DO-UPDATE pattern proves out before any other work depends on it. Also: shipping 9.5 first makes 9.4's observability honest — cron output will show `records_skipped > 0` after the first nightly fire, the meaningful signal that incremental work is happening. |
+| 1 | `block-9-5-v2-content-hash` | Smallest surface, 3 connector files modified + 1 new helper + 1 schema column. Hash-determinism (V5-7) + idempotent re-sync (V5-2) + single-edit discriminator (V5-3) must all PASS-runtime on preview before push — no ship-ahead-of-canary this time (the original 9.5 broke prod because the canary cells were deferred past push). Also: shipping 9.5 first makes 9.4's observability honest — cron output will show `records_skipped > 0` after the first nightly fire, the meaningful signal that incremental work is happening. |
 | 2 | `block-9-2-data-as-of` | One DEFAULT-mode commit (messages.js enrichment) + one AUTO-mode commit (UI). Smallest UI surface in the run. Makes citation chips meaningful — sets up the freshness signal users need before 9.1's "Sync now" button has visible payoff. |
 | 3 | `block-9-3-suggested-questions` | Pure AUTO, no carve-out. Touches only `renderMessages()`'s empty-state branch + a new helper. Zero overlap with 9.2's citation render (different functions in project.html). Unblocks the "non-Jenny user opens a fresh project" path. |
 | 4 | `block-9-1-connection-ui` | Largest surface in run (server rate-limit + admin button + activity drawer + CSS). One DEFAULT-mode commit (sync.js) + multiple AUTO commits. By this point 9.2/9.3 have hardened project.html so any regressions surface clearly against the activity-drawer changes. |
