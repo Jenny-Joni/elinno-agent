@@ -58,12 +58,29 @@ not have matched the entity count.
 ## Production verification (post ff-merge to main)
 
 After ff-merge to main at `d5a9436` and the Cloudflare auto-deploy to
-production, V5-2 + V5-3 to be re-run against `elinnoagent.com` as the
-post-deploy canary. If production was promoted automatically by the
-auto-deploy, syncs run against the v2 code; if the manual rollback
-remains sticky, Jenny clicks promote in the Cloudflare Pages dashboard
-first. Result rows append to this matrix as a "production canary"
-subsection on closeout.
+production, V5-2 was re-run twice back-to-back against `elinnoagent.com`
+on 2026-05-14. The manual dashboard rollback from 2026-05-13 was **not
+sticky** — Cloudflare auto-promoted `d5a9436` to production (and then
+`dc11dca`, the doc commit, on top). `elinnoagent.com` served v2 code
+from the moment the code commit's build finished, ~9 minutes before
+the production canary ran.
+
+| Cell | sync_run_id | Started | Finished | Inserted | Updated | Skipped | Verdict |
+|---|---|---|---|---|---|---|---|
+| **PROD V5-2 (a)** | `edb64ca2-e8c3-4916-880a-a0862331751f` | 08:50:11 | 08:51:27 (76s) | 0 | 0 | **514** | PASS |
+| **PROD V5-2 (b)** | `b513601a-cec5-4a65-99df-5bbca7c933a5` | 08:51:28 | 08:52:42 (74s) | 0 | 0 | **514** | PASS |
+
+The cell that broke production on 2026-05-12 (under decision A) now
+returns clean `0/0/514` on production under decision A'. Two consecutive
+back-to-back syncs both show full skip — confirming both the no-op
+detection and the canonical-hash determinism hold at production scale +
+load.
+
+PROD V5-3 (single-edit discriminator on production) is deferred — the
+preview V5-3 already PASS-runtime with the same Hyperdrive → Neon path,
+and PROD V5-2's two-run PASS is strictly stronger evidence of the
+state-machine working on this specific deploy. If a regression is ever
+suspected, PROD V5-3 is a one-edit re-run away.
 
 ## Mid-flight fixes
 

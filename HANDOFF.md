@@ -2780,25 +2780,29 @@ the original sync, or a sprint that fell out of scope). The sync
 correctly didn't touch it. Not a 9.5 concern; cleanup of orphans
 is a Block 10.x candidate if it surfaces.
 
-### What's owed before Block 9.5 v2 is fully closeout-complete
+### Production canary — PASS (2026-05-14 08:50-08:52 UTC)
 
-1. **Post-deploy production verification.** Run V5-2 + V5-3 against
-   `elinnoagent.com` after Cloudflare's auto-deploy of `d5a9436`
-   completes. If the manual rollback (production pinned to `1e09cab4`
-   via the dashboard rollback on 2026-05-13 ~07:30) is sticky, click
-   "Promote" in Cloudflare Pages dashboard first. Expected: same
-   counts as preview (V5-2: 0/0/514 modulo new Jira activity; V5-3:
-   updates the one edited issue).
+Cloudflare auto-promoted `d5a9436` to production immediately after
+push; the manual dashboard rollback from 2026-05-13 ~07:30 was **not
+sticky**. `elinnoagent.com` started serving v2 code as soon as the
+build for `d5a9436` finished. ~9 minutes later, two back-to-back V5-2
+syncs against production both returned `0/0/514` (sync_runs
+`edb64ca2-e8c3-4916-880a-a0862331751f` 76s, then
+`b513601a-cec5-4a65-99df-5bbca7c933a5` 74s). The cell that broke
+production on 2026-05-12 under decision A returns clean under
+decision A'. PROD V5-3 deferred — preview V5-3 already PASS-runtime
+on the same Hyperdrive → Neon path, and the back-to-back PROD V5-2
+PASS is a strictly stronger probe of the state-machine on this
+specific deploy. Full record in
+[curl-matrix-block-9-5.md](curl-matrix-block-9-5.md) "Production
+verification (post ff-merge to main)" subsection.
 
-2. **Append production canary verdict to
-   [curl-matrix-block-9-5.md](curl-matrix-block-9-5.md)**'s
-   "Production verification (post ff-merge to main)" subsection with
-   sync_run ids + counts.
-
-3. **Update CLAUDE.md line 5** if "Block 9 in progress" needs the
-   sub-task pointer bumped. Currently the relevant context is "Block
-   9.5 v2 shipped; Block 9.2 (data-as-of) next per BLOCK_9_PLAN.md
-   sequencing."
+**Lesson for the rollback playbook (WORKFLOW addendum candidate):**
+Cloudflare Pages' manual dashboard rollback is NOT sticky across
+subsequent pushes — the next push to the production branch auto-
+promotes. If a post-rollback fix is being prepared, work on a
+non-main branch with preview-only deploys and only push to main
+when ready to promote.
 
 ### Carry-forward additions
 
