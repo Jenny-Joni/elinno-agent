@@ -194,6 +194,41 @@
       }
     }
 
+    // Block 9.2 decisions F+G: citation freshness for the chip's · suffix.
+    // Returns { suffix, titleSource, stale } so the caller can append the
+    // suffix, populate the title= absolute, and apply a muted class when
+    // both source_updated_at and connection_last_sync_at are null.
+    function fmtCitationFreshness(c) {
+      const src = c && c.source_updated_at;
+      const conn = c && c.connection_last_sync_at;
+      if (src) {
+        const rel = fmtRelativeShort(src);
+        if (rel) return { suffix: ' · ' + rel, titleSource: src, stale: false };
+      }
+      if (conn) {
+        const rel = fmtRelativeShort(conn);
+        if (rel) return { suffix: ' · as of last sync (' + rel + ')', titleSource: conn, stale: false };
+      }
+      return { suffix: ' · as of unknown', titleSource: null, stale: true };
+    }
+
+    // Block 9.2 decision D: absolute timestamp for the chip's title= tooltip.
+    // Format: 'May 11, 14:23 UTC' — 24h, UTC explicit. Returns '' on null/invalid.
+    function fmtCitationTitle(iso) {
+      if (!iso) return '';
+      try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleString('en-US', {
+          month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+          timeZone: 'UTC', timeZoneName: 'short',
+        });
+      } catch {
+        return '';
+      }
+    }
+
     // Decision AB: "Nh ago · N message(s)" with ternary plural.
     function fmtConvMeta(updatedAt, messageCount) {
       const rel = fmtRelativeShort(updatedAt);
@@ -569,13 +604,20 @@
 
     function renderCitationRailHtml(citations) {
       const chips = citations.map(c => {
-        const label = c.title || c.author || (c.source ? c.source[0].toUpperCase() + c.source.slice(1) : 'Source');
+        const baseLabel = c.title || c.author || (c.source ? c.source[0].toUpperCase() + c.source.slice(1) : 'Source');
+        const fresh = fmtCitationFreshness(c);
+        const safeBase = escapeHtml(baseLabel);
+        const safeSuffix = escapeHtml(fresh.suffix);
+        const staleClass = fresh.stale ? ' chat-citation-stale' : '';
+        const freshHtml = `<span class="chat-citation-freshness${staleClass}">${safeSuffix}</span>`;
+        const labelHtml = `${safeBase}${freshHtml}`;
         const url = c.source_url || '';
-        const safeLabel = escapeHtml(label);
+        const titleStr = fmtCitationTitle(fresh.titleSource);
+        const titleAttr = titleStr ? ` title="${escapeHtml(titleStr)}"` : '';
         if (url) {
-          return `<a class="chat-citation" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
+          return `<a class="chat-citation" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"${titleAttr}>${labelHtml}</a>`;
         }
-        return `<span class="chat-citation chat-citation-noref">${safeLabel}</span>`;
+        return `<span class="chat-citation chat-citation-noref"${titleAttr}>${labelHtml}</span>`;
       }).join('');
       return `<div class="chat-citation-rail">${chips}</div>`;
     }

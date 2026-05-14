@@ -1000,6 +1000,17 @@ table.users-table {
   color: var(--color-text-muted);
   background: var(--color-bg-soft);
 }
+/* Block 9.2 decisions D+F: freshness suffix on each chip. Always rendered
+   (never hidden — decision F). Mildly dimmer than the title text so the
+   relative timestamp reads as metadata. .chat-citation-stale = both
+   source_updated_at and connection_last_sync_at were null. */
+.chat-citation-freshness {
+  opacity: 0.7;
+}
+.chat-citation-freshness.chat-citation-stale {
+  font-style: italic;
+  opacity: 0.55;
+}
 
 /* ---------- Composer ---------- */
 .chat-composer {
