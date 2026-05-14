@@ -1,6 +1,8 @@
 .DS_Store
 .claude/*
 !.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/**
 .wrangler/
 node_modules/
 .dev.vars
