@@ -2836,28 +2836,55 @@ Phase 0 ritual on parent main, expecting:
 
 Next session pickup options (in priority order):
 
-1. **Production verification of v2 (V5-2 + V5-3 on elinnoagent.com)
-   if not already completed in this session.** Surfacing if production
-   was auto-promoted vs. needs manual promote post-rollback.
-2. **Block 9.2 (data-as-of timestamp)** — next sub-task per
+1. **Block 9.2 (data-as-of timestamp)** — next sub-task per
    BLOCK_9_PLAN.md sequencing. Branch `block-9-2-data-as-of`. One
    DEFAULT-mode commit (messages.js citation enrichment) + one
    AUTO-mode commit (project.html + auth.css UI). 6-cell V2 matrix.
-3. **Between-blocks task: Block 6 full matrix re-run** (the V5-8
+2. **Between-blocks task: Block 6 full matrix re-run** (the V5-8
    deferred cell), if Jenny wants belt-and-suspenders confirmation
    that the AI tool surface is unaffected by v2.
 
 ### Mid-section closure sentence
 
-Block 9.5 v2 (Option F, content-hash) shipped to `elinnoagent.com` at
-`d5a9436` AFTER preview-deploy verification cleared the canary cells
-that broke the original 9.5 ship. The hash-based no-op detection
-returns `0/0/514` on idempotent re-syncs (the cell that crashed last
-time now returns clean) and correctly counts a single Jira edit as
-`records_updated = 1`. The per-column drift problem that killed both
-the original decision A and the CTE hotfix is side-stepped by the
-single-column hash compare; the no-rows-returned semantic that
-crashed A is handled explicitly via `rows.length` check + follow-up
-SELECT. Production verification owed; then Block 9.2 (data-as-of) is
-the next sub-task in the locked sequencing.
+Block 9.5 v2 (Option F, content-hash) shipped to `elinnoagent.com`
+and is **verified end-to-end on production**: preview canary cells
+V5-1 + V5-2 + V5-3 all PASS-runtime, then two back-to-back V5-2 runs
+on production both returned `0/0/514` — the cell that broke prod on
+2026-05-12 under decision A returns clean under decision A'. The
+per-column drift problem that killed both the original decision A
+and the CTE hotfix is side-stepped by the single-column hash compare;
+the no-rows-returned semantic that crashed A is handled explicitly
+via `rows.length` check + follow-up SELECT. Block 9.2 (data-as-of)
+is the next sub-task in the locked sequencing.
+
+---
+
+## Session close — 2026-05-14
+
+**End-of-session state:**
+- `origin/main` at `cf52698`. Local main matches.
+- Working tree clean except untracked `scripts/delete-all-projects.sql` (Jenny's working file).
+- Production deploy: `elinnoagent.com` serves `cf52698` (auto-promoted from `d5a9436` through `dc11dca` and `cf52698`).
+- Neon Primary: `entities.content_hash TEXT` column applied; 514/515 entities populated for the active Jira connection (1 orphan untouched as expected).
+- All scoped Block 9.5 v2 work shipped + verified. Block 9.5 closed.
+
+**Shipped this session (6 commits on main):**
+
+| SHA | Subject |
+|---|---|
+| `685ee07` | Revert "feat(block-9-5): three-branch counters in jira.js" |
+| `4d0108b` | Revert "feat(block-9-5): three-branch counters in slack.js" |
+| `7f8c421` | Revert "feat(block-9-5): detect no-op upserts via WHERE-DO-UPDATE" |
+| `e3b716b` | docs(block-9-5): lock Option F (content-hash) as A'/B'/C' |
+| `50f711e` | feat(block-9-5): add entities.content_hash column |
+| `d5a9436` | feat(block-9-5): content_hash upsert + three-branch counters |
+| `dc11dca` | docs(block-9-5): v2 closeout — content-hash shipped + canary cells PASS |
+| `cf52698` | docs(block-9-5): record production canary PASS — V5-2 0/0/514 twice |
+
+(8 rows; the 3 reverts shipped first as a separate Phase-0 push.)
+
+**Carry-forward to next session:** see "Carry-forward additions" two sections above for WORKFLOW addendum candidates, including the new lesson from this session: **Cloudflare Pages manual dashboard rollback is NOT sticky across subsequent pushes to the production branch.**
+
+**Plan-mode source artifact:**
+[.claude/plans/what-is-the-status-stateful-deer.md](.claude/plans/what-is-the-status-stateful-deer.md) — the plan that drove this session. Kept for reference; not in the repo.
 
