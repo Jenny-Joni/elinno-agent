@@ -161,7 +161,52 @@ export async function onRequestGet({ request, env, params }) {
        ORDER BY created_at ASC, id ASC
     `;
 
-    return json({ ok: true, messages });
+    // Block 9.2 decision G: enrich citations with connection_last_sync_at so
+    // the UI freshness chip can fall back to it when source_updated_at is
+    // null (decision F: source_updated_at → connection_last_sync_at →
+    // "as of unknown"). Read-time JOIN — no backfill needed; historical
+    // messages benefit on next render.
+    //
+    // CROSS-PROJECT ISOLATION (V2-6): e.project_id = params.id clamps the
+    // JOIN to entities in the authorized project. Any citation referencing
+    // an entity outside this project (which shouldn't happen, but defense
+    // in depth) is filtered out — Map.get() returns undefined → null →
+    // UI falls back to "as of unknown".
+    const entityIds = new Set();
+    for (const m of messages) {
+      if (Array.isArray(m.citations)) {
+        for (const c of m.citations) {
+          if (c && c.entity_id) entityIds.add(c.entity_id);
+        }
+      }
+    }
+    const lastSyncByEntity = new Map();
+    if (entityIds.size > 0) {
+      const ids = [...entityIds];
+      const enrichmentRows = await sql`
+        SELECT e.id AS entity_id, c.last_sync_at AS connection_last_sync_at
+          FROM entities e
+          JOIN connections c ON c.id = e.connection_id
+         WHERE e.id = ANY(${ids}::uuid[])
+           AND e.project_id = ${params.id}
+      `;
+      for (const r of enrichmentRows) {
+        lastSyncByEntity.set(r.entity_id, r.connection_last_sync_at);
+      }
+    }
+    const enrichedMessages = messages.map((m) => {
+      if (!Array.isArray(m.citations)) return m;
+      return {
+        ...m,
+        citations: m.citations.map((c) => ({
+          ...c,
+          connection_last_sync_at:
+            c && c.entity_id ? lastSyncByEntity.get(c.entity_id) ?? null : null,
+        })),
+      };
+    });
+
+    return json({ ok: true, messages: enrichedMessages });
   } catch (_err) {
     return error('Internal error', 500);
   } finally {
