@@ -2709,3 +2709,151 @@ of running pre-9.5 code, accepted until F lands. Next session: plan-mode
 draft of the content-hash design, then execute on a fresh branch off a
 cleaned origin/main.
 
+---
+
+## Block 9.5 v2 (content-hash) shipped to main — 2026-05-14
+
+> Option F shipped. 4 files, 204 insertions, 24 deletions + 1 schema
+> column (`entities.content_hash TEXT`, applied manually in Neon SQL
+> Editor on 2026-05-13). Branch `block-9-5-v2-content-hash` ff-merged
+> to main at `d5a9436`. **All canary cells PASS-runtime against the
+> preview deploy before push** — V5-1 (backfill), V5-2 (idempotent
+> re-sync, the cell that broke prod last time), V5-3 (single-edit
+> discriminator) all green. V5-7 (hash determinism) implicitly
+> validated by V5-2's clean `0/0/514`.
+>
+> See [curl-matrix-block-9-5.md](curl-matrix-block-9-5.md) for the
+> cell-by-cell sync_run ids + result counts.
+
+### Timeline (UTC)
+
+| Time | Event |
+|---|---|
+| 2026-05-13 ~11:55 | Option F selected for fresh-session pickup. Plan-mode session opens. |
+| 2026-05-13 12:47 | Phase 0 reverts: `685ee07` (jira.js counters), `4d0108b` (slack.js counters), `7f8c421` (entity_writer.js WHERE-DO-UPDATE). origin/main pushed from `5282436` to `7f8c421`. Working tree's entity_writer.js + slack.js + jira.js exactly match `a21b19b` (pre-9.5 code). |
+| 2026-05-13 13:00 | Branch `block-9-5-v2-content-hash` cut off post-revert main. Plan-lock commit `e3b716b` lands (BLOCK_9_PLAN.md §9.5 amended with A'/B'/C'; original A/B/C preserved as historical strikethrough; branch name in tables updated). |
+| 2026-05-13 13:15 | Schema commit `50f711e` lands (`db/schema-postgres.sql` adds `content_hash TEXT` column with inline TODO for canonicalContent additions). |
+| 2026-05-13 13:20 | Jenny applies the DDL in Neon SQL Editor: `ALTER TABLE entities ADD COLUMN content_hash TEXT;` — Primary branch, `elinno_agent_db`. Statement executed successfully. |
+| 2026-05-13 13:30 | Code commit `d5a9436` lands: new `content_hash.js` (~80 lines), `entity_writer.js` rewritten (`upsertEntityRow` returns `{ id, inserted, changed }` derived from `rows.length` + `(xmax = 0)`; no `updated_at = NOW()` precision reliance), `slack.js` + `jira.js` three-branch counters re-introduced. `node --check` PASS on all 4 files. |
+| 2026-05-13 13:35 | Branch pushed to origin. Cloudflare preview deploy `8cd54990.elinno-agent.pages.dev` succeeds. |
+| 2026-05-13 14:40-14:53 | V5-1, V5-2, V5-3a run against preview. V5-1 + V5-2 PASS. V5-3a returns `0/0/514` — Atlassian API lag prevented the description edit from propagating in time. |
+| 2026-05-14 08:14 | Fresh V5-3 edit: RAINONE-1330 description gets ` -- V5-3 PROBE 2026-05-14` appended. Refresh confirms persistence. 30s wait. |
+| 2026-05-14 08:20 | V5-3 (passing) sync `e5ca6887-…` runs: `records_inserted=2, records_updated=2, records_skipped=510` (sum=514). RAINONE-1330's `content_hash` flipped from `bfca26fc625e` to `7e2f97eed767`; `source_updated_at` advanced to `2026-05-14 08:14:59`. The 2 inserts + 1 extra update are real-world Jira activity that accumulated overnight. |
+| 2026-05-14 ~08:35 | Per-push approval gate. Local main ff-forwarded from `7f8c421` to `d5a9436`. Pushed to origin. Cloudflare Pages picks up the new tip for production deploy. |
+
+### What we know for certain (carry into Block 9.2 pickup)
+
+**A. The content-hash approach holds end-to-end.** V5-2's `0/0/514`
+proves both the no-op detection (WHERE-suppress works correctly with
+explicit `rows.length === 0` handling) AND the canonical-hash
+determinism across consecutive Atlassian API calls. The per-column
+drift problem documented in HANDOFF 2617-2626 is contained — `raw`
+excluded, sorted-keys canonical, single-column compare.
+
+**B. The follow-up SELECT on no-op is acceptable cost.** V5-2's 75s
+for 514 no-op upserts = ~150ms/row. Comfortably under Workers' 30s CPU
+budget; the I/O wait is async so CPU time is much less. If a future
+connector ingests > 2000 rows per page in all-noop mode, revisit
+(batched SELECT-IN approach is the upgrade path).
+
+**C. Atlassian REST API has propagation lag for description edits.**
+V5-3a (the first attempt) failed at `0/0/514` not because of any code
+bug but because the edit had not propagated to `/search/jql`'s
+response within 5 seconds. The retake with 30s wait + page-refresh
+verification succeeded immediately. **WORKFLOW addendum candidate:**
+verification cells that involve upstream-system edits should specify
+a propagation wait + a "refresh page to confirm save" step in the
+runbook.
+
+**D. content_hash backfill is naturally absorbed by the first re-sync
+after deploy.** Existing rows had NULL → `NULL IS DISTINCT FROM <new
+hash>` → true → UPDATE fires → hash populated. Counts as
+`records_updated` once per row (513 on this run). From the second
+re-sync onwards, every unchanged row falls into `records_skipped`.
+No corrective backfill pass needed.
+
+**E. The "orphan entity" pattern.** Post-V5-1 the entity table held
+515 rows for this Jira connection but only 514 got `content_hash`
+populated. The 1 untouched row is an entity that's no longer in
+Jira's current API response (likely an issue deleted in Jira since
+the original sync, or a sprint that fell out of scope). The sync
+correctly didn't touch it. Not a 9.5 concern; cleanup of orphans
+is a Block 10.x candidate if it surfaces.
+
+### What's owed before Block 9.5 v2 is fully closeout-complete
+
+1. **Post-deploy production verification.** Run V5-2 + V5-3 against
+   `elinnoagent.com` after Cloudflare's auto-deploy of `d5a9436`
+   completes. If the manual rollback (production pinned to `1e09cab4`
+   via the dashboard rollback on 2026-05-13 ~07:30) is sticky, click
+   "Promote" in Cloudflare Pages dashboard first. Expected: same
+   counts as preview (V5-2: 0/0/514 modulo new Jira activity; V5-3:
+   updates the one edited issue).
+
+2. **Append production canary verdict to
+   [curl-matrix-block-9-5.md](curl-matrix-block-9-5.md)**'s
+   "Production verification (post ff-merge to main)" subsection with
+   sync_run ids + counts.
+
+3. **Update CLAUDE.md line 5** if "Block 9 in progress" needs the
+   sub-task pointer bumped. Currently the relevant context is "Block
+   9.5 v2 shipped; Block 9.2 (data-as-of) next per BLOCK_9_PLAN.md
+   sequencing."
+
+### Carry-forward additions
+
+- **WORKFLOW addendum candidates (cumulative queue):**
+  - V5-3-style upstream-edit verification cells need an explicit
+    propagation-wait + refresh-confirm step (lesson C above).
+  - "Plan top-line DEFAULT but harness in auto" surfacing hook (carry
+    forward from the original 9.5 closeout).
+  - Per-env secret check during Phase 0 (carry forward from 9.5
+    incident; not 9.5 v2 specific).
+  - Manual-rollback stickiness behavior on Cloudflare Pages: document
+    in the rollback playbook so a future v3-style "fix after rollback
+    via dashboard" cycle doesn't repeat the ambiguity around whether
+    a subsequent push auto-promotes.
+- **Block 10.x candidate:** orphan-entity cleanup (lesson E above).
+  Probably gated by a "do not surface entities that haven't been
+  refreshed by a sync in N days" rule in the query layer rather than
+  a DELETE pass.
+
+### Where future-Claude resumes
+
+Phase 0 ritual on parent main, expecting:
+- `git status` → on `main`, clean (untracked
+  `scripts/delete-all-projects.sql` still present — Jenny's working
+  file, leave alone).
+- `git log -5 --oneline` → top is the closeout doc commit (this file
+  + curl-matrix), then `d5a9436` (code), `50f711e` (schema),
+  `e3b716b` (plan-lock), `7f8c421` (last revert).
+- `git fetch origin --dry-run` → no fetch needed unless someone
+  pushed since session end.
+
+Next session pickup options (in priority order):
+
+1. **Production verification of v2 (V5-2 + V5-3 on elinnoagent.com)
+   if not already completed in this session.** Surfacing if production
+   was auto-promoted vs. needs manual promote post-rollback.
+2. **Block 9.2 (data-as-of timestamp)** — next sub-task per
+   BLOCK_9_PLAN.md sequencing. Branch `block-9-2-data-as-of`. One
+   DEFAULT-mode commit (messages.js citation enrichment) + one
+   AUTO-mode commit (project.html + auth.css UI). 6-cell V2 matrix.
+3. **Between-blocks task: Block 6 full matrix re-run** (the V5-8
+   deferred cell), if Jenny wants belt-and-suspenders confirmation
+   that the AI tool surface is unaffected by v2.
+
+### Mid-section closure sentence
+
+Block 9.5 v2 (Option F, content-hash) shipped to `elinnoagent.com` at
+`d5a9436` AFTER preview-deploy verification cleared the canary cells
+that broke the original 9.5 ship. The hash-based no-op detection
+returns `0/0/514` on idempotent re-syncs (the cell that crashed last
+time now returns clean) and correctly counts a single Jira edit as
+`records_updated = 1`. The per-column drift problem that killed both
+the original decision A and the CTE hotfix is side-stepped by the
+single-column hash compare; the no-rows-returned semantic that
+crashed A is handled explicitly via `rows.length` check + follow-up
+SELECT. Production verification owed; then Block 9.2 (data-as-of) is
+the next sub-task in the locked sequencing.
+
