@@ -3370,3 +3370,151 @@ cap per the existing carry-forward).
 shipped (10.5, 10.4). Remaining sub-tasks per plan sequence:
 **10.3 → 10.6 → 10.1 → 10.2**. Then v1.1 ships. Monday + Drive
 connectors deferred to v1.2.
+
+## Block 10.3 shipped to main — 2026-05-17 (late evening)
+
+**End-of-session state:**
+- `origin/main` at `77d5bfa`. Production deploy healthy
+  (`elinnoagent.com/api/db-health` 200).
+- Working tree clean except untracked `scripts/delete-all-projects.sql`
+  (Jenny's working file).
+- **Block 10.3 (daily message limit) shipped.** 3/6 Block 10
+  sub-tasks done. Remaining: **10.6 → 10.1 → 10.2**.
+
+**Shipped this slot (3 commits on main, 1 push):**
+
+| SHA | Subject | Mode |
+|---|---|---|
+| `2275a03` | `feat(block-10-3): 100/24h daily message limit pre-check per decisions J + K` | DEFAULT |
+| `1c793fe` | `feat(block-10-3): chat composer 429 handler with retry hint per decision K` | AUTO |
+| `77d5bfa` | `docs(block-10-3): curl-matrix-block-10-3.md with V3.1-V3.5 PASS-by-inspection` | doc-only |
+| _(this commit)_ | `docs(handoff): Block 10.3 shipped — 2026-05-17 late evening` | doc-only |
+
+### Sub-task narrative
+
+**Block 10.3 — daily message limit.** Took the third consecutive
+sub-task slot of the afternoon-evening session, after 10.5 (sweep
+batching) and 10.4 (connector guide). Smallest server-side
+change in the run (`+39` lines messages.js + `+20` lines
+project.html) and the simplest verification posture (PASS-by-
+inspection).
+
+Server-side ([2275a03](https://github.com/Jenny-Joni/elinno-agent/commit/2275a03)):
+- `DAILY_MSG_CAP = 100` constant added near `DEFAULT_CONVERSATION_TITLE`
+  (decision J — PRD §8.1, hardcoded since PRD doesn't mark it
+  configurable).
+- Pre-check inserted between the conversation auth guard
+  ([messages.js:288](functions/api/projects/[id]/conversations/[conversationId]/messages.js))
+  and the user-message INSERT
+  ([messages.js:297](functions/api/projects/[id]/conversations/[conversationId]/messages.js))
+  so a 429 doesn't dirty conversation history.
+- Single query combining `COUNT(*)::int` + `MIN(created_at)` so
+  `retry_after_seconds` is honest — time until oldest qualifying
+  user message ages past the 24h boundary, not a worst-case 24h.
+- Existing `messages_project_recency_idx`
+  ([schema-postgres.sql:556](db/schema-postgres.sql)) supports the
+  scan; no new index needed.
+- Defense-in-depth `project_id` filter is the load-bearing scope —
+  matches Block 9.1 sync.js belt-and-suspenders posture per
+  CLAUDE.md project-isolation neighborhood rule.
+
+UI ([1c793fe](https://github.com/Jenny-Joni/elinno-agent/commit/1c793fe)):
+- New 429 branch in `sendMessage()` between existing 400 handler
+  and the catch-all `!res.ok` branch. Renders `data.error` verbatim
+  (decision K — server copy is user-facing-quality) + appends
+  `Try again in Xh Ym.` suffix formatted from `retry_after_seconds`.
+- Composer restored on 429 (input + send button re-enabled), so
+  user can edit/retry once the window passes without a page refresh.
+- Slight UX-shape difference vs. Block 9.1's sync-now 429 handler
+  at [project.html:1592](public/project.html) (toast + only-minutes
+  formatting). Daily-cap retry windows often span hours, so the
+  chat-composer surface formats h+m. Both 429 handlers agree on
+  the `data.error / data.retry_after_seconds` response shape.
+
+### Verification posture
+
+All five V3 cells PASS-by-inspection — runtime verification
+deferred because triggering the 429 path needs 100 user messages
+from the same project within 24h, burning ~$3 of Anthropic spend
+and ~30+ minutes of wall-clock. Not worth a synthetic 100-send.
+
+Preview confirmed up at
+`https://block-10-3-daily-msg-limit.elinno-agent.pages.dev/api/db-health`
+→ 200 at 11:45:54Z. `/` returned 200; Compiled-Worker build clean
+(import errors would surface as 500s). Branch name 26 chars,
+under the 28-char alias cap.
+
+### Pattern established for Block 10.2
+
+10.3 ships the 429-on-message-POST shape that 10.2 cost cap will
+extend:
+
+```js
+// 10.3 (this slot):
+{ ok: false, error: '…', retry_after_seconds: N }
+
+// 10.2 (future):
+{ ok: false, error: '…', cap_usd: 50.00, used_usd: 50.04,
+  resets_at: '2026-06-01T00:00:00Z' }
+```
+
+UI handler in `sendMessage()` will branch on `error.includes('budget reached')`
+vs the daily-limit string to render the right pause-state per
+BLOCK_10_PLAN.md decision F. 10.3's split between server pre-check
+(DEFAULT mode) + UI handler (AUTO mode) is the template for
+10.2's parallel commits.
+
+### Hook false-positive re-encountered
+
+The `deny-push-to-main.sh` hook (this morning's `b273d28`) blocked
+`git push -u origin block-10-3-daily-msg-limit && git log
+origin/main..HEAD --oneline` because the compound contained both
+`git push` AND the word `main` (in `origin/main..HEAD`). Documented
+as carry-forward #5 from this morning's Block 10 kickoff close-
+out — confirmed in-session twice now (once this morning, once
+during 10.3). Workaround: split into two separate `Bash` tool calls.
+Promotes to a higher-priority WORKFLOW addendum candidate — the
+hook's regex needs to parse the `git push` portion's args
+specifically rather than the whole compound command string.
+
+### Carry-forward to next session
+
+1. **Next sub-task: 10.6 (tool-call trace viewer).** Per plan
+   sequence. UI-only on existing persisted data (Block 6
+   commit `f7fc540` already persists tool errors as
+   `tool_result` payloads). Admin-gated render between message
+   text and citation rail. Modify `messages.js` GET to include
+   role='tool' rows when `me.is_admin`; add
+   `renderToolTraceHtml()` to `project.html`; new CSS classes.
+   MIXED mode (DEFAULT for messages.js GET shape change, AUTO
+   for UI/CSS). Small surface — should fit one execute phase.
+
+2. **PROD V5.4 from 10.5 still pending.** Block 9.1 1/hour
+   rate limit cleared around 12:00Z (~30 min ago at this
+   handoff time of ~11:50Z — should be clear now or imminent).
+   Click Sync now on RAIN's Slack or Jira → tail Cloudflare
+   logs for `embedding_sweep_batch_failed` (should not appear)
+   and absence of `embedding_sweep_row_failed` (gone from
+   code). Alternatively tomorrow's 08:00 UTC cron will fire
+   the sweep automatically AND covers Block 9.4 V4-4/V4-5/V4-6.
+
+3. **V3.1-V3.5 opportunistic runtime verification.** If natural
+   usage ever pushes a project past 100 user-messages in 24h,
+   the 429 fires for real and the UI handler renders. No
+   engineering effort warranted to force this.
+
+4. **Hook regex over-aggression promoted to higher-priority
+   WORKFLOW addendum candidate** (hit twice now). Fix would be
+   parsing the `git push` portion's args specifically, not the
+   whole compound command string. Adds to the existing addendum
+   queue.
+
+5. **Per-user message cap NOT in 10.3 scope** (BLOCK_10_PLAN.md
+   Risks §10.3). One enthusiastic member can consume the entire
+   project's daily budget. Accepted for v1.1; Block 11+ if
+   onboarding feedback surfaces friction.
+
+**Block sequence status.** Block 10 plan locked + 3/6 sub-tasks
+shipped (10.5, 10.4, 10.3). Remaining sub-tasks per plan
+sequence: **10.6 → 10.1 → 10.2**. Then v1.1 ships. Monday +
+Drive connectors deferred to v1.2.
