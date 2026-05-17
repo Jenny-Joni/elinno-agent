@@ -21,9 +21,9 @@
 // =========================================================================
 
 import postgres from 'postgres';
-import { error, json } from '../../../_lib/auth.js';
-import { verifyCronAuth } from '../../../_lib/cron_auth.js';
-import { getConnector, isKnownSource } from '../../../_lib/connectors/registry.js';
+import { error, json } from '../../_lib/auth.js';
+import { verifyCronAuth } from '../../_lib/cron_auth.js';
+import { getConnector, isKnownSource } from '../../_lib/connectors/registry.js';
 
 const ALLOWED_SOURCES = new Set(['slack', 'jira']);
 
