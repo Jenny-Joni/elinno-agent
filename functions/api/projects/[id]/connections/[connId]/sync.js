@@ -105,6 +105,39 @@ export async function onRequestPost({ request, env, params }) {
 
     const connector = getConnector(connection.source);
 
+    // Block 9.1 decision M: 1/hour rate-limit on manual full syncs.
+    // Uses MAX(sync_runs.started_at) not connections.last_sync_at
+    // because last_sync_at is bumped only on non-inert success; a
+    // failed sync 5min ago should still count (it hit the source
+    // system). sync_mode='full' scopes the limit to the manual
+    // button; cron-driven incrementals don't reset the clock.
+    //
+    // Defense in depth: the project_id filter alongside the unique
+    // connection_id is belt-and-suspenders per the plan's carve-out
+    // rule (§9.1, lines 355-363). DO NOT remove. It's the tripwire
+    // for any future code path that misroutes a connection_id from
+    // a different project.
+    const RATE_LIMIT_MS = 3600 * 1000;
+    const [{ last_full_sync }] = await sql`
+      SELECT MAX(started_at) AS last_full_sync
+        FROM sync_runs
+       WHERE connection_id = ${connection.id}
+         AND project_id    = ${projectId}
+         AND sync_mode     = 'full'
+    `;
+    if (last_full_sync) {
+      const ageMs = Date.now() - new Date(last_full_sync).getTime();
+      if (ageMs < RATE_LIMIT_MS) {
+        const retryAfterMs = RATE_LIMIT_MS - ageMs;
+        return json({
+          ok: false,
+          error: 'Rate limit: 1 sync per hour.',
+          retry_after_seconds: Math.ceil(retryAfterMs / 1000),
+          next_available_at: new Date(Date.now() + retryAfterMs).toISOString(),
+        }, { status: 429 });
+      }
+    }
+
     // Create the sync_run row in 'running' state BEFORE invoking
     // fullSync. Even if fullSync throws or the Worker is killed at
     // the 30s boundary, this row preserves the attempt record.
