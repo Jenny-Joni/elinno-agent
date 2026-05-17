@@ -101,6 +101,13 @@ import { runAgent } from '../../../../../_lib/ai/loop.js';
 // message — see DECISION H IMPLEMENTATION NOTE in the file header.
 const DEFAULT_CONVERSATION_TITLE = 'New conversation';
 
+// BLOCK_10_PLAN.md decision J: per-project daily user-message cap. Rolling
+// 24-hour window (not calendar-day) to match Block 9.1's rate-limit shape
+// and avoid a midnight-UTC reset cliff. Hardcoded per decision J — PRD
+// §8.1 names "100" without marking it configurable. Promote to a column
+// on projects only if v1.2 introduces per-project tuning.
+const DAILY_MSG_CAP = 100;
+
 // Decision H: first ~50 chars, truncate at word boundary, append "…" if truncated.
 function deriveTitleFromMessage(content) {
   const trimmed = content.trim();
@@ -286,6 +293,38 @@ export async function onRequestPost({ request, env, params }) {
        LIMIT 1
     `;
     if (!conv) return error('Forbidden', 403);
+
+    // BLOCK_10_PLAN.md decisions J + K: per-project daily message limit.
+    // Counts user messages (role='user') in the past 24h across the whole
+    // project — one cap shared across all members. Fires BEFORE the user
+    // message INSERT so a 429 doesn't dirty the conversation history.
+    //
+    // Defense in depth: project_id filter is the load-bearing scope here
+    // (one tenant's cap shouldn't be visible to another). Matches Block 9.1
+    // sync.js:115-119 belt-and-suspenders posture.
+    //
+    // MIN(created_at) is computed in the same query so retry_after_seconds
+    // is honest — time until the OLDEST qualifying user message ages past
+    // the 24h boundary. Cost: one COUNT + one MIN over the
+    // messages_project_recency_idx index range.
+    const [todayStats] = await sql`
+      SELECT COUNT(*)::int   AS today_user_msgs,
+             MIN(created_at) AS oldest_user_msg
+        FROM messages
+       WHERE project_id   = ${params.id}
+         AND role         = 'user'
+         AND created_at   > NOW() - INTERVAL '24 hours'
+         AND deleted_at  IS NULL
+    `;
+    if (todayStats.today_user_msgs >= DAILY_MSG_CAP) {
+      const oldestMs = new Date(todayStats.oldest_user_msg).getTime();
+      const retryAfterMs = (oldestMs + 24 * 60 * 60 * 1000) - Date.now();
+      return json({
+        ok: false,
+        error: `You've reached the daily message limit for this project (${DAILY_MSG_CAP} per 24 hours).`,
+        retry_after_seconds: Math.max(0, Math.ceil(retryAfterMs / 1000)),
+      }, { status: 429 });
+    }
 
     // Decision H: auto-title fires once, when the title is still the default.
     // No COUNT(*) round-trip — see DECISION H IMPLEMENTATION NOTE in header.
