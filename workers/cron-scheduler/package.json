@@ -1,0 +1,5 @@
+{
+  "name": "elinno-agent-cron-scheduler",
+  "private": true,
+  "description": "Scheduled-trigger Worker that POSTs HMAC-signed nightly incremental-sync requests to the elinno-agent Pages endpoint. See BLOCK_9_PLAN.md §9.4."
+}

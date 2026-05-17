@@ -1,0 +1,20 @@
+name = "elinno-agent-cron-scheduler"
+main = "src/index.js"
+compatibility_date = "2026-05-17"
+
+# Block 9.4 decision T: 0 8 * * * UTC = 08:00 UTC nightly
+# (~04:00 ET / 01:00 PT — off-peak for both US user timezones).
+[triggers]
+crons = ["0 8 * * *"]
+
+[vars]
+PAGES_BASE_URL = "https://elinnoagent.com"
+# Decision T: parallel POSTs per source. Comma-separated, split in src/index.js.
+CRON_SOURCES_FAN_OUT = "jira,slack"
+
+# CRON_SECRET is set via:
+#   cd workers/cron-scheduler && npx wrangler secret put CRON_SECRET
+# Same secret value must also be set on the Pages side:
+#   npx wrangler pages secret put CRON_SECRET --project-name elinno-agent
+# Rotation grace per decision R is the 5-minute replay window — set on
+# Pages first, then on the cron Worker within 5 minutes.
