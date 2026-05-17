@@ -127,7 +127,7 @@ const AGENT_FAILURE_TEXT =
   "I hit a temporary issue answering your question. Please try again in a moment.";
 
 export async function onRequestGet({ request, env, params }) {
-  const { error: errResp, user } = await requireProjectRole(
+  const { error: errResp, user, role } = await requireProjectRole(
     request,
     env,
     params.id,
@@ -136,6 +136,11 @@ export async function onRequestGet({ request, env, params }) {
   if (errResp) return errResp;
 
   const userIdText = String(user.id);
+  // BLOCK_10_PLAN.md decision O: tool-call trace viewer is admin-only.
+  // Server-side filter is the load-bearing gate — UI render is naturally
+  // empty for non-admins because the role='tool' rows + tool_calls JSONB
+  // never reach the response.
+  const isProjectAdmin = role === 'admin';
 
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,
@@ -159,9 +164,16 @@ export async function onRequestGet({ request, env, params }) {
     // Decision: messages ordered created_at ASC (oldest first; chat scroll
     // top-down). Soft-deleted filtered out, matching the LEFT JOIN's
     // m.deleted_at IS NULL filter from the conversations list endpoint.
+    //
+    // BLOCK_10_PLAN.md decision O (10.6): tool_calls + tool_result added to
+    // the SELECT for the admin-only trace viewer. SQL query stays uniform
+    // across callers; the per-role filter happens in JS below so non-admin
+    // members get the same query shape but a trimmed response. Stable
+    // query plan, simple gate.
     const messages = await sql`
       SELECT id, conversation_id, role, content, created_at,
-             citations, model, input_tokens, output_tokens, iteration
+             citations, model, input_tokens, output_tokens, iteration,
+             tool_calls, tool_result
         FROM messages
        WHERE conversation_id = ${params.conversationId}
          AND deleted_at IS NULL
@@ -218,7 +230,17 @@ export async function onRequestGet({ request, env, params }) {
       };
     });
 
-    return json({ ok: true, messages: enrichedMessages });
+    // BLOCK_10_PLAN.md decision O: trim the response for non-admin members.
+    // Drop role='tool' rows entirely (no tool intermediates leak); null
+    // tool_calls on assistant rows so the UI's `m.tool_calls?.length > 0`
+    // gate naturally renders nothing. Project admins see the full shape.
+    const responseMessages = isProjectAdmin
+      ? enrichedMessages
+      : enrichedMessages
+          .filter((m) => m.role !== 'tool')
+          .map((m) => (m.role === 'assistant' ? { ...m, tool_calls: null } : m));
+
+    return json({ ok: true, messages: responseMessages });
   } catch (err) {
     // Block 9.2 hotfix: log the error so future regressions in the
     // citation-enrichment JOIN surface in Pages logs rather than as
