@@ -95,6 +95,9 @@
 import postgres from 'postgres';
 import { error, json, requireProjectRole } from '../../../../../_lib/auth.js';
 import { runAgent } from '../../../../../_lib/ai/loop.js';
+import { computeCostUsd } from '../../../../../_lib/ai/pricing.js';
+import { getAdminEmailsForProject } from '../../../../../_lib/admins.js';
+import { sendCostCapEmail } from '../../../../../_lib/email.js';
 
 // Decision G: literal default title set by the conversations POST handler
 // at conversation creation. Decision H replaces this on the first user
@@ -107,6 +110,21 @@ const DEFAULT_CONVERSATION_TITLE = 'New conversation';
 // §8.1 names "100" without marking it configurable. Promote to a column
 // on projects only if v1.2 introduces per-project tuning.
 const DAILY_MSG_CAP = 100;
+
+// BLOCK_10_PLAN.md decision F: 80% threshold triggers the warning email.
+// 100% triggers the pause email AND blocks the message POST with a 429.
+const COST_WARNING_THRESHOLD = 0.80;
+
+// First-of-next-month ISO string, used in the 429 resets_at field so the
+// client UI can render a human countdown. UTC boundary by design (see
+// BLOCK_10_PLAN.md uncertainty #2 — month is UTC-anchored).
+function firstOfNextMonthIso() {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth(); // 0-indexed
+  const next = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0, 0));
+  return next.toISOString();
+}
 
 // Decision H: first ~50 chars, truncate at word boundary, append "…" if truncated.
 function deriveTitleFromMessage(content) {
@@ -316,6 +334,90 @@ export async function onRequestPost({ request, env, params }) {
     `;
     if (!conv) return error('Forbidden', 403);
 
+    // BLOCK_10_PLAN.md decisions E + F + H + I (10.2): per-project monthly
+    // AI cost cap. Pre-check runs BEFORE the daily-message-limit check
+    // and BEFORE runAgent. SUM(cost_usd) over the current UTC month
+    // compared to the project's cap (default 50.00 per decision E).
+    //
+    // Three branches:
+    //   1. month_cost >= cap         → fire pause email (idempotent),
+    //                                   return 429 with cap details.
+    //   2. month_cost >= 0.8 * cap   → fire warning email (idempotent),
+    //                                   continue to runAgent normally.
+    //   3. month_cost <  0.8 * cap   → no email, continue.
+    //
+    // Cost-affecting + admin-notification surface — DEFAULT mode per
+    // per-commit classification.
+    const [usage] = await sql`
+      SELECT COALESCE(SUM(cost_usd), 0)::float AS month_cost_usd
+        FROM messages
+       WHERE project_id   = ${params.id}
+         AND created_at  >= DATE_TRUNC('month', NOW())
+         AND deleted_at  IS NULL
+    `;
+    const [proj] = await sql`
+      SELECT name, ai_monthly_cap_usd, ai_cap_warned_at
+        FROM projects
+       WHERE id = ${params.id}
+       LIMIT 1
+    `;
+    const monthCostUsd = Number(usage.month_cost_usd) || 0;
+    const capUsd = Number(proj.ai_monthly_cap_usd) || 0;
+    const thresholdAlreadyFiredThisMonth = proj.ai_cap_warned_at
+      ? new Date(proj.ai_cap_warned_at).getTime() >= Date.UTC(
+          new Date().getUTCFullYear(),
+          new Date().getUTCMonth(),
+          1, 0, 0, 0, 0
+        )
+      : false;
+
+    if (capUsd > 0 && monthCostUsd >= capUsd) {
+      // 100% pause. Fire admin email once per month — guarded by
+      // ai_cap_warned_at (decision H idempotency). Email failure does
+      // NOT block the 429 response; we still need to refuse the message.
+      if (!thresholdAlreadyFiredThisMonth) {
+        try {
+          const adminEmails = await getAdminEmailsForProject(env, sql, params.id);
+          await sendCostCapEmail(env, proj.name, capUsd, monthCostUsd, 'paused', adminEmails);
+          await sql`UPDATE projects SET ai_cap_warned_at = NOW() WHERE id = ${params.id}`;
+        } catch (notifyErr) {
+          console.warn(JSON.stringify({
+            level: 'warn',
+            event: 'cost_cap_notify_failed',
+            project_id: params.id,
+            kind: 'paused',
+            error: notifyErr && notifyErr.message ? String(notifyErr.message).slice(0, 200) : 'unknown',
+          }));
+        }
+      }
+      return json({
+        ok: false,
+        error: 'AI is paused for this project — monthly budget reached.',
+        cap_usd: capUsd,
+        used_usd: Number(monthCostUsd.toFixed(2)),
+        resets_at: firstOfNextMonthIso(),
+      }, { status: 429 });
+    } else if (capUsd > 0 && monthCostUsd >= COST_WARNING_THRESHOLD * capUsd) {
+      // 80% warning. Same idempotency gate; warning fires once per
+      // month per project. Continue past this branch to the rest of
+      // the request — the message is allowed, the admin is just notified.
+      if (!thresholdAlreadyFiredThisMonth) {
+        try {
+          const adminEmails = await getAdminEmailsForProject(env, sql, params.id);
+          await sendCostCapEmail(env, proj.name, capUsd, monthCostUsd, 'warning', adminEmails);
+          await sql`UPDATE projects SET ai_cap_warned_at = NOW() WHERE id = ${params.id}`;
+        } catch (notifyErr) {
+          console.warn(JSON.stringify({
+            level: 'warn',
+            event: 'cost_cap_notify_failed',
+            project_id: params.id,
+            kind: 'warning',
+            error: notifyErr && notifyErr.message ? String(notifyErr.message).slice(0, 200) : 'unknown',
+          }));
+        }
+      }
+    }
+
     // BLOCK_10_PLAN.md decisions J + K: per-project daily message limit.
     // Counts user messages (role='user') in the past 24h across the whole
     // project — one cap shared across all members. Fires BEFORE the user
@@ -416,6 +518,7 @@ export async function onRequestPost({ request, env, params }) {
           model: null,
           input_tokens: 0,
           output_tokens: 0,
+          cost_usd: 0,
           iteration: 1,
         }],
       };
@@ -424,17 +527,24 @@ export async function onRequestPost({ request, env, params }) {
     // Persist each turn from the agent loop. The last role='assistant'
     // turn carrying content is the user-visible answer; we keep the
     // RETURNING'd row for the response payload.
+    //
+    // Block 10.2 decision I: cost_usd written at persist time. Loop.js
+    // populates the value on each db_turn from computeCostUsd(model,
+    // input_tokens, output_tokens). NULL is acceptable for unknown
+    // models (defensive — pricing.js returns null then); the cap
+    // pre-check COALESCEs NULL to 0 so unknown-model rows don't
+    // accidentally burst the cap.
     let assistantMessage = null;
     for (const turn of agentResult.db_turns) {
       const [row] = await sql`
         INSERT INTO messages (
           project_id, conversation_id, role, content,
           tool_calls, tool_result, citations,
-          input_tokens, output_tokens, model, iteration
+          input_tokens, output_tokens, model, cost_usd, iteration
         ) VALUES (
           ${params.id}, ${params.conversationId}, ${turn.role}, ${turn.content},
           ${turn.tool_calls}, ${turn.tool_result}, ${turn.citations},
-          ${turn.input_tokens}, ${turn.output_tokens}, ${turn.model}, ${turn.iteration}
+          ${turn.input_tokens}, ${turn.output_tokens}, ${turn.model}, ${turn.cost_usd ?? null}, ${turn.iteration}
         )
         RETURNING id, conversation_id, role, content, created_at,
                   citations, model, input_tokens, output_tokens, iteration

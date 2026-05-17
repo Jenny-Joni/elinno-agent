@@ -97,7 +97,20 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     -- Soft delete: NULL = active, non-NULL = archived
-    deleted_at      TIMESTAMPTZ
+    deleted_at      TIMESTAMPTZ,
+
+    -- Block 10.2 decision E: per-project monthly AI cost cap. Default
+    -- $50 (a heavy 100-msg/day project at Sonnet 4.5 rates would hit
+    -- ~$90/month, so $50 is a real bound). Configurable via SQL Editor
+    -- for v1.1; Block 11+ adds a settings UI.
+    ai_monthly_cap_usd DECIMAL(10, 2) NOT NULL DEFAULT 50.00,
+
+    -- Block 10.2 decision H: idempotency for cost-cap admin emails.
+    -- Set when the 80%-warning OR 100%-pause email fires; auto-stale
+    -- at month boundary because the comparison is
+    -- "ai_cap_warned_at >= DATE_TRUNC('month', NOW())". No background
+    -- reset job needed.
+    ai_cap_warned_at TIMESTAMPTZ
 );
 
 -- "List my active projects" — Member's main UI query.
@@ -536,6 +549,15 @@ CREATE TABLE IF NOT EXISTS messages (
     output_tokens   INTEGER,
     -- Format: 'provider/model', e.g., 'anthropic/claude-sonnet-4-5'.
     model           TEXT,
+    -- Block 10.2 decisions E + G + I: per-message USD cost, computed at
+    -- persist time from (model, input_tokens, output_tokens) via
+    -- functions/_lib/ai/pricing.js computeCostUsd. SUM over this column
+    -- scoped to the project + current month is the cap-pre-check value.
+    -- Backfill (decision G) populates this for pre-10.2 rows from the
+    -- same (model, tokens) tuple — honest month-to-date accounting from
+    -- day one. NULL allowed for unknown models (defensive — pricing.js
+    -- returns null in that case).
+    cost_usd        DECIMAL(10, 6),
 
     -- Per PRD §7: max 6 iterations per chat message. iteration=0 is the user's
     -- initial input; subsequent assistant/tool turns increment until the

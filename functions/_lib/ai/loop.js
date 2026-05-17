@@ -22,6 +22,7 @@
 
 import { createMessage } from './anthropic.js';
 import { TOOL_DEFINITIONS, executeTool } from './tools.js';
+import { computeCostUsd } from './pricing.js';
 
 const ITERATION_CAP = 6;
 const ANTHROPIC_MODEL = 'claude-sonnet-4-5';
@@ -204,6 +205,7 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
         model: null,
         input_tokens: 0,
         output_tokens: 0,
+        cost_usd: 0,
         iteration: 1,
       }],
     };
@@ -260,6 +262,10 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
       model: MODEL_ID,
       input_tokens: turnInput,
       output_tokens: turnOutput,
+      // Block 10.2 decision I: per-turn cost in USD, computed from the
+      // pricing constants. Null if the model isn't in the price map
+      // (defensive — should never happen for MODEL_ID under v1.1).
+      cost_usd: computeCostUsd(MODEL_ID, turnInput, turnOutput),
       iteration: iterations,
     });
 
@@ -306,6 +312,7 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
         model: null,
         input_tokens: null,
         output_tokens: null,
+        cost_usd: null,
         iteration: iterations,
       });
 

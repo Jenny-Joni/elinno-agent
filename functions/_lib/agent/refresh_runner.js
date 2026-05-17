@@ -303,6 +303,7 @@ export async function runRefreshAction({ env, sql, request, projectId, userId, s
         model: null,
         input_tokens: 0,
         output_tokens: 0,
+        cost_usd: 0,
         iteration: 1,
       }],
     };
@@ -311,17 +312,21 @@ export async function runRefreshAction({ env, sql, request, projectId, userId, s
   // Step 7: persist db_turns. Same INSERT shape as messages.js POST
   // line 428-444. Keep the RETURNING'd assistant message for the
   // response payload.
+  // Block 10.2 decision I: cost_usd persisted on each refresh-action
+  // assistant turn too. The refresh path runs runAgent the same way the
+  // POST handler does, so the same per-turn cost values land in messages
+  // and count against the project's monthly cap on subsequent sends.
   let assistantMessage = null;
   for (const turn of agentResult.db_turns) {
     const [row] = await sql`
       INSERT INTO messages (
         project_id, conversation_id, role, content,
         tool_calls, tool_result, citations,
-        input_tokens, output_tokens, model, iteration
+        input_tokens, output_tokens, model, cost_usd, iteration
       ) VALUES (
         ${projectId}, ${conversationId}, ${turn.role}, ${turn.content},
         ${turn.tool_calls}, ${turn.tool_result}, ${turn.citations},
-        ${turn.input_tokens}, ${turn.output_tokens}, ${turn.model}, ${turn.iteration}
+        ${turn.input_tokens}, ${turn.output_tokens}, ${turn.model}, ${turn.cost_usd ?? null}, ${turn.iteration}
       )
       RETURNING id, conversation_id, role, content, created_at,
                 citations, model, input_tokens, output_tokens, iteration
