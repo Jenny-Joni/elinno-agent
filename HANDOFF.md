@@ -3261,3 +3261,112 @@ from her terminal" is now established for Block 10.
 shipped (10.5). Remaining sub-tasks per plan sequence: **10.4 → 10.3
 → 10.6 → 10.1 → 10.2**. Then v1.1 ships. Monday + Drive connectors
 deferred to v1.2.
+
+## Block 10.4 shipped to main — 2026-05-17 (evening)
+
+**End-of-session state:**
+- `origin/main` at `58fa547`. Production deploy healthy
+  (`elinnoagent.com/api/db-health` 200; doc-only change so no
+  behavior delta).
+- Working tree clean except untracked `scripts/delete-all-projects.sql`
+  (Jenny's working file, unchanged).
+- **Block 10.4 (connector guide) shipped.** 2/6 Block 10 sub-tasks
+  done. Remaining: **10.3 → 10.6 → 10.1 → 10.2**.
+
+**Shipped this slot (2 commits on main, 1 push):**
+
+| SHA | Subject |
+|---|---|
+| `f536dfc` | `feat(block-10-4): docs/CONNECTORS.md onboarding guide per decision L` |
+| `58fa547` | `docs(block-10-4): curl-matrix-block-10-4.md with V4.1 + V4.2 PASS` |
+| _(this commit)_ | `docs(handoff): Block 10.4 shipped — 2026-05-17 evening` |
+
+### Sub-task narrative
+
+**Block 10.4 — connector guide.** Started while waiting out the
+Block 9.1 1/hour rate limit from the PROD V5.4 attempt on 10.5.
+Pure docs work, AUTO mode, no carve-out — clean fit for a 45-min
+gap.
+
+[`docs/CONNECTORS.md`](docs/CONNECTORS.md) is **553 lines**, 13
+sections matching the locked decision L outline exactly:
+
+1. Connector interface contract (`types.js`)
+2. OAuth callback pattern (Slack + Jira)
+3. Webhook handler pattern (Slack Events API + Jira's no-webhook
+   fallback rationale)
+4. fullSync vs incrementalSync + cursor advancement contract
+5. Credential encryption (Block 3 `crypto.js` envelope encryption)
+6. Five entity write helpers — when to use each
+7. Content-hash gate (Block 9.5 redesign, canonical fields, V5-7
+   determinism canary)
+8. Sweep path (referencing the new `_shared/sweep_missing_embeddings.js`
+   from 10.5 as canonical — natural follow-on per the plan sequence
+   rationale)
+9. SQL view pattern (citing the two migration files since views
+   don't live in `db/schema-postgres.sql`)
+10. AI tool registration (`tools.js` TOOL_DEFINITIONS + executeTool +
+    the project_id WHERE-clause enforcement rule)
+11. `sync_runs` orchestrator contract + 9.5's three-branch counter
+12. Test posture (plan → curl matrix → preview → smoke → hash
+    canary → ff-merge)
+13. 15-item runnable checklist
+
+Pre-write surveys caught two plan-vs-code drifts: the embedding model
+constant is `EMBEDDING_MODEL_ID` (plan shorthand: `EMBED_MODEL`),
+and SQL views live in `db/migrations/` (not `db/schema-postgres.sql`
+as plan suggested). Both folded into the draft, not as post-write
+hotfixes.
+
+### Verification posture
+
+Both V4 cells PASS at the worktree before push, both confirmed on
+preview after push:
+
+- **V4.1 (markdown structure)** — 553 lines (target 400-600); 13
+  `## ` headers matching decision L outline.
+- **V4.2 (code references resolve)** — all 18 referenced files exist;
+  all 13 numbered line refs land on the named symbol within ±10 line
+  tolerance. Verified via `grep -oE '\(\.\./[a-zA-Z0-9_./\-]+\.(js|sql|md|sh)' docs/CONNECTORS.md`
+  + per-file `sed -n '${N}p'` check.
+
+Preview confirmed up at
+`https://block-10-4-connector-guide.elinno-agent.pages.dev/api/db-health`
+→ 200 at 11:29:34Z. Branch name 26 chars (under the 28-char alias
+cap per the existing carry-forward).
+
+### Carry-forward to next session
+
+1. **PROD V5.4 (still pending from 10.5).** Block 9.1 1/hour rate
+   limit from this morning's manual sync click on RAIN clears
+   ~12:00Z (45 min from the rate-limit error reported earlier this
+   session). Once cleared, Jenny clicks Sync now on RAIN's Slack or
+   Jira → tail Cloudflare logs for the new
+   `embedding_sweep_batch_failed` event (should not appear) and
+   absence of the deleted `embedding_sweep_row_failed` event name.
+   Alternatively: tomorrow's 08:00 UTC nightly cron from Block 9.4
+   will exercise the sweep automatically (and also covers the still-
+   pending V4-4/V4-5/V4-6 from Block 9.4).
+
+2. **Next sub-task: 10.3 (daily message limit).** Per plan sequence,
+   `block-10-3-daily-msg-limit` ships next. Pre-check in
+   `messages.js` before `runAgent`; 100/24h cap hardcoded;
+   429 with friendly message. DEFAULT mode (gating message POST is
+   project-isolation adjacent). Small surface — should fit one
+   execute phase. Will establish the 429-on-message-POST pattern
+   that 10.2 cost cap will extend.
+
+3. **Doc maintenance contract** is now `docs/CONNECTORS.md`'s
+   closing line. If any of the named functions
+   (`embedEntitiesBatch`, `sweepMissingEmbeddings`,
+   `upsertEntityRow`, `writeEntityWithEmbedding`,
+   `writeEntitiesWithEmbeddingsBatch`, `embedEntityRow`,
+   `computeContentHash`, `canonicalContent`, `executeTool`,
+   `encrypt`, `decrypt`, `aadFor`) moves more than ~10 lines in a
+   future change, update the `[line N](path)` ref in the same
+   commit. V4.2 grep + sed is the runnable check for drift.
+
+**Block sequence status.** Block 10 plan locked + 2/6 sub-tasks
+shipped (10.5, 10.4). Remaining sub-tasks per plan sequence:
+**10.3 → 10.6 → 10.1 → 10.2**. Then v1.1 ships. Monday + Drive
+connectors deferred to v1.2.
