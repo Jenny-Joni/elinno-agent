@@ -557,6 +557,102 @@
       });
     }
 
+    // Block 9.3 decision H: hardcoded source-gated suggestion lists. No
+    // channel-name / sprint-name interpolation — keeps the chip text static
+    // and dodges an extra API call. <topic> is a literal placeholder the
+    // user edits before sending (decision I: click fills + focuses, no
+    // auto-submit).
+    const SUGGESTIONS_SLACK = [
+      "What's been discussed about <topic> this week?",
+      "Summarize the last 24 hours of decisions.",
+    ];
+    const SUGGESTIONS_JIRA = [
+      "How many open tickets are in the active sprint?",
+      "Which issues are blocking?",
+    ];
+
+    // Block 9.3 decision J: "show only when active conversation has zero
+    // user messages." Disappears after first send; reappears on a new
+    // conversation. No dismissal state.
+    function userMessagesEver(convId) {
+      return (messagesById[convId] || []).filter(m => m.role === 'user').length;
+    }
+
+    // Block 9.3 decision H: collapse the `connections` global into one of
+    // 'slack' / 'jira' / 'both' / 'none' for the gating switch in
+    // renderSuggestionsHtml. `null` (still loading or failed) falls into
+    // 'none' — the empty-state card is a safer default than guessing.
+    function getConnectionState() {
+      if (!Array.isArray(connections)) return 'none';
+      const hasSlack = connections.some(c => c && c.source === 'slack');
+      const hasJira  = connections.some(c => c && c.source === 'jira');
+      if (hasSlack && hasJira) return 'both';
+      if (hasSlack) return 'slack';
+      if (hasJira)  return 'jira';
+      return 'none';
+    }
+
+    // Block 9.3 decision H: pick the chip list for each state. 'both' is
+    // the union of the two two-shape lists per the plan's Block 10 note.
+    function getSuggestionList(state) {
+      if (state === 'slack') return SUGGESTIONS_SLACK;
+      if (state === 'jira')  return SUGGESTIONS_JIRA;
+      if (state === 'both')  return SUGGESTIONS_SLACK.concat(SUGGESTIONS_JIRA);
+      return [];
+    }
+
+    // Block 9.3 decisions H + K: build the empty-state HTML. 'none' renders
+    // the "Connect Slack or Jira" state card with a tab-switch link; the
+    // other three render the source-gated suggestion grid.
+    function renderSuggestionsHtml(state) {
+      if (state === 'none') {
+        return `
+          <div class="chat-suggestions-empty">
+            <div class="chat-suggestions-empty-title">Connect Slack or Jira to start asking questions</div>
+            <a class="chat-suggestions-empty-link" href="#" data-suggestions-link="connections">Open Connections tab</a>
+          </div>
+        `;
+      }
+      const items = getSuggestionList(state);
+      if (items.length === 0) return '';
+      const chips = items.map(q => {
+        const safe = escapeHtml(q);
+        return `<button class="chat-suggestion" type="button" data-suggestion="${safe}">${safe}</button>`;
+      }).join('');
+      return `
+        <div class="chat-suggestions">
+          <div class="chat-suggestions-label">Try asking…</div>
+          <div class="chat-suggestions-grid">${chips}</div>
+        </div>
+      `;
+    }
+
+    // Block 9.3 decision I: chip click fills #chatInput, focuses it, dispatches
+    // an 'input' event so the composer's auto-resize + send-button-enable
+    // logic fires. NO auto-submit — PRD §5.9 calls these "example questions,"
+    // not "example answers," and auto-submit turns a nudge into accidental
+    // token spend. Also wires the "Open Connections tab" link in the
+    // 'none'-state card via a programmatic click on the existing tab button.
+    function wireSuggestionChips(scope) {
+      scope.querySelectorAll('.chat-suggestion').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const input = document.getElementById('chatInput');
+          if (!input) return;
+          input.value = btn.dataset.suggestion || '';
+          input.focus();
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+      });
+      const tabLink = scope.querySelector('[data-suggestions-link="connections"]');
+      if (tabLink) {
+        tabLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          const tabBtn = document.querySelector('.project-tab[data-tab="connections"]');
+          if (tabBtn) tabBtn.click();
+        });
+      }
+    }
+
     function renderMessages() {
       const list = document.getElementById('chatMessages');
       // Filter:
@@ -568,6 +664,16 @@
         if (m.role === 'assistant' && !(m.content && m.content.length > 0)) return false;
         return true;
       });
+      // Block 9.3 decisions J + K: when this conversation is brand-new
+      // (no visible messages AND no user messages ever sent), render the
+      // source-gated suggestion grid (or the no-connections state card)
+      // in place of the empty chat list. Disappears on the next render
+      // after the user sends — userMessagesEver becomes > 0.
+      if (msgs.length === 0 && userMessagesEver(activeConvId) === 0) {
+        list.innerHTML = renderSuggestionsHtml(getConnectionState());
+        wireSuggestionChips(list);
+        return;
+      }
       list.innerHTML = msgs.map(m => renderMessageHtml(m)).join('');
       list.scrollTop = list.scrollHeight;
     }
