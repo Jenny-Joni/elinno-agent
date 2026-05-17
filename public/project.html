@@ -681,7 +681,112 @@
       // the main chat scroll.
       const allMsgs = messagesById[activeConvId] || [];
       list.innerHTML = msgs.map(m => renderMessageHtml(m, allMsgs)).join('');
+      // Block 10.1 decision C: wire up the ↻ Refresh & re-ask buttons
+      // after innerHTML lands. data-msg-id carries the source assistant
+      // message id; handler reads it and POSTs to the refresh endpoint.
+      list.querySelectorAll('.refresh-reask-button').forEach(btn => {
+        btn.addEventListener('click', () => handleRefreshAndReask(btn));
+      });
       list.scrollTop = list.scrollHeight;
+    }
+
+    // Block 10.1 decision C: handler for the ↻ Refresh & re-ask button.
+    // Disables the button + flips its label while in-flight; surfaces 429
+    // via the existing showConnToast (Block 9.1 pattern); on success
+    // appends the new assistant message to messagesById and re-renders.
+    // The freshly synced data is naturally reflected in the new
+    // assistant message's citations (data-as-of suffix via Block 9.2).
+    async function handleRefreshAndReask(btn) {
+      if (btn.disabled) return;
+      const messageId = btn.dataset.msgId;
+      if (!messageId) return;
+      const origLabel = btn.innerHTML;
+      btn.disabled = true;
+      btn.classList.add('in-flight');
+      btn.innerHTML = 'Refreshing…';
+
+      const url = '/api/projects/' + encodeURIComponent(project.id) +
+                  '/conversations/' + encodeURIComponent(activeConvId) +
+                  '/messages/' + encodeURIComponent(messageId) +
+                  '/refresh-and-ask-again';
+
+      let res;
+      try {
+        res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      } catch {
+        btn.disabled = false;
+        btn.classList.remove('in-flight');
+        btn.innerHTML = origLabel;
+        showConnToast('Refresh failed. Network or server error.', 'warn');
+        return;
+      }
+
+      if (res.status === 401) { redirectToLogin(); return; }
+      if (res.status === 403) { location.replace('/projects.html'); return; }
+      if (res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        const mins = data.retry_after_seconds
+          ? Math.ceil(data.retry_after_seconds / 60)
+          : 60;
+        showConnToast('Rate limit: ' + (data.error || 'try again later') + ' Next refresh in ~' + mins + 'm.', 'warn');
+        btn.disabled = false;
+        btn.classList.remove('in-flight');
+        btn.innerHTML = origLabel;
+        return;
+      }
+      if (!res.ok) {
+        showConnToast('Refresh failed. Try again or check the activity drawer.', 'warn');
+        btn.disabled = false;
+        btn.classList.remove('in-flight');
+        btn.innerHTML = origLabel;
+        return;
+      }
+
+      let data;
+      try { data = await res.json(); } catch { data = null; }
+      if (!data || !data.assistant_message) {
+        showConnToast('Refresh succeeded but no answer was returned.', 'warn');
+        btn.disabled = false;
+        btn.classList.remove('in-flight');
+        btn.innerHTML = origLabel;
+        return;
+      }
+
+      // Append the new assistant message to local state and re-render.
+      // Admins also benefit from seeing the new tool trace, but the
+      // role='tool' rows aren't returned by this endpoint — a hard reload
+      // (or future enhancement to re-fetch /messages) would expose them.
+      if (!messagesById[activeConvId]) messagesById[activeConvId] = [];
+      messagesById[activeConvId].push(data.assistant_message);
+
+      // Bump the sidebar's updated_at-DESC sort so the refreshed
+      // conversation surfaces to the top (server already UPDATEd
+      // conversations.updated_at; mirror it locally for snappy UI).
+      const idx = conversations.findIndex(c => c.id === activeConvId);
+      if (idx >= 0) {
+        conversations[idx] = {
+          ...conversations[idx],
+          updated_at: data.assistant_message.created_at || new Date().toISOString(),
+          message_count: (conversations[idx].message_count || 0) + 1,
+        };
+        conversations.sort((a, b) => {
+          const at = new Date(a.updated_at).getTime();
+          const bt = new Date(b.updated_at).getTime();
+          if (bt !== at) return bt - at;
+          return a.id < b.id ? 1 : -1;
+        });
+      }
+
+      renderMessages();
+      renderConversations();
+      const summary = data.connection_summary || {};
+      const okCount = summary.succeeded || 0;
+      const failCount = summary.failed || 0;
+      let toastMsg = 'Refreshed and re-asked.';
+      if (failCount > 0) {
+        toastMsg = 'Refreshed (' + okCount + ' source' + (okCount === 1 ? '' : 's') + ' updated, ' + failCount + ' failed). Answer regenerated.';
+      }
+      showConnToast(toastMsg, failCount > 0 ? 'warn' : 'success');
     }
 
     function renderMessageHtml(m, allMsgs) {
@@ -716,7 +821,7 @@
             <div class="chat-msg-meta">${escapeHtml(meta)}</div>
             <div class="chat-msg-content">${escapeHtml(m.content || '')}</div>
             ${toolTraceHtml}
-            ${citations.length > 0 ? renderCitationRailHtml(citations) : ''}
+            ${citations.length > 0 ? renderCitationRailHtml(citations, m.id) : ''}
           </div>
         </div>
       `;
@@ -772,7 +877,7 @@
       return `<details class="tool-trace"><summary>${escapeHtml(summary)}</summary><ul>${items}</ul></details>`;
     }
 
-    function renderCitationRailHtml(citations) {
+    function renderCitationRailHtml(citations, messageId) {
       const chips = citations.map(c => {
         const baseLabel = c.title || c.author || (c.source ? c.source[0].toUpperCase() + c.source.slice(1) : 'Source');
         const fresh = fmtCitationFreshness(c);
@@ -789,7 +894,14 @@
         }
         return `<span class="chat-citation chat-citation-noref"${titleAttr}>${labelHtml}</span>`;
       }).join('');
-      return `<div class="chat-citation-rail">${chips}</div>`;
+      // Block 10.1 decision C: ↻ Refresh & re-ask button on every assistant
+      // message with citations. Wired up via event delegation after innerHTML
+      // sets (see renderMessages wiring + handleRefreshAndReask). Skipped if
+      // no messageId — guards against future call sites that don't pass it.
+      const refreshButtonHtml = messageId
+        ? `<button type="button" class="refresh-reask-button" data-msg-id="${escapeHtml(messageId)}" title="Refresh the cited sources and re-ask">↻ Refresh &amp; re-ask</button>`
+        : '';
+      return `<div class="chat-citation-rail">${chips}${refreshButtonHtml}</div>`;
     }
 
     // ---------- Composer (decision W) ----------
