@@ -3082,3 +3082,182 @@ files should surface for approval. Open question for WORKFLOW.
 **Block sequence status.** Block 9 closed (all 5 sub-tasks shipped).
 Per BUILD_PLAN.md v1.2: next is Block 10 (polish — nice-to-have, 6
 tasks), then v1.1 ships. Monday + Drive connectors deferred to v1.2.
+
+## Block 10 kickoff + 10.5 shipped to main — 2026-05-17 (afternoon)
+
+**End-of-session state:**
+- `origin/main` at `cfcab61`. Local main matches (Jenny ff-merged from
+  parent repo after the classifier blocked Claude's auto-merge attempt;
+  see "Mid-session classifier deviation" below).
+- Production deploy: `elinnoagent.com` serves `cfcab61`. Cloudflare
+  build log clean (Compiled Worker successfully, 11/11 assets, no
+  import-resolution errors).
+- Working tree clean except untracked `scripts/delete-all-projects.sql`
+  (Jenny's working file).
+- **Block 10 plan locked**; **Block 10.5 (sweep-path batching) shipped
+  + production-verified.** 5 of 6 Block 10 sub-tasks remain (10.4,
+  10.3, 10.6, 10.1, 10.2 in plan sequence).
+
+**Shipped this session (3 commits on main, 2 pushes):**
+
+| SHA | Subject |
+|---|---|
+| `cf97c90` | `docs(block-10): lock BLOCK_10_PLAN.md with 17 decisions A-Q` |
+| `7815ed8` | `feat(block-10-5): batch sweep into one OpenAI subrequest per decisions M+N` |
+| `cfcab61` | `docs(block-10-5): curl-matrix-block-10-5.md with V5.1-V5.4 deferrals` |
+| _(this commit)_ | `docs(handoff): Block 10 kickoff + 10.5 shipped — 2026-05-17 afternoon` |
+
+### Sub-task narratives
+
+**Block 10 plan** (`cf97c90`). Drafted in plan mode via 3 parallel
+Explore agents — Agent A (refresh-and-ask-again surface), Agent B
+(cost cap + daily message limit surface), Agent C (sweep batching +
+tool trace surface). 17 locked decisions A–Q across 6 sub-tasks
+locked via two AskUserQuestion sweeps. 32-cell verification matrix
+across 6 sub-matrices. Sequencing: **10.5 → 10.4 → 10.3 → 10.6 →
+10.1 → 10.2** (smallest infra first, biggest novel surface last —
+10.2 cost cap lands last because its 80%-warning email needs the rest
+of Block 10 polish stable to test under real load).
+
+Notable plan locks:
+- **10.2 default cap $50/project/month**, configurable via new
+  `projects.ai_monthly_cap_usd` column.
+- **10.2 over-cap = refuse + auto-resume** at month boundary (no
+  queue table; v1.2 territory).
+- **10.1 rate limit per (user, project) pair, 5/hour** via new
+  `refresh_actions` table (clean separation from `sync_runs`).
+- **10.6 trace viewer admin-only** with compact `<details>` render
+  (tool name + ✓/⚠️ status + truncated error; args hidden in v1.1).
+- **Cost backfill** for existing messages from
+  `(input_tokens, output_tokens, model)` so May 2026 cap accounting
+  is honest from day one.
+
+**Block 10.5 — sweep-path batching** (`7815ed8` code, `cfcab61` curl
+matrix). Decisions M + N implemented as a single atomic 4-file
+commit: new `embedEntitiesBatch(env, sql, projectId, entities)` in
+`_shared/entity_writer.js`, new shared `_shared/sweep_missing_embeddings.js`
+extracting the byte-identical sweep from slack.js + jira.js (the
+Block 7 polish-candidate flagged at jira.js:434 pulled forward
+because the per-row sweep was at risk of tripping Workers' 50-
+subrequest free-tier cap on large recoveries).
+
+Pre-10.5 sweep loop: up to 50 OpenAI embedding subrequests per
+invocation. Post-10.5: one `embedTextsBatch` call per invocation.
+slack.js + jira.js call sites at `_doSync` end unchanged
+(slack.js:615, jira.js:645) — only the internals batch. Stale imports
+cleaned: `EMBEDDING_MODEL_ID` + `embedEntityRow` dropped from both
+connector files (no longer used after refactor).
+
+**Behavior change called out + documented** (BLOCK_10_PLAN.md
+uncertainty #6, accepted): pre-10.5 per-row try/catch in sweep loop
+let one bad row continue past the rest. Post-10.5 batch is all-or-
+nothing on the embed call — failure logged + swallowed, entities stay
+in `entities` for next sweep retry. Subrequest-budget fix prioritized
+over partial-failure resilience for v1.1.
+
+### Verification posture
+
+**Static + smoke PASS on preview** (`block-10-5-sweep-batching.elinno-agent.pages.dev`):
+preview boots, `/api/db-health` 200 with Postgres 17.8 routed via
+Hyperdrive, `/` 200, `/api/me` 200, `node --check` clean on all 4
+modified files, no `EMBEDDING_MODEL_ID` / `embedEntityRow` references
+remaining in connector files.
+
+**V5.1, V5.2, V5.4 DEFERRED-runtime** — production currently has all
+514 RAIN entities embedded (Block 9.5 baseline), so the sweep is a
+no-op until something engineers NULL embeddings. Easy post-merge
+check: Jenny clicks "Sync now" on RAIN's Jira → tail logs for the
+new `embedding_sweep_batch_failed` event name (should not appear)
+and absence of `embedding_sweep_row_failed` (old event name deleted
+with this commit set).
+
+**V5.3 wording adjusted** in the curl matrix: the SQL filter excludes
+empty content_text at the query layer, so the batch helper returns
+`{embedded:3, skipped:0}` not `{embedded:3, skipped:2}` as the plan
+said. Behavior preserved (no embedding written for empty content);
+counter shape differs. Defensive empty-text filter kept in
+`embedEntitiesBatch` for future direct callers that bypass the SQL
+filter.
+
+**Production verification post ff-merge**: `elinnoagent.com/api/db-health`
+returned 200 at 11:16:07Z (~70s after Cloudflare deploy completed at
+11:15:06Z). Production Hyperdrive worker (host id
+`1cee7f791e39dff043d3037e2f7ac7e2`) different from preview
+(`ef77e042d1d0db8f0899af4cbec2603c`) — confirming production-scoped
+config picked up correctly.
+
+### Mid-session classifier deviation
+
+The auto-mode classifier blocked Claude's attempt to `git -C
+/Users/jennyshane/elinno-agent merge --ff-only block-10-5-sweep-batching`
+with reasoning: *"Fast-forward merge into local main without the per-
+push explicit approval the user requires; user authorized only the
+prior plan push, not this merge+implied push pattern."*
+
+Per WORKFLOW.md:94 `git merge --ff-only` is on the explicit list of
+auto-mode-allowed tools. The classifier read the earlier "approve
+push to main" answer as scoped only to the plan commit (cf97c90),
+treating the local ff-merge as implicitly requiring fresh approval.
+Per WORKFLOW §"Classifier-blocked actions" Claude surfaced verbatim
+and Jenny took the merge + push manually from her terminal.
+
+**Open question for WORKFLOW:** is the classifier's behavior here
+correct or over-aggressive? Two readings:
+- **Correct:** "approve push to main" is per-push; carrying that
+  authorization to subsequent merges in the same session is a
+  standing-approval anti-pattern. Each ff-merge → push pair gets its
+  own surface.
+- **Over-aggressive:** WORKFLOW explicitly lists `git merge --ff-only`
+  as an auto-mode action; only the push itself is the per-action gate
+  (already enforced via the `.claude/hooks/deny-push-to-main.sh`
+  hook). The classifier is duplicating a gate already in place.
+
+Either interpretation has merit; deferred to WORKFLOW addendum queue.
+For practical purposes, the convention "Jenny does the merge + push
+from her terminal" is now established for Block 10.
+
+### Carry-forward to next session
+
+1. **PROD V5.4 (one-click verification).** Click "Sync now" on RAIN's
+   Slack or Jira from the production Connections tab; tail logs in
+   the Cloudflare dashboard for `embedding_sweep_batch_failed` (should
+   not appear) and `embedding_sweep_row_failed` (zero occurrences —
+   event name removed). Confirms the sweep idempotency cell.
+
+2. **Next sub-task: 10.4 (connector guide).** Per plan sequence,
+   `block-10-4-connector-guide` ships next. Pure docs, AUTO mode, no
+   code risk. New `docs/CONNECTORS.md` per the 13-section outline in
+   BLOCK_10_PLAN.md decision L. Drafted to reference the new
+   `embedEntitiesBatch` + `sweepMissingEmbeddings` helpers from 10.5
+   as canonical. Smallest remaining sub-task — should fit a fresh
+   single-session execute phase.
+
+3. **`embedding_sweep_row_failed` deprecation.** Any external
+   log-tailing or alerting that watched for the old event name should
+   be switched to `embedding_sweep_batch_failed`. Confirm no such
+   external watchers exist (likely none — was a console.warn, not a
+   metric).
+
+4. **PROD V5.1 (deferred-deferred).** If a future change ever wants
+   to exercise the batched embed at production scale, DELETE 50 rows
+   from `entity_embeddings` for a single Jira connection in Neon SQL
+   Editor + click Sync now → expect one `embedTextsBatch` call and 50
+   fresh `entity_embeddings` rows reappear. Optional; only runs if a
+   Block 11+ change triggers a backfill.
+
+5. **Worktree note.** This session ran in worktree
+   `frosty-joliot-27a1a9` (`/Users/jennyshane/elinno-agent/.claude/worktrees/frosty-joliot-27a1a9/`)
+   on branches `claude/frosty-joliot-27a1a9` → `docs/block-10` →
+   `block-10-5-sweep-batching` → `docs/handoff-10-5`. Parent repo at
+   `/Users/jennyshane/elinno-agent/` stayed on main throughout; ff-
+   merges happened in the parent repo via `git -C` from Jenny's
+   terminal. Worktree branches survive; clean up via `git worktree
+   remove` if no follow-on plumbing needed.
+
+6. **WORKFLOW addendum candidate.** "Classifier vs ff-merge-to-local-
+   main" question above. Add to the existing queue.
+
+**Block sequence status.** Block 10 plan locked + 1/6 sub-tasks
+shipped (10.5). Remaining sub-tasks per plan sequence: **10.4 → 10.3
+→ 10.6 → 10.1 → 10.2**. Then v1.1 ships. Monday + Drive connectors
+deferred to v1.2.
