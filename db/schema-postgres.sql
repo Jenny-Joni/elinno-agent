@@ -558,14 +558,51 @@ CREATE INDEX IF NOT EXISTS messages_project_recency_idx
 
 
 -- =============================================================================
+-- refresh_actions
+-- =============================================================================
+-- Per BLOCK_10_PLAN.md decision B (10.1). Tracks the member action of
+-- "refresh and ask again" — distinct from the connector-level sync_runs
+-- rows it triggers. Each refresh action represents one user click on a
+-- prior AI response's "↻ Refresh & re-ask" button: targeted re-sync of
+-- the cited connections, then re-run the original question through the
+-- agent loop.
+--
+-- Rate-limited 5/hour per (user_id, project_id) per decision D — query
+-- uses the (user_id, project_id, started_at DESC) index for the COUNT
+-- over the 1-hour window.
+--
+-- triggered_sync_run_ids links to the sync_runs rows the action created
+-- (one per cited connection). Forensic-only — not a FK; sync_runs may
+-- get pruned independently.
+
+CREATE TABLE IF NOT EXISTS refresh_actions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    source_message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    new_message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    finished_at TIMESTAMPTZ,
+    status TEXT NOT NULL CHECK (status IN ('running','succeeded','failed')),
+    error TEXT,
+    triggered_sync_run_ids UUID[] NOT NULL DEFAULT '{}'
+);
+
+-- Rate-limit hot path: per-user, per-project, last hour.
+CREATE INDEX IF NOT EXISTS refresh_actions_user_project_recency_idx
+    ON refresh_actions (user_id, project_id, started_at DESC);
+
+
+-- =============================================================================
 -- End of schema. To verify:
 --
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public' ORDER BY table_name;
 --
--- Expected (8 rows):
+-- Expected (9 rows):
 --   connections, conversations, entities, entity_embeddings, messages,
---   project_members, projects, sync_runs
+--   project_members, projects, refresh_actions, sync_runs
 --
 -- And to verify pgvector and HNSW are present:
 --
