@@ -365,3 +365,114 @@ export async function writeEntitiesWithEmbeddingsBatch(env, sql, projectId, conn
 
   return upsertResults;
 }
+
+/**
+ * Batched embed-only helper for the post-sync sweep path. The sweep
+ * SELECTs existing entities that are missing embeddings; this helper
+ * computes ONE OpenAI batch call for all of them and UPSERTs the
+ * resulting embeddings.
+ *
+ * Block 10.5 decisions M + N: pre-10.5 sweep called embedEntityRow per
+ * row in a for-loop, issuing one OpenAI subrequest per row. With the
+ * default LIMIT 50 sweep page that was 50 subrequests — at or over
+ * Workers' 50/invocation free-tier cap (cf. writeEntitiesWithEmbeddingsBatch
+ * header above). Batching collapses to one subrequest per page.
+ *
+ * Input shape: entities are { id, content_text, metadata } rows from
+ * the sweep's SELECT — id is the entity_id (not a new row).
+ *
+ * Project-isolation tripwire: same as embedEntityRow + the batched
+ * write helper. An entity whose metadata.project_id disagrees with the
+ * connection's projectId is skipped (no embedding written, structured
+ * warning logged).
+ *
+ * Empty / whitespace-only content_text is skipped silently. (The sweep
+ * SQL already filters these out at the query layer; the defensive check
+ * here covers any future caller that doesn't.)
+ *
+ * Batch-failure trade-off (BLOCK_10_PLAN.md uncertainty #6): the pre-
+ * 10.5 per-row sweep tolerated individual row failures via per-row
+ * try/catch. The batched version is all-or-nothing — if embedTextsBatch
+ * throws an EmbeddingError, no rows in the batch get embedded. The
+ * entities remain in `entities` and the LEFT JOIN will surface them
+ * again on the next sweep invocation; accepted for v1.1 in favor of the
+ * subrequest-budget fix.
+ *
+ * @param {object} env
+ * @param {object} sql
+ * @param {string} projectId            - the connection's projectId (trusted)
+ * @param {Array<{ id: string, content_text: string, metadata: object|null }>} entities
+ * @returns {Promise<{ embedded: number, skipped: number }>}
+ */
+export async function embedEntitiesBatch(env, sql, projectId, entities) {
+  if (!Array.isArray(entities) || entities.length === 0) {
+    return { embedded: 0, skipped: 0 };
+  }
+
+  /** @type {Array<{ entityId: string, text: string }>} */
+  const toEmbed = [];
+  let skipped = 0;
+  for (const entity of entities) {
+    if (
+      entity.metadata &&
+      entity.metadata.project_id &&
+      entity.metadata.project_id !== projectId
+    ) {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        event: 'embedding_skip_project_id_mismatch',
+        connection_project_id: projectId,
+        entity_id: entity.id,
+      }));
+      skipped++;
+      continue;
+    }
+
+    const text = typeof entity.content_text === 'string' ? entity.content_text.trim() : '';
+    if (text.length === 0) {
+      skipped++;
+      continue;
+    }
+
+    toEmbed.push({ entityId: entity.id, text: entity.content_text });
+  }
+
+  if (toEmbed.length === 0) return { embedded: 0, skipped };
+
+  let vectors;
+  try {
+    vectors = await embedTextsBatch(env, toEmbed.map((x) => x.text));
+  } catch (err) {
+    if (err instanceof EmbeddingError) {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        event: 'embedding_sweep_batch_failed',
+        retryable: err.retryable,
+        status: err.status,
+        batch_size: toEmbed.length,
+      }));
+      return { embedded: 0, skipped: skipped + toEmbed.length };
+    }
+    throw err;
+  }
+
+  for (let i = 0; i < toEmbed.length; i++) {
+    const { entityId, text } = toEmbed[i];
+    const vector = vectors[i];
+    const vectorLiteral = '[' + vector.join(',') + ']';
+    await sql`
+      INSERT INTO entity_embeddings (
+        entity_id, project_id, chunk_index, chunk_text, embedding, model
+      ) VALUES (
+        ${entityId}, ${projectId}, ${0}, ${text},
+        ${vectorLiteral}, ${EMBEDDING_MODEL_ID}
+      )
+      ON CONFLICT (entity_id, chunk_index, model) DO UPDATE
+         SET chunk_text = EXCLUDED.chunk_text,
+             embedding  = EXCLUDED.embedding,
+             project_id = EXCLUDED.project_id
+    `;
+  }
+
+  return { embedded: toEmbed.length, skipped };
+}

@@ -141,8 +141,8 @@
 // =========================================================================
 
 import { aadFor, decrypt } from '../crypto.js';
-import { EMBEDDING_MODEL_ID } from '../ai/embeddings.js';
-import { embedEntityRow, writeEntityWithEmbedding } from './_shared/entity_writer.js';
+import { writeEntityWithEmbedding } from './_shared/entity_writer.js';
+import { sweepMissingEmbeddings } from './_shared/sweep_missing_embeddings.js';
 
 const SLACK_API_BASE = 'https://slack.com/api';
 const SLACK_AUTHORIZE_URL = 'https://slack.com/oauth/v2/authorize';
@@ -625,61 +625,11 @@ async function _doSync(ctx, connection, options) {
   return result;
 }
 
-/**
- * Post-sync sweep: find entities for this connection that lack an
- * embedding row at our model and embed them, up to 50 per call.
- * Idempotent — re-running on a fully-embedded connection is a no-op.
- *
- * Catches three classes of gap:
- *   - Block 4 entities synced before commit 3 existed (S6).
- *   - Retryable on-write failures from a prior sync (S22's
- *     OpenAI-429-during-sync case).
- *   - Webhook entities whose inline embed failed.
- *
- * Per-row failures are logged and skipped; one bad row does not
- * abort the sweep.
- *
- * @param {object} env
- * @param {object} sql
- * @param {object} connection - SELECTed connection row
- */
-async function sweepMissingEmbeddings(env, sql, connection) {
-  const rows = await sql`
-    SELECT e.id, e.content_text, e.metadata
-      FROM entities e
-      LEFT JOIN entity_embeddings ee
-        ON ee.entity_id = e.id
-       AND ee.model = ${EMBEDDING_MODEL_ID}
-       AND ee.chunk_index = 0
-     WHERE e.connection_id = ${connection.id}
-       AND ee.id IS NULL
-       AND e.content_text IS NOT NULL
-       AND length(trim(e.content_text)) > 0
-     ORDER BY e.created_at DESC
-     LIMIT 50
-  `;
-
-  for (const row of rows) {
-    try {
-      await embedEntityRow(
-        env,
-        sql,
-        connection.project_id,
-        connection.id,
-        row.id,
-        { content_text: row.content_text, metadata: row.metadata }
-      );
-    } catch (err) {
-      console.warn(JSON.stringify({
-        level: 'warn',
-        event: 'embedding_sweep_row_failed',
-        connection_id: connection.id,
-        entity_id: row.id,
-        error: err && err.message ? String(err.message).slice(0, 200) : 'unknown',
-      }));
-    }
-  }
-}
+// sweepMissingEmbeddings moved to _shared/sweep_missing_embeddings.js
+// per BLOCK_10_PLAN.md decision N (Block 10.5). Same SELECT shape,
+// same LIMIT 50, same per-row semantics — except the embed call is
+// now batched (decision M, one OpenAI subrequest per page instead of
+// up to 50). See that file for the implementation.
 
 // --- Webhook helpers (D, D1-D4, F, F1, F2, I) -----------------------------
 

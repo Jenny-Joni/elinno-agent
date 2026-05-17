@@ -73,11 +73,8 @@
 // =========================================================================
 
 import { aadFor, decrypt } from '../crypto.js';
-import { EMBEDDING_MODEL_ID } from '../ai/embeddings.js';
-import {
-  embedEntityRow,
-  writeEntitiesWithEmbeddingsBatch,
-} from './_shared/entity_writer.js';
+import { writeEntitiesWithEmbeddingsBatch } from './_shared/entity_writer.js';
+import { sweepMissingEmbeddings } from './_shared/sweep_missing_embeddings.js';
 
 const ATLASSIAN_API_VERSION = '3';
 const ATLASSIAN_AGILE_API_VERSION = '1.0';
@@ -425,53 +422,12 @@ async function searchIssues(siteUrl, email, apiToken, jql, nextPageToken) {
   return jiraGet(siteUrl, path, email, apiToken);
 }
 
-// ---------------------------------------------------------------------------
-// sweepMissingEmbeddings — connector-scoped catch-up for entities written
-// without embeddings (writeEntityWithEmbedding swallows retryable errors).
-// Mirrors slack.js's sweep verbatim except for the source filter (none —
-// the LEFT JOIN already scopes by entity_id / connection_id).
-//
-// Block 7 polish candidate: move this helper into _shared/entity_writer.js
-// once Monday connector arrives and we have a third call site.
-// ---------------------------------------------------------------------------
-
-async function sweepMissingEmbeddings(env, sql, connection) {
-  const rows = await sql`
-    SELECT e.id, e.content_text, e.metadata
-      FROM entities e
-      LEFT JOIN entity_embeddings ee
-        ON ee.entity_id = e.id
-       AND ee.model = ${EMBEDDING_MODEL_ID}
-       AND ee.chunk_index = 0
-     WHERE e.connection_id = ${connection.id}
-       AND ee.id IS NULL
-       AND e.content_text IS NOT NULL
-       AND length(trim(e.content_text)) > 0
-     ORDER BY e.created_at DESC
-     LIMIT 50
-  `;
-
-  for (const row of rows) {
-    try {
-      await embedEntityRow(
-        env,
-        sql,
-        connection.project_id,
-        connection.id,
-        row.id,
-        { content_text: row.content_text, metadata: row.metadata }
-      );
-    } catch (err) {
-      console.warn(JSON.stringify({
-        level: 'warn',
-        event: 'embedding_sweep_row_failed',
-        connection_id: connection.id,
-        entity_id: row.id,
-        error: err && err.message ? String(err.message).slice(0, 200) : 'unknown',
-      }));
-    }
-  }
-}
+// sweepMissingEmbeddings moved to _shared/sweep_missing_embeddings.js
+// per BLOCK_10_PLAN.md decision N (Block 10.5). The Block 7 polish
+// candidate flagged at this location ("move this helper into _shared/
+// once Monday connector arrives") happened ahead of Monday because the
+// per-row sweep was at risk of tripping Workers' 50-subrequest free-
+// tier cap. Decision M batched the embed call as part of the move.
 
 // ---------------------------------------------------------------------------
 // _doSync — shared sync core. Handles selected_project_key inert detection
