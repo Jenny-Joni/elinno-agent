@@ -1107,6 +1107,90 @@ table.users-table {
   border: 1px solid var(--color-border);
 }
 
+/* Block 9.1 decision O: activity drawer + table. Drawer is a sibling of
+   .connection-row inside .connection-row-group so the row layout stays
+   unchanged; drawer toggles via display:none/block. */
+.connection-row-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+.activity-drawer {
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--color-bg-soft);
+  border-radius: var(--radius-card, 12px);
+  border: 1px solid var(--color-border);
+  font-size: 13px;
+}
+.activity-loading,
+.activity-empty {
+  padding: 16px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+.activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-regular);
+  font-size: 12px;
+}
+.activity-table th,
+.activity-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+.activity-table th {
+  color: var(--color-text-muted);
+  font-weight: normal;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+.activity-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.activity-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-family: var(--font-regular);
+  text-transform: capitalize;
+}
+.activity-status-succeeded {
+  background: rgba(16, 185, 129, 0.12);
+  color: rgb(6, 95, 70);
+}
+.activity-status-failed {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--color-error);
+}
+.activity-status-running {
+  background: rgba(245, 158, 11, 0.18);
+  color: rgb(146, 64, 14);
+  animation: activityPulse 1.4s ease-in-out infinite;
+}
+.activity-status-cancelled {
+  background: var(--color-bg-wash);
+  color: var(--color-text-muted);
+}
+.activity-counts {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  white-space: nowrap;
+}
+.activity-error {
+  font-style: italic;
+  color: var(--color-error);
+}
+@keyframes activityPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
 /* ---------- Composer ---------- */
 .chat-composer {
   padding: 16px 0 28px;

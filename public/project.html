@@ -1376,8 +1376,9 @@
         if (slackNeedsSetup) {
           document.getElementById('pickChannelBtn')?.addEventListener('click', () => openChannelPicker(slack.id));
         }
-        // Block 9.1: Sync now button (admin-only; render-time gated)
+        // Block 9.1: Sync now + View activity (admin-only; render-time gated)
         document.getElementById('syncSlackBtn')?.addEventListener('click', () => triggerManualSync(slack.id, 'slack'));
+        document.getElementById('activitySlackBtn')?.addEventListener('click', () => toggleActivityDrawer(slack.id, 'slack'));
         document.getElementById('disconnectSlackBtn')?.addEventListener('click', () => disconnectSlack(slack.id));
       }
 
@@ -1387,8 +1388,9 @@
         if (jiraNeedsSetup) {
           document.getElementById('pickProjectBtn')?.addEventListener('click', () => openJiraProjectPicker(jira.id));
         }
-        // Block 9.1: Sync now button (admin-only; render-time gated)
+        // Block 9.1: Sync now + View activity (admin-only; render-time gated)
         document.getElementById('syncJiraBtn')?.addEventListener('click', () => triggerManualSync(jira.id, 'jira'));
+        document.getElementById('activityJiraBtn')?.addEventListener('click', () => toggleActivityDrawer(jira.id, 'jira'));
         document.getElementById('disconnectJiraBtn')?.addEventListener('click', () => disconnectJira(jira.id));
       }
 
@@ -1455,6 +1457,107 @@
     // 429 surfaces via toast per decision N's caveat (client/server clock-
     // source mismatch). Other errors render a generic toast — the sync_run
     // failed-row narrative shows up in the activity drawer (commit 3).
+    // Block 9.1 decision O: activity drawer formatters + render helpers.
+
+    // Duration: finished_at - started_at as 'Xs' or 'Xm Ys'. '—' if still
+    // running (no finished_at) or if the inputs don't parse.
+    function fmtSyncDuration(start, end) {
+      if (!start || !end) return '—';
+      const ms = new Date(end).getTime() - new Date(start).getTime();
+      if (!isFinite(ms) || ms < 0) return '—';
+      const secs = Math.round(ms / 1000);
+      if (secs < 60) return secs + 's';
+      const mins = Math.floor(secs / 60);
+      const remSecs = secs % 60;
+      return remSecs === 0 ? mins + 'm' : mins + 'm ' + remSecs + 's';
+    }
+
+    // Error cell: trim + truncate >120 chars with ellipsis per decision O.
+    // Returns HTML-escaped string (no markup). Caller wraps in italic+red.
+    function fmtSyncError(err) {
+      if (!err) return '';
+      const trimmed = String(err).trim();
+      if (trimmed.length <= 120) return escapeHtml(trimmed);
+      return escapeHtml(trimmed.slice(0, 120)) + '…';
+    }
+
+    // 50-row activity table. Columns per decision O:
+    // When | Status | Mode | Duration | Records (+ins / ~upd / ⊘skip) | Error
+    function renderSyncRunsTableHtml(runs) {
+      if (!Array.isArray(runs) || runs.length === 0) {
+        return '<div class="activity-empty">No sync runs yet.</div>';
+      }
+      const rows = runs.map(r => {
+        const whenAbs = fmtCitationTitle(r.started_at);
+        const whenRel = fmtRelativeShort(r.started_at) || 'now';
+        const dur = (r.status === 'running') ? '—' : fmtSyncDuration(r.started_at, r.finished_at);
+        const counts = '+' + (r.records_inserted || 0) + ' / ~' + (r.records_updated || 0) + ' / ⊘' + (r.records_skipped || 0);
+        const errorHtml = (r.status === 'failed' && r.error)
+          ? '<span class="activity-error">' + fmtSyncError(r.error) + '</span>'
+          : '';
+        return `
+          <tr>
+            <td title="${escapeHtml(whenAbs)}">${escapeHtml(whenRel)}</td>
+            <td><span class="activity-status activity-status-${escapeHtml(r.status || 'unknown')}">${escapeHtml(r.status || '—')}</span></td>
+            <td>${escapeHtml(r.sync_mode || '')}</td>
+            <td>${escapeHtml(dur)}</td>
+            <td class="activity-counts">${escapeHtml(counts)}</td>
+            <td>${errorHtml}</td>
+          </tr>
+        `;
+      }).join('');
+      return `
+        <table class="activity-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Status</th>
+              <th>Mode</th>
+              <th>Duration</th>
+              <th>Records</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    // Toggle the drawer for a given connection source. First open fetches
+    // the sync-runs list (member-accessible endpoint at sync-runs.js:31);
+    // subsequent toggles just show/hide without re-fetching to avoid
+    // refresh-thrash. Click "Refresh" inside the drawer if needed (future
+    // enhancement — for v1.1 the user can just close + reopen).
+    async function toggleActivityDrawer(connId, source) {
+      const drawerId = source + 'ActivityDrawer';
+      const drawer = document.getElementById(drawerId);
+      if (!drawer) return;
+      if (drawer.style.display === 'block') {
+        drawer.style.display = 'none';
+        return;
+      }
+      drawer.style.display = 'block';
+      if (drawer.dataset.loaded === 'true') return;  // already fetched
+      drawer.innerHTML = '<div class="activity-loading">Loading…</div>';
+      try {
+        const res = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId) + '/sync-runs'
+        );
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok) {
+          drawer.innerHTML = '<div class="activity-empty">Could not load sync runs.</div>';
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        const runs = Array.isArray(data.sync_runs) ? data.sync_runs : [];
+        drawer.innerHTML = renderSyncRunsTableHtml(runs);
+        drawer.dataset.loaded = 'true';
+      } catch {
+        drawer.innerHTML = '<div class="activity-empty">Could not load sync runs.</div>';
+      }
+    }
+
     async function triggerManualSync(connId, source) {
       const btnId = source === 'slack' ? 'syncSlackBtn' : 'syncJiraBtn';
       const btn = document.getElementById(btnId);
@@ -1506,22 +1609,32 @@
       const syncBtnHtml = (isAdmin && !needsSetup)
         ? `<button class="btn btn-ghost" id="syncSlackBtn"${blocked.blocked ? ' disabled title="Next sync available in ' + blocked.minutesRemaining + 'm"' : ''}>Sync now</button>`
         : '';
+      // Block 9.1 decision O: View activity link, admin-only UI gate even
+      // though endpoint is member-accessible (tighter endpoint gate is a
+      // Block 10 cleanup, not 9.1's surface).
+      const activityBtnHtml = isAdmin
+        ? '<button class="btn btn-ghost" id="activitySlackBtn">View activity</button>'
+        : '';
 
       return `
-        <div class="connection-row">
-          <div class="connection-info">
-            <div class="connection-source">Slack</div>
-            <div class="connection-meta">
-              ${channelName ? '#' + escapeHtml(channelName) : 'No channel selected'}
-              ${lastSyncRel ? ' &middot; last sync ' + escapeHtml(lastSyncRel) : ''}
+        <div class="connection-row-group">
+          <div class="connection-row">
+            <div class="connection-info">
+              <div class="connection-source">Slack</div>
+              <div class="connection-meta">
+                ${channelName ? '#' + escapeHtml(channelName) : 'No channel selected'}
+                ${lastSyncRel ? ' &middot; last sync ' + escapeHtml(lastSyncRel) : ''}
+              </div>
+            </div>
+            <div class="connection-pill ${pillClass}">${escapeHtml(pillText)}</div>
+            <div class="connection-actions">
+              ${needsSetup ? '<button class="btn btn-ghost" id="pickChannelBtn">Pick channel</button>' : ''}
+              ${activityBtnHtml}
+              ${syncBtnHtml}
+              <button class="btn btn-ghost" id="disconnectSlackBtn" aria-label="Disconnect Slack">Disconnect</button>
             </div>
           </div>
-          <div class="connection-pill ${pillClass}">${escapeHtml(pillText)}</div>
-          <div class="connection-actions">
-            ${needsSetup ? '<button class="btn btn-ghost" id="pickChannelBtn">Pick channel</button>' : ''}
-            ${syncBtnHtml}
-            <button class="btn btn-ghost" id="disconnectSlackBtn">Disconnect</button>
-          </div>
+          <div class="activity-drawer" id="slackActivityDrawer" style="display:none;"></div>
         </div>
       `;
     }
@@ -1547,22 +1660,30 @@
       const syncBtnHtml = (isAdmin && !needsSetup)
         ? `<button class="btn btn-ghost" id="syncJiraBtn"${blocked.blocked ? ' disabled title="Next sync available in ' + blocked.minutesRemaining + 'm"' : ''}>Sync now</button>`
         : '';
+      // Block 9.1 decision O: View activity link, admin-only UI gate.
+      const activityBtnHtml = isAdmin
+        ? '<button class="btn btn-ghost" id="activityJiraBtn">View activity</button>'
+        : '';
 
       return `
-        <div class="connection-row">
-          <div class="connection-info">
-            <div class="connection-source">Jira</div>
-            <div class="connection-meta">
-              ${metaText}
-              ${lastSyncRel ? ' &middot; last sync ' + escapeHtml(lastSyncRel) : ''}
+        <div class="connection-row-group">
+          <div class="connection-row">
+            <div class="connection-info">
+              <div class="connection-source">Jira</div>
+              <div class="connection-meta">
+                ${metaText}
+                ${lastSyncRel ? ' &middot; last sync ' + escapeHtml(lastSyncRel) : ''}
+              </div>
+            </div>
+            <div class="connection-pill ${pillClass}">${escapeHtml(pillText)}</div>
+            <div class="connection-actions">
+              ${needsSetup ? '<button class="btn btn-ghost" id="pickProjectBtn">Pick project</button>' : ''}
+              ${activityBtnHtml}
+              ${syncBtnHtml}
+              <button class="btn btn-ghost" id="disconnectJiraBtn" aria-label="Disconnect Jira">Disconnect</button>
             </div>
           </div>
-          <div class="connection-pill ${pillClass}">${escapeHtml(pillText)}</div>
-          <div class="connection-actions">
-            ${needsSetup ? '<button class="btn btn-ghost" id="pickProjectBtn">Pick project</button>' : ''}
-            ${syncBtnHtml}
-            <button class="btn btn-ghost" id="disconnectJiraBtn">Disconnect</button>
-          </div>
+          <div class="activity-drawer" id="jiraActivityDrawer" style="display:none;"></div>
         </div>
       `;
     }
