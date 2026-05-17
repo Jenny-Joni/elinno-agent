@@ -3518,3 +3518,137 @@ specifically rather than the whole compound command string.
 shipped (10.5, 10.4, 10.3). Remaining sub-tasks per plan
 sequence: **10.6 → 10.1 → 10.2**. Then v1.1 ships. Monday +
 Drive connectors deferred to v1.2.
+
+## Block 10.6 shipped to main — 2026-05-17 (night, slot 4 of session)
+
+**End-of-session state:**
+- `origin/main` at `2463fed`. Production healthy.
+- Working tree clean except untracked `scripts/delete-all-projects.sql`.
+- **Block 10.6 (tool-call trace viewer) shipped.** 4/6 Block 10
+  sub-tasks done in this single session. Remaining: **10.1 → 10.2**.
+
+**Shipped this slot (3 commits on main, 1 push):**
+
+| SHA | Subject | Mode |
+|---|---|---|
+| `e6a40cc` | `feat(block-10-6): admin-gated tool_calls + role='tool' rows in GET per decision O` | DEFAULT |
+| `986e3bc` | `feat(block-10-6): tool-call trace viewer UI + CSS per decision P` | AUTO |
+| `2463fed` | `docs(block-10-6): curl-matrix-block-10-6.md with V6.1-V6.4 deferred-to-prod` | doc-only |
+| _(this commit)_ | `docs(handoff): Block 10.6 shipped — 2026-05-17 night` | doc-only |
+
+### Sub-task narrative
+
+**Block 10.6 — tool-call trace viewer.** Fourth consecutive sub-task
+slot of this session (10.5 → 10.4 → 10.3 → 10.6). UI-only on
+existing persisted data — Block 5 + Block 6's `f7fc540` already
+populate `tool_calls` + `tool_result` JSONB columns. This sub-task
+exposes them to admins in a compact collapsed render.
+
+Server side ([`e6a40cc`](https://github.com/Jenny-Joni/elinno-agent/commit/e6a40cc)):
+- Destructure `role` from `requireProjectRole` return tuple.
+- Add `tool_calls`, `tool_result` to the SELECT projection (existing
+  columns; query plan stays uniform across callers).
+- Trim response for non-admin members: drop `role='tool'` rows
+  entirely + null `tool_calls` on assistant rows. Project admins see
+  the full shape. Filter in JS (not SQL WHERE) to keep query stable.
+
+UI ([`986e3bc`](https://github.com/Jenny-Joni/elinno-agent/commit/986e3bc)):
+- `renderMessages()` passes full message array (incl. role='tool')
+  into `renderMessageHtml` so the tool_use_id matchup is local.
+  Existing visible-list filter (drops role='tool' from chat scroll)
+  unchanged.
+- New `renderToolTraceHtml(toolCalls, allMsgs)` produces a compact
+  `<details>` per assistant message between message text and
+  citation rail. Summary line: `🔧 N tool calls` or `🔧 N tool calls
+  (M failed)`. Per-tool render: `<name> ✓` on success, `<name> ⚠️
+  <truncated_error>` on failure (parsed from `f7fc540`'s
+  `tool_execution_failed` payload via JSON.parse in try/catch —
+  malformed payloads fall back to success render).
+- Args intentionally hidden in v1.1 per decision P.
+
+CSS ([`986e3bc`](https://github.com/Jenny-Joni/elinno-agent/commit/986e3bc)):
+`.tool-trace*` classes. Pill-styled clickable summary, soft-bg ul,
+mono font for tool names, green ✓ for success, italic-red for errors.
+
+### Design touch worth noting
+
+The BLOCK_10_PLAN.md decision O text suggested gating via the
+existing `me.is_admin` pattern at project.html:1607, but that's
+**workspace admin** (Cloudflare D1 `users.is_admin`), not
+**project admin** (per-project `project_members.role='admin'`). For
+project-scoped trace data, project-admin is the correct gate. The
+implementation uses `role === 'admin'` from `requireProjectRole`'s
+return tuple — happens to coincide with workspace admin for Jenny,
+but the right gate for a future multi-admin or workspace-admin-but-
+not-project-admin scenario. Filed in the curl matrix's "Mid-flight
+fixes" section as a pre-write design touch.
+
+### Verification posture
+
+All V6 cells PASS-by-inspection at the worktree. Runtime cells
+deferred — single visit to RAIN as Jenny (workspace + project
+admin) post-merge fires V6.1 + V6.3 + V6.4 together. V6.2 (member
+doesn't see trace) requires a second user; deferred until v1.1
+actually has members, because the server gate is the load-bearing
+check.
+
+Preview confirmed up at
+`https://block-10-6-tool-trace.elinno-agent.pages.dev/api/db-health`
+→ 200 at 12:07:09Z.
+
+### Session arc (afternoon → night, four sub-tasks)
+
+| Slot | Sub-task | Lines (+) | Mode shape | Verification posture |
+|---|---|---|---|---|
+| 1 | 10.5 sweep batching | +194/-109 | DEFAULT (carve-out) | Static + smoke PASS; PROD V5.4 deferred (no NULL embeddings to engineer) |
+| 2 | 10.4 connector guide | +553 | AUTO | V4.1 + V4.2 PASS at worktree |
+| 3 | 10.3 daily msg limit | +59 | MIXED | All V3 PASS-by-inspection (synthetic 100-send too costly) |
+| 4 | 10.6 tool trace | +144 | MIXED | All V6 PASS-by-inspection; V6.1+V6.3+V6.4 one-click post-merge |
+
+Total: **4 sub-tasks, 12 code/doc commits, 4 pushes, ~950 lines net
+across 8 files.** Two HANDOFF closeouts (one rolling per ~2 slots)
+plus this fourth one.
+
+### Carry-forward to next session
+
+1. **Next sub-task: 10.1 (refresh-and-ask-again).** Per plan
+   sequence. **Largest novel surface in Block 10 after 10.2.**
+   Requires new schema (`refresh_actions` table) that Jenny applies
+   in Neon SQL Editor BEFORE preview deploy (no production DDL by
+   Claude per WORKFLOW Hard limits). New endpoint at
+   `messages/[msgId]/refresh-and-ask-again`, new shared runner
+   `_lib/agent/refresh_runner.js`, UI button in citation rail. 8
+   verification cells. DEFAULT mode (new auth surface + new schema
+   + cross-connector orchestration). **Should be a fresh session
+   on its own** — don't tack onto this one's tail.
+
+2. **10.2 (per-project AI cost cap)** after 10.1. Heaviest sub-task
+   in Block 10 — pricing constants, cross-DB admin lookup,
+   schema, pre-check, paused UI, admin email path. 9 verification
+   cells. ALL DEFAULT mode. Schema additions
+   (`projects.ai_monthly_cap_usd`, `projects.ai_cap_warned_at`,
+   `messages.cost_usd`) + backfill UPDATE applied by Jenny in Neon
+   SQL Editor BEFORE preview deploy. **Plan to take its own session.**
+
+3. **PROD V5.4 + V6.1 + V6.3 + V6.4 one-click verification.**
+   Click Sync now on RAIN's Slack or Jira (rate limit cleared
+   around 12:00Z) → tail Cloudflare logs for
+   `embedding_sweep_batch_failed` absence (V5.4). Then open RAIN
+   as admin and scroll the chat → the tool-trace `<details>`
+   elements render with ✓ on recent assistant messages (V6.1 +
+   V6.4); if any tool failed recently in RAIN, the ⚠️ branch
+   confirms (V6.3). Two minutes total.
+
+4. **Tomorrow's 08:00 UTC cron fire** still covers V4-4 / V4-5 /
+   V4-6 from Block 9.4. Independent of any 10.x work.
+
+5. **Per the Block 10.3 closeout's WORKFLOW addendum** (hook
+   regex over-aggression on chained git push + main commands):
+   hit again this session during the 10.3 push split (carry-
+   forward #5 from this morning + 10.3 closeout). Promotes to
+   actionable WORKFLOW addendum candidate.
+
+**Block sequence status.** Block 10 plan locked + 4/6 sub-tasks
+shipped (10.5, 10.4, 10.3, 10.6). Remaining: **10.1 → 10.2**, two
+fresh-session sub-tasks. Then v1.1 ships. Monday + Drive
+connectors deferred to v1.2.
