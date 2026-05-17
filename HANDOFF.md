@@ -3652,3 +3652,195 @@ plus this fourth one.
 shipped (10.5, 10.4, 10.3, 10.6). Remaining: **10.1 → 10.2**, two
 fresh-session sub-tasks. Then v1.1 ships. Monday + Drive
 connectors deferred to v1.2.
+
+## v1.1 SHIPPED — 2026-05-17 (night, slot 5+6 of session)
+
+**End-of-session state:**
+- `origin/main` at `e58874a`. Production healthy.
+- Working tree clean except untracked `scripts/delete-all-projects.sql`.
+- **Block 10.1 (refresh-and-ask-again) + Block 10.2 (per-project AI
+  cost cap) both shipped this slot.** Block 10 complete (6/6 sub-
+  tasks). **v1.1 is shipped.**
+
+Per Jenny's mid-slot override: extended the session past the
+"fresh-session for 10.1 + 10.2" guidance in the prior closeout to
+complete Block 10 in full. Six sub-tasks shipped in one ~14-hour
+day, plus one mid-flight routing-shadow hotfix.
+
+**Shipped this slot (10 commits on main, 4 pushes):**
+
+| SHA | Subject | Mode |
+|---|---|---|
+| `9df103e` | `feat(block-10-1): refresh-and-ask-again endpoint + shared runner per decisions A+B+C+D` | DEFAULT |
+| `d0c10a5` | `feat(block-10-1): ↻ Refresh & re-ask button + handler + toast per decision C` | AUTO |
+| `08f6fbb` | `fix(block-10-1): relocate endpoint out of /messages/* shadow + fix import depth` | DEFAULT (hotfix) |
+| `70a82d2` | `docs(block-10-1): curl-matrix-block-10-1.md including routing-shadow hotfix narrative` | doc-only |
+| `4f42e26` | `feat(block-10-2): per-project AI cost cap with admin notification per decisions E+F+G+H+I` | DEFAULT |
+| `74161c6` | `feat(block-10-2): AI-paused banner + 429 branch in chat composer per decision F` | AUTO |
+| `e58874a` | `docs(block-10-2): curl-matrix-block-10-2.md with V2 verification posture` | doc-only |
+| _(this commit)_ | `docs(handoff): v1.1 SHIPPED — Block 10 complete` | doc-only |
+
+### Sub-task narratives
+
+**10.1 — Refresh-and-ask-again.** New endpoint at
+`/api/projects/:id/conversations/:conversationId/refresh-and-ask-again/:msgId`
++ shared `refresh_runner.js` orchestrator + new `refresh_actions`
+table (DDL applied by Jenny in Neon mid-slot, verified via
+`row_count=0, column_count=11` sanity SELECT before code deployed).
+Member action: 5-per-hour-per-(user, project) refresh that triggers
+per-cited-connection incrementalSync with failure isolation
+(mirrors cron-incremental.js decision U pattern), recovers the
+original user message, re-runs the agent loop with up-to-date data,
+and persists the new assistant turn. UI: ↻ Refresh & re-ask button
+in every assistant message's citation rail with in-flight disabled
+state + toast on success/failure.
+
+**Mid-flight ROUTING-SHADOW HOTFIX** (`08f6fbb`, post-ff-merge of
+the initial 10.1 commit-set). The initial endpoint at
+`.../messages/[msgId]/refresh-and-ask-again.js` was non-functional
+in production: Pages Functions treated the sibling `messages.js` as
+shadowing the `messages/` directory at the same parent, so the
+deeper route never registered. Production POST returned 405 (request
+fell through to static-serving). The route file was ALSO 8 dirs deep
+with 6-`..` imports (correct count would have been 7) — but Cloudflare's
+bundler silently dropped the orphaned file before reaching the import-
+resolution step, so the build "succeeded" without surfacing the
+off-by-one. Hotfix: `git mv` to
+`refresh-and-ask-again/[msgId].js` at the `[conversationId]/` level.
+File depth dropped 8 → 7; the 6-`..` imports are now correct. Auth
+logic, runner, schema, CSS unchanged. Post-deploy curl confirmed the
+new route returns 401 (Function registered) at 12:57:56Z.
+
+**10.2 — Per-project AI cost cap.** Largest novel surface in Block 10.
+Seven server-side files including two new helpers (`pricing.js`
+single source of truth for token prices, `admins.js` cross-DB
+Postgres↔D1 admin-email lookup — first call site that walks the
+seam). Three new columns (`projects.ai_monthly_cap_usd` default
+$50, `projects.ai_cap_warned_at` idempotency cursor, `messages.cost_usd`
+per-turn USD cost) applied to Neon by Jenny mid-slot with backfill
+UPDATE (`backfilled=9, missing=0, project_count=1` sanity confirmed).
+
+The pre-check fires on every message POST: `SELECT COALESCE(SUM(cost_usd), 0)
+FROM messages WHERE project_id=$1 AND created_at >= DATE_TRUNC('month', NOW())`
+compared to the project's `ai_monthly_cap_usd`. Two thresholds:
+80% → warning email (via Resend, per-recipient sends, idempotent per
+month); 100% → pause email + 429 with `cap_usd / used_usd / resets_at`.
+Email failure is logged + swallowed; the 429 still fires (refusing
+over-cap is the load-bearing behavior). UI: `.ai-paused-banner` above
+the chat composer when `aiPausedUntilMs` is in the future, with input
++ send disabled until page reload after month boundary.
+
+### Mid-flight design touches worth noting
+
+1. **routing-shadow lesson** (already addressed by the hotfix): Pages
+   Functions treats a `foo.js` file as shadowing a sibling `foo/`
+   directory at the same level. Future endpoint additions under
+   parent routes already owning a single-file handler must avoid
+   the bare directory name. The endpoint header comment + the
+   curl-matrix's Mid-flight section document this for any future
+   block.
+
+2. **Single firstOfNextMonthIso() helper** (10.2). Both the 429
+   response payload and the idempotency boundary use the same UTC-
+   anchored month math. Centralized so the two never drift.
+
+3. **Email send is best-effort; 429 is not** (10.2 decision H
+   refinement). A failed Resend call logs + continues; the 429
+   response still fires because refusing the over-cap message is
+   the load-bearing behavior. Admin notification is observability,
+   not enforcement.
+
+4. **cost backfill at month boundary stays naive.** Mid-month
+   pricing changes affect new sends only — past cost_usd rows stay
+   at the prior price. This is the audit-correct behavior (those
+   sends were billed at the old price). pricing.js header docblock
+   spells out this convention.
+
+5. **D1 admin lookup is the first cross-DB seam call.** Future code
+   needing per-project admin emails should call
+   `getAdminEmailsForProject(env, sql, projectId)` rather than
+   duplicating the Postgres-then-D1 walk.
+
+### Block 10 + v1.1 totals
+
+**Block 10:**
+- 6 sub-tasks shipped: 10.5 sweep batching, 10.4 connector guide,
+  10.3 daily message limit, 10.6 tool-call trace viewer,
+  10.1 refresh-and-ask-again, 10.2 AI cost cap
+- 1 plan-lock commit (`cf97c90`)
+- 1 mid-flight hotfix (`08f6fbb`)
+- 17 locked decisions A–Q
+- 32 verification cells across 6 matrices
+
+**v1.1 (Blocks 1-10 since project start):**
+- Auth foundation (D1 users + sessions + password reset + admin)
+- D1 + Postgres + Hyperdrive split (Block 1)
+- Project shell (Block 2)
+- Connector framework (Block 3)
+- Slack OAuth + Events API (Block 4)
+- AI agent loop with hybrid search (Block 5)
+- Jira API token + JQL tools (Block 6)
+- (Blocks 7-8 deferred to v1.2: Monday, Drive)
+- Launch-blocking polish (Block 9): connection management UI,
+  citation freshness, suggested questions, nightly cron, content-
+  hash redesign
+- Nice-to-have polish (Block 10): sweep batching, connector guide,
+  daily message limit, tool-trace viewer, refresh-and-ask-again,
+  AI cost cap
+
+**Session arc** (afternoon → night, ~14 hours wall-clock):
+- 6 sub-tasks shipped (block 10.5 → 10.4 → 10.3 → 10.6 → 10.1 → 10.2)
+- 1 mid-flight hotfix on 10.1
+- 22 code/doc commits, 9 pushes
+- 6 rolling HANDOFF closeouts (this is the seventh + final)
+
+### Carry-forward to next session
+
+1. **PROD V2.1 one-message smoke** (10.2 verification, easiest left
+   on the board). Send one message in RAIN, then in Neon SQL Editor:
+   `SELECT cost_usd, model, input_tokens, output_tokens FROM messages
+   WHERE conversation_id=$1 ORDER BY created_at DESC LIMIT 1`. Manual
+   math against pricing.js constants:
+   `(input_tokens*3 + output_tokens*15) / 1_000_000` for sonnet-4-5.
+   Confirms the persist-cost flow.
+
+2. **PROD V1.6 + V1.7 + V1.1 + V1.2 one-click verification** (10.1
+   verification, deferred from this slot). Open RAIN → scroll to any
+   cited assistant message → click ↻ Refresh & re-ask. Expect:
+   button flips to "Refreshing…" → success toast → new assistant
+   message appears below with fresh citations. SQL spot:
+   `SELECT * FROM refresh_actions ORDER BY started_at DESC LIMIT 1`
+   → status='succeeded', new_message_id set, triggered_sync_run_ids
+   non-empty.
+
+3. **PROD V5.4 + V6.1 + V6.3 + V6.4** (10.5 + 10.6 verifications,
+   carried over from earlier slots). Same Sync now click on RAIN
+   covers V5.4 (sweep batching) + visiting any tool-call assistant
+   message covers V6.1/V6.3/V6.4 (tool-trace viewer).
+
+4. **Block 9.4 V4-4/V4-5/V4-6 cron-fire verification** still pending
+   from this morning. Tomorrow's 08:00 UTC cron fire auto-covers
+   it; check the activity drawer + log tail post-fire.
+
+5. **V2.4 + V2.5 staged exercise** (10.2 cost-cap, optional, ~$0.10
+   of real spend). Set a test project's cap to $0.10 in Neon, send
+   messages until 80% crosses, verify warning email fires +
+   `ai_cap_warned_at` populated. Continue past 100%, verify 429 +
+   pause email + paused UI banner. Reset cap after.
+
+6. **v1.2 backlog (per PRD §11):**
+   - Monday + Drive connectors (Blocks 7-8 deferred)
+   - Cross-project AI mode (§11.1, the highest-privacy-risk feature,
+     deliberately deferred until project-scoped flow is rock-solid)
+   - 15-min Jira incremental cron (§5.3)
+   - Real over-cap queue + cost-cap admin settings UI
+     (BLOCK_10_PLAN.md out-of-scope items)
+   - WORKFLOW addendum queue (hook regex over-aggression, two-sided
+     secrets, .dev.vars, terminal-screenshot exposure, cron Worker
+     provisioning, classifier-vs-ff-merge question — see prior
+     closeouts for the running list)
+
+**Block sequence status. v1.1 SHIPPED.** All 10 blocks complete
+(Blocks 7-8 deferred to v1.2). Production at `e58874a` on
+`elinnoagent.com`. Next: v1.2 planning per the backlog above, in
+its own fresh session.
