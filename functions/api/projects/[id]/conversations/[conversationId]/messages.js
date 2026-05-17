@@ -183,11 +183,16 @@ export async function onRequestGet({ request, env, params }) {
     const lastSyncByEntity = new Map();
     if (entityIds.size > 0) {
       const ids = [...entityIds];
+      // postgres-js IN-list helper: sql(array) expands to ($1, $2, ...) with
+      // each id sent as its own parameter. Avoids the array-binding ambiguity
+      // that ANY(${arr}::uuid[]) tripped on first deploy (see HANDOFF 9.2
+      // hotfix note). project_id clamp on the next line is the cross-project
+      // isolation guard documented above.
       const enrichmentRows = await sql`
         SELECT e.id AS entity_id, c.last_sync_at AS connection_last_sync_at
           FROM entities e
           JOIN connections c ON c.id = e.connection_id
-         WHERE e.id = ANY(${ids}::uuid[])
+         WHERE e.id IN ${sql(ids)}
            AND e.project_id = ${params.id}
       `;
       for (const r of enrichmentRows) {
@@ -207,7 +212,18 @@ export async function onRequestGet({ request, env, params }) {
     });
 
     return json({ ok: true, messages: enrichedMessages });
-  } catch (_err) {
+  } catch (err) {
+    // Block 9.2 hotfix: log the error so future regressions in the
+    // citation-enrichment JOIN surface in Pages logs rather than as
+    // a silent 'Internal error'. Original GET handler swallowed err
+    // entirely; we keep the 500 response shape unchanged for callers.
+    console.warn(JSON.stringify({
+      level: 'warn',
+      event: 'messages_get_failed',
+      project_id: params.id,
+      conversation_id: params.conversationId,
+      error: err && err.message ? String(err.message).slice(0, 300) : 'unknown',
+    }));
     return error('Internal error', 500);
   } finally {
     try {
