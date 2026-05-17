@@ -811,6 +811,26 @@
         showChatError(data && data.error ? data.error : 'Something went wrong. Please try again.');
         return;
       }
+      if (res.status === 429) {
+        // BLOCK_10_PLAN.md decision K: friendly cap message. Server's
+        // `error` field already reads as user-facing copy; append a
+        // human-formatted retry hint computed from retry_after_seconds.
+        const data = await res.json().catch(() => ({}));
+        restoreComposer();
+        let msg = data && data.error ? data.error : 'Daily message limit reached.';
+        if (data && typeof data.retry_after_seconds === 'number' && data.retry_after_seconds > 0) {
+          const totalMins = Math.ceil(data.retry_after_seconds / 60);
+          const hours = Math.floor(totalMins / 60);
+          const remMins = totalMins % 60;
+          let when;
+          if (hours > 0 && remMins > 0) when = hours + 'h ' + remMins + 'm';
+          else if (hours > 0) when = hours + 'h';
+          else when = totalMins + 'm';
+          msg = msg + ' Try again in ' + when + '.';
+        }
+        showChatError(msg);
+        return;
+      }
       if (!res.ok) {
         restoreComposer();
         showChatError('Something went wrong. Please try again.');
