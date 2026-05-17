@@ -814,8 +814,29 @@
       const citations = !isUser && Array.isArray(m.citations) ? m.citations : [];
       // Block 10.6 decision P: tool-call trace viewer. Server gates by
       // admin role — non-admins receive tool_calls: null on assistant
-      // rows, so `tool_calls?.length > 0` is false → no trace renders.
-      const toolCalls = !isUser && Array.isArray(m.tool_calls) ? m.tool_calls : [];
+      // rows, so the aggregate stays empty → no trace renders.
+      //
+      // Aggregate across the iteration cluster: intermediate assistants
+      // (empty content, carrying tool_calls) are filtered out of the
+      // visible list at line 677, so we walk back from each final-content
+      // assistant to the preceding user boundary and collect their
+      // tool_calls. The trace lands on the user-visible answer message.
+      const toolCalls = (() => {
+        if (isUser) return [];
+        const own = Array.isArray(m.tool_calls) ? m.tool_calls : [];
+        if (!(m.content && m.content.length > 0)) return own;
+        const idx = (allMsgs || []).findIndex(am => am.id === m.id);
+        if (idx === -1) return own;
+        const aggregated = [];
+        for (let i = idx - 1; i >= 0; i--) {
+          const prev = allMsgs[i];
+          if (prev.role === 'user') break;
+          if (prev.role === 'assistant' && Array.isArray(prev.tool_calls) && prev.tool_calls.length > 0) {
+            aggregated.unshift(...prev.tool_calls);
+          }
+        }
+        return [...aggregated, ...own];
+      })();
       const toolTraceHtml = toolCalls.length > 0
         ? renderToolTraceHtml(toolCalls, allMsgs || [])
         : '';
