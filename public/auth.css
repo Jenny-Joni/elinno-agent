@@ -1013,6 +1013,59 @@ table.users-table {
   opacity: 0.55;
 }
 
+/* Block 10.6 decision P: admin-only tool-call trace viewer. Collapsed
+   <details> between the assistant message text and the citation rail.
+   Compact: tool name + ✓ on success, ⚠️ + truncated error on failure.
+   Args intentionally hidden in v1.1 (Block 11+ may add expand toggle).
+   Render gated server-side via per-project admin role — non-admins
+   receive tool_calls: null so the <details> never appears. */
+.tool-trace {
+  margin-top: 8px;
+  font-family: var(--font-regular);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.tool-trace > summary {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-soft);
+  display: inline-block;
+  user-select: none;
+  list-style: none;
+}
+.tool-trace > summary::-webkit-details-marker { display: none; }
+.tool-trace > summary:hover {
+  background: var(--color-bg-wash);
+}
+.tool-trace > ul {
+  list-style: none;
+  margin: 6px 0 0 0;
+  padding: 8px 12px;
+  background: var(--color-bg-soft);
+  border-radius: var(--radius-sm, 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tool-trace > ul > li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  line-height: 1.4;
+}
+.tool-trace-name {
+  font-family: var(--font-mono, monospace);
+  color: var(--color-text);
+}
+.tool-trace-result.ok {
+  color: var(--color-success, #2e7d32);
+}
+.tool-trace-result.err {
+  color: var(--color-error, #c62828);
+  font-style: italic;
+}
+
 /* Block 9.3 decisions H + I + K: empty-state suggestion chips on fresh
    conversations. Source-gated (slack-only / jira-only / both / none).
    Chips fill the input on click (no auto-submit) per decision I; the

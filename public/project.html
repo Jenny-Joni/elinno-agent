@@ -674,16 +674,29 @@
         wireSuggestionChips(list);
         return;
       }
-      list.innerHTML = msgs.map(m => renderMessageHtml(m)).join('');
+      // Pass the full message array (incl. any role='tool' rows) so
+      // renderMessageHtml can resolve tool_use_id matchups for the trace
+      // viewer (BLOCK_10_PLAN.md decision P, 10.6). The filtered `msgs`
+      // above stays the user-visible list — tool rows still hidden from
+      // the main chat scroll.
+      const allMsgs = messagesById[activeConvId] || [];
+      list.innerHTML = msgs.map(m => renderMessageHtml(m, allMsgs)).join('');
       list.scrollTop = list.scrollHeight;
     }
 
-    function renderMessageHtml(m) {
+    function renderMessageHtml(m, allMsgs) {
       const isUser = m.role === 'user';
       const avatar = isUser ? deriveUserInitial(me.email) : 'EA';
       const rel = fmtRelativeShort(m.created_at) || 'just now';
       const meta = (isUser ? 'You · ' : 'Elinno Agent · ') + rel;
       const citations = !isUser && Array.isArray(m.citations) ? m.citations : [];
+      // Block 10.6 decision P: tool-call trace viewer. Server gates by
+      // admin role — non-admins receive tool_calls: null on assistant
+      // rows, so `tool_calls?.length > 0` is false → no trace renders.
+      const toolCalls = !isUser && Array.isArray(m.tool_calls) ? m.tool_calls : [];
+      const toolTraceHtml = toolCalls.length > 0
+        ? renderToolTraceHtml(toolCalls, allMsgs || [])
+        : '';
 
       // Assistant visual states:
       //   .error  — model=null: agent loop failed (S21) or zero-data-
@@ -702,10 +715,61 @@
           <div class="chat-msg-body">
             <div class="chat-msg-meta">${escapeHtml(meta)}</div>
             <div class="chat-msg-content">${escapeHtml(m.content || '')}</div>
+            ${toolTraceHtml}
             ${citations.length > 0 ? renderCitationRailHtml(citations) : ''}
           </div>
         </div>
       `;
+    }
+
+    // Block 10.6 decision P: compact tool-call trace renderer, admin-only.
+    // Server-side gate already filters non-admins out — this function only
+    // runs when toolCalls.length > 0. Each tool_use is matched to its
+    // tool_result by tool_use_id (Anthropic content-block convention,
+    // persisted by loop.js:300-310). Failed tools surface their
+    // error_message from f7fc540's persisted payload, truncated to ~200
+    // chars for the chip. Args are intentionally hidden in v1.1 (decision P
+    // calls out that "Args are hidden in v1.1") — Block 11+ can add an
+    // expand toggle if forensic value materializes.
+    function renderToolTraceHtml(toolCalls, allMsgs) {
+      const toolMsgs = allMsgs.filter(m => m.role === 'tool' && m.tool_result);
+      const items = toolCalls.map(tc => {
+        const match = toolMsgs.find(t =>
+          t.tool_result && t.tool_result.tool_use_id === tc.id
+        );
+        let failedErr = null;
+        if (match) {
+          try {
+            const result = match.tool_result.result;
+            if (Array.isArray(result) && result[0] && typeof result[0].text === 'string') {
+              const parsed = JSON.parse(result[0].text);
+              if (parsed && parsed.error === 'tool_execution_failed') {
+                failedErr = String(parsed.error_message || 'tool_execution_failed').slice(0, 200);
+              }
+            }
+          } catch { /* malformed payload — render as success */ }
+        }
+        const status = failedErr
+          ? `<span class="tool-trace-result err">⚠️ ${escapeHtml(failedErr)}</span>`
+          : `<span class="tool-trace-result ok">✓</span>`;
+        return `<li><span class="tool-trace-name">${escapeHtml(tc.name || 'unknown')}</span> ${status}</li>`;
+      }).join('');
+      const failedCount = toolCalls.filter(tc => {
+        const match = toolMsgs.find(t =>
+          t.tool_result && t.tool_result.tool_use_id === tc.id
+        );
+        if (!match) return false;
+        try {
+          const result = match.tool_result.result;
+          if (Array.isArray(result) && result[0] && typeof result[0].text === 'string') {
+            const parsed = JSON.parse(result[0].text);
+            return parsed && parsed.error === 'tool_execution_failed';
+          }
+        } catch { /* */ }
+        return false;
+      }).length;
+      const summary = `🔧 ${toolCalls.length} tool call${toolCalls.length === 1 ? '' : 's'}${failedCount > 0 ? ' (' + failedCount + ' failed)' : ''}`;
+      return `<details class="tool-trace"><summary>${escapeHtml(summary)}</summary><ul>${items}</ul></details>`;
     }
 
     function renderCitationRailHtml(citations) {
