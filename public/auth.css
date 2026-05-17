@@ -1013,6 +1013,23 @@ table.users-table {
   opacity: 0.55;
 }
 
+/* Block 10.2 decision F: AI-paused banner above the composer when the
+   project's monthly cost cap is hit. Disabled state on the input +
+   send button is handled JS-side; this is purely the visual notice.
+   Reuses the existing form-msg.error tone (red text on red-tint
+   background) for visual continuity with other "blocked" states. */
+.ai-paused-banner {
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: rgba(198, 40, 40, 0.08);
+  border: 1px solid rgba(198, 40, 40, 0.3);
+  color: var(--color-error, #c62828);
+  font-family: var(--font-regular);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 /* Block 10.1 decision C: ↻ Refresh & re-ask button on every assistant
    message's citation rail. Pill-shaped to harmonize with the citation
    chips next to it. Disabled-during-flight via [disabled] + in-flight

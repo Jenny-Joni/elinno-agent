@@ -144,6 +144,13 @@
     const messagesById = {};   // cache: conversationId → messages[] (avoids refetch on tab switch)
     let drawerOpen = false;    // decision AA: in-memory only
     let inFlight = false;      // global send-in-flight guard
+    // Block 10.2 decision F: when the latest message POST returned a
+    // cost-cap 429, this holds the reset boundary (UTC first-of-next-
+    // month) as a Unix ms. While > Date.now(), the composer renders the
+    // "AI paused" banner and disables send. Reset to 0 manually by
+    // reload (a clean retry post-reset will pass the pre-check and the
+    // banner stays at 0).
+    let aiPausedUntilMs = 0;
     // Members tab state (sub-task 2.6). `members` is null until first successful
     // load — boot fetches eagerly so the tab pill renders from initial paint.
     // memberCount being null means "unknown"; the pill stays hidden.
@@ -540,6 +547,7 @@
           <div class="chat-messages" id="chatMessages"></div>
           <div class="chat-composer">
             <div class="chat-error" id="chatError" style="display:none;" role="alert"></div>
+            <div class="ai-paused-banner" id="aiPausedBanner" style="display:none;" role="status"></div>
             <div class="chat-composer-row">
               <textarea class="chat-input" id="chatInput" placeholder="Ask anything about this project…" rows="1" aria-label="Message"></textarea>
               <button class="chat-send-btn" id="chatSend" type="button" disabled>Send</button>
@@ -550,6 +558,11 @@
       document.getElementById('chatConvTitle').textContent = title;
       renderMessages();
       wireComposer();
+      // Block 10.2 decision F: if a prior 429 set aiPausedUntilMs, the
+      // banner needs to render every time the chat re-renders (tab
+      // switch, conversation switch). updateAiPausedBanner is a no-op
+      // when the timestamp is in the past.
+      updateAiPausedBanner();
       // Defer focus to next frame so the textarea is in the layout tree.
       requestAnimationFrame(() => {
         const input = document.getElementById('chatInput');
@@ -947,6 +960,34 @@
       slot.textContent = '';
     }
 
+    // Block 10.2 decision F: AI paused banner. Renders above the
+    // composer when aiPausedUntilMs is in the future. Disables the
+    // composer's input + send button so users get clear feedback that
+    // typing won't help until the cap resets next month. Cleared on a
+    // page reload — a fresh send after the reset boundary will pass the
+    // server pre-check and the banner stays cleared.
+    function updateAiPausedBanner() {
+      const banner = document.getElementById('aiPausedBanner');
+      const input = document.getElementById('chatInput');
+      const send = document.getElementById('chatSend');
+      if (!banner) return;
+      const isPaused = aiPausedUntilMs > Date.now();
+      if (isPaused) {
+        const resetDate = new Date(aiPausedUntilMs);
+        const opts = { year: 'numeric', month: 'short', day: 'numeric' };
+        banner.textContent = 'AI is paused for this project — monthly budget reached. Resumes ' + resetDate.toLocaleDateString(undefined, opts) + '.';
+        banner.style.display = '';
+        if (input) input.disabled = true;
+        if (send) send.disabled = true;
+      } else {
+        banner.style.display = 'none';
+        banner.textContent = '';
+        if (input) input.disabled = false;
+        // Send button's enabled state is also gated by inFlight + empty
+        // input; the composer's own input listener handles those.
+      }
+    }
+
     async function sendMessage() {
       if (inFlight) return;
       const input = document.getElementById('chatInput');
@@ -992,13 +1033,28 @@
         return;
       }
       if (res.status === 429) {
-        // BLOCK_10_PLAN.md decision K: friendly cap message. Server's
-        // `error` field already reads as user-facing copy; append a
-        // human-formatted retry hint computed from retry_after_seconds.
+        // BLOCK_10_PLAN.md decisions K (10.3) + F (10.2): two flavors of
+        // 429 from this endpoint. Daily-message-limit 429 carries
+        // `retry_after_seconds`; cost-cap pause 429 carries `cap_usd` +
+        // `used_usd` + `resets_at` (no retry_after_seconds — the
+        // reset is a calendar-month event, not a duration).
         const data = await res.json().catch(() => ({}));
         restoreComposer();
-        let msg = data && data.error ? data.error : 'Daily message limit reached.';
-        if (data && typeof data.retry_after_seconds === 'number' && data.retry_after_seconds > 0) {
+        let msg = data && data.error ? data.error : 'Limit reached.';
+        if (data && data.resets_at) {
+          // Cost-cap pause shape. Render the human resets date.
+          const resetDate = new Date(data.resets_at);
+          if (!isNaN(resetDate.getTime())) {
+            const opts = { year: 'numeric', month: 'short', day: 'numeric' };
+            msg = msg + ' AI resumes ' + resetDate.toLocaleDateString(undefined, opts) + '.';
+          }
+          if (typeof data.used_usd === 'number' && typeof data.cap_usd === 'number') {
+            msg = msg + ' ($' + data.used_usd.toFixed(2) + ' / $' + data.cap_usd.toFixed(2) + ')';
+          }
+          aiPausedUntilMs = resetDate.getTime();
+          updateAiPausedBanner();
+        } else if (data && typeof data.retry_after_seconds === 'number' && data.retry_after_seconds > 0) {
+          // Daily-message-limit shape.
           const totalMins = Math.ceil(data.retry_after_seconds / 60);
           const hours = Math.floor(totalMins / 60);
           const remMins = totalMins % 60;
