@@ -1,9 +1,20 @@
-// functions/api/projects/[id]/conversations/[conversationId]/messages/[msgId]/refresh-and-ask-again.js
+// functions/api/projects/[id]/conversations/[conversationId]/refresh-and-ask-again/[msgId].js
 // =========================================================================
 // SECURITY-CARVE-OUT: do not edit in auto mode
 //
-// Route: POST /api/projects/:id/conversations/:conversationId/messages/:msgId/refresh-and-ask-again
+// Route: POST /api/projects/:id/conversations/:conversationId/refresh-and-ask-again/:msgId
 //   Per BLOCK_10_PLAN.md §10.1 decisions A + B + C + D.
+//
+// Path note (Block 10.1 hotfix): originally placed at
+// .../messages/[msgId]/refresh-and-ask-again.js but the sibling
+// messages.js file shadows the messages/ directory in Pages Functions
+// routing, so the deeper route never registered (production POST
+// returned 405 falling through to static-serving). Relocated under
+// refresh-and-ask-again/[msgId].js at the [conversationId]/ level.
+// Import depth dropped from 8 to 7 directories, so the 6 '..' segments
+// in the imports below are now correct (was off-by-one for the deeper
+// location, masked by the route being orphaned). Cf. Block 9.4 hotfix
+// commit f4c06f4 for the equivalent import-depth lesson on cron.
 //
 // Auth: requireProjectRole('member') — both members and admins can refresh
 //       a prior AI response. PRD §5.6 explicitly names this as a member

@@ -705,10 +705,14 @@
       btn.classList.add('in-flight');
       btn.innerHTML = 'Refreshing…';
 
+      // Path note (Block 10.1 hotfix): the new endpoint sits at
+      // /conversations/.../refresh-and-ask-again/:msgId — NOT under
+      // /messages/... where messages.js shadowed the deeper route in
+      // Pages Functions routing. See the endpoint file's header comment
+      // for the full diagnostic.
       const url = '/api/projects/' + encodeURIComponent(project.id) +
                   '/conversations/' + encodeURIComponent(activeConvId) +
-                  '/messages/' + encodeURIComponent(messageId) +
-                  '/refresh-and-ask-again';
+                  '/refresh-and-ask-again/' + encodeURIComponent(messageId);
 
       let res;
       try {
