@@ -4051,3 +4051,99 @@ itself lands.
 
 **Production state unchanged**: still `c1048d8` on `elinnoagent.com`.
 Block 11 is branch-only until preview verify + ff-merge + push.
+
+---
+
+## Block 11 shipped to main — 2026-05-18 (v1.2 kickoff)
+
+**Production state:** `12bb040` on `elinnoagent.com` (was `c1048d8`).
+Fast-forward merge `87dc0bf..12bb040`, 11 commits, +1237 / -9 across 7
+files. Cloudflare Pages auto-builds against main.
+
+This is the first v1.2 block. `aggregate_jira` is live — the agent now
+answers counting / grouping / cross-sprint questions over Jira data
+that v1.1 refused.
+
+**Verification verdicts** (full detail in `curl-matrix-block-11.md`):
+
+| Cell | Verdict | Note |
+|---|---|---|
+| C1 | PASS | Screenshot regression resolved: 16 / 16 / 14 / 12 ranked. |
+| C2 | PASS-with-caveat | `labels[]` LATERAL works; Sprint 12 unlabeled. |
+| C3 | PASS-with-deviation | Velocity via `get_jira_sprint_summary` x3 — correct, different path. |
+| C4 | PASS | Sprint 11: 105 / Sprint 10: 172, diff 67. |
+| C5 | PASS | Multi-dim breakdown by type + status. |
+| C6 | PASS (after fixup `7ca8434`) | Found compiler bug: `parseOrderBy` over-strict; loosened for ungrouped queries. |
+| D1 | PASS | Locked cycle-time refusal verbatim — decision K validated. |
+| D2 / D3 / D4 | PENDING | Synthetic / harder to exercise on RAIN data; non-blocker. |
+| E1 / E2 / E3 | PASS-by-inspection | At plan-write time. |
+| E4 / E5 / E6 | PENDING | E4 needs Slack post; E5 needs eyes-on trace UI; E6 needs `wrangler tail`. |
+
+**Mid-flight discovery + fix.** During verification I found that the
+compiler's `parseOrderBy` required `order_by.field` to match a
+select-item alias, which made the natural ungrouped DSL shape
+(`select: ['issue_key','title']` + `order_by: [{field:'source_created_at', dir:'asc'}]`)
+fail with `order_by_item_invalid`. The LLM then fell back to a
+generic "connection issues" refusal — looking identical to the
+production screenshot regression for an unrelated reason. PRD §3.3
+doesn't constrain `order_by.field` to select aliases; the constraint
+was a compiler over-add. Fixed in `7ca8434`: for ungrouped queries,
+allow any allowlisted column as the order_by field; for grouped
+queries, keep the stricter alias-match so we surface validation
+errors rather than postgres errors. C6 then PASSED with the agent
+correctly reporting "I couldn't find any unresolved high-priority
+bugs in this project."
+
+**PRD v1.2 §3.4.1 addendum.** Landed in `~/Downloads/PRD_v1.2.md`
+during execute (after a second-attempt Edit succeeded with explicit
+in-conversation approval). Formally allowlists `labels[]` as a
+group_by-only projection so decision M ships with PRD authority.
+Still to be moved into the repo when PRD v1.2 itself lands.
+
+**Real findings from production verification** (not bugs, worth
+noting):
+
+1. RAIN's tickets have null `story_points` across most issues —
+   velocity numbers come back as 0 with non-zero ticket counts.
+   Agent reports honestly, no fabrication. If story-point telemetry
+   matters going forward, the team needs to start populating that
+   field in Jira; nothing to fix on the elinno side.
+2. Sprint 12 (the active one) has unlabeled tickets, so US-2's
+   "labels frequency in current sprint" returned 0 rows. `labels[]`
+   LATERAL projection works; the answer is empty by data.
+3. The model preferred `get_jira_sprint_summary` over
+   `aggregate_jira` for the velocity question (US-3). Both produce
+   correct output. If forcing the chained `aggregate_jira` path
+   matters for any reason, the system prompt would need more
+   emphasis on it; current wording leaves the choice to the model
+   and decision L is the safety net.
+
+**Carry-forward items into v1.2 / v1.3:**
+
+- **Remaining PENDING verification cells** — D2 / D3 / D4 / E4 /
+  E5 / E6 from `curl-matrix-block-11.md`. None blockers; pick up at
+  a convenient sit-down.
+- **Test-conversation hygiene** — verification ran 8+ messages
+  across two conversations in RAIN. They persist in conversation
+  history. Cosmetic; not load-bearing.
+- **`aggregate_jira` allowlist drift risk** — PRD §3.4 / §3.4.1 are
+  source-of-truth; compiler imports allowlists. Future PRD edits
+  must mirror in the compiler. CI assertion candidate for v1.3.
+- **PRD v1.2 location** — still in `~/Downloads/`, not the repo.
+  Move into repo (as `PRD_v1.2.md` or successor file) when v1.2
+  closes.
+- **Existing system-prompt citation contract** still narrowly cites
+  `search_project_data`. Block 11 didn't touch it (decision L). If
+  the model shows confusion citing Jira-tool results, broaden in a
+  future commit.
+- **`aggregate_jira` system-prompt block is ~60 lines of context
+  per agent call** — token-cost amortization is fine for v1.2; if
+  cost-cap pressure rises, consider lazy injection (include the
+  Jira aggregation block only when Jira is in
+  `{{AVAILABLE_SOURCES}}`).
+- **Reserved fixup slots from BLOCK_11_PLAN.md** — both used:
+  `6b6579b` (null scalar predicate guard), `7ca8434` (order_by
+  loosening). Future Block 11 fixups would be separate commits.
+
+**Production state**: `12bb040` on `elinnoagent.com`.
+Block 11 is **SHIPPED**.
