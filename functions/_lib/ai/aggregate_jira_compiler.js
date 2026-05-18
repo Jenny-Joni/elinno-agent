@@ -253,12 +253,29 @@ function parseWhereForColumn(col, raw, paramOffset, params) {
 
 // ─── Order-by parsing ─────────────────────────────────────────────────────
 
-function parseOrderBy(item, aliasSet) {
+function parseOrderBy(item, aliasSet, isGrouped) {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
   const { field, dir } = item;
-  if (typeof field !== 'string' || !aliasSet.has(field)) return null;
+  if (typeof field !== 'string') return null;
   if (typeof dir !== 'string' || !ORDER_DIRS.has(dir.toLowerCase())) return null;
-  return { field, dir: dir.toLowerCase() };
+
+  // Always allow select-item aliases (e.g. 'count', 'sum_story_points',
+  // or any column name that's in select).
+  if (aliasSet.has(field)) return { field, dir: dir.toLowerCase() };
+
+  // For ungrouped queries, also allow ordering by any allowlisted column
+  // that isn't in select. PRD §3.3 doesn't constrain order_by.field to
+  // select aliases — e.g. "list issues, oldest first" is `select:
+  // ['issue_key','title']` + `order_by: source_created_at asc` and that
+  // is valid SQL for non-DISTINCT, non-grouped queries. For grouped
+  // queries we keep the stricter rule because postgres requires
+  // non-aggregated order_by columns to appear in group_by; rather than
+  // surfacing a postgres-side error message, we reject at validation.
+  if (!isGrouped && COLUMNS_SET.has(field)) {
+    return { field, dir: dir.toLowerCase() };
+  }
+
+  return null;
 }
 
 // ─── Compile ──────────────────────────────────────────────────────────────
@@ -363,11 +380,14 @@ export function compile(dsl, projectId) {
       return validationError('order_by_shape_invalid', 'order_by');
     }
     for (let i = 0; i < orderByRaw.length; i++) {
-      const parsed = parseOrderBy(orderByRaw[i], aliasSet);
+      const parsed = parseOrderBy(orderByRaw[i], aliasSet, isGrouped);
       if (!parsed) {
         return validationError('order_by_item_invalid', `order_by[${i}]`, {
-          message: 'field must match a select-item alias; dir must be asc|desc',
+          message: isGrouped
+            ? 'for grouped queries, field must match a select-item alias; dir must be asc|desc'
+            : 'field must match a select-item alias or be an allowlisted column; dir must be asc|desc',
           select_aliases: [...aliasSet],
+          allowed_columns: isGrouped ? undefined : ALLOWED_COLUMNS,
         });
       }
       orderByParsed.push(parsed);
