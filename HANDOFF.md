@@ -3937,3 +3937,117 @@ cosmetic.
 **Production state unchanged**: `c1048d8` on `elinnoagent.com`
 (v1.1 SHIPPED tip + 10.6 trace-render hotfix). No code or config
 changes this session.
+
+---
+
+## Block 11 plan + code on branch — 2026-05-18 (pre-merge, v1.2 kickoff)
+
+**Branch:** `block-11-aggregate-jira` off `origin/main` (tip `87dc0bf`).
+**Status:** Code complete on branch; verification PENDING per
+`curl-matrix-block-11.md`. Not yet pushed; not yet ff-merged to main.
+
+This is the first v1.2 block. PRD v1.2 §3 defines one capability
+addition (`aggregate_jira`) to fill the v1.1 gap where the agent
+refuses counting / grouping / cross-sprint questions that exceed
+`query_jira_issues`'s 50-row cap or that `get_jira_sprint_summary`'s
+status-category-only aggregation can't answer.
+
+**Commits on branch (in order):**
+
+| # | SHA | Subject | Mode |
+|---|---|---|---|
+| 1 | `7cc609c` | `docs(block-11): lock Block 11 design decisions A–P` | AUTO |
+| 2 | `41262d2` | `docs(block-11): refresh BUILD_PLAN.md — mark 9 + 10 shipped, add Block 11` | AUTO |
+| 3 | `b338885` | `feat(block-11): aggregate_jira DSL compiler module` | DEFAULT |
+| 3.1 | `6b6579b` | `fix(block-11): reject null scalar predicates in aggregate_jira compiler` | DEFAULT |
+| 4 | `3cf1e76` | `feat(block-11): register aggregate_jira tool + executor handler` | DEFAULT |
+| 5 | `4b972ba` | `feat(block-11): aggregate_jira system prompt update` | DEFAULT |
+| 6 | `fd8949c` | `docs(block-11): curl-matrix-block-11.md verification record` | AUTO |
+
+One fixup slot used (3.1, null-scalar predicate guard); one slot still
+reserved.
+
+**Files changed on branch:**
+
+- `BLOCK_11_PLAN.md` (new) — locked decisions A–P
+- `BUILD_PLAN.md` — Blocks 9 + 10 moved to Already Done section; Block 11 added; `Last updated` bumped to 2026-05-18
+- `functions/_lib/ai/aggregate_jira_compiler.js` (new, ~440 lines) — DSL validator + parameterized SQL compiler + `runAggregateJira` executor
+- `functions/_lib/ai/tools.js` — `aggregate_jira` tool definition added to `TOOL_DEFINITIONS`; executor case added; import from compiler module
+- `functions/_lib/ai/loop.js` — `SYSTEM_PROMPT` extended with the `aggregate_jira` section: three worked DSL examples (top-assignee-in-current-sprint, velocity-trend-3-closed-sprints, bug-count-comparison-by-assignee), the v1.2 not-supported list verbatim (cycle time / lead time / time-in-status / throughput-over-time / burndown / burnup / bottleneck detection / cross-project / free-text-in-aggregate / OR-predicates), and the `list_jira_sprints` → `aggregate_jira` chaining pointer with the "do NOT filter by sprint_name" rule. Also updates the Jira-tools mention to include `aggregate_jira`.
+- `curl-matrix-block-11.md` (new) — Phase A (3 cells, PASS at plan-write) + Phase B (8 cells, PENDING) + Phase C (6 cells, PENDING) + Phase D (4 cells, PENDING) + Phase E (6 cells, 3 PASS-by-inspection + 3 PENDING)
+
+**PRD v1.2 §3.4.1 addendum.** Landed in `~/Downloads/PRD_v1.2.md`
+during execute (Edit succeeded after second attempt with explicit
+approval in conversation). Promotes `labels[]` from prose treatment
+into a formal allowlist entry, granting compiler decision M the PRD
+authority it needs for US-2. To be moved into the repo when PRD v1.2
+itself lands.
+
+**Verification posture.**
+
+- **Phase A** (read-only schema + test-instance gates): all PASS
+  at plan-write time. View matches PRD §3.4; RAIN project has 1127
+  jira_issue rows, sprint 704 active with 64 issues, multi-assignee +
+  label-diverse.
+- **Phase B** (compiler unit): all PENDING. Run as Node REPL
+  invocations or via a temporary debug endpoint behind admin auth (not
+  shipped). 8 scenarios covering allowlist enforcement, project_id
+  rejection, limit clamping, ungrouped path, `labels[]` LATERAL,
+  `COUNT(*) OVER ()` inline.
+- **Phase C** (end-to-end agent): all PENDING. Run as chat sessions
+  in the RAIN project on preview. C1–C6 map to PRD §2.1 US-1 through
+  US-6. C1 is the screenshot regression case from this session
+  ("which assignee has the most tickets in the current active
+  sprint?") — should now return a ranked answer instead of "technical
+  issues."
+- **Phase D** (refusal + truncation): all PENDING. D1 (cycle-time
+  refusal) is load-bearing for decision K — verifies the LLM cites the
+  not-supported list verbatim rather than approximating from
+  `source_updated_at`.
+- **Phase E** (security + audit): E1–E3 PASS-by-inspection (validation
+  rejects adversarial column names, `where.project_id`, parenthesized
+  expressions before any SQL is built). E4 (LLM-generated adversarial
+  DSL via Slack prompt-injection), E5 (V6.1 trace shows DSL JSON), E6
+  (one Hyperdrive subrequest per call) PENDING — exercise on preview.
+
+**Next steps:**
+
+1. Push `block-11-aggregate-jira` to remote → preview deploy.
+2. Run Phase B unit scenarios (Node REPL or debug endpoint).
+3. Run Phase C–E live scenarios in preview against RAIN.
+4. Fill in `curl-matrix-block-11.md` verdict cells; if all PASS,
+   mark the matrix `STATUS: COMPLETE`.
+5. ff-merge `block-11-aggregate-jira` → local `main`.
+6. **Explicit per-push approval** for push to `main` per WORKFLOW
+   (no standing approval).
+
+**Carry-forward items (after Block 11 verifies):**
+
+- `aggregate_jira` allowlist drift risk — PRD §3.4 / §3.4.1 are
+  source-of-truth (decision N); compiler exports allowlists as
+  `ALLOWED_COLUMNS` / `ALLOWED_PROJECTIONS` / `ALLOWED_AGGREGATES` /
+  `ALLOWED_OPERATORS`. Future PRD edits to the allowlist must be
+  mirrored in the compiler; consider a CI assertion in v1.3.
+- Compiler test infra deferred — Phase B has no test file in v1.2.
+  Repeated regressions across blocks may justify adding Vitest or
+  similar in v1.3.
+- The PRD lives in `~/Downloads/`, not the repo. PRD v1.2 should be
+  moved into the repo when v1.2 closes (PRD v1.1 lives in repo as
+  `PRD.md`; v1.2 should land as a versioned successor).
+- Existing citation contract in `SYSTEM_PROMPT` still says "search
+  results returned by the search_project_data tool" specifically —
+  this is technically narrow for the Block 6 Jira tools and now for
+  `aggregate_jira` too. Untouched in Block 11 per decision L
+  (Block 11 adds, doesn't modify). If model behavior shows confusion
+  about citing Jira-tool results, broaden the contract in a fixup or
+  Block 12.
+- `aggregate_jira` system prompt section is ~60 lines of additional
+  prompt context per agent call. Token-cost amortization is
+  acceptable for v1.2; if cost-cap pressure rises, consider lazy
+  injection (include the Jira aggregation block only when Jira is in
+  `{{AVAILABLE_SOURCES}}`).
+- Reserved fixup slot still available for any post-verification
+  correctness fix.
+
+**Production state unchanged**: still `c1048d8` on `elinnoagent.com`.
+Block 11 is branch-only until preview verify + ff-merge + push.
