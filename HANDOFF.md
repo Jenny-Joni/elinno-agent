@@ -3844,3 +3844,96 @@ the chat composer when `aiPausedUntilMs` is in the future, with input
 (Blocks 7-8 deferred to v1.2). Production at `e58874a` on
 `elinnoagent.com`. Next: v1.2 planning per the backlog above, in
 its own fresh session.
+
+## v1.1 first second-project walkthrough — 2026-05-18
+
+First real second-project on production after v1.1 SHIPPED. Operational
+session, no code changes. Project created by Jenny earlier in the day;
+this session was retrospective verification + Block 9-10 surface check
+on a brand-new project under live use.
+
+**Project metadata:**
+- `id`: `792f2b13-1411-493b-a887-a824ad847a83`
+- `name`: Joni
+- `created_at`: 2026-05-18 09:05:08 UTC
+- Members: `jenny@elinnovation.net` (admin, joined as creator) +
+  `oded@elinnovation.net` (member, invited same day)
+- Connector: Jira "Joni Team (SCRUM)" (Slack deliberately skipped this
+  session)
+
+**Session format — one-session browser-driving carve-out.** Per
+WORKFLOW.md re-lock rules (line 331: "expanding what Claude Code drives
+in the browser"), production Chrome driving is normally a re-lock
+trigger. Jenny opted into a narrowed **option 2** for this session:
+Claude drove non-credential surfaces (tab clicks, screenshots,
+accessibility-tree reads, DOM inspection on the Joni project page) via
+the Claude in Chrome MCP extension; **Jenny owned every keystroke
+involving the Jira API token** (form fills happened in her own browser
+tab, not under Claude's control). No re-lock to WORKFLOW.md is implied
+by this — option 2 was scoped to this session only. If browser-driving
+returns regularly, that's the trigger to actually re-lock WORKFLOW.md
+with the carve-out scope codified.
+
+**Verification tally on Joni (post-v1.1 surfaces):**
+
+| Surface | Block | Result |
+|---|---|---|
+| Project create + defaults (`ai_monthly_cap_usd=50.00`, `ai_cap_warned_at=NULL`) | 2 + 10.2 | ✓ PASS |
+| Jira connect + project picker | 6 + 10.4 | ✓ PASS |
+| Initial full sync (348 records, 1m 9s, no errors) | 5 + 10.5 | ✓ PASS |
+| Chat with citations + 18-message conversation | 5 + 9 | ✓ PASS |
+| ↻ Refresh & re-ask button visible on cited assistant msg | 10.1 | ✓ rendered (not clicked) |
+| Tool-trace badge ("1 tool call", "2 tool calls") on assistant msg | 10.6 | ✓ rendered (not expanded) |
+| Citation freshness pill ("Joni 2.0 (Multi-agents) · 7 days ago") | 9 | ✓ PASS |
+| AI-paused banner correctly absent | 10.2 | ✓ PASS |
+| Members admin/member roles | 2 | ✓ PASS |
+| Per-turn `cost_usd` persistence (math verified against pricing.js) | 10.2 | ✓ PASS — exact match on 3 spot-checks |
+
+**Cost-persist math spot-check** (3 of 7 assistant rows, formula
+`(input*3 + output*15) / 1e6` for `anthropic/claude-sonnet-4-5`):
+
+| input_tokens | output_tokens | Expected | Stored `cost_usd` |
+|---|---|---|---|
+| 3096 | 93 | 0.010683 | 0.010683 ✓ |
+| 2963 | 93 | 0.010284 | 0.010284 ✓ |
+| 2368 | 87 | 0.008409 | 0.008409 ✓ |
+
+Total spend on Joni this session ≈ **$0.067 / $50** monthly cap
+(~0.13% used). `tool` and `user` rows correctly null on `cost_usd` /
+tokens (cost lives on the assistant LLM call).
+
+**Closed carry-forward:**
+- **V2.1 (one-message smoke confirming cost persistence)** — done. Math
+  matches exactly across 7 assistant turns. Block 10.2 cost-persist
+  pipeline verified end-to-end on production.
+
+**Carry-forwards still open from v1.1 SHIPPED closeout** (this session
+covered only V2.1; V1.6 / V1.7 / V1.1 / V1.2 / V5.4 / V6.1 / V6.3 /
+V6.4 / V4-4 / V4-5 / V4-6 still pending, plus item 5 cost-cap staged
+exercise and the v1.2 backlog).
+
+**Tiny things flagged, not bugs:**
+
+1. **Sync-row timestamp rounding.** Connection-card header says "last
+   sync 1 hour ago"; activity drawer row says "2 hours ago". Likely
+   bucket-rounding of a ~1.5h-old run (header rounds down, row rounds
+   up — or vice versa). Not a real drift, but the two surfaces use
+   slightly different bucketing — worth picking one convention if
+   bothered. Not on any backlog.
+
+2. **`wrangler pages deployment tail` non-interactive invocation.**
+   Wrangler 4.92.0 rejects the project-name-only positional form
+   (`Must specify a deployment in non-interactive mode`) — requires
+   both `--project-name=` and a specific deployment ID. Old invocation
+   pattern in shell habits no longer works without changes. Minor; if
+   anything references the old form in scripts, refresh it. Not
+   load-bearing for any block.
+
+**Net result.** v1.1's create-project + first-connector + first-chat
+flow all work cleanly end-to-end on a freshly-created production
+project. No regressions in Block 9-10 surfaces. The two flags above are
+cosmetic.
+
+**Production state unchanged**: `c1048d8` on `elinnoagent.com`
+(v1.1 SHIPPED tip + 10.6 trace-render hotfix). No code or config
+changes this session.
