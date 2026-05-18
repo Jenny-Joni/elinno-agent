@@ -114,27 +114,27 @@ Run against `https://elinnoagent.com` in the RAIN project as logged-in admin. Ea
 
 **C1 — US-1 "Who has the most tickets in the current active sprint?"**
 *Expected:* agent (1) calls `list_jira_sprints({state:'active'})` → gets active sprint id; (2) calls `aggregate_jira` with `select:['assignee_display_name','COUNT(*)']`, `where:{sprint_id:<id>}`, `group_by:['assignee_display_name']`, `order_by:[{field:'count',dir:'desc'}]`; (3) cites the active sprint by name; (4) returns a ranked list of assignees with counts that match what's in Jira. Numbers come from the tool, not the model.
-*Verdict:* **PENDING**
+*Verdict:* **PASS** — verified 2026-05-18 on preview `block-11-aggregate-jira.elinno-agent.pages.dev` against RAIN. Agent answer: "In the current active sprint (RAIN Sprint 12), there's a tie for the most tickets: both Saifullah Omar and Tamar Gelbart each have 16 tickets assigned to them. Following them are usama shafique with 14 tickets and Zulkefal with 12 tickets." Cites Sprint 12. Counts sum to 58 of 64 sprint issues (rest are unassigned or lower-rank not shown). Direct regression-fix of the production screenshot scenario from this session.
 
 **C2 — US-2 "Which labels appear most on tickets in the current sprint?"**
 *Expected:* agent calls `aggregate_jira` with `select:['labels[]','COUNT(*)']`, `group_by:['labels[]']`, `order_by:[{field:'count',dir:'desc'}]`, optionally `where:{sprint_id:<id>}`. Response lists labels and counts; uses M (LATERAL).
-*Verdict:* **PENDING**
+*Verdict:* **PASS-with-caveat** — verified 2026-05-18 on preview. Agent answer: "Based on the aggregation results, there are no labels currently applied to tickets in the active sprint (RAIN Sprint 12). All tickets in this sprint appear to be unlabeled." Decision M validated (LATERAL projection executes without error, zero-row result handled gracefully, no fabrication). Caveat: Sprint 12 happens to have unlabeled tickets, so a non-empty label distribution wasn't exercised; for label-distribution coverage, run a label-heavy sprint or a project-wide labels question.
 
 **C3 — US-3 "What's our velocity over the last 3 closed sprints?"**
 *Expected:* agent chains `list_jira_sprints({state:'closed'})` → `aggregate_jira` with `select:['sprint_name','SUM(story_points)']`, `where:{sprint_id:{in:[...]},status_category:'done'}`, `group_by:['sprint_name']`, `order_by` chronological. Three rows in time order. Agent does NOT filter by `sprint_name` (decision C).
-*Verdict:* **PENDING**
+*Verdict:* **PASS-with-deviation** — verified 2026-05-18. Agent chose `get_jira_sprint_summary` x3 instead of the `aggregate_jira` chain shown in the system-prompt example. Output correct (3 sprints in recency order with story-point totals); decision L (retained tools still authoritative for their shape) covers this fallback. Story points = 0 across all three sprints because RAIN's tickets have null `story_points` — honest reporting, not fabrication. Mark for system-prompt tuning if forcing the chain path matters; the answer is correct.
 
 **C4 — US-4 "How many bugs were closed last sprint vs this one?"**
 *Expected:* same chain shape as C3, with `where.issue_type:'Bug'` and `status_category:'done'`. Two rows. Agent frames as comparison, not list.
-*Verdict:* **PENDING**
+*Verdict:* **PASS** — verified 2026-05-18. "Sprint 10 had significantly more bugs closed than Sprint 11: RAIN Sprint 11: 105 bugs closed; RAIN Sprint 10: 172 bugs closed. That's a difference of 67 fewer bugs closed in Sprint 11 compared to Sprint 10." Comparison framing per acceptance.
 
 **C5 — US-5 "Compare Alice's workload to Bob's this sprint."** (substitute real names from RAIN)
 *Expected:* `aggregate_jira` with `where:{assignee_display_name:{in:['Alice','Bob']}, sprint_id:<active>}`, `select:['assignee_display_name','COUNT(*)','SUM(story_points)']`, `group_by:['assignee_display_name']`. Side-by-side framing; if a name doesn't resolve, agent says so rather than silently dropping.
-*Verdict:* **PENDING**
+*Verdict:* **PASS** — verified 2026-05-18 with Saifullah Omar vs Tamar Gelbart. Agent went beyond the headline tie (both at 16 tickets) and broke down by `issue_type` (Sub-tasks vs Tasks) and `status_category` (in-progress vs new). Multiple `aggregate_jira` calls combined narratively. Strong DSL flexibility exercise.
 
 **C6 — US-6 "Show me unresolved high-priority bugs, oldest first."**
 *Expected:* agent routes to `query_jira_issues` (not `aggregate_jira`) — this is an ungrouped detail lookup. Filters: `priority:'High'`, `status_category` ∈ {new, indeterminate}, `issue_type:'Bug'`, ordered by `source_created_at` asc. Verifies decision L: existing tools unchanged and still authoritative for their shape.
-*Verdict:* **PENDING**
+*Verdict:* **FAIL — investigation pending** — verified 2026-05-18, failed in both the long-context conversation and a fresh conversation. Agent reported "experiencing technical difficulties connecting to the Jira data right now. The connection to the database appears to be down." Hyperdrive was healthy (C1–C5 + D1 succeeded in the same session). **Hypothesis:** the model chose `aggregate_jira` despite the system-prompt guidance toward `query_jira_issues` for ungrouped lookups, hit the compiler's overly-strict `parseOrderBy` (requires `order_by.field` to match a select-item alias, but the natural DSL has `order_by: [{field:'source_created_at', dir:'asc'}]` while select is `['issue_key','title','source_url']`), received an `order_by_item_invalid` envelope, failed to self-correct, fell back to a generic "connection issues" refusal. **Fix candidate:** loosen `parseOrderBy` to accept any allowlisted column in addition to select-item aliases. PRD §3.3 doesn't constrain `order_by.field` to select aliases — that restriction was added in the compiler. For grouped queries, postgres will still error naturally if `order_by` references a non-select / non-`group_by` column. Re-verify after the loosening commit lands.
 
 ---
 
@@ -142,7 +142,7 @@ Run against `https://elinnoagent.com` in the RAIN project as logged-in admin. Ea
 
 **D1 — US-7 "What's our average cycle time for stories?"**
 *Expected:* agent refuses with explicit reference to the not-supported list ("Cycle time isn't tracked yet — I don't have status transition history for tickets, only the most recent update time..."). Does NOT call `aggregate_jira`, does NOT compute from `source_updated_at - source_created_at`.
-*Verdict:* **PENDING** (critical — load-bearing for decision K).
+*Verdict:* **PASS** — verified 2026-05-18 in fresh conversation. Agent answer: "Cycle time isn't tracked yet — I don't have status transition history for tickets, only the most recent update time, which doesn't tell me when something moved to Done. To calculate cycle time accurately, I would need the timestamps of when each Story ticket transitioned between statuses (like from 'In Progress' to 'Done'), but that historical data isn't available in the current system." Decision K validated: locked refusal text used verbatim shape; no `source_updated_at` approximation. Most load-bearing single scenario in Phase D — PASS.
 
 **D2 — US-8 "How many bugs across all my projects?"**
 *Expected:* agent answers for the active project only and adds a scope note ("This is for [RAIN]. Cross-project rollups are deferred."). Verifies decision F at the agent layer; even if the LLM tried to escape, the server-injected `project_id` blocks it at the SQL layer.
