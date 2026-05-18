@@ -7,7 +7,7 @@
 | Document | Build Plan v1.2 |
 | Companion to | PRD v1.2, HANDOFF.md |
 | For | Solo build with Cursor + Claude |
-| Last updated | 2026-05-11 |
+| Last updated | 2026-05-18 |
 
 ---
 
@@ -26,6 +26,7 @@ Don't work on everything at once. The right order matters more than the speed. E
 - D1 database for users/sessions.
 - Resend for emails.
 - **Blocks 1–6 shipped (database, project shell, connector framework, Slack connector, AI loop, Jira connector). See HANDOFF.md for closeout SHAs and verification posture per block.**
+- **Blocks 9 + 10 shipped — v1.1 launch polish (connection management UI, "data as of" timestamps, nightly cron, `records_skipped` accounting, refresh-and-ask-again, cost caps, daily limits, sweep-path batching, tool-call trace viewer). See HANDOFF.md closeouts at the Block 9.5, Block 10 kickoff, and Block 10.3–10.6 sections (2026-05-11 through 2026-05-17); v1.1 SHIPPED marker at git `30b25b6`.**
 
 Everything below builds on top of this. Don't touch the auth code unless you have a reason.
 
@@ -142,7 +143,9 @@ Each block is one focused chunk. Finish it, deploy it, see it work, then move on
 
 ---
 
-### Block 9 — Polish: launch-blocking
+### Block 9 — Polish: launch-blocking · ✅ SHIPPED
+
+*Shipped 2026-05-11 → 2026-05-14 across Blocks 9.0 + 9.5 (v1 + v2). See HANDOFF.md closeout sections at lines 2397, 2542, 2714. Task list retained below as reference for v1.2+ work that builds on these surfaces.*
 
 *Why now: the product works end-to-end with Slack + Jira. This block holds only what's required to onboard a non-Jenny user. Block 10 picks up the rest of the polish surface.*
 
@@ -158,7 +161,9 @@ Each block is one focused chunk. Finish it, deploy it, see it work, then move on
 
 ---
 
-### Block 10 — Polish: nice-to-have
+### Block 10 — Polish: nice-to-have · ✅ SHIPPED
+
+*Shipped 2026-05-17 across slots 10.1–10.6. v1.1 SHIPPED marker at git `30b25b6`. See HANDOFF.md closeout sections at lines 3086, 3265, 3374, 3522. Task list retained below as reference.*
 
 *Why split off from Block 9: these tasks improve the product but don't block launching to a non-Jenny user. Sequence after Block 9 ships.*
 
@@ -172,6 +177,22 @@ Each block is one focused chunk. Finish it, deploy it, see it work, then move on
 6. **Tool-call trace viewer** — surface the per-tool errors that Block 6's `f7fc540` started persisting as `tool_result` payloads (per HANDOFF Block 6 carry-forward queue).
 
 **Done when:** Cost caps + message limits guard infrastructure; "refresh and ask again" works end-to-end; the connector guide reads cleanly enough that v1.2's Monday + Drive scaffolds can be driven from it.
+
+---
+
+### Block 11 — `aggregate_jira` capability · v1.2 kickoff
+
+*Why this opens v1.2: v1.1 shipped read-only Slack + Jira and the agent loop. The agent is bad at counting / grouping / cross-sprint questions over Jira — `query_jira_issues` is capped at 50 and `get_jira_sprint_summary` only aggregates by status_category. PRD v1.2 §3 defines one capability addition (`aggregate_jira`) to fill that gap. Locked decisions in BLOCK_11_PLAN.md (A–P).*
+
+**Tasks (in order):**
+
+1. **Pre-flight:** confirm `jira_issues` view satisfies PRD §3.4 column allowlist (verified at plan-write time; no migration needed). PRD §3.4.1 addendum must land in the PRD before commit 3.
+2. **DSL compiler** at `functions/_lib/ai/aggregate_jira_compiler.js` — allowlist validator, parameterized SQL compiler, server-side `project_id` injection, `LATERAL jsonb_array_elements_text` for `labels[]`, `COUNT(*) OVER ()` for `total_groups`, structured validation-error envelope (per BLOCK_11_PLAN.md decision G).
+3. **Tool registration** in `functions/_lib/ai/tools.js` — add `aggregate_jira` to `TOOL_DEFINITIONS`; executor calls the compiler. Existing three Jira tools unchanged (decision L).
+4. **System prompt update** — tool description with three worked examples, §3.10 not-supported list verbatim, chained `list_jira_sprints` → `aggregate_jira.where.sprint_id.in` pointer with the no-`sprint_name`-filter rule (decision K).
+5. **Verification:** `curl-matrix-block-11.md` with Phase A–E scenarios mapping to PRD §2.1 (US-1 through US-6), §2.2 (US-7, US-8 refusal), §2.3 (US-9, US-10 truncation), §2.5 (US-15 adversarial DSL).
+
+**Done when:** PRD §2.1 questions US-1 through US-6 each return correct, cited answers in production against the RAIN project; US-7's cycle-time question returns the locked refusal text rather than approximating from `source_updated_at`; adversarial DSL fails closed at validation.
 
 ---
 
@@ -221,13 +242,13 @@ Each block is one focused chunk. Finish it, deploy it, see it work, then move on
 
 ## Right Now: Your Next Task
 
-Blocks 1–6 are shipped (HANDOFF for SHAs and verification posture). Blocks 7 + 8 deferred to v1.2 (PRD §11.2). Block 9 is the launch-blocking polish layer.
+Blocks 1–6 + 9 + 10 are shipped (HANDOFF for SHAs and verification posture; v1.1 SHIPPED at git `30b25b6`). Blocks 7 + 8 (Monday + Drive) parked for v2.0 per PRD v1.2 §6. Block 11 (`aggregate_jira`) opens v1.2.
 
-1. Open a fresh plan-mode session with topic **"Draft BLOCK_9_PLAN.md"** — same Phase 1–3 shape Block 6 used.
-2. Lock the five Block 9 sub-tasks (connection management UI, data-as-of timestamp, suggested example questions, nightly cron, `records_skipped` accounting) into BLOCK_9_PLAN.md as a single artifact before any code edits.
-3. Execute one sub-task per session, branch → preview → ff-merge → push, per WORKFLOW.
+1. BLOCK_11_PLAN.md is locked at the repo root with decisions A–P.
+2. Execute commits 3–7 per the commit ordering table in BLOCK_11_PLAN.md, branch → preview → ff-merge → push, per WORKFLOW.
+3. PRD addendum §3.4.1 must land in `~/Downloads/PRD_v1.2.md` before commit 3 (the compiler). Proposed text is in BLOCK_11_PLAN.md §10 pre-commit-3 dependency note.
 
-That's the next thing. Block 10 follows once Block 9 is at "non-Jenny user can onboard."
+That's the next thing. Block 12 scope is set when Block 11 ships and PRD v1.3 is drafted against PRD v1.2 §6 deferred items.
 
 ---
 
