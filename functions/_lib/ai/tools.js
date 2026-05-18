@@ -41,6 +41,7 @@
 // =========================================================================
 
 import { searchHybrid } from './search.js';
+import { runAggregateJira } from './aggregate_jira_compiler.js';
 
 const TOOL_RESULT_LIMIT = 10;
 const TOOL_RESULT_TEXT_TRIM = 600;
@@ -194,6 +195,84 @@ export const TOOL_DEFINITIONS = [
       required: ['sprint_id'],
     },
   },
+  {
+    name: 'aggregate_jira',
+    description:
+      'Run a count / sum / group-by aggregation over Jira issue data. ' +
+      'Submit a DSL of { select, where?, group_by?, order_by?, limit? }. ' +
+      'Use for questions like "who has the most tickets in current sprint", ' +
+      '"velocity over last 3 sprints", "compare Alice vs Bob workload", ' +
+      '"which labels appear most". For an ungrouped list of individual issues ' +
+      '(e.g. "show me high-priority bugs, oldest first"), use query_jira_issues. ' +
+      'For free-text content questions, use search_project_data. ' +
+      'See the system prompt for worked examples, the v1.2 not-supported list ' +
+      '(cycle time, throughput-over-time, etc.), and chaining guidance with ' +
+      'list_jira_sprints. Errors return a structured envelope ' +
+      '({ ok: false, error, code, field, allowed }) — read it and revise the DSL.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        select: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Required. Column names, the "labels[]" projection (only when paired ' +
+            'with group_by:["labels[]"]), or aggregate expressions: COUNT(*), ' +
+            'COUNT(column), COUNT(DISTINCT column), SUM(column), AVG(column), ' +
+            'MIN(column), MAX(column). SUM and AVG only on story_points.',
+        },
+        where: {
+          type: 'object',
+          description:
+            'Optional. Map of column → predicate. Scalar value means equality. ' +
+            'Operator forms: { eq: v }, { neq: v }, { gt: v }, { gte: v }, ' +
+            '{ lt: v }, { lte: v }, { in: [...] }, { is_null: true }, ' +
+            '{ is_not_null: true }. For labels (JSONB array), only ' +
+            '{ contains: "value" } is allowed. Compound predicates across columns ' +
+            'are implicit AND; OR is not supported in v1.2. Do not pass ' +
+            'project_id — it is server-injected.',
+        },
+        group_by: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Optional. Column names or "labels[]" to expand the labels array via ' +
+            'LATERAL jsonb_array_elements_text. When group_by is non-empty, every ' +
+            'non-aggregate select item must also appear in group_by.',
+        },
+        order_by: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              field: { type: 'string' },
+              dir: { type: 'string', enum: ['asc', 'desc'] },
+            },
+            required: ['field', 'dir'],
+          },
+          description:
+            'Optional. field must match a select-item alias: the column name for ' +
+            'column items, "count" for COUNT(*), "sum_story_points" / ' +
+            '"avg_story_points" / "min_story_points" / "max_story_points" for ' +
+            'numeric aggregates, "count_column" / "count_distinct_column" for ' +
+            'count aggregates, "label_value" for labels[] projection.',
+        },
+        limit: {
+          type: 'integer',
+          description:
+            'Optional. Capped server-side at 500 (grouped) or 50 (ungrouped); ' +
+            'clamp is silent. total_groups in the response tells you whether ' +
+            'truncation occurred.',
+        },
+        project_id: {
+          type: 'string',
+          description:
+            'Ignored — server substitutes from URL context. Do not pass.',
+        },
+      },
+      required: ['select'],
+    },
+  },
 ];
 
 const KNOWN_TOOL_NAMES = new Set(TOOL_DEFINITIONS.map((d) => d.name));
@@ -280,6 +359,9 @@ export async function executeTool(env, sql, urlContext, toolUse) {
         break;
       case 'get_jira_sprint_summary':
         resultPayload = await runGetJiraSprintSummary(sql, projectId, input);
+        break;
+      case 'aggregate_jira':
+        resultPayload = await runAggregateJira(sql, projectId, input);
         break;
       default:
         // KNOWN_TOOL_NAMES gate above prevents this; defensive only.
