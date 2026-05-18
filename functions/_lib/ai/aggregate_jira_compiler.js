@@ -173,8 +173,19 @@ function parseWhereForColumn(col, raw, paramOffset, params) {
     return { ok: false, code: 'project_id_forbidden', field: 'where.project_id' };
   }
 
+  // Reject null scalars — `col = NULL` is always false in SQL and would
+  // silently match nothing. Force the LLM to use the unary `is_null` op.
+  if (raw === null) {
+    return {
+      ok: false,
+      code: 'predicate_value_invalid',
+      field: `where.${col}`,
+      allowed: 'use { is_null: true } or { is_not_null: true } to check NULL state',
+    };
+  }
+
   // Scalar form → eq (forbidden for labels — JSONB array requires contains)
-  if (raw === null || typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
+  if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
     if (col === LABELS_COLUMN) {
       return { ok: false, code: 'operator_not_allowlisted_for_labels', field: `where.${col}`, allowed: ['contains'] };
     }
