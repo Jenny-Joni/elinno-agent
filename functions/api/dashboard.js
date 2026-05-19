@@ -268,8 +268,13 @@ export async function onRequestGet({ request, env }) {
       cross_project_chats: crossProjectChats,
       projects: projectRows,
     });
-  } catch (_err) {
-    return error('Internal error', 500);
+  } catch (err) {
+    // Block 12.3 preview-debugging: surface the actual error so we can
+    // diagnose without wrangler tail. REVERT before pushing 12.3 to main.
+    return error('Internal error', 500, {
+      _debug_message: String(err && err.message ? err.message : err).slice(0, 500),
+      _debug_stack: String(err && err.stack ? err.stack : '').slice(0, 800),
+    });
   } finally {
     try {
       await sql.end({ timeout: 5 });
