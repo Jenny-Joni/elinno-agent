@@ -4409,3 +4409,47 @@ ordering per the workflow lesson in the prior section.
 `elinnoagent.com`. Sub-block 12.2 is next: 9 additive components in
 `auth.css` per BLOCK_12_PLAN §6.12.2 + PRD §7.3. Purely additive
 CSS, no HTML changes — lowest-risk sub-block in the v1.3 sequence.
+
+---
+
+## Block 12.2 verified on preview — 2026-05-19 (awaiting ff-merge)
+
+**Branch state**: `claude/gifted-sanderson-a7e060`, 1 commit ahead of
+`origin/main` (`3bba1a0`).
+**Preview deploy**: `https://098107d0.elinno-agent.pages.dev/`
+**Gallery**: `https://098107d0.elinno-agent.pages.dev/_dev/components.html`
+**Production**: `f13ee81` (Block 12.1) — unchanged until ff-merge.
+
+What landed in `3bba1a0`:
+- 9 new components in `public/auth.css` (+451 lines, appended in
+  labeled "Block 12.2" section near the end): cross-project-chat-card
+  (.live/.locked-v2), label-pill, source-chip (.muted), scope-summary,
+  spend-bar (.healthy/.warning/.exceeded/.slim/.thin),
+  citation-chip-prefix, tool-trace-badge, paused-banner, picker-row
+  (.selected). Plus status-pill (.live/.v2) helper.
+- 2 §7.4 component splits: `.project-card.data` (lighter v1.3 dashboard
+  variant; existing `.marketing` pattern unchanged), `.app-heading`
+  (20-24px authed-page heading, coexists with 45px `.section-heading`).
+- New token `--color-warning-border: rgba(255, 193, 61, 0.40)` — the
+  mockup `_app.css` omitted it; needed by `.paused-banner`.
+- New dev gallery at `public/_dev/components.html` (~330 lines) renders
+  every component in isolation for eyes-on diff against the mockups.
+  Removed in v1.3.1 cleanup.
+
+**Verification verdicts** (full detail in `curl-matrix-block-12.2.md`):
+
+All 13 component-render cells (A1-A13) PASS by eyes-on Chrome diff
+against the v1.3 mockups in `~/Downloads/mockups_v1_3/`. v1.2 surfaces
+unaffected (B1-B4 PASS / PASS-by-inspection).
+
+**One small carry-forward:** `.spend-bar` lacks a `.brand` variant for
+"in-progress but not urgent" sprints. The Joni picker-row example uses
+inline `background:var(--color-brand)` override. When 12.5b wires the
+picker for real, add a `.spend-bar.brand` variant for consistency.
+
+**Pending Jenny actions:** `approve push to main` → ff-merge → CF
+auto-deploy. No schema, no DDL, no DB re-drop, no smoke-test risk —
+purely additive CSS + a new internal gallery page.
+
+**Production state**: `f13ee81` on `elinnoagent.com`.
+Block 12.2 is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
