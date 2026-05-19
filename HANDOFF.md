@@ -4453,3 +4453,19 @@ purely additive CSS + a new internal gallery page.
 
 **Production state**: `f13ee81` on `elinnoagent.com`.
 Block 12.2 is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
+
+---
+
+## Block 12.2 SHIPPED to main — 2026-05-19
+
+**Production state:** `0975d00` on `elinnoagent.com` (was `f13ee81`).
+Fast-forward merge `f13ee81..0975d00` (2 commits: `3bba1a0` feat +
+`0975d00` docs). Cloudflare auto-built; gallery confirmed live at
+`https://elinnoagent.com/_dev/components.html`.
+
+Zero behavior change in production. Components are dormant until
+12.3-12.6 reference them. No schema, no DDL, no smoke-test risk.
+All 13 verification cells PASS (curl-matrix-block-12.2.md).
+
+**Block 12.2 is SHIPPED.** Sub-block 12.3 (Dashboard rebuild —
+mockup (a) wired to live data) is next, per BLOCK_12_PLAN §6.12.3.
