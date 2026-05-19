@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>v1.3 Components — Elinno Agent dev gallery</title>
+<link rel="stylesheet" href="/auth.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+<style>
+  /* Gallery-only styling — not committed to auth.css. */
+  body { background: var(--color-bg-soft); padding: 0; }
+  .gallery-shell { max-width: 960px; margin: 0 auto; padding: 32px 20px; }
+  .gallery-intro {
+    background: var(--color-bg-light);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .gallery-intro h1 { margin: 0 0 8px; font-size: 22px; }
+  .gallery-intro p { margin: 0; font-size: 13px; color: var(--color-text-body); line-height: 1.5; max-width: 640px; }
+  .gallery-intro code { background: var(--color-bg-soft); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  .gallery-section {
+    background: var(--color-bg-light);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 16px;
+  }
+  .gallery-section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-brand);
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  .gallery-section-name {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 16px;
+    font-family: var(--font-medium, sans-serif);
+  }
+  .gallery-section-name code { font-size: 14px; color: var(--color-text-body); font-weight: 500; }
+  .gallery-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .gallery-row:last-child { margin-bottom: 0; }
+  .gallery-row > .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    font-weight: 600;
+    min-width: 90px;
+  }
+  .gallery-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .gallery-card-frame {
+    background: var(--color-bg-soft);
+    padding: 14px;
+    border-radius: 8px;
+    border: 1px dashed var(--color-border);
+  }
+  .gallery-mockup-link {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    margin-top: 8px;
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<div class="gallery-shell">
+
+  <div class="gallery-intro">
+    <h1>v1.3 — Block 12.2 component gallery</h1>
+    <p>Internal verification surface for the 9 new components added in <code>public/auth.css</code> per PRD §7.3, plus the two existing-component splits per §7.4. Each section renders the component in isolation for eyes-on visual diff against the mockups in <code>~/Downloads/mockups_v1_3/</code>. This page is at <code>/_dev/components.html</code> on production for the duration of v1.3; removed in the v1.3.1 cleanup.</p>
+  </div>
+
+  <!-- ============================== §7.4 splits =============================== -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.4 split</div>
+    <div class="gallery-section-name"><code>.project-card.data</code> + <code>.project-card.marketing</code></div>
+    <div class="gallery-grid-2">
+      <div class="project-card data">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:34px;height:34px;border-radius:8px;background:var(--color-brand-tint);color:var(--color-brand);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;">R</div>
+          <div>
+            <div style="font-size:14px;font-weight:500;">Rain</div>
+            <div style="font-size:10px;color:var(--color-text-muted);">.project-card.data — lighter v1.3 dashboard variant</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--color-text-body);">Subtle hover, thinner border, 18px padding.</div>
+      </div>
+      <div class="gallery-card-frame" style="display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--color-text-muted);">
+        <code>.project-card.marketing</code> = existing v1.2 heavy pattern (unchanged)
+      </div>
+    </div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.4 split</div>
+    <div class="gallery-section-name"><code>.app-heading</code> at 20–24px (vs. <code>.section-heading</code> 45px)</div>
+    <h2 class="app-heading">Your <strong>cross-project chats</strong></h2>
+    <h2 class="app-heading large">Workspace <strong>settings</strong></h2>
+    <h2 class="app-heading small">Active <strong>connections</strong></h2>
+  </div>
+
+  <!-- ============================== §7.3 (2) label-pill ============================== -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.3 (2)</div>
+    <div class="gallery-section-name"><code>.label-pill</code></div>
+    <div class="gallery-row">
+      <span class="label">Variants</span>
+      <span class="label-pill">Product</span>
+      <span class="label-pill">Finance</span>
+      <span class="label-pill">Workspace admin</span>
+    </div>
+    <div class="gallery-mockup-link">Used in mockups (b), (c), (d), (e), (h)</div>
+  </div>
+
+  <!-- ============================== §7.3 (3) source-chip ============================== -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.3 (3)</div>
+    <div class="gallery-section-name"><code>.source-chip</code></div>
+    <div class="gallery-row">
+      <span class="label">Active</span>
+      <span class="source-chip">
+        <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z" opacity="0.7"/></svg>
+        Jira
+      </span>
+      <span class="source-chip">
+        <svg width="14" height="14" viewBox="0 0 24 24"><g><path fill="#E01E5A" d="M5 14.5a2 2 0 1 1 2 2H5v-2z"/><path fill="#E01E5A" d="M6 14.5a2 2 0 1 1 4 0v5a2 2 0 1 1-4 0z"/><path fill="#36C5F0" d="M9.5 5a2 2 0 1 1-2 2V5z"/><path fill="#36C5F0" d="M9.5 6a2 2 0 1 1 0 4h-5a2 2 0 0 1 0-4z"/><path fill="#2EB67D" d="M19 9.5a2 2 0 1 1-2-2h2z"/><path fill="#2EB67D" d="M18 9.5a2 2 0 1 1-4 0v-5a2 2 0 1 1 4 0z"/><path fill="#ECB22E" d="M14.5 19a2 2 0 1 1 2-2v2z"/><path fill="#ECB22E" d="M14.5 18a2 2 0 1 1 0-4h5a2 2 0 1 1 0 4z"/></g></svg>
+        Slack
+      </span>
+    </div>
+    <div class="gallery-row">
+      <span class="label">Muted</span>
+      <span class="source-chip muted">
+        <svg width="14" height="14" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4" fill="#FF3D57"/><circle cx="12" cy="12" r="2.4" fill="#FFCB00"/><circle cx="18" cy="12" r="2.4" fill="#00CA72"/></svg>
+        Monday
+      </span>
+    </div>
+    <div class="gallery-mockup-link">Used in mockups (b), (c), (d), (e), (h)</div>
+  </div>
+
+  <!-- ============================== §7.3 (4) scope-summary ============================== -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.3 (4)</div>
+    <div class="gallery-section-name"><code>.scope-summary</code></div>
+    <div class="gallery-row">
+      <span class="label">All</span>
+      <span class="scope-summary">
+        <i class="ti ti-folders"></i>
+        <span><strong>2 of 2</strong> · Rain, Joni</span>
+      </span>
+    </div>
+    <div class="gallery-row">
+      <span class="label">Subset</span>
+      <span class="scope-summary">
+        <i class="ti ti-folders"></i>
+        <span><strong>3 of 4</strong> · Rain, Joni, Gems Trade</span>
+      </span>
+    </div>
+    <div class="gallery-mockup-link">Used in mockups (a), (b), (d), (e), (h)</div>
+  </div>
+
+  <!-- ============================== §7.3 (5) spend-bar ============================== -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.3 (5)</div>
+    <div class="gallery-section-name"><code>.spend-bar</code> with healthy / warning / exceeded</div>
+    <div class="gallery-row" style="flex-direction:column;align-items:stretch;gap:14px;">
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;">
+          <span>$0.18 / $20</span>
+          <span style="color:var(--color-success);">1% — healthy</span>
+        </div>
+        <div class="spend-bar healthy">
+          <div class="spend-bar-track">
+            <div class="spend-bar-fill" style="width:1%;"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;">
+          <span>$16.00 / $20</span>
+          <span style="color:var(--color-warning);">80% — warning</span>
+        </div>
+        <div class="spend-bar warning">
+          <div class="spend-bar-track">
+            <div class="spend-bar-fill" style="width:80%;"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;">
+          <span>$20.00 / $20</span>
+          <span style="color:var(--color-danger);">100% — exceeded</span>
+        </div>
+        <div class="spend-bar exceeded">
+          <div class="spend-bar-track">
+            <div class="spend-bar-fill" style="width:100%;"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Slim variant (project settings)</div>
+        <div class="spend-bar healthy slim">
+          <div class="spend-bar-track">
+            <div class="spend-bar-fill" style="width:17%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="gallery-mockup-link">Used in mockups (f) and (i.1)</div>
+  </div>
+
+  <!-- ============================== §7.3 (6) citation-chip-prefix ============================== -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.3 (6)</div>
+    <div class="gallery-section-name"><code>.citation-chip-prefix</code></div>
+    <div class="gallery-row">
+      <span class="label">In chip</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;background:var(--color-bg-soft);border:1px solid var(--color-border);border-radius:8px;padding:8px 12px;font-size:11px;">
+        <span class="citation-chip-prefix">Rain</span>
+        <span style="font-weight:500;">Sprint 11 burndown</span>
+        <span style="color:var(--color-text-muted);font-size:10px;">·</span>
+        <span style="color:var(--color-text-muted);font-size:10px;">3 weeks ago</span>
+      </span>
+      <span style="display:inline-flex;align-items:center;gap:8px;background:var(--color-bg-soft);border:1px solid var(--color-border);border-radius:8px;padding:8px 12px;font-size:11px;">
+        <span class="citation-chip-prefix">Joni</span>
+        <span style="font-weight:500;">Sprint 7-9 velocity report</span>
+        <span style="color:var(--color-text-muted);font-size:10px;">·</span>
+        <span style="color:var(--color-text-muted);font-size:10px;">today</span>
+      </span>
+    </div>
+    <div class="gallery-mockup-link">Used in mockup (e) — cross-project chat only; single-project chips omit this</div>
+  </div>
+
+  <!-- ============================== §7.3 (7) tool-trace-badge ============================== -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.3 (7)</div>
+    <div class="gallery-section-name"><code>.tool-trace-badge</code></div>
+    <div class="gallery-row">
+      <span class="label">Default</span>
+      <button class="tool-trace-badge"><i class="ti ti-info-circle"></i> How I got this · 3 tool calls</button>
+    </div>
+    <div class="gallery-mockup-link">Used in mockup (e) — click to expand inline trace viewer</div>
+  </div>
+
+  <!-- ============================== §7.3 (8) paused-banner ============================== -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.3 (8)</div>
+    <div class="gallery-section-name"><code>.paused-banner</code></div>
+    <div class="paused-banner">
+      <div class="paused-banner-inner">
+        <div class="paused-banner-icon">
+          <i class="ti ti-alert-triangle"></i>
+        </div>
+        <div class="paused-banner-body">
+          <div class="paused-banner-title">Cross-project chats paused</div>
+          <div class="paused-banner-text">You've reached the workspace cap of <strong>$20.00</strong> for cross-project AI this month. Per-project chats (Rain, Joni) are unaffected and still work. Cross-project resumes automatically on <strong>June 1</strong>.</div>
+          <div class="paused-banner-actions">
+            <a class="btn btn-warning" href="#">Raise cap ↗</a>
+            <a class="btn btn-quiet" href="#">View workspace settings</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="gallery-mockup-link">Used in mockup (g) — workspace cap exceeded</div>
+  </div>
+
+  <!-- ============================== §7.3 (1) cross-project-chat-card ============================== -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.3 (1)</div>
+    <div class="gallery-section-name"><code>.cross-project-chat-card</code> with <code>.live</code> / <code>.locked-v2</code></div>
+    <div class="gallery-grid-2">
+      <a class="cross-project-chat-card live" href="#">
+        <div class="cross-project-chat-card-head">
+          <span class="label-pill">Product</span>
+          <span class="status-pill live">Live</span>
+        </div>
+        <div class="cross-project-chat-card-source-row">
+          <div class="cross-project-chat-card-source-icon">
+            <i class="ti ti-target"></i>
+          </div>
+          <span class="source-chip">
+            <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z" opacity="0.7"/></svg>
+            Jira
+          </span>
+        </div>
+        <p class="cross-project-chat-card-body">Compare velocity, throughput, ticket flow across projects.</p>
+        <span class="scope-summary" style="margin-bottom:14px;display:flex;">
+          <i class="ti ti-folders"></i>
+          <span><strong>2 of 2</strong> · Rain, Joni</span>
+        </span>
+        <div class="cross-project-chat-card-foot">
+          <span class="cross-project-chat-card-foot-meta">2 hrs ago</span>
+          <span class="cross-project-chat-card-foot-cta">Open ↗</span>
+        </div>
+      </a>
+
+      <div class="cross-project-chat-card locked-v2">
+        <div class="cross-project-chat-card-head">
+          <span class="label-pill">Finance</span>
+          <span class="status-pill v2">v2.0</span>
+        </div>
+        <div class="cross-project-chat-card-source-row">
+          <div class="cross-project-chat-card-source-icon">
+            <i class="ti ti-coin"></i>
+          </div>
+          <span class="source-chip muted">
+            <svg width="14" height="14" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4" fill="#FF3D57"/><circle cx="12" cy="12" r="2.4" fill="#FFCB00"/><circle cx="18" cy="12" r="2.4" fill="#00CA72"/></svg>
+            Monday
+          </span>
+        </div>
+        <p class="cross-project-chat-card-body">Track budgets, spend, resource allocation across projects.</p>
+        <div class="cross-project-chat-card-foot">
+          <span class="cross-project-chat-card-foot-meta">Ships in v2.0</span>
+          <span class="cross-project-chat-card-foot-meta">Locked</span>
+        </div>
+      </div>
+    </div>
+    <div class="gallery-mockup-link">Used in mockup (b) cross-project landing</div>
+  </div>
+
+  <!-- ============================== §7.3 (9) picker-row ============================== -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title">§7.3 (9)</div>
+    <div class="gallery-section-name"><code>.picker-row</code> + <code>.selected</code></div>
+    <div style="background:var(--color-bg-soft);border-radius:10px;overflow:hidden;">
+      <div class="picker-row selected">
+        <div class="picker-row-checkbox"><i class="ti ti-check"></i></div>
+        <div class="picker-row-avatar">R</div>
+        <div class="picker-row-info">
+          <div class="picker-row-name">Rain</div>
+          <div class="picker-row-sprint-line">
+            <span class="picker-row-sprint-name">Sprint 12</span>
+            <span class="picker-row-sprint-deadline urgent">3 days left</span>
+          </div>
+          <div class="spend-bar exceeded thin picker-row-progress">
+            <div class="spend-bar-track">
+              <div class="spend-bar-fill" style="width:79%;"></div>
+            </div>
+          </div>
+          <div class="picker-row-dates"><span>May 6</span><span>May 20</span></div>
+        </div>
+        <div class="picker-row-stats">
+          <div class="picker-row-stats-line">
+            <div><span class="picker-row-stat-num">42</span><span class="picker-row-stat-label">open</span></div>
+            <div><span class="picker-row-stat-num done">5</span><span class="picker-row-stat-label">done</span></div>
+          </div>
+          <div class="picker-row-stats-total">of 47</div>
+        </div>
+      </div>
+      <div class="picker-row selected">
+        <div class="picker-row-checkbox"><i class="ti ti-check"></i></div>
+        <div class="picker-row-avatar">J</div>
+        <div class="picker-row-info">
+          <div class="picker-row-name">Joni</div>
+          <div class="picker-row-sprint-line">
+            <span class="picker-row-sprint-name">Sprint 8</span>
+            <span class="picker-row-sprint-deadline">10 days left</span>
+          </div>
+          <div class="spend-bar healthy thin picker-row-progress">
+            <div class="spend-bar-track">
+              <div class="spend-bar-fill" style="width:29%;background:var(--color-brand);"></div>
+            </div>
+          </div>
+          <div class="picker-row-dates"><span>May 13</span><span>May 27</span></div>
+        </div>
+        <div class="picker-row-stats">
+          <div class="picker-row-stats-line">
+            <div><span class="picker-row-stat-num">28</span><span class="picker-row-stat-label">open</span></div>
+            <div><span class="picker-row-stat-num done">12</span><span class="picker-row-stat-label">done</span></div>
+          </div>
+          <div class="picker-row-stats-total">of 40</div>
+        </div>
+      </div>
+      <div class="picker-row">
+        <div class="picker-row-checkbox"></div>
+        <div class="picker-row-avatar">G</div>
+        <div class="picker-row-info">
+          <div class="picker-row-name">Gems Trade</div>
+          <div class="picker-row-sprint-line">
+            <span class="picker-row-sprint-name">No active sprint</span>
+          </div>
+        </div>
+        <div class="picker-row-stats">
+          <div class="picker-row-stats-line">
+            <div><span class="picker-row-stat-num">12</span><span class="picker-row-stat-label">open</span></div>
+          </div>
+          <div class="picker-row-stats-total">of 12</div>
+        </div>
+      </div>
+    </div>
+    <div class="gallery-mockup-link">Used in mockups (c) creation modal + (h) edit-scope modal</div>
+  </div>
+
+  <div class="gallery-section" style="background:transparent;border:none;text-align:center;font-size:11px;color:var(--color-text-muted);">
+    Block 12.2 component gallery · removed in v1.3.1 cleanup ·
+    PRD <code>~/Downloads/PRD_v1_3.md</code> §7.3 + §7.4 ·
+    Mockups <code>~/Downloads/mockups_v1_3/*.html</code>
+  </div>
+
+</div>
+
+</body>
+</html>

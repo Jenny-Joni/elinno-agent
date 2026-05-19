@@ -29,6 +29,7 @@
   --color-success-bg: rgba(77, 211, 136, 0.15);  /* v1.3 success container bg */
   --color-warning: #8a6500;                      /* v1.3 warning text */
   --color-warning-bg: rgba(255, 193, 61, 0.18);  /* v1.3 warning container bg */
+  --color-warning-border: rgba(255, 193, 61, 0.40); /* v1.3 warning container border (mirrors --color-danger-border pattern; mockup _app.css omitted this, added here for .paused-banner) */
   --color-danger: #b3144b;                       /* v1.3 danger text (distinct from v1.2 --color-error pink) */
   --color-danger-bg: rgba(179, 20, 75, 0.04);    /* v1.3 danger container bg */
   --color-danger-border: rgba(179, 20, 75, 0.20); /* v1.3 danger container border */
@@ -1871,4 +1872,454 @@ table.users-table {
     justify-content: flex-end;
   }
   .modal-content { width: 95vw; max-height: 90vh; }
+}
+
+
+/* =========================================================================
+   Block 12.2 — v1.3 cross-project components (per PRD §7.3 + §7.4)
+   =========================================================================
+   Purely additive — no existing selectors modified beyond decision P's
+   token adds in 12.1. Each component below is referenced from one or more
+   of the v1.3 mockups in ~/Downloads/mockups_v1_3/. Verification gallery
+   at /_dev/components.html renders each in isolation.
+   ========================================================================= */
+
+/* ---------- §7.4 (a) Existing-component splits ---------- */
+
+/* PRD §7.4: .project-card splits into .marketing (existing heavy "specialcard"
+   pattern, used for + New CTAs and empty-state cards) and .data (new lighter
+   pattern, used on dashboard and projects list). Modifier classes carry the
+   weight; the base .project-card selector stays unchanged so v1.2 surfaces
+   that haven't migrated continue to render via the existing rule. */
+.project-card.data {
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-light);
+  border-radius: 12px;
+  transition: background var(--t-form), border-color var(--t-form);
+}
+.project-card.data:hover {
+  background: var(--color-brand-tint-strong);
+  border-color: rgba(98, 52, 252, 0.20);
+}
+
+/* PRD §7.4: .app-heading is the v1.3 screen-level heading at 20-24px (vs.
+   the marketing-scale .section-heading at 45px). Both coexist; pick by
+   surface. Authed pages from 12.3 onwards use .app-heading. */
+.app-heading {
+  color: var(--color-text-dark);
+  font-family: var(--font-medium);
+  font-size: 22px;
+  line-height: 115%;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+.app-heading strong { font-weight: 700; }
+.app-heading.large { font-size: 24px; }
+.app-heading.small { font-size: 20px; }
+
+/* ---------- §7.3 (2) .label-pill — function label ---------- */
+/* Small uppercase brand-tint pill: "Product", "Finance".
+   Used on cross-project chat cards (b), creation modal (c), chat
+   headers (d/e), edit-scope modal (h). */
+.label-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-brand);
+  background: var(--color-brand-tint);
+  padding: 4px 9px;
+  border-radius: 50px;
+}
+
+/* ---------- §7.3 (3) .source-chip — inline source name + logo ---------- */
+/* Used in chat headers (d/e), card source rows (b), creation modal (c).
+   The SVG/icon sits inline next to a small text label. */
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-text-body);
+  font-weight: 500;
+}
+.source-chip.muted { color: var(--color-text-muted); }
+.source-chip svg,
+.source-chip img { flex-shrink: 0; }
+
+/* ---------- §7.3 (4) .scope-summary — folder icon + count + names ---------- */
+/* The "2 of 2 · Rain, Joni" pattern with a folder icon. Used on chat
+   cards (b), dashboard cross-project strip (a), chat headers (d/e),
+   edit-scope modal footer (h). */
+.scope-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.scope-summary i,
+.scope-summary svg { font-size: 12px; flex-shrink: 0; }
+.scope-summary strong {
+  color: var(--color-text-dark);
+  font-weight: 500;
+}
+
+/* ---------- §7.3 (5) .spend-bar — workspace cap visualizer ---------- */
+/* Progress bar with healthy/warning/exceeded variants. Used on workspace
+   settings (f) and project-settings limits section (i.1). Track is
+   neutral grey; fill color flips with the variant modifier. */
+.spend-bar-track {
+  height: 8px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 50px;
+  overflow: hidden;
+}
+.spend-bar-fill {
+  height: 100%;
+  border-radius: 50px;
+  background: var(--color-success);
+  transition: width var(--t-form);
+}
+.spend-bar.healthy  .spend-bar-fill { background: var(--color-success); }
+.spend-bar.warning  .spend-bar-fill { background: var(--color-warning); }
+.spend-bar.exceeded .spend-bar-fill { background: var(--color-danger);  }
+
+/* Slim variant for inline use on project cards (i.1 General → Limits). */
+.spend-bar.slim .spend-bar-track { height: 6px; }
+.spend-bar.thin .spend-bar-track { height: 4px; }
+
+/* ---------- §7.3 (6) .citation-chip-prefix — [Project Name] pill ---------- */
+/* Small purple pill INSIDE a citation chip in cross-project mode. Mockup
+   (e) renders it as a sibling of the citation title/timestamp. Single-
+   project chats omit this entirely — preserves the v1.2 citation surface. */
+.citation-chip-prefix {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-brand);
+  background: rgba(98, 52, 252, 0.12);
+  padding: 2px 7px;
+  border-radius: 50px;
+  margin-right: 6px;
+}
+
+/* ---------- §7.3 (7) .tool-trace-badge — "How I got this · N tool calls" ---------- */
+/* Click affordance below an agent answer (mockup e). Plain text + icon,
+   not a hard-edged button. Hover lifts it to body-text color. */
+.tool-trace-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: color var(--t-form);
+}
+.tool-trace-badge:hover { color: var(--color-text-body); }
+.tool-trace-badge i,
+.tool-trace-badge svg { font-size: 12px; flex-shrink: 0; }
+
+/* ---------- §7.3 (8) .paused-banner — cap-reached banner ---------- */
+/* 2px amber-bordered banner with raise-cap CTA (mockup g). Uses the v1.3
+   warning token family — including --color-warning-border added in 12.2
+   (mockup _app.css omitted that token; see token declaration above). */
+.paused-banner {
+  background: rgba(255, 193, 61, 0.08);
+  border: 2px solid var(--color-warning-border);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+.paused-banner-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.paused-banner-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 20px;
+}
+.paused-banner-body { flex: 1; }
+.paused-banner-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-dark);
+  margin: 0 0 4px;
+}
+.paused-banner-text {
+  font-size: 12px;
+  color: var(--color-text-body);
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+.paused-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.paused-banner-actions .btn {
+  font-size: 11px;
+  padding: 7px 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 8px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.paused-banner-actions .btn-warning {
+  background: var(--color-warning);
+  color: var(--color-text-inverse);
+  border: none;
+}
+.paused-banner-actions .btn-warning:hover { opacity: 0.9; }
+.paused-banner-actions .btn-quiet {
+  background: transparent;
+  color: var(--color-text-body);
+  border: 1px solid var(--color-border);
+}
+
+/* ---------- §7.3 (1) .cross-project-chat-card — labeled chat card ---------- */
+/* Used on the cross-project landing (b) and dashboard (a). Two variants:
+   .live (active Product/Jira chat) and .locked-v2 (Finance/Monday, ships
+   in v2.0). Internal layout: header (label-pill + status pill), source
+   row, body description, scope-summary, footer (open CTA or locked label). */
+.cross-project-chat-card {
+  display: block;
+  background: var(--color-bg-light);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 18px;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--t-form), border-color var(--t-form);
+}
+.cross-project-chat-card.live:hover {
+  background: var(--color-brand-tint-strong);
+  border-color: rgba(98, 52, 252, 0.20);
+}
+.cross-project-chat-card.locked-v2 {
+  background: var(--color-bg-soft);
+  opacity: 0.85;
+  cursor: not-allowed;
+}
+.cross-project-chat-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.cross-project-chat-card-source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.cross-project-chat-card-source-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-brand-tint);
+  color: var(--color-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 17px;
+}
+.cross-project-chat-card.locked-v2 .cross-project-chat-card-source-icon {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--color-text-muted);
+}
+.cross-project-chat-card-body {
+  font-size: 12px;
+  color: var(--color-text-body);
+  line-height: 1.45;
+  margin: 0 0 14px;
+}
+.cross-project-chat-card-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  font-size: 11px;
+}
+.cross-project-chat-card.locked-v2 .cross-project-chat-card-foot {
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+.cross-project-chat-card-foot-cta {
+  color: var(--color-brand);
+  font-weight: 500;
+}
+.cross-project-chat-card-foot-meta {
+  color: var(--color-text-muted);
+}
+
+/* Status pill (Live / v2.0) inside the card head. */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 50px;
+}
+.status-pill.live {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+.status-pill.v2 {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+/* ---------- §7.3 (9) .picker-row — multi-column project picker row ---------- */
+/* Variant 1 row from mockups (c) creation modal + (h) edit-scope modal.
+   Stacked sprint metadata in the middle column, progress bar, right-
+   aligned ticket stats. Selected state uses brand-tint-strong bg. */
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--color-bg-light);
+  cursor: pointer;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  transition: background var(--t-form);
+}
+.picker-row:first-child { border-top: none; }
+.picker-row:hover { background: var(--color-bg-soft); }
+.picker-row.selected { background: var(--color-brand-tint-strong); }
+.picker-row.selected:hover { background: var(--color-brand-tint-strong); }
+
+.picker-row-checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-bg-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: transparent;
+  font-size: 11px;
+}
+.picker-row.selected .picker-row-checkbox {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: var(--color-text-inverse);
+}
+
+.picker-row-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--color-brand-tint);
+  color: var(--color-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.picker-row-info {
+  flex: 1;
+  min-width: 0;
+}
+.picker-row-name {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0 0 4px;
+  color: var(--color-text-dark);
+}
+.picker-row-sprint-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.picker-row-sprint-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-dark);
+}
+.picker-row-sprint-deadline {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-body);
+}
+.picker-row-sprint-deadline.urgent { color: var(--color-danger); }
+.picker-row-sprint-deadline.healthy { color: var(--color-success); }
+
+.picker-row-progress {
+  max-width: 200px;
+}
+.picker-row-dates {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--color-text-muted);
+  margin-top: 3px;
+  max-width: 200px;
+}
+
+.picker-row-stats {
+  flex-shrink: 0;
+  text-align: right;
+}
+.picker-row-stats-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 2px;
+}
+.picker-row-stat-num {
+  font-size: 14px;
+  font-weight: 600;
+}
+.picker-row-stat-num.done { color: var(--color-success); }
+.picker-row-stat-label {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-left: 2px;
+}
+.picker-row-stats-total {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+/* Mobile: collapse picker-row to stack stats below info. */
+@media (max-width: 700px) {
+  .picker-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .picker-row-info { width: 100%; order: 3; }
+  .picker-row-stats { order: 4; margin-left: auto; }
 }
