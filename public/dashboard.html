@@ -6,6 +6,272 @@
   <title>Dashboard — Elinno Agent</title>
   <meta name="robots" content="noindex" />
   <link rel="stylesheet" href="/auth.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <style>
+    /* Dashboard-page-only layout. Components themselves live in auth.css. */
+    .dash-hero {
+      background: var(--color-brand);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      color: var(--color-text-inverse);
+      margin: 18px 0 28px;
+    }
+    .dash-hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .dash-hero-tag .badge {
+      background: rgba(255,255,255,0.18);
+      padding: 4px 10px;
+      border-radius: 50px;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+    .dash-hero-tag .eyebrow {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      opacity: 0.85;
+    }
+    .dash-hero-title {
+      font-size: 20px;
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin: 0 0 10px;
+      color: var(--color-text-inverse);
+    }
+    .dash-hero-title strong { font-weight: 700; }
+    .dash-hero-sub {
+      font-size: 13px;
+      line-height: 1.45;
+      opacity: 0.95;
+      margin: 0 0 16px;
+    }
+    .dash-hero-cta {
+      background: var(--color-text-inverse);
+      color: var(--color-brand);
+      border: none;
+      padding: 11px 18px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .dash-strip-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 0 6px 12px;
+    }
+    .dash-strip-title {
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .dash-strip-sub {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      margin-top: 3px;
+    }
+    .dash-strip-cta {
+      color: var(--color-brand);
+      font-size: 11px;
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+    @media (max-width: 700px) {
+      .dash-grid { grid-template-columns: 1fr; }
+    }
+
+    .dash-greeting {
+      padding: 0 6px 16px;
+    }
+    .dash-greeting-eyebrow {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--color-brand);
+      font-weight: 500;
+      margin: 0 0 6px;
+    }
+    .dash-greeting h1 {
+      font-size: 22px;
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin: 0 0 4px;
+    }
+    .dash-greeting h1 strong { font-weight: 700; }
+    .dash-greeting p {
+      font-size: 13px;
+      color: var(--color-text-body);
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    /* Project card — built on .project-card.data from 12.2, plus
+       project-specific sprint metadata layout. */
+    .project-card.data {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+    }
+    .pc-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .pc-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--color-brand-tint);
+      color: var(--color-brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .pc-name {
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.1;
+    }
+    .pc-meta {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 5px;
+      font-size: 10px;
+      color: var(--color-text-body);
+    }
+    .pc-sprint-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .pc-sprint-name {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .pc-sprint-deadline {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--color-text-body);
+    }
+    .pc-sprint-deadline.urgent { color: var(--color-danger); }
+    .pc-dates {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      margin-bottom: 14px;
+    }
+    .pc-stats {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      margin-bottom: 4px;
+    }
+    .pc-stat-num {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .pc-stat-num.done { color: var(--color-success); }
+    .pc-stat-label {
+      font-size: 11px;
+      color: var(--color-text-body);
+    }
+    .pc-stat-total {
+      font-size: 11px;
+      color: var(--color-text-muted);
+    }
+    .pc-empty {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      padding: 18px 0 6px;
+      text-align: center;
+    }
+
+    /* Dashed "+ New" card variant. */
+    .dash-card-dashed {
+      background: transparent;
+      border: 1.5px dashed rgba(98, 52, 252, 0.4);
+      border-radius: 12px;
+      padding: 18px;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-height: 200px;
+      transition: background var(--t-form);
+    }
+    .dash-card-dashed:hover { background: var(--color-brand-tint); }
+    .dash-card-dashed-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--color-brand-tint);
+      color: var(--color-brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+      font-size: 20px;
+    }
+    .dash-card-dashed-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-brand);
+      margin-bottom: 4px;
+    }
+    .dash-card-dashed-sub {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      line-height: 1.45;
+      max-width: 220px;
+    }
+
+    .dash-loading {
+      padding: 80px 0;
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: 13px;
+    }
+
+    .dash-error {
+      background: rgba(255, 0, 131, 0.08);
+      border: 1px solid rgba(255, 0, 131, 0.3);
+      border-radius: 12px;
+      padding: 18px;
+      color: var(--color-error);
+      font-size: 13px;
+      text-align: center;
+      margin: 20px 0;
+    }
+  </style>
 </head>
 <body>
   <nav class="app-nav">
@@ -22,29 +288,252 @@
 
   <main class="app-main">
     <div class="custom-container">
-      <p class="section-eyebrow">Welcome</p>
-      <span class="section-line"></span>
-      <h1 class="section-heading">You're signed in</h1>
-      <p class="section-sub">This is the placeholder dashboard. The actual app will live here once it's built.</p>
-
-      <div class="card">
-        <p style="margin:0;color:var(--color-text-body);">Signed in as <strong id="userEmail" style="color:var(--color-text-dark);">…</strong>.</p>
+      <div id="dashRoot">
+        <div class="dash-loading">Loading workspace…</div>
       </div>
     </div>
   </main>
 
   <script>
-    fetch('/api/me').then(r => r.json()).then(d => {
-      if (!d.user) { location.replace('/'); return; }
-      document.getElementById('userEmail').textContent = d.user.email;
-      document.getElementById('navUser').textContent = d.user.email;
-      if (d.user.is_admin) document.getElementById('adminLink').style.display = '';
-    }).catch(() => location.replace('/'));
+    function escHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function fmtUsd(n) {
+      const num = Number(n) || 0;
+      return '$' + num.toFixed(2);
+    }
+    function timeOfDay() {
+      const h = new Date().getHours();
+      if (h < 12) return 'morning';
+      if (h < 18) return 'afternoon';
+      return 'evening';
+    }
+    function nameFromEmail(email) {
+      if (!email) return 'there';
+      const local = String(email).split('@')[0];
+      // "jenny" → "Jenny", "jenny.smith" → "Jenny"
+      const first = local.split(/[._-]/)[0] || local;
+      return first.charAt(0).toUpperCase() + first.slice(1);
+    }
+    function initialOf(name) {
+      return (String(name || '?').trim()[0] || '?').toUpperCase();
+    }
+    function fmtDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (!isFinite(d)) return '';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    function fmtRelative(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (!isFinite(d)) return '';
+      const diffMs = Date.now() - d.getTime();
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1) return 'just now';
+      if (diffMin < 60) return diffMin + ' min ago';
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return diffHr + ' hr' + (diffHr === 1 ? '' : 's') + ' ago';
+      const diffDay = Math.floor(diffHr / 24);
+      if (diffDay === 1) return 'yesterday';
+      if (diffDay < 7) return diffDay + ' days ago';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    function jiraSvg(size) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-label="Jira"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z"/></svg>';
+    }
+
+    function renderHero() {
+      return ''
+        + '<div class="dash-hero">'
+        +   '<div class="dash-hero-tag">'
+        +     '<span class="badge">New in v1.3</span>'
+        +     '<span class="eyebrow">Cross-project chat</span>'
+        +   '</div>'
+        +   '<h2 class="dash-hero-title">Ask questions across <strong>all your projects</strong> at once</h2>'
+        +   '<p class="dash-hero-sub">Compare velocity and spot delivery risk across your portfolio.</p>'
+        +   '<a href="/cross-project/" class="dash-hero-cta">Start cross-project chat ↗</a>'
+        + '</div>';
+    }
+
+    function renderCrossProjectCard(chat, projectsById) {
+      const projectIds = Array.isArray(chat.project_ids) ? chat.project_ids : [];
+      const names = projectIds.map(id => (projectsById.get(id)?.name) || 'Project').join(', ');
+      const count = projectIds.length;
+      const labelText = chat.label || 'Product';
+      const lastAt = chat.last_message_at || chat.created_at;
+      return ''
+        + '<a class="cross-project-chat-card live" href="/cross-project/' + escHtml(chat.id) + '">'
+        +   '<div class="cross-project-chat-card-head">'
+        +     '<span class="label-pill">' + escHtml(labelText) + '</span>'
+        +     '<span class="status-pill live">Live</span>'
+        +   '</div>'
+        +   '<div class="cross-project-chat-card-source-row">'
+        +     '<div class="cross-project-chat-card-source-icon"><i class="ti ti-target"></i></div>'
+        +     '<span class="source-chip">' + jiraSvg(14) + ' Jira</span>'
+        +   '</div>'
+        +   '<p class="cross-project-chat-card-body">'
+        +     (chat.title ? escHtml(chat.title) : 'Compare velocity, throughput, ticket flow across projects.')
+        +   '</p>'
+        +   '<span class="scope-summary" style="margin-bottom:14px;display:flex;">'
+        +     '<i class="ti ti-folders"></i>'
+        +     '<span><strong>' + count + ' of ' + count + '</strong> · ' + escHtml(names || '—') + '</span>'
+        +   '</span>'
+        +   '<div class="cross-project-chat-card-foot">'
+        +     '<span class="cross-project-chat-card-foot-meta">' + escHtml(fmtRelative(lastAt)) + '</span>'
+        +     '<span class="cross-project-chat-card-foot-cta">Open ↗</span>'
+        +   '</div>'
+        + '</a>';
+    }
+
+    function renderNewCrossProjectCta() {
+      return ''
+        + '<a href="/cross-project/new" class="dash-card-dashed">'
+        +   '<div class="dash-card-dashed-icon"><i class="ti ti-plus"></i></div>'
+        +   '<div class="dash-card-dashed-title">New cross-project chat</div>'
+        +   '<div class="dash-card-dashed-sub">Pick a label and projects. Setup in under a minute.</div>'
+        + '</a>';
+    }
+
+    function renderCrossProjectStrip(chats, projectsById, workspace) {
+      const head = ''
+        + '<div class="dash-strip-head">'
+        +   '<div>'
+        +     '<div class="dash-strip-title">Your cross-project chats</div>'
+        +     '<div class="dash-strip-sub">'
+        +       chats.length + ' chat' + (chats.length === 1 ? '' : 's')
+        +       + ' · workspace cap ' + fmtUsd(workspace.cross_project_spend_usd)
+        +       + ' / ' + fmtUsd(workspace.cross_project_cap_usd) + ' this month'
+        +     '</div>'
+        +   '</div>'
+        +   (chats.length > 0
+        +     ? '<a href="/cross-project/" class="dash-strip-cta">View all →</a>'
+        +     : '')
+        + '</div>';
+      const cards = chats.map(c => renderCrossProjectCard(c, projectsById)).join('')
+        + renderNewCrossProjectCta();
+      return head + '<div class="dash-grid">' + cards + '</div>';
+    }
+
+    function renderProjectCard(project) {
+      const sprint = project.jira_active_sprint;
+      const initial = initialOf(project.name);
+
+      let body;
+      if (sprint) {
+        const counts = sprint.ticket_counts || { total: 0, open: 0, done: 0 };
+        const deadlineCls = (sprint.days_left != null && sprint.days_left <= 3) ? ' urgent' : '';
+        const deadlineLbl = sprint.days_left == null
+          ? ''
+          : sprint.days_left + ' day' + (sprint.days_left === 1 ? '' : 's') + ' left';
+        const pct = sprint.percent_complete == null ? 0 : sprint.percent_complete;
+        const pctClass = pct >= 75 ? 'exceeded' : (pct >= 50 ? 'warning' : 'healthy');
+        body = ''
+          + '<div class="pc-sprint-row">'
+          +   '<div class="pc-sprint-name">' + escHtml(sprint.sprint_name) + '</div>'
+          +   '<div class="pc-sprint-deadline' + deadlineCls + '">' + escHtml(deadlineLbl) + '</div>'
+          + '</div>'
+          + '<div class="spend-bar ' + pctClass + ' thin" style="margin-bottom:5px;">'
+          +   '<div class="spend-bar-track">'
+          +     '<div class="spend-bar-fill" style="width:' + pct + '%;"></div>'
+          +   '</div>'
+          + '</div>'
+          + '<div class="pc-dates"><span>' + escHtml(fmtDate(sprint.start_date)) + '</span><span>' + escHtml(fmtDate(sprint.end_date)) + '</span></div>'
+          + '<div class="pc-stats">'
+          +   '<div><span class="pc-stat-num">' + counts.open + '</span> <span class="pc-stat-label">open</span></div>'
+          +   '<div><span class="pc-stat-num done">' + counts.done + '</span> <span class="pc-stat-label">done</span></div>'
+          + '</div>'
+          + '<div class="pc-stat-total">of ' + counts.total + ' total</div>';
+      } else if (project.has_jira) {
+        body = '<div class="pc-empty">No active sprint</div>';
+      } else {
+        body = '<div class="pc-empty">Not connected to Jira</div>';
+      }
+
+      return ''
+        + '<a class="project-card data" href="/project.html?id=' + escHtml(project.id) + '">'
+        +   '<div class="pc-head">'
+        +     '<div class="pc-avatar">' + escHtml(initial) + '</div>'
+        +     '<div style="flex:1;">'
+        +       '<div class="pc-name">' + escHtml(project.name) + '</div>'
+        +       (project.has_jira
+        +         ? '<div class="pc-meta">' + jiraSvg(12) + ' <span style="font-weight:500;">Jira</span></div>'
+        +         : '')
+        +     '</div>'
+        +   '</div>'
+        +   body
+        + '</a>';
+    }
+
+    function renderProjectsStrip(projects) {
+      const jiraCount = projects.filter(p => p.has_jira).length;
+      const total = projects.length;
+      const head = ''
+        + '<div class="dash-strip-head">'
+        +   '<div>'
+        +     '<div class="dash-strip-title">Your projects</div>'
+        +     '<div class="dash-strip-sub">'
+        +       total + ' total · ' + jiraCount + ' connected to Jira'
+        +     '</div>'
+        +   '</div>'
+        +   '<a href="/projects.html" class="dash-strip-cta">View all projects →</a>'
+        + '</div>';
+      if (projects.length === 0) {
+        return head + '<div class="dash-grid"><a href="/projects/new" class="dash-card-dashed">'
+          + '<div class="dash-card-dashed-icon"><i class="ti ti-plus"></i></div>'
+          + '<div class="dash-card-dashed-title">Create your first project</div>'
+          + '<div class="dash-card-dashed-sub">Connect Slack or Jira to get started.</div>'
+          + '</a></div>';
+      }
+      return head + '<div class="dash-grid">' + projects.map(renderProjectCard).join('') + '</div>';
+    }
+
+    function render(data) {
+      const root = document.getElementById('dashRoot');
+      const projectsById = new Map(data.projects.map(p => [p.id, p]));
+      const name = nameFromEmail(data.user && data.user.email);
+      const greetingHtml = ''
+        + '<div class="dash-greeting">'
+        +   '<p class="dash-greeting-eyebrow">— Workspace</p>'
+        +   '<h1>Good ' + timeOfDay() + ', <strong>' + escHtml(name) + '</strong></h1>'
+        +   '<p>' + data.projects.length + ' project' + (data.projects.length === 1 ? '' : 's') + ' in your workspace. Ask on any one, or open a cross-project chat to compare across.</p>'
+        + '</div>';
+      root.innerHTML = ''
+        + greetingHtml
+        + renderHero()
+        + renderCrossProjectStrip(data.cross_project_chats, projectsById, data.workspace)
+        + renderProjectsStrip(data.projects);
+    }
+
+    async function boot() {
+      try {
+        const res = await fetch('/api/dashboard', { credentials: 'same-origin' });
+        if (res.status === 401) { location.replace('/'); return; }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Failed to load');
+        // Populate nav user info from data.user
+        document.getElementById('navUser').textContent = data.user.email;
+        if (data.user.is_admin) document.getElementById('adminLink').style.display = '';
+        render(data);
+      } catch (err) {
+        document.getElementById('dashRoot').innerHTML = ''
+          + '<div class="dash-error">Couldn\'t load workspace. Retry in a moment.<br>'
+          + '<small>' + escHtml(String(err && err.message || err)) + '</small></div>';
+      }
+    }
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' }).catch(() => {});
       location.replace('/');
     });
+
+    boot();
   </script>
 </body>
 </html>
