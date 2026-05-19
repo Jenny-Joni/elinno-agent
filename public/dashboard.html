@@ -401,19 +401,21 @@
     }
 
     function renderCrossProjectStrip(chats, projectsById, workspace) {
+      const chatCount = chats.length;
+      const chatSuffix = chatCount === 1 ? '' : 's';
+      const viewAllLink = chatCount > 0
+        ? '<a href="/cross-project/" class="dash-strip-cta">View all →</a>'
+        : '';
+      const subLine = chatCount + ' chat' + chatSuffix
+        + ' · workspace cap ' + fmtUsd(workspace.cross_project_spend_usd)
+        + ' / ' + fmtUsd(workspace.cross_project_cap_usd) + ' this month';
       const head = ''
         + '<div class="dash-strip-head">'
         +   '<div>'
         +     '<div class="dash-strip-title">Your cross-project chats</div>'
-        +     '<div class="dash-strip-sub">'
-        +       chats.length + ' chat' + (chats.length === 1 ? '' : 's')
-        +       + ' · workspace cap ' + fmtUsd(workspace.cross_project_spend_usd)
-        +       + ' / ' + fmtUsd(workspace.cross_project_cap_usd) + ' this month'
-        +     '</div>'
+        +     '<div class="dash-strip-sub">' + subLine + '</div>'
         +   '</div>'
-        +   (chats.length > 0
-        +     ? '<a href="/cross-project/" class="dash-strip-cta">View all →</a>'
-        +     : '')
+        +   viewAllLink
         + '</div>';
       const cards = chats.map(c => renderCrossProjectCard(c, projectsById)).join('')
         + renderNewCrossProjectCta();
@@ -455,15 +457,17 @@
         body = '<div class="pc-empty">Not connected to Jira</div>';
       }
 
+      const jiraMetaHtml = project.has_jira
+        ? '<div class="pc-meta">' + jiraSvg(12) + ' <span style="font-weight:500;">Jira</span></div>'
+        : '';
+
       return ''
         + '<a class="project-card data" href="/project.html?id=' + escHtml(project.id) + '">'
         +   '<div class="pc-head">'
         +     '<div class="pc-avatar">' + escHtml(initial) + '</div>'
         +     '<div style="flex:1;">'
         +       '<div class="pc-name">' + escHtml(project.name) + '</div>'
-        +       (project.has_jira
-        +         ? '<div class="pc-meta">' + jiraSvg(12) + ' <span style="font-weight:500;">Jira</span></div>'
-        +         : '')
+        +       jiraMetaHtml
         +     '</div>'
         +   '</div>'
         +   body
