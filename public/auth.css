@@ -12,6 +12,7 @@
   --color-bg-wash: #f0ebff;
   --color-brand: #6234fc;
   --color-brand-tint: rgba(98, 52, 252, 0.1);
+  --color-brand-tint-strong: #f0ebff;            /* v1.3 mockup token; matches --color-bg-wash */
   --color-text-dark: #000;
   --color-text-body: #4f4f4f;
   --color-text-muted: #888;
@@ -19,8 +20,18 @@
   --color-text-inverse: #fff;
   --color-border: #e0e0e0;
   --color-field-bg: #eaeaea;
-  --color-error: #ff0083;
-  --color-success: #4dd388;
+  --color-error: #ff0083;                        /* v1.1/v1.2 form-msg-error semantic; retained */
+
+  /* v1.3 status tokens (Block 12.1) — text + bg + border per mockup _app.css.
+     Decision P: added alongside the v1.2 tokens; v1.2 --color-error stays for
+     the existing form-msg-error / btn-danger rules. */
+  --color-success: #1d8a52;                      /* v1.3 success text (darker than v1.2's #4dd388 → better contrast) */
+  --color-success-bg: rgba(77, 211, 136, 0.15);  /* v1.3 success container bg */
+  --color-warning: #8a6500;                      /* v1.3 warning text */
+  --color-warning-bg: rgba(255, 193, 61, 0.18);  /* v1.3 warning container bg */
+  --color-danger: #b3144b;                       /* v1.3 danger text (distinct from v1.2 --color-error pink) */
+  --color-danger-bg: rgba(179, 20, 75, 0.04);    /* v1.3 danger container bg */
+  --color-danger-border: rgba(179, 20, 75, 0.20); /* v1.3 danger container border */
 
   /* Glass */
   --glass-nav: rgba(0, 0, 0, 0.3);
@@ -244,14 +255,18 @@ img, svg { max-width: 100%; display: block; }
 .form-msg.hidden { display: none; }
 
 /* ---------- Dashboard / app shell ---------- */
+/* v1.3 (Block 12.1) — light-mode .app-nav per PRD §7.1(a) + §7.4.
+   The v1.2 dark-glass treatment was a marketing-shell carry-over that
+   read as an arbitrary dark stripe over a light-grey body in the authed
+   app. v1.3 inverts: white bg, thin bottom border, dark text. The brand
+   E mark stays (existing .app-brand-mark rule if present). Site-wide
+   propagation: every authed page shares this rule. */
 .app-nav {
   position: sticky;
   top: 0;
   z-index: 99;
-  background: var(--glass-nav);
-  backdrop-filter: var(--glass-blur-nav);
-  -webkit-backdrop-filter: var(--glass-blur-nav);
-  background-color: rgba(18, 18, 21, 0.85);
+  background: var(--color-bg-light);
+  border-bottom: 1px solid var(--color-border);
 }
 .app-nav-inner {
   max-width: var(--container-max);
@@ -263,7 +278,7 @@ img, svg { max-width: 100%; display: block; }
   gap: 16px;
 }
 .app-brand {
-  color: #fff;
+  color: var(--color-text-dark);
   font-family: var(--font-medium);
   font-size: 18px;
   text-transform: uppercase;
@@ -276,24 +291,25 @@ img, svg { max-width: 100%; display: block; }
   gap: 18px;
 }
 .app-nav-actions a {
-  color: #fff;
+  color: var(--color-text-body);
   font-family: var(--font-regular);
   font-size: 14px;
   text-decoration: none;
-  opacity: 0.85;
+  transition: color var(--t-form);
 }
-.app-nav-actions a:hover { opacity: 1; }
+.app-nav-actions a:hover { color: var(--color-text-dark); }
 .app-nav-actions .btn-nav {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid #fff;
-  color: #fff;
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand);
+  color: var(--color-text-inverse);
   padding: 10px 16px;
   border-radius: var(--radius-sm);
   font-family: var(--font-medium);
   font-size: 13px;
   text-transform: uppercase;
+  transition: opacity var(--t-form);
 }
-.app-nav-actions .btn-nav:hover { opacity: 1; background: rgba(255, 255, 255, 0.18); }
+.app-nav-actions .btn-nav:hover { opacity: 0.9; }
 
 .app-main {
   background: var(--color-bg-soft);
