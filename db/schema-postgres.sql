@@ -1,22 +1,28 @@
 -- =============================================================================
--- Elinno Agent — Postgres schema (v1.1)
+-- Elinno Agent — Postgres schema (v1.3)
 -- =============================================================================
 --
 -- Canonical Postgres schema for the Elinno Agent platform. This file is the
 -- source of truth for the structure of the Neon database `elinno_agent_db`.
 -- It lives at `db/schema-postgres.sql` in the repo and is committed to git.
 --
+-- v1.3 (Block 12.1): drops project_members table + project_admin role concept
+-- (workspace-scope replaces it per BLOCK_12_PLAN decision I); adds
+-- conversations.project_ids + conversations.label; relaxes
+-- conversations.project_id + messages.project_id to NULLABLE (cross-project
+-- messages have project_id=NULL per BLOCK_12_PLAN decision F).
+--
 -- HOW TO APPLY
 -- ------------
--- The recommended path for v1.1 is the Neon SQL Editor:
+-- The recommended path is the Neon SQL Editor:
 --   1. Open Neon → Project "Elinno Agent" → branch "production"
 --   2. Open SQL Editor against database `elinno_agent_db`
 --   3. Paste this entire file, click Run
 --   4. Verify with: SELECT table_name FROM information_schema.tables
 --                   WHERE table_schema = 'public' ORDER BY table_name;
---      Expected (8 tables):
+--      Expected (8 tables in v1.3):
 --          connections, conversations, entities, entity_embeddings,
---          messages, project_members, projects, sync_runs
+--          messages, projects, refresh_actions, sync_runs
 --
 -- Alternative: psql or wrangler against the direct (non-pooled) Neon endpoint.
 -- Do not apply through Hyperdrive — Hyperdrive caches read queries and is the
@@ -45,8 +51,8 @@
 -- 4. Soft-delete strategy: HYBRID.
 --    - Soft delete (deleted_at TIMESTAMPTZ NULL): projects, connections,
 --      conversations, messages — user/admin may want recovery.
---    - Hard delete on FK cascade: project_members, entities, entity_embeddings,
---      sync_runs — derived/observability data, regenerable from source.
+--    - Hard delete on FK cascade: entities, entity_embeddings, sync_runs,
+--      refresh_actions — derived/observability data, regenerable from source.
 --
 -- 5. Connection credential storage: envelope encryption with three columns
 --    (wrapped_data_key, iv, ciphertext_credentials) plus an algorithm column.
@@ -56,10 +62,14 @@
 -- -------------------
 -- Users live in Cloudflare D1 (auth database, SQLite at the edge), NOT in
 -- this Postgres database. Columns that reference users (projects.owner_user_id,
--- project_members.user_id, conversations.user_id, etc.) are stored as TEXT
--- with NO foreign key — Postgres cannot enforce FKs across database engines.
--- Application code is responsible for verifying user existence in D1 before
--- inserting user-referencing rows here.
+-- conversations.user_id, etc.) are stored as TEXT with NO foreign key —
+-- Postgres cannot enforce FKs across database engines. Application code is
+-- responsible for verifying user existence in D1 before inserting user-
+-- referencing rows here.
+--
+-- v1.3 collapses workspace membership: projects.owner_user_id IS the workspace
+-- handle (decision E + I). All workspace users see all projects; per-project
+-- gating is removed.
 --
 -- =============================================================================
 
@@ -125,45 +135,17 @@ CREATE INDEX IF NOT EXISTS projects_active_idx
 
 
 -- =============================================================================
--- Table 2 of 8: project_members
+-- Table 2 of 8: connections
 -- =============================================================================
--- Membership of users in projects. Roles in v1.1: 'admin', 'member'.
--- Composite PK = natural shape (no separate row identity needed).
--- Hard-deleted: removing a member means DELETE row.
+-- v1.3 note: project_members was Table 2 of 8 in v1.1/v1.2. Dropped in
+-- Block 12.1 per BLOCK_12_PLAN decision I; workspace-scope (projects.
+-- owner_user_id) is the single security predicate. Existing partial index
+-- projects_owner_active_idx serves the authorize-step hot path. (A
+-- functionally identical duplicate, idx_projects_owner_user_id_alive, was
+-- created by the 12.1 migration before the duplication was noticed; it can
+-- be dropped in a future cleanup.) Tables are no longer renumbered to
+-- preserve diff readability against v1.2.
 
-CREATE TABLE IF NOT EXISTS project_members (
-    project_id      UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-
-    -- Cross-DB seam (see header).
-    user_id         TEXT NOT NULL,
-
-    -- TEXT + CHECK over ENUM for evolvability. v1.2 may add 'project_admin'
-    -- (per PRD §11.2 deferred items) without a type migration.
-    role            TEXT NOT NULL CHECK (role IN ('admin', 'member')),
-
-    -- Audit: who invited whom. NULL for the project owner who is auto-added
-    -- as admin at project creation.
-    invited_by      TEXT,
-    invited_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    -- NULL = pending invite, non-NULL = active member.
-    joined_at       TIMESTAMPTZ,
-
-    PRIMARY KEY (project_id, user_id)
-);
-
--- "What projects am I a member of, with active membership?" — every chat
--- session starts here. Excludes pending invites.
-CREATE INDEX IF NOT EXISTS project_members_user_active_idx
-    ON project_members (user_id)
-    WHERE joined_at IS NOT NULL;
-
--- Note: "who is in this project?" is served by the PK's leading column
--- (project_id, user_id). No additional index needed.
-
-
--- =============================================================================
--- Table 3 of 8: connections
 -- =============================================================================
 -- Connection between a project and an external system (Slack/Jira/Monday/Drive).
 -- Holds envelope-encrypted credentials and sync state. One row per
@@ -478,9 +460,27 @@ CREATE INDEX IF NOT EXISTS sync_runs_project_recency_idx
 
 CREATE TABLE IF NOT EXISTS conversations (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id      UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+
+    -- v1.3 (Block 12.1): single-project mode uses project_id (NOT NULL was
+    -- relaxed in 12.1 migration); cross-project mode uses project_ids and
+    -- leaves project_id NULL. Mutual exclusion enforced at app layer per
+    -- BLOCK_12_PLAN decisions F + Q (no DB CHECK, matches existing soft-
+    -- delete pattern).
+    project_id      UUID REFERENCES projects(id) ON DELETE CASCADE,
+
+    -- v1.3 cross-project mode: array of project UUIDs the conversation is
+    -- scoped to. NULL for single-project conversations. Authorized at the
+    -- executor entry by authorizeProjectSet (12.5a) against
+    -- projects.owner_user_id = conversations.user_id.
+    project_ids     UUID[],
+
+    -- v1.3 cross-project mode: function label, currently always 'product'
+    -- (Finance/Monday locked to v2.0). NULL for single-project conversations.
+    label           TEXT,
 
     -- Cross-DB seam (see header). The user who owns the conversation.
+    -- v1.3: also serves as the workspace handle for cross-project scope
+    -- authorization (decision E).
     user_id         TEXT NOT NULL,
 
     -- Auto-generated by AI from first message; user-editable. NULL allowed
@@ -518,8 +518,14 @@ CREATE TABLE IF NOT EXISTS messages (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+
     -- Denormalized for project-scoped analytics (token usage, message volume).
-    project_id      UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    -- v1.3 (Block 12.1): NULLABLE — single-project messages mirror their
+    -- conversation's project_id; cross-project messages have NULL (scope
+    -- lives on conversation.project_ids). Per BLOCK_12_PLAN decision F.
+    -- Every aggregation/filter on this column must consider the NULL case
+    -- — see launch gates §11.12 (audit grep) + §11.13 (bleed-in test).
+    project_id      UUID REFERENCES projects(id) ON DELETE CASCADE,
 
     -- 'user'      — human input
     -- 'assistant' — AI output (text and/or tool_use blocks)
@@ -622,9 +628,9 @@ CREATE INDEX IF NOT EXISTS refresh_actions_user_project_recency_idx
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public' ORDER BY table_name;
 --
--- Expected (9 rows):
+-- Expected (8 rows in v1.3 — project_members dropped in Block 12.1):
 --   connections, conversations, entities, entity_embeddings, messages,
---   project_members, projects, refresh_actions, sync_runs
+--   projects, refresh_actions, sync_runs
 --
 -- And to verify pgvector and HNSW are present:
 --
