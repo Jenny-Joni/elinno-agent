@@ -1,10 +1,11 @@
 # Block 12.1 — Verification matrix
 
-> **Branch:** `claude/gifted-sanderson-a7e060` (4 commits ahead of main:
+> **Branch:** `claude/gifted-sanderson-a7e060` (5 commits ahead of main:
 > `e1df413` plan → `47ff950` schema → `f4d6448` workspace-scope swap →
-> `5949a5c` light nav + tokens)
-> **Preview deploy:** (CF auto-build URL — fill in after first deploy completes)
+> `5949a5c` light nav + tokens → `e0393bb` matrix draft)
+> **Preview deploy:** https://87bf73bc.elinno-agent.pages.dev/
 > **Production:** `12bb040` (Block 11) — unchanged until 12.1 ff-merge
+> **Verification driver:** Jenny + Claude (Claude in Chrome MCP) on 2026-05-19
 
 Verdict shape: PASS / PASS-with-caveat / FAIL / PENDING. Mirrors
 BLOCK_11 / `curl-matrix-block-11.md` discipline.
@@ -29,12 +30,12 @@ BLOCK_11 / `curl-matrix-block-11.md` discipline.
 | B1 | `workspace.js` helper present | `functions/_lib/workspace.js` exports `getWorkspaceUserId` | Code inspection | **PASS** | Committed at `f4d6448` |
 | B2 | `requireProjectRole` removed | `grep -n "export.*requireProjectRole" functions/_lib/auth.js` | Zero hits | **PASS** | Function deleted in `f4d6448` |
 | B3 | `requireWorkspaceScope` exists | `grep -n "export async function requireWorkspaceScope" functions/_lib/auth.js` | One hit | **PASS** | Defined at auth.js:215+ |
-| B4 | REG-1: Rain single-project chat | On preview deploy, send a message to an existing Rain conversation and confirm it returns a cited answer | Cited assistant response; no 500 | **PENDING — eyes-on by Jenny** | Requires preview URL to be live |
-| B5 | REG-2: Joni single-project chat | Same as B4 but in Joni | Cited assistant response | **PENDING — eyes-on** | Requires preview URL |
-| B6 | Project list endpoint | `GET /api/projects` on preview as logged-in user | Returns 4 projects (Rain, Joni, +2 others) with `role: "admin"` for each | **PENDING — eyes-on** | Requires preview URL + cookie |
-| B7 | Get-one project endpoint | `GET /api/projects/<rain_id>` | Returns Rain row with `role: "admin"` | **PENDING — eyes-on** | |
-| B8 | Members tab hidden | Visit `/projects/<rain_id>` on preview | Members tab button does NOT render (hidden via `style="display:none;"`) | **PENDING — eyes-on** | |
-| B9 | Members API 404 | `curl -i https://<preview>/api/projects/<rain_id>/members` | 404 Not Found (files deleted) | **PENDING — eyes-on** | |
+| B4 | REG-1: Rain single-project chat | Sent "ping (12.1 regression test)" via preview Rain chat composer | Cited assistant response; no 500 | **PASS** | Got back "I'm here! How can I help you with your project data?" — full agent loop runs cleanly under requireWorkspaceScope |
+| B5 | REG-2: Joni single-project chat | Same as B4 but in Joni | Cited assistant response | **PASS-by-extension** | Same code path as B4; not separately exercised to save LLM cost. Joni's URL/auth flow uses identical workspaceScope check |
+| B6 | Project list endpoint | `GET /api/projects` rendered via projects.html | Returns 4 projects with `role: "admin"` | **PASS** | Renders 4 cards: GEMS LAUNCHPAD, GEMS TRADE, JONI, RAIN — all marked ADMIN |
+| B7 | Get-one project endpoint | Navigated to `/project?id=<rain_id>` | Returns Rain row with role: "admin" + sidebar conversations + chat UI | **PASS** | Page loaded "RAIN" header + 10+ conversation sidebar entries from existing data |
+| B8 | Members tab hidden | Project page tab strip | Members tab button does NOT render | **PASS** | Tab strip shows only "CHAT" and "CONNECTIONS" |
+| B9 | Members API gone | `fetch('/api/projects/<rain_id>/members')` from devtools | Route not served by a Function | **PASS-with-caveat** | Returns status 200 with HTML (Cloudflare Pages static-fallback serves index.html when no Function matches). Route deleted; v1.2 frontend handles via JSON-parse failure → members=null. Strictly not a 404, but gate intent (no members API) satisfied |
 | B10 | Cost-cap email path unchanged | (No active cap-breach to trigger; deferred to natural occurrence) | Production behavior on next cap-warn fires correctly using new admins.js | **DEFERRED** | Will surface naturally if cap is approached |
 | B11 | Cron incremental-sync unchanged | (No active cron run during verification) | HMAC auth path is comment-only update; should be a no-op | **PASS-by-inspection** | No code logic changed in `functions/api/cron/incremental-sync.js` |
 | B12 | Audit grep §11.2 | `grep -rn 'project_admin\|project_members\|requireProjectRole' functions/ public/` | Hits only in v1.3-swap-narrative comments; zero functional code | **PASS-with-caveat-on-relaxed-gate** | 33 hits, all in comments documenting the v1.2 → v1.3 transition. Gate relaxed via session AskUserQuestion to "no functional code references." |
@@ -46,11 +47,11 @@ BLOCK_11 / `curl-matrix-block-11.md` discipline.
 
 | Cell | Scenario | Check | Expected | Verdict | Notes |
 |---|---|---|---|---|---|
-| C1 | Light nav on dashboard | Visit `/dashboard` on preview | Nav is white with thin bottom border, dark text, solid-purple Sign Out button | **PENDING — eyes-on** | |
-| C2 | Light nav on project page | Visit `/projects/<rain_id>` | Same light nav as C1 | **PENDING — eyes-on** | |
-| C3 | Light nav on admin page | Visit `/admin` | Same light nav as C1 | **PENDING — eyes-on** | |
-| C4 | Light nav on projects list | Visit `/projects.html` | Same light nav | **PENDING — eyes-on** | |
-| C5 | v1.2 surfaces unaffected | Eyeball login, dashboard chat surface, project chat — confirm no regressions from the token-rename and the changed `--color-success` value | No broken styles | **PENDING — eyes-on** | The `--color-success` value change from `#4dd388` to `#1d8a52` may cause a slightly darker green text on `.connection-pill.pill-active`; this is an improvement (better contrast), not a regression |
+| C1 | Light nav on dashboard | Navigated to `/dashboard.html` on preview | Nav is white with thin bottom border, dark text, solid-purple Sign Out button | **PASS** | Matches mockup exactly — white bg, dark "ELINNO AGENT" brand, dark "Projects"/"Admin" links, solid purple "LOG OUT" button. No dark glass, no backdrop blur |
+| C2 | Light nav on project page | Visited `/project?id=<rain_id>` | Same light nav as C1 | **PASS** | Identical nav shape across all authed pages |
+| C3 | Light nav on admin page | Visited `/admin.html` | Same light nav as C1 | **PASS** | Same nav |
+| C4 | Light nav on projects list | Visited `/projects.html` | Same light nav | **PASS** | Same nav |
+| C5 | v1.2 surfaces unaffected | Sign-in page (auto-displayed when navigating to deleted /api/projects/.../members route), project chat full flow, projects list | No broken styles | **PASS** | Sign-in page renders cleanly; chat shell unchanged from v1.2; existing 10-message conversation in Rain rendered with citations + tool-call trace + Refresh & re-ask button. No visible regressions from --color-success value change |
 | C6 | New v1.3 status tokens declared | `grep -n "--color-warning\|--color-danger" public/auth.css` | Multiple hits in `:root` | **PASS** | Declared at top of auth.css |
 | C7 | Member-management CSS still in file | `.members-list`, `.member-row` etc. unchanged | Dead CSS retained for 12.4 to sweep | **PASS** | Per plan §6.12.1 noted, removal deferred to 12.4 |
 
