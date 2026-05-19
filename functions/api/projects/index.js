@@ -4,14 +4,13 @@
 //
 // Routes (this file):
 //   POST /api/projects  → create a project (workspace-admin only)
-//   GET  /api/projects  → list projects the session user is a member of
+//   GET  /api/projects  → list projects in the session user's workspace
 //
-// Project creation writes two rows in one Postgres transaction:
-//   1. INSERT INTO projects (...)         RETURNING *
-//   2. INSERT INTO project_members (...)  for the creator as admin
-// Both must commit together — a project without its creator's
-// admin row would leave the creator unable to access the project
-// they just created.
+// v1.3 (Block 12.1, BLOCK_12_PLAN.md decision I): per-project membership
+// collapsed. Project creation is a single INSERT into `projects`; the
+// previous v1.2 second INSERT into `project_members` is gone (the table
+// is dropped). GET filters by `projects.owner_user_id = $sessionUser.id`
+// (workspace scope) instead of joining the dropped membership table.
 import postgres from 'postgres';
 import { error, getSessionUser, json, requireWorkspaceAdmin } from '../../_lib/auth.js';
 
@@ -62,27 +61,16 @@ export async function onRequestPost({ request, env }) {
   });
 
   try {
-    const project = await sql.begin(async (sql) => {
-      const [row] = await sql`
-        INSERT INTO projects (name, description, owner_user_id)
-        VALUES (${rawName}, ${description}, ${userIdText})
-        RETURNING *
-      `;
-
-      // Per BLOCK_2_PLAN decision C and db/schema-postgres.sql comment:
-      // the project owner is auto-added as admin in project_members.
-      //   invited_by = NULL — no inviter (it's the owner)
-      //   invited_at = NOW() — explicit even though it defaults
-      //   joined_at  = NOW() — no pending-invite UX in v1.1 (decision D)
-      await sql`
-        INSERT INTO project_members
-          (project_id, user_id, role, invited_by, invited_at, joined_at)
-        VALUES
-          (${row.id}, ${userIdText}, 'admin', NULL, NOW(), NOW())
-      `;
-
-      return row;
-    });
+    // v1.3 (Block 12.1): single INSERT. The v1.2 paired INSERT into
+    // project_members is gone — workspace-scope (projects.owner_user_id
+    // = session user's id) is the security predicate. The transaction
+    // wrapper from v1.2 is no longer needed but kept for forward
+    // compatibility if additional project-creation side effects land.
+    const [project] = await sql`
+      INSERT INTO projects (name, description, owner_user_id)
+      VALUES (${rawName}, ${description}, ${userIdText})
+      RETURNING *
+    `;
 
     return json({ ok: true, project }, { status: 201 });
   } catch (_err) {
@@ -110,11 +98,15 @@ export async function onRequestGet({ request, env }) {
   });
 
   try {
-    // Index path: project_members_user_active_idx on
-    // (user_id) WHERE joined_at IS NOT NULL — filters to active
-    // memberships in one index scan, then PK-joins to projects.
-    // Tiebreaker on p.id keeps ordering stable when two projects
-    // share an updated_at (e.g., both freshly created).
+    // v1.3 (Block 12.1, decision I): list projects in the session user's
+    // workspace. The v1.2 JOIN project_members is gone — workspace scope
+    // is the single predicate. Index path:
+    // projects_owner_active_idx ON (owner_user_id) WHERE deleted_at IS NULL.
+    // Tiebreaker on p.id keeps ordering stable when two projects share
+    // an updated_at (e.g., both freshly created). `role` is derived from
+    // D1 user.is_admin (workspace-admin is the only role concept in v1.3)
+    // to preserve the v1.2 response shape for the projects-list UI.
+    const role = user.is_admin ? 'admin' : 'member';
     const projects = await sql`
       SELECT
         p.id,
@@ -122,17 +114,17 @@ export async function onRequestGet({ request, env }) {
         p.description,
         p.owner_user_id,
         p.created_at,
-        p.updated_at,
-        pm.role
+        p.updated_at
         FROM projects p
-        JOIN project_members pm ON pm.project_id = p.id
-       WHERE pm.user_id    = ${userIdText}
-         AND pm.joined_at  IS NOT NULL
-         AND p.deleted_at  IS NULL
+       WHERE p.owner_user_id = ${userIdText}
+         AND p.deleted_at IS NULL
        ORDER BY p.updated_at DESC, p.id DESC
     `;
 
-    return json({ ok: true, projects });
+    return json({
+      ok: true,
+      projects: projects.map((p) => ({ ...p, role })),
+    });
   } catch (_err) {
     return error('Internal error', 500);
   } finally {

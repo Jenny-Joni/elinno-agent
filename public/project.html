@@ -333,8 +333,9 @@
         const projRes = await fetch('/api/projects/' + encodeURIComponent(projectId));
         if (projRes.status === 401) { redirectToLogin(); return; }
         if (projRes.status === 403 || projRes.status === 404) {
-          // 403-collapse from requireProjectRole, OR project soft-deleted between
-          // checks. Either way: don't leak existence — bounce to projects list.
+          // 403-collapse from requireWorkspaceScope (v1.3 successor to
+          // requireProjectRole), OR project soft-deleted between checks.
+          // Either way: don't leak existence — bounce to projects list.
           location.replace('/projects.html'); return;
         }
         if (!projRes.ok) { renderBootError(); return; }
@@ -457,7 +458,10 @@
               </div>
               <div class="project-tabs" id="tabStrip">
                 <button class="project-tab" type="button" data-tab="chat">Chat</button>
-                <button class="project-tab" type="button" data-tab="members">Members <span class="tab-count" id="memberCountPill"${memberCount === null ? ' style="display:none;"' : ''}>${memberCount === null ? '' : escapeHtml(String(memberCount))}</span></button>
+                <!-- v1.3 (Block 12.1): Members tab hidden — membership collapsed
+                     per BLOCK_12_PLAN decision I. 12.4 reworks the entire
+                     project settings page to General + Connections tabs. -->
+                <button class="project-tab" type="button" data-tab="members" hidden style="display:none;">Members <span class="tab-count" id="memberCountPill" style="display:none;"></span></button>
                 <button class="project-tab" type="button" data-tab="connections">Connections</button>
               </div>
             </div>
@@ -1398,8 +1402,11 @@
       // .read-only collapses the trailing Remove column on non-admin views;
       // see CSS for the grid-template-columns swap.
       const cls = 'member-row' + (isYou ? ' you' : '') + (!isProjectAdmin ? ' read-only' : '');
-      // Email may be null for orphan rows (project_members without a matching D1
+      // Email may be null for orphan rows (member rows without a matching D1
       // user — surfaced rather than hidden, per the API contract).
+      // v1.3 (Block 12.1): the Members tab is hidden — membership collapsed
+      // per BLOCK_12_PLAN decision I. This render function is dead code
+      // until 12.4 reworks the project settings page.
       const email = m.email || '(orphan: id=' + userIdStr + ')';
       const initial = m.email ? deriveUserInitial(m.email) : '?';
       const meta = formatMemberMeta(m, isCreator);
@@ -1485,8 +1492,9 @@
       }
 
       if (res.status === 401) { redirectToLogin(); return; }
-      // 403 from requireProjectRole = stale-admin-state. Bounce so the user
-      // returns to a known UI state rather than seeing a bare "Forbidden".
+      // 403 from requireWorkspaceScope (v1.3) = stale-admin-state. Bounce
+      // so the user returns to a known UI state rather than seeing a bare
+      // "Forbidden".
       if (res.status === 403) { location.replace('/projects.html'); return; }
 
       if (!res.ok) {

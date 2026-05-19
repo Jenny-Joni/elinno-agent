@@ -26,12 +26,17 @@
 //
 //   404 on either route collapses three cases — connection doesn't
 //   exist, isn't in this project, already deleted — to avoid leaking
-//   existence. Consistent with requireProjectRole's 403-collapse
-//   discipline.
+//   existence. Consistent with requireWorkspaceScope's 403-collapse
+//   discipline (v1.3 successor to requireProjectRole's pattern).
 // =========================================================================
 
 import postgres from 'postgres';
-import { error, json, requireProjectRole } from '../../../../../_lib/auth.js';
+import {
+  error,
+  json,
+  requireWorkspaceScope,
+  requireWorkspaceAdmin,
+} from '../../../../../_lib/auth.js';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -60,13 +65,12 @@ export async function onRequestDelete({ request, env, params }) {
     return error('Invalid connection id', 400);
   }
 
-  const { error: errResp } = await requireProjectRole(
-    request,
-    env,
-    projectId,
-    'admin'
-  );
-  if (errResp) return errResp;
+  // v1.3 swap (Block 12.1): requireProjectRole(admin) → workspace scope
+  // + workspace-admin gate.
+  const scopeResult = await requireWorkspaceScope(request, env, projectId);
+  if (scopeResult.error) return scopeResult.error;
+  const adminResult = await requireWorkspaceAdmin(request, env);
+  if (adminResult.error) return adminResult.error;
 
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,
@@ -112,13 +116,12 @@ export async function onRequestPatch({ request, env, params }) {
     return error('Invalid connection id', 400);
   }
 
-  const { error: errResp } = await requireProjectRole(
-    request,
-    env,
-    projectId,
-    'admin'
-  );
-  if (errResp) return errResp;
+  // v1.3 swap (Block 12.1): requireProjectRole(admin) → workspace scope
+  // + workspace-admin gate.
+  const scopeResult = await requireWorkspaceScope(request, env, projectId);
+  if (scopeResult.error) return scopeResult.error;
+  const adminResult = await requireWorkspaceAdmin(request, env);
+  if (adminResult.error) return adminResult.error;
 
   let body;
   try {

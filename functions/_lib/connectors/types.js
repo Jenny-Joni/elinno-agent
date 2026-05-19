@@ -19,7 +19,7 @@
 // credentials INTERNALLY by calling decrypt(env, connection,
 // aadFor(connection)). They do NOT receive plaintext credentials
 // from the API handler. The handler's job ends at SELECTing the row
-// and gating auth via requireProjectRole; from there, the connector
+// and gating auth via requireWorkspaceScope; from there, the connector
 // owns the credential lifecycle. This keeps decryption surface area
 // tightly localized — no plaintext credentials flow across module
 // boundaries.

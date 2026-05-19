@@ -12,8 +12,9 @@
 //   Per BLOCK_9_PLAN.md §9.4 decision S.
 //   Body: { "sources": ["jira" | "slack"], "dry_run": boolean? }
 //
-// Auth: HMAC-SHA256 via _lib/cron_auth.js (decision R). NO requireProjectRole;
-//       this is the cron auth boundary, not the session auth boundary.
+// Auth: HMAC-SHA256 via _lib/cron_auth.js (decision R). NO session-scope
+//       check (v1.3 requireWorkspaceScope, v1.2 requireProjectRole); this
+//       is the cron auth boundary, not the session auth boundary.
 //
 // Failure isolation (decision U): one connection's incrementalSync failing
 // writes its sync_runs row with status='failed' and the loop continues.

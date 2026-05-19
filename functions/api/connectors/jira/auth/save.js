@@ -19,8 +19,9 @@
 //   body: { project_id, site_url, account_email, api_token }
 //
 //   1. Parse body. Reject malformed JSON / missing project_id with 400.
-//   2. requireProjectRole(admin) on project_id. Failures bubble up
-//      from the helper (401 / 403 / 400).
+//   2. requireWorkspaceScope on project_id (v1.3 successor to
+//      requireProjectRole) + requireWorkspaceAdmin gate. Failures
+//      bubble up from the helpers (401 / 403 / 400).
 //   3. F: enforce single Jira connection per (project_id, source='jira')
 //      — return 409 already_connected if a non-deleted Jira connection
 //      already exists for this project.
@@ -54,7 +55,12 @@
 // =========================================================================
 
 import postgres from 'postgres';
-import { error, requireProjectRole, json } from '../../../../_lib/auth.js';
+import {
+  error,
+  requireWorkspaceScope,
+  requireWorkspaceAdmin,
+  json,
+} from '../../../../_lib/auth.js';
 import { aadFor, encrypt } from '../../../../_lib/crypto.js';
 import { jira } from '../../../../_lib/connectors/jira.js';
 
@@ -83,10 +89,15 @@ export async function onRequestPost(ctx) {
     return error('project_id required', 400);
   }
 
-  // 2. Auth: admin role on project_id.
-  const roleResult = await requireProjectRole(request, env, projectId, 'admin');
-  if (roleResult.error) return roleResult.error;
-  const { user } = roleResult;
+  // 2. Auth: project belongs to workspace + user is workspace admin.
+  // v1.3 swap (Block 12.1): requireProjectRole(admin) → workspace-scope
+  // (project belongs to session user's workspace) + workspace-admin
+  // (D1 is_admin=1) gates layered.
+  const scopeResult = await requireWorkspaceScope(request, env, projectId);
+  if (scopeResult.error) return scopeResult.error;
+  const adminResult = await requireWorkspaceAdmin(request, env);
+  if (adminResult.error) return adminResult.error;
+  const { user } = scopeResult;
 
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,

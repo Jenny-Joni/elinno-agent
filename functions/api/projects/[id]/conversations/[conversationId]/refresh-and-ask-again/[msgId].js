@@ -16,9 +16,9 @@
 // location, masked by the route being orphaned). Cf. Block 9.4 hotfix
 // commit f4c06f4 for the equivalent import-depth lesson on cron.
 //
-// Auth: requireProjectRole('member') — both members and admins can refresh
-//       a prior AI response. PRD §5.6 explicitly names this as a member
-//       action.
+// Auth: requireWorkspaceScope (v1.3 successor to requireProjectRole)
+//       — any user in the workspace can refresh a prior AI response.
+//       PRD §5.6 names this as a non-admin-gated action.
 //
 // Rate limit (decision D): 5 per (user_id, project_id) per hour, via the
 //   refresh_actions table's recency index.
@@ -34,18 +34,22 @@
 // =========================================================================
 
 import postgres from 'postgres';
-import { error, json, requireProjectRole } from '../../../../../../_lib/auth.js';
+import {
+  error,
+  json,
+  requireWorkspaceScope,
+} from '../../../../../../_lib/auth.js';
 import { runRefreshAction } from '../../../../../../_lib/agent/refresh_runner.js';
 
 const RATE_LIMIT_PER_HOUR = 5;
 const RATE_LIMIT_WINDOW_MS = 3600 * 1000;
 
 export async function onRequestPost({ request, env, params }) {
-  const { error: errResp, user } = await requireProjectRole(
+  // v1.3 swap (Block 12.1): requireProjectRole(member) → workspace scope.
+  const { error: errResp, user } = await requireWorkspaceScope(
     request,
     env,
-    params.id,
-    'member'
+    params.id
   );
   if (errResp) return errResp;
   const userIdText = String(user.id);

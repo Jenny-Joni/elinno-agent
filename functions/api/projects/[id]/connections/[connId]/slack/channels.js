@@ -31,7 +31,8 @@ import postgres from 'postgres';
 import {
   error,
   json,
-  requireProjectRole,
+  requireWorkspaceScope,
+  requireWorkspaceAdmin,
 } from '../../../../../../_lib/auth.js';
 import { listChannels } from '../../../../../../_lib/connectors/slack.js';
 
@@ -42,16 +43,15 @@ export async function onRequestGet({ request, env, params }) {
   const projectId = params.id;
   const connId = params.connId;
 
-  // requireProjectRole validates session + projectId UUID + admin role.
-  // 401 (no session), 400 (invalid project_id UUID), 403 (not member /
-  // not admin / soft-deleted project) all collapse via Block 2 Q.
-  const { error: errResp } = await requireProjectRole(
-    request,
-    env,
-    projectId,
-    'admin'
-  );
-  if (errResp) return errResp;
+  // v1.3 swap (Block 12.1): requireWorkspaceScope validates session +
+  // projectId UUID + project-belongs-to-workspace; requireWorkspaceAdmin
+  // adds the admin gate that v1.2 baked into requireProjectRole(admin).
+  // 401 (no session), 400 (invalid project_id UUID), 403 (not workspace
+  // admin / soft-deleted project) all collapse via Block 2 Q.
+  const scopeResult = await requireWorkspaceScope(request, env, projectId);
+  if (scopeResult.error) return scopeResult.error;
+  const adminResult = await requireWorkspaceAdmin(request, env);
+  if (adminResult.error) return adminResult.error;
 
   // connId UUID-shape check. Postgres would throw on bind if it's not
   // a valid UUID; explicit pre-check returns a clean 404 for

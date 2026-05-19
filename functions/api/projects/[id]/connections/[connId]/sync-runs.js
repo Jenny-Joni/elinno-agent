@@ -21,7 +21,11 @@
 // =========================================================================
 
 import postgres from 'postgres';
-import { error, json, requireProjectRole } from '../../../../../_lib/auth.js';
+import {
+  error,
+  json,
+  requireWorkspaceScope,
+} from '../../../../../_lib/auth.js';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,11 +40,11 @@ export async function onRequestGet({ request, env, params }) {
     return error('Invalid connection id', 400);
   }
 
-  const { error: errResp } = await requireProjectRole(
+  // v1.3 swap (Block 12.1): requireProjectRole(member) → workspace scope.
+  const { error: errResp } = await requireWorkspaceScope(
     request,
     env,
-    projectId,
-    'member'
+    projectId
   );
   if (errResp) return errResp;
 

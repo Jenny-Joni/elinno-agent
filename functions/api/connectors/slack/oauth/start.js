@@ -15,8 +15,10 @@
 // ----
 // GET /api/connectors/slack/oauth/start?project_id=<uuid>
 //
-//   1. requireProjectRole(admin) on project_id — 401/403 collapse on
-//      failure (Block 2 decision Q).
+//   1. requireWorkspaceScope on project_id + requireWorkspaceAdmin gate
+//      (v1.3 successor to requireProjectRole(admin)) — 401/403 collapse
+//      on failure (Block 2 decision Q, preserved through workspace
+//      scope check + admin gate).
 //   2. slack.startAuth(ctx) → { authUrl, state }. State doubles as the
 //      future connection.id (commit 2's slack.js generates state via
 //      crypto.randomUUID()).
@@ -35,9 +37,10 @@
 //
 // FAILURE BEHAVIOR
 // ----------------
-// - No session / not admin / unknown project / soft-deleted project →
-//   403-collapse from requireProjectRole (no information leak between
-//   distinct authorization-failure modes).
+// - No session / not workspace admin / unknown project / soft-deleted
+//   project → 403-collapse from requireWorkspaceScope +
+//   requireWorkspaceAdmin (no information leak between distinct
+//   authorization-failure modes).
 // - INSERT failure (duplicate state — astronomically unlikely with
 //   randomUUID v4, but the schema's UNIQUE constraint on
 //   (project_id, source, external_account_id, deleted_at) NULLS NOT
@@ -60,23 +63,27 @@
 // =========================================================================
 
 import postgres from 'postgres';
-import { error, requireProjectRole } from '../../../../_lib/auth.js';
+import {
+  error,
+  requireWorkspaceScope,
+  requireWorkspaceAdmin,
+} from '../../../../_lib/auth.js';
 import { getConnector } from '../../../../_lib/connectors/registry.js';
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get('project_id') || '';
 
-  // requireProjectRole validates UUID shape, session, and project
-  // membership/role. 401 (no session) and 403 (not admin / unknown
-  // project / soft-deleted) collapse identically per Block 2 decision Q.
-  const { error: errResp, user: session } = await requireProjectRole(
-    request,
-    env,
-    projectId,
-    'admin'
-  );
-  if (errResp) return errResp;
+  // v1.3 swap (Block 12.1): requireProjectRole(admin) → workspace scope
+  // (project belongs to session user's workspace) + workspace-admin gate
+  // (D1 is_admin=1). 401 (no session) and 403 (not workspace admin /
+  // unknown project / soft-deleted) collapse identically per Block 2
+  // decision Q, preserved through the layered checks.
+  const scopeResult = await requireWorkspaceScope(request, env, projectId);
+  if (scopeResult.error) return scopeResult.error;
+  const adminResult = await requireWorkspaceAdmin(request, env);
+  if (adminResult.error) return adminResult.error;
+  const session = scopeResult.user;
 
   const connector = getConnector('slack');
   const sql = postgres(env.HYPERDRIVE.connectionString, {

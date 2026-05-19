@@ -39,7 +39,8 @@ import postgres from 'postgres';
 import {
   error,
   json,
-  requireProjectRole,
+  requireWorkspaceScope,
+  requireWorkspaceAdmin,
 } from '../../../../_lib/auth.js';
 import { aadFor, encrypt } from '../../../../_lib/crypto.js';
 import {
@@ -84,13 +85,12 @@ const DISPLAY_NAME_MAX = 100;
 export async function onRequestPost({ request, env, params }) {
   const projectId = params.id;
 
-  const { error: errResp } = await requireProjectRole(
-    request,
-    env,
-    projectId,
-    'admin'
-  );
-  if (errResp) return errResp;
+  // v1.3 swap (Block 12.1): requireProjectRole(admin) → workspace scope
+  // + workspace-admin gate.
+  const scopeResult = await requireWorkspaceScope(request, env, projectId);
+  if (scopeResult.error) return scopeResult.error;
+  const adminResult = await requireWorkspaceAdmin(request, env);
+  if (adminResult.error) return adminResult.error;
 
   let body;
   try {
@@ -241,17 +241,17 @@ export async function onRequestPost({ request, env, params }) {
 }
 
 // ---------------------------------------------------------------------------
-// GET — list active connections in the project (member access)
+// GET — list active connections in the project (workspace scope only)
 // ---------------------------------------------------------------------------
 
 export async function onRequestGet({ request, env, params }) {
   const projectId = params.id;
 
-  const { error: errResp } = await requireProjectRole(
+  // v1.3 swap (Block 12.1): requireProjectRole(member) → workspace scope.
+  const { error: errResp } = await requireWorkspaceScope(
     request,
     env,
-    projectId,
-    'member'
+    projectId
   );
   if (errResp) return errResp;
 

@@ -13,26 +13,31 @@
 //          by updated_at DESC, id DESC.
 //
 // Per PRD §3 and the db/schema-postgres.sql comment on `conversations`,
-// conversations are PRIVATE to their owner (decision AC) — other project
-// members do not see each other's conversations. The schema enforces this
+// conversations are PRIVATE to their owner (decision AC) — other workspace
+// users do not see each other's conversations. The schema enforces this
 // with `user_id TEXT NOT NULL` plus a hot-path index on
 // (user_id, project_id, last_message_at) WHERE deleted_at IS NULL.
-// Both endpoints scope to the session user's id; member-level access
-// on the PROJECT is the gate on existence (cross-project leakage is
-// prevented one layer up by requireProjectRole's 403-collapse).
+// Both endpoints scope to the session user's id; workspace-scope access
+// on the PROJECT is the gate on existence (cross-tenant leakage is
+// prevented one layer up by requireWorkspaceScope's 403-collapse — v1.3
+// successor to requireProjectRole).
 //
 // Cross-DB seam: D1 users.id (INTEGER) → Postgres TEXT.
 // Pattern documented canonically in db/schema-postgres.sql header.
 
 import postgres from 'postgres';
-import { error, json, requireProjectRole } from '../../../../_lib/auth.js';
+import {
+  error,
+  json,
+  requireWorkspaceScope,
+} from '../../../../_lib/auth.js';
 
 export async function onRequestPost({ request, env, params }) {
-  const { error: errResp, user } = await requireProjectRole(
+  // v1.3 swap (Block 12.1): requireProjectRole(member) → workspace scope.
+  const { error: errResp, user } = await requireWorkspaceScope(
     request,
     env,
-    params.id,
-    'member'
+    params.id
   );
   if (errResp) return errResp;
 
@@ -69,11 +74,11 @@ export async function onRequestPost({ request, env, params }) {
 }
 
 export async function onRequestGet({ request, env, params }) {
-  const { error: errResp, user } = await requireProjectRole(
+  // v1.3 swap (Block 12.1): requireProjectRole(member) → workspace scope.
+  const { error: errResp, user } = await requireWorkspaceScope(
     request,
     env,
-    params.id,
-    'member'
+    params.id
   );
   if (errResp) return errResp;
 

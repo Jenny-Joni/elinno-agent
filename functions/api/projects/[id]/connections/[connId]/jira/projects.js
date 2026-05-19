@@ -33,7 +33,8 @@ import postgres from 'postgres';
 import {
   error,
   json,
-  requireProjectRole,
+  requireWorkspaceScope,
+  requireWorkspaceAdmin,
 } from '../../../../../../_lib/auth.js';
 import { listProjects } from '../../../../../../_lib/connectors/jira.js';
 
@@ -44,14 +45,13 @@ export async function onRequestGet({ request, env, params }) {
   const projectId = params.id;
   const connId = params.connId;
 
-  // requireProjectRole validates session + projectId UUID + admin role.
-  const { error: errResp } = await requireProjectRole(
-    request,
-    env,
-    projectId,
-    'admin'
-  );
-  if (errResp) return errResp;
+  // v1.3 swap (Block 12.1): requireWorkspaceScope validates session +
+  // projectId UUID + project-belongs-to-workspace; requireWorkspaceAdmin
+  // adds the admin gate that v1.2 baked into requireProjectRole(admin).
+  const scopeResult = await requireWorkspaceScope(request, env, projectId);
+  if (scopeResult.error) return scopeResult.error;
+  const adminResult = await requireWorkspaceAdmin(request, env);
+  if (adminResult.error) return adminResult.error;
 
   // connId UUID-shape pre-check returns clean 404 for syntactically
   // invalid IDs (Postgres would otherwise throw on bind).

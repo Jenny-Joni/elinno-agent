@@ -25,23 +25,27 @@
 //               (possibly updated) conversation title (decision X)
 //
 // Two security guards apply on every request:
-//   - requireProjectRole: 403-collapse on cross-project leakage
-//     (handled one layer up by the helper)
+//   - requireWorkspaceScope (v1.3 successor to requireProjectRole):
+//     403-collapse on cross-tenant leakage (handled one layer up by
+//     the helper). Block 12.1 (BLOCK_12_PLAN decision I).
 //   - conversation-belongs-to-project AND conversation-belongs-to-user:
 //     in-handler check via the SELECT at the top of each method;
-//     403 on either failure (matches requireProjectRole's pattern of
+//     403 on either failure (matches requireWorkspaceScope's pattern of
 //     collapsing all access-denied paths to 403, per PRD §10).
 //
 // SCHEMA NOTE — `messages.project_id` is denormalized:
-//   The `messages` table has a NOT NULL `project_id` uuid column with no
-//   default. It's redundant with `conversations.project_id` (every message
-//   belongs to a conversation, every conversation belongs to a project),
-//   but the schema (db/schema-postgres.sql, Block 1 Task 3) denormalizes
-//   it onto `messages` so future query patterns — Block 5+ analytics over
-//   "messages in this project," cross-conversation searches scoped to a
-//   project, vector queries that join messages → entity_embeddings without
-//   needing a 3-way join through conversations — can hit one index on
-//   messages alone.
+//   The `messages` table has a `project_id` uuid column denormalized
+//   from conversations.project_id, so analytics, cross-conversation
+//   searches, and vector joins can hit one index on messages alone.
+//
+//   v1.3 (Block 12.1, BLOCK_12_PLAN.md decision F): project_id is now
+//   NULLABLE. Single-project messages — produced by THIS handler — still
+//   populate it from `params.id` (the v1.2 behavior is preserved
+//   verbatim). Cross-project messages, produced by
+//   functions/api/cross-project/.../messages.js (12.5a), have
+//   project_id = NULL and rely on conversations.project_ids for scope.
+//   Every aggregation/filter on the column must consider NULL — see
+//   §11.12 (audit grep) + §11.13 (bleed-in test) verification gates.
 //
 //   Both INSERTs below MUST populate project_id from `params.id`. Removing
 //   it (e.g. as part of a "simplification" that just inserts the obvious
@@ -93,7 +97,11 @@
 //   write volume.
 
 import postgres from 'postgres';
-import { error, json, requireProjectRole } from '../../../../../_lib/auth.js';
+import {
+  error,
+  json,
+  requireWorkspaceScope,
+} from '../../../../../_lib/auth.js';
 import { runAgent } from '../../../../../_lib/ai/loop.js';
 import { computeCostUsd } from '../../../../../_lib/ai/pricing.js';
 import { getAdminEmailsForProject } from '../../../../../_lib/admins.js';
@@ -145,20 +153,23 @@ const AGENT_FAILURE_TEXT =
   "I hit a temporary issue answering your question. Please try again in a moment.";
 
 export async function onRequestGet({ request, env, params }) {
-  const { error: errResp, user, role } = await requireProjectRole(
+  // v1.3 swap (Block 12.1): requireProjectRole(member) → workspace scope.
+  // The v1.2 'role' return is reconstructed below from D1 user.is_admin
+  // so the existing tool-trace gate (decision O) continues to apply.
+  const { error: errResp, user } = await requireWorkspaceScope(
     request,
     env,
-    params.id,
-    'member'
+    params.id
   );
   if (errResp) return errResp;
 
   const userIdText = String(user.id);
   // BLOCK_10_PLAN.md decision O: tool-call trace viewer is admin-only.
-  // Server-side filter is the load-bearing gate — UI render is naturally
-  // empty for non-admins because the role='tool' rows + tool_calls JSONB
-  // never reach the response.
-  const isProjectAdmin = role === 'admin';
+  // v1.3 (Block 12.1): workspace-admin replaces project-admin; D1
+  // user.is_admin is the gate. Server-side filter is the load-bearing
+  // mechanism — UI render is naturally empty for non-admins because the
+  // role='tool' rows + tool_calls JSONB never reach the response.
+  const isWorkspaceAdmin = !!user.is_admin;
 
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,
@@ -248,11 +259,11 @@ export async function onRequestGet({ request, env, params }) {
       };
     });
 
-    // BLOCK_10_PLAN.md decision O: trim the response for non-admin members.
+    // BLOCK_10_PLAN.md decision O: trim the response for non-admin users.
     // Drop role='tool' rows entirely (no tool intermediates leak); null
     // tool_calls on assistant rows so the UI's `m.tool_calls?.length > 0`
-    // gate naturally renders nothing. Project admins see the full shape.
-    const responseMessages = isProjectAdmin
+    // gate naturally renders nothing. Workspace admins see the full shape.
+    const responseMessages = isWorkspaceAdmin
       ? enrichedMessages
       : enrichedMessages
           .filter((m) => m.role !== 'tool')
@@ -282,11 +293,11 @@ export async function onRequestGet({ request, env, params }) {
 }
 
 export async function onRequestPost({ request, env, params }) {
-  const { error: errResp, user } = await requireProjectRole(
+  // v1.3 swap (Block 12.1): requireProjectRole(member) → workspace scope.
+  const { error: errResp, user } = await requireWorkspaceScope(
     request,
     env,
-    params.id,
-    'member'
+    params.id
   );
   if (errResp) return errResp;
 

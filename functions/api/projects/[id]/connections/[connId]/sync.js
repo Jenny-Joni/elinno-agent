@@ -42,7 +42,12 @@
 // =========================================================================
 
 import postgres from 'postgres';
-import { error, json, requireProjectRole } from '../../../../../_lib/auth.js';
+import {
+  error,
+  json,
+  requireWorkspaceScope,
+  requireWorkspaceAdmin,
+} from '../../../../../_lib/auth.js';
 import {
   getConnector,
   isKnownSource,
@@ -59,13 +64,13 @@ export async function onRequestPost({ request, env, params }) {
     return error('Invalid connection id', 400);
   }
 
-  const { error: errResp } = await requireProjectRole(
-    request,
-    env,
-    projectId,
-    'admin'
-  );
-  if (errResp) return errResp;
+  // v1.3 swap (Block 12.1): admin gate now requires both workspace
+  // scope (project belongs to session user's workspace) AND workspace
+  // admin (D1 is_admin=1). Replaces v1.2's requireProjectRole(admin).
+  const scopeResult = await requireWorkspaceScope(request, env, projectId);
+  if (scopeResult.error) return scopeResult.error;
+  const adminResult = await requireWorkspaceAdmin(request, env);
+  if (adminResult.error) return adminResult.error;
 
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,
