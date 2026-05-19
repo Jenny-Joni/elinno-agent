@@ -65,7 +65,7 @@ Item-by-item from §11's 13 gates:
 |---|---|---|
 | 1 | US-1…US-6 + US-7/US-8 + adversarial cells pass | **N/A for 12.1** — gates apply at 12.5b launch |
 | 2 | Grep `project_admin\|project_members\|requireProjectRole` returns zero hits | **PASS-with-caveat** (B12) — gate relaxed to "no functional code references" |
-| 3 | `project_members` does not exist in Neon | **PENDING** — will pass after the re-drop step (run original migration again post-12.1-deploy) |
+| 3 | `project_members` does not exist in Neon | **PASS** — re-drop ran in Neon SQL Editor after main deployed. `SELECT count(*) FROM project_members` returns `ERROR: relation "project_members" does not exist (SQLSTATE 42P01)`. Verified production projects list endpoint still loads cleanly (4 projects, admin role) without the table |
 | 4 | D1 `users` has the 3 new columns + default $20 | **PASS** (A4) |
 | 5 | Dashboard renders mockup (a) layout | **N/A for 12.1** — dashboard rebuild is 12.3 |
 | 6 | Cross-project chat surface reachable | **N/A for 12.1** — lands in 12.5 |

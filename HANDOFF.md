@@ -4299,3 +4299,113 @@ audit-gate language for v1.3+ sub-blocks should explicitly say
 
 **Production state**: `12bb040` on `elinnoagent.com`.
 Block 12.1 is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
+
+---
+
+## Block 12.1 SHIPPED to main — 2026-05-19 (v1.3 kickoff)
+
+**Production state:** `eb13f50` on `elinnoagent.com` (was `12bb040`).
+Fast-forward merge `12bb040..fb62ee6` (7 commits) + fix-up commit
+`eb13f50`. Cloudflare Pages auto-built against main twice (initial
+deploy of the 7-commit ff-merge, then the email-fix nav fix-up).
+
+This is the first v1.3 sub-block. Cross-project AI mode's substrate is
+live: per-project membership collapsed into workspace scope
+(`projects.owner_user_id` = session user's id), the dark-glass
+`.app-nav` inverted to light-mode, v1.3 status tokens added.
+
+**Verification verdicts** (full detail in `curl-matrix-block-12.1.md`):
+
+All §11 launch gates applicable to 12.1 PASS:
+- §11.3 `project_members` does not exist in Neon → **PASS** after
+  post-deploy re-drop (verified: `SELECT count(*) FROM project_members`
+  returns `ERROR: relation "project_members" does not exist`)
+- §11.4 D1 `users` has the 3 new columns + default $20 → PASS
+- §11.10 curl-matrix-block-12.1.md committed → PASS
+
+12.1.B preview verification (16 cells from B + C sections of the matrix)
+all PASS / PASS-with-caveat / DEFERRED-to-12.5. End-to-end chat send
+("ping (12.1 regression test)") in Rain returned a clean agent
+response on preview, proving the workspace-scope swap doesn't break
+v1.2 single-project flows.
+
+**Mid-flight production fix-up** (commit `eb13f50`):
+
+After the initial ff-merge, hard-reload on production revealed the
+`#navUser` span (the email indicator in the nav) was invisible —
+white-on-white. The span had `style="color:#fff;..."` inline, written
+for the old dark-glass nav, and inline styles beat external CSS.
+Surgical fix in 4 HTML files (dashboard / projects / admin / project)
+swapped the inline `color:#fff` to `color:var(--color-text-body)`.
+Pushed within 3 minutes of the initial deploy; production verified.
+
+**Lesson:** inline styles in `<span>` / `<div>` HTML are an
+under-the-radar surface that won't show up in a CSS-only token audit.
+For 12.2's component additions and 12.3's dashboard rebuild, sweep
+the HTML for `style="color:..."` patterns before assuming a
+CSS-only swap is complete.
+
+**Production project_members recovery + clean re-drop** — the
+flag-day mistake noted in the preview-verified section's "Mid-flight
+discovery + recovery" was fully resolved:
+1. Schema migration ran first (per plan order) → dropped table.
+2. Production code (Block 11) still referenced the table → would 500.
+3. Jenny ran a CREATE-TABLE + backfill SQL to restore the v1.2 code
+   path while 12.1.B was being assembled (~minutes of degraded state).
+4. Block 12.1 ff-merged to main; new code (no `project_members`
+   references) deployed.
+5. Jenny re-ran the original migration's DROP statements — the
+   IF EXISTS / BEGIN / COMMIT block from
+   `db/migrations/2026-05-19-block-12-1-cross-project-postgres.sql`
+   — to remove the table cleanly with no code looking for it.
+6. Audit confirms the relation is gone.
+
+Net: production was degraded for the ~few-minutes window between
+steps 1 and 3, with Jenny as the only active user; no other user
+traffic was affected. Block 12.2+ will avoid this class of flag-day
+ordering per the workflow lesson in the prior section.
+
+**Production smoke-test:**
+
+- Dashboard, projects list, admin pages all render with light nav
+  + visible email.
+- Projects list loads 4 active projects (GEMS LAUNCHPAD, GEMS TRADE,
+  JONI, RAIN) with ADMIN role badge each.
+- Workspace-scope query against `projects.owner_user_id` runs
+  without `project_members` JOIN.
+- End-to-end chat send was verified on preview; production
+  smoke-test was the projects-list load (which exercises the
+  workspace-scope auth path and confirms no 500s).
+
+**Carry-forward into 12.2 (locked):**
+
+1. **Re-run flag-day-avoidance disciplines for future sub-blocks.**
+   When schema deletes break the deployed code: land the new code
+   on main first, deploy, THEN drop the schema. The reverse order is
+   what caused the project_members production gap in 12.1.
+2. **Duplicate index** `idx_projects_owner_user_id_alive` vs.
+   `projects_owner_active_idx` — same WHERE, same columns. Drop
+   one in a future mini-cleanup migration.
+3. **Member-management CSS** still in `auth.css` (lines ~1516-1685).
+   12.4's settings-page rework sweeps when the JS that references
+   it goes away.
+4. **`render Members tab` JS** in `public/project.html` is dead code.
+   The tab button is hidden via `style="display:none;" hidden`; the
+   renderMembers function and its fetch handlers will be removed in
+   12.4's settings rework.
+5. **Audit-gate semantic relaxation** (33 v1.3-swap-narrative comment
+   hits for `project_admin\|project_members\|requireProjectRole`) is
+   documented in the preview-verified section. Future sub-blocks
+   should be explicit about "in functional code" wording.
+6. **DEFERRED §11.12** (messages.project_id audit) and **§11.13**
+   (bleed-in test) → 12.5a, when the cross-project endpoint
+   actually exists and bleed scenarios are exercisable.
+7. **D1 `cross_project_ai_spend_period_start`** is NULLABLE in the
+   schema due to the rejected non-constant DEFAULT. App layer must
+   write this column on session start for any v1.3 user — the
+   cap-tracking helper landing in 12.5a is the natural place.
+
+**Block 12.1 is SHIPPED.** `eb13f50` is the deployed commit on
+`elinnoagent.com`. Sub-block 12.2 is next: 9 additive components in
+`auth.css` per BLOCK_12_PLAN §6.12.2 + PRD §7.3. Purely additive
+CSS, no HTML changes — lowest-risk sub-block in the v1.3 sequence.
