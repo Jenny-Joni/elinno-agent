@@ -2128,6 +2128,22 @@ table.users-table {
   justify-content: space-between;
   margin-bottom: 12px;
 }
+.cross-project-chat-card-status {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 50px;
+}
+.cross-project-chat-card-status.live {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+.cross-project-chat-card-status.v2 {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
 .cross-project-chat-card-source-row {
   display: flex;
   align-items: center;

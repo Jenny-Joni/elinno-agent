@@ -371,7 +371,7 @@
       const labelText = chat.label || 'Product';
       const lastAt = chat.last_message_at || chat.created_at;
       return ''
-        + '<a class="cross-project-chat-card live" href="/cross-project/' + escHtml(chat.id) + '">'
+        + '<a class="cross-project-chat-card live" href="/cross-project/chat.html?id=' + escHtml(chat.id) + '">'
         +   '<div class="cross-project-chat-card-head">'
         +     '<span class="label-pill">' + escHtml(labelText) + '</span>'
         +     '<span class="status-pill live">Live</span>'

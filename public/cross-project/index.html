@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cross-project chats — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/auth.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <style>
+    .cp-landing {
+      background: #fff;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 18px 0 28px;
+    }
+    .cp-landing-head {
+      padding: 24px 24px 18px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .cp-landing-eyebrow {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--color-brand);
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .cp-landing-title {
+      font-size: 22px;
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin: 0 0 8px;
+    }
+    .cp-landing-title strong { font-weight: 700; }
+    .cp-landing-sub {
+      font-size: 13px;
+      color: var(--color-text-body);
+      line-height: 1.45;
+      margin: 0;
+      max-width: 540px;
+    }
+    .cp-landing-grid {
+      padding: 18px 18px 6px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .cp-landing-footer {
+      padding: 6px 18px 24px;
+    }
+    .cp-new-cta {
+      width: 100%;
+      box-sizing: border-box;
+      background: transparent;
+      color: var(--color-brand);
+      border: 1.5px dashed rgba(98, 52, 252, 0.4);
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+    .cp-new-cta:hover { background: var(--color-brand-tint); }
+    .cp-empty {
+      padding: 28px 18px 12px;
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: 13px;
+    }
+    .cp-loading, .cp-error {
+      padding: 80px 0;
+      text-align: center;
+      font-size: 13px;
+    }
+    .cp-loading { color: var(--color-text-muted); }
+    .cp-error {
+      background: rgba(255, 0, 131, 0.08);
+      border: 1px solid rgba(255, 0, 131, 0.3);
+      border-radius: 12px;
+      color: var(--color-error);
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <div class="app-nav-actions">
+        <span id="navUser" style="color:var(--color-text-body);opacity:.85;font-size:14px;"></span>
+        <a href="/projects.html">Projects</a>
+        <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <button id="logoutBtn" class="btn-nav">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <div class="custom-container">
+      <div id="cpRoot">
+        <div class="cp-loading">Loading cross-project chats…</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function escHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function fmtRelative(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (!isFinite(d)) return '';
+      const diffMs = Date.now() - d.getTime();
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1) return 'just now';
+      if (diffMin < 60) return diffMin + ' min ago';
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return diffHr + ' hr' + (diffHr === 1 ? '' : 's') + ' ago';
+      const diffDay = Math.floor(diffHr / 24);
+      if (diffDay === 1) return 'yesterday';
+      if (diffDay < 7) return diffDay + ' days ago';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    function jiraSvg(size) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-label="Jira"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z"/></svg>';
+    }
+
+    function redirectToLogin() {
+      location.replace('/login.html?next=' + encodeURIComponent('/cross-project/'));
+    }
+
+    async function loadMe() {
+      const r = await fetch('/api/me');
+      if (r.status === 401) { redirectToLogin(); return null; }
+      const data = await r.json().catch(() => null);
+      if (!data || !data.user) return null;
+      const me = data.user;
+      const u = document.getElementById('navUser');
+      if (u) u.textContent = me.email || '';
+      if (me.is_admin) {
+        const a = document.getElementById('adminLink');
+        if (a) a.style.display = '';
+      }
+      const lo = document.getElementById('logoutBtn');
+      if (lo) {
+        lo.addEventListener('click', async () => {
+          try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+          location.replace('/login.html');
+        });
+      }
+      return me;
+    }
+
+    async function loadProjects() {
+      const r = await fetch('/api/projects');
+      if (r.status === 401) { redirectToLogin(); return new Map(); }
+      const data = await r.json().catch(() => null);
+      const map = new Map();
+      if (data && Array.isArray(data.projects)) {
+        data.projects.forEach(p => map.set(p.id, p));
+      }
+      return map;
+    }
+
+    async function loadConversations() {
+      const r = await fetch('/api/cross-project/conversations');
+      if (r.status === 401) { redirectToLogin(); return []; }
+      const data = await r.json().catch(() => null);
+      if (!data || !Array.isArray(data.conversations)) return [];
+      return data.conversations;
+    }
+
+    function renderCard(chat, projectsById) {
+      const projectIds = Array.isArray(chat.project_ids) ? chat.project_ids : [];
+      const total = projectIds.length;
+      const names = projectIds
+        .map(id => (projectsById.get(id) || {}).name || 'Project')
+        .join(', ');
+      const lastAt = chat.last_message_at || chat.updated_at || chat.created_at;
+      const title = chat.title || 'Cross-project chat';
+      return ''
+        + '<a class="cross-project-chat-card live" href="/cross-project/chat.html?id=' + escHtml(chat.id) + '">'
+        +   '<div class="cross-project-chat-card-head">'
+        +     '<span class="label-pill">Product</span>'
+        +     '<span class="cross-project-chat-card-status live">Live</span>'
+        +   '</div>'
+        +   '<div class="cross-project-chat-card-source-row">'
+        +     '<div class="cross-project-chat-card-source-icon"><i class="ti ti-target"></i></div>'
+        +     '<div class="source-chip">' + jiraSvg(14) + 'Jira</div>'
+        +   '</div>'
+        +   '<p class="cross-project-chat-card-body">' + escHtml(title) + '</p>'
+        +   '<div class="scope-summary">'
+        +     '<i class="ti ti-folders"></i>'
+        +     '<span><strong>' + total + ' of ' + total + '</strong> · ' + escHtml(names || '—') + '</span>'
+        +   '</div>'
+        +   '<div class="cross-project-chat-card-foot">'
+        +     '<span class="cross-project-chat-card-foot-meta">' + escHtml(fmtRelative(lastAt) || 'new') + '</span>'
+        +     '<span class="cross-project-chat-card-foot-cta">Open ↗</span>'
+        +   '</div>'
+        + '</a>';
+    }
+
+    function renderLockedV2Card() {
+      return ''
+        + '<div class="cross-project-chat-card locked-v2">'
+        +   '<div class="cross-project-chat-card-head">'
+        +     '<span class="label-pill">Finance</span>'
+        +     '<span class="cross-project-chat-card-status v2">v2.0</span>'
+        +   '</div>'
+        +   '<div class="cross-project-chat-card-source-row">'
+        +     '<div class="cross-project-chat-card-source-icon"><i class="ti ti-coin"></i></div>'
+        +     '<div class="source-chip muted"><svg width="14" height="14" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4" fill="#FF3D57"/><circle cx="12" cy="12" r="2.4" fill="#FFCB00"/><circle cx="18" cy="12" r="2.4" fill="#00CA72"/></svg>Monday</div>'
+        +   '</div>'
+        +   '<p class="cross-project-chat-card-body">Track budgets, spend, resource allocation across projects.</p>'
+        +   '<div class="scope-summary">'
+        +     '<i class="ti ti-folders"></i>'
+        +     '<span><strong>Requires Monday</strong></span>'
+        +   '</div>'
+        +   '<div class="cross-project-chat-card-foot">'
+        +     '<span class="cross-project-chat-card-foot-meta">Ships in v2.0</span>'
+        +     '<span class="cross-project-chat-card-foot-cta">Locked</span>'
+        +   '</div>'
+        + '</div>';
+    }
+
+    function renderLanding(conversations, projectsById) {
+      const liveCards = conversations.map(c => renderCard(c, projectsById)).join('');
+      const emptyHtml = conversations.length === 0
+        ? '<div class="cp-empty">No cross-project chats yet — start one below.</div>'
+        : '';
+      return ''
+        + '<div class="cp-landing">'
+        +   '<div class="cp-landing-head">'
+        +     '<div class="cp-landing-eyebrow">— Cross-project</div>'
+        +     '<h2 class="cp-landing-title">Your <strong>cross-project chats</strong></h2>'
+        +     '<p class="cp-landing-sub">Each chat is labeled by function and typed to a data source. Scope is the projects you choose. Authorization re-runs on every question.</p>'
+        +   '</div>'
+        +   emptyHtml
+        +   '<div class="cp-landing-grid">'
+        +     liveCards
+        +     renderLockedV2Card()
+        +   '</div>'
+        +   '<div class="cp-landing-footer">'
+        +     '<a href="/cross-project/new" class="cp-new-cta">'
+        +       '<i class="ti ti-plus"></i> New cross-project chat'
+        +     '</a>'
+        +   '</div>'
+        + '</div>';
+    }
+
+    function renderError(msg) {
+      return '<div class="cp-error">' + escHtml(msg) + '</div>';
+    }
+
+    (async function boot() {
+      try {
+        const me = await loadMe();
+        if (!me) return;
+        const [projectsById, conversations] = await Promise.all([
+          loadProjects(),
+          loadConversations(),
+        ]);
+        document.getElementById('cpRoot').innerHTML = renderLanding(conversations, projectsById);
+      } catch {
+        document.getElementById('cpRoot').innerHTML = renderError("Couldn't load cross-project chats. Refresh to try again.");
+      }
+    })();
+  </script>
+</body>
+</html>

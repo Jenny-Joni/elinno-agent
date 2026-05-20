@@ -1,0 +1,1020 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cross-project chat — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/auth.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <style>
+    .cp-chat-shell {
+      background: #fff;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 75vh;
+      margin: 18px 0 28px;
+    }
+    .cp-chat-head {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .cp-chat-head-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+    .cp-chat-head-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--color-brand-tint);
+      color: var(--color-brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 18px;
+    }
+    .cp-chat-head-meta { min-width: 0; }
+    .cp-chat-head-row1 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      flex-wrap: wrap;
+    }
+    .cp-edit-scope-btn {
+      font-size: 11px;
+      color: var(--color-brand);
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(98, 52, 252, 0.3);
+      background: transparent;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      font-family: inherit;
+      flex-shrink: 0;
+    }
+    .cp-edit-scope-btn:hover { background: var(--color-brand-tint); }
+
+    .cp-chat-body {
+      flex: 1;
+      min-height: 0;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    .cp-empty {
+      padding: 48px 24px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .cp-empty-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 12px;
+      background: var(--color-brand-tint);
+      color: var(--color-brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      font-size: 32px;
+    }
+    .cp-empty-title {
+      font-size: 20px;
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin: 0 0 10px;
+      text-align: center;
+    }
+    .cp-empty-title strong { font-weight: 700; }
+    .cp-empty-sub {
+      font-size: 13px;
+      color: var(--color-text-body);
+      line-height: 1.45;
+      max-width: 480px;
+      text-align: center;
+      margin: 0 0 32px;
+    }
+    .cp-suggestions {
+      width: 100%;
+      max-width: 600px;
+    }
+    .cp-suggestions-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .cp-suggestions-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .cp-suggestion {
+      background: var(--color-bg-soft);
+      border: none;
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      text-align: left;
+      cursor: pointer;
+      font-family: inherit;
+      color: inherit;
+    }
+    .cp-suggestion:hover { background: var(--color-brand-tint); }
+    .cp-suggestion-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--color-brand-tint);
+      color: var(--color-brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 14px;
+    }
+    .cp-suggestion-text {
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 500;
+    }
+
+    .cp-composer {
+      border-top: 1px solid var(--color-border);
+      padding: 14px 18px;
+      background: #fff;
+    }
+    .cp-composer-row {
+      background: var(--color-bg-soft);
+      border-radius: 10px;
+      padding: 8px 10px 8px 14px;
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    .cp-composer-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--color-text-dark);
+      resize: none;
+      min-height: 22px;
+      max-height: 180px;
+      line-height: 1.45;
+      padding: 6px 0;
+    }
+    .cp-composer-input:focus { outline: none; }
+    .cp-composer-send {
+      background: var(--color-brand);
+      color: #fff;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      font-family: inherit;
+    }
+    .cp-composer-send:disabled {
+      background: var(--color-text-muted);
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .cp-composer-footer {
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      padding: 0 2px;
+    }
+    .cp-composer-error {
+      background: rgba(255, 0, 131, 0.08);
+      border: 1px solid rgba(255, 0, 131, 0.3);
+      color: var(--color-error);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .cp-loading, .cp-error {
+      padding: 80px 0;
+      text-align: center;
+      font-size: 13px;
+    }
+    .cp-loading { color: var(--color-text-muted); }
+    .cp-error {
+      background: rgba(255, 0, 131, 0.08);
+      border: 1px solid rgba(255, 0, 131, 0.3);
+      border-radius: 12px;
+      color: var(--color-error);
+      margin: 20px 0;
+    }
+
+    /* Edit-scope inline modal overlay */
+    .cp-edit-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px 16px;
+      z-index: 100;
+      overflow-y: auto;
+    }
+    .cp-edit-overlay.open { display: flex; }
+    .cp-edit-modal {
+      max-width: 600px;
+      width: 100%;
+      background: #fff;
+      border-radius: 20px;
+      overflow: hidden;
+      color: var(--color-text-dark);
+    }
+    .cp-edit-head {
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .cp-edit-head-left { flex: 1; min-width: 0; }
+    .cp-edit-eyebrow {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--color-brand);
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .cp-edit-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      flex-wrap: wrap;
+    }
+    .cp-edit-title {
+      font-size: 18px;
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin: 0;
+    }
+    .cp-edit-sub {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      line-height: 1.4;
+      margin: 0;
+    }
+    .cp-edit-section { padding: 20px 24px 0; }
+    .cp-edit-foot {
+      padding: 16px 24px;
+      background: var(--color-bg-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--color-border);
+    }
+    .cp-edit-error {
+      background: rgba(255, 0, 131, 0.08);
+      border: 1px solid rgba(255, 0, 131, 0.3);
+      border-radius: 8px;
+      color: var(--color-error);
+      font-size: 12px;
+      padding: 10px 12px;
+      margin: 0 24px 12px;
+    }
+
+    /* Citation chip prefix is in auth.css; ensure inside chat-citation the
+       prefix sits inline before the title. */
+    .chat-citation .citation-chip-prefix { margin-right: 6px; }
+  </style>
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <div class="app-nav-actions">
+        <span id="navUser" style="color:var(--color-text-body);opacity:.85;font-size:14px;"></span>
+        <a href="/cross-project/">Cross-project</a>
+        <a href="/projects.html">Projects</a>
+        <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <button id="logoutBtn" class="btn-nav">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <div class="custom-container">
+      <div id="cpRoot">
+        <div class="cp-loading">Loading chat…</div>
+      </div>
+    </div>
+  </main>
+
+  <div class="cp-edit-overlay" id="cpEditOverlay"></div>
+
+  <script>
+    // ---------- utils ----------
+    function escHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function fmtUsd(n) {
+      const num = Number(n) || 0;
+      return '$' + num.toFixed(2);
+    }
+    function fmtRelativeShort(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (!isFinite(d)) return '';
+      const diffMs = Date.now() - d.getTime();
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1) return 'just now';
+      if (diffMin < 60) return diffMin + 'm ago';
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return diffHr + 'h ago';
+      const diffDay = Math.floor(diffHr / 24);
+      if (diffDay < 7) return diffDay + 'd ago';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    function fmtDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (!isFinite(d)) return '';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    function initialOf(name) {
+      return (String(name || '?').trim()[0] || '?').toUpperCase();
+    }
+    function jiraSvg(size) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-label="Jira"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z"/></svg>';
+    }
+    function naturalNameList(names) {
+      if (names.length === 0) return '';
+      if (names.length === 1) return names[0];
+      if (names.length === 2) return names[0] + ' and ' + names[1];
+      return names.slice(0, -1).join(', ') + ', and ' + names[names.length - 1];
+    }
+    function deriveUserInitial(email) {
+      const local = String(email || '').split('@')[0];
+      return (local[0] || '?').toUpperCase();
+    }
+    function getConvId() {
+      const sp = new URLSearchParams(location.search);
+      return sp.get('id') || '';
+    }
+    function redirectToLogin() {
+      location.replace('/login.html?next=' + encodeURIComponent('/cross-project/chat.html?id=' + encodeURIComponent(getConvId())));
+    }
+
+    // ---------- state ----------
+    let me = null;
+    let conv = null;            // { id, project_ids, title, ... }
+    let projectsById = new Map(); // workspace projects (full set, for scope-name lookup)
+    let eligibleProjects = [];   // for edit-scope picker
+    let messages = [];           // full list incl. role='tool'
+    let workspaceSpend = { used: 0, cap: 20 };
+    let inFlight = false;
+    let editOpen = false;
+    let editSelected = new Set();
+    let editSubmitting = false;
+
+    // ---------- data loaders ----------
+    async function loadMe() {
+      const r = await fetch('/api/me');
+      if (r.status === 401) { redirectToLogin(); return null; }
+      const data = await r.json().catch(() => null);
+      if (!data || !data.user) return null;
+      const u = document.getElementById('navUser');
+      if (u) u.textContent = data.user.email || '';
+      if (data.user.is_admin) {
+        const a = document.getElementById('adminLink');
+        if (a) a.style.display = '';
+      }
+      const lo = document.getElementById('logoutBtn');
+      if (lo) {
+        lo.addEventListener('click', async () => {
+          try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+          location.replace('/login.html');
+        });
+      }
+      return data.user;
+    }
+    async function loadProjects() {
+      const r = await fetch('/api/projects');
+      if (!r.ok) return new Map();
+      const data = await r.json().catch(() => null);
+      const map = new Map();
+      if (data && Array.isArray(data.projects)) {
+        data.projects.forEach(p => map.set(p.id, p));
+      }
+      return map;
+    }
+    async function loadConv(id) {
+      const r = await fetch('/api/cross-project/conversations/' + encodeURIComponent(id));
+      if (r.status === 401) { redirectToLogin(); return null; }
+      if (r.status === 404) return null;
+      const data = await r.json().catch(() => null);
+      return data && data.conversation ? data.conversation : null;
+    }
+    async function loadMessages(id) {
+      const r = await fetch('/api/cross-project/conversations/' + encodeURIComponent(id) + '/messages');
+      if (r.status === 401) { redirectToLogin(); return []; }
+      if (!r.ok) return [];
+      const data = await r.json().catch(() => null);
+      return data && Array.isArray(data.messages) ? data.messages : [];
+    }
+    async function loadWorkspaceSpend() {
+      // Reuses /api/dashboard to read workspace cap + MTD spend.
+      // Cheap: same endpoint the dashboard renders from, server-cached
+      // patterns already in place.
+      const r = await fetch('/api/dashboard');
+      if (!r.ok) return { used: 0, cap: 20 };
+      const data = await r.json().catch(() => null);
+      if (!data || !data.workspace) return { used: 0, cap: 20 };
+      return {
+        used: Number(data.workspace.cross_project_spend_usd) || 0,
+        cap: Number(data.workspace.cross_project_cap_usd) || 20,
+      };
+    }
+    async function loadEligibleForEdit() {
+      const r = await fetch('/api/cross-project/eligible-projects');
+      if (!r.ok) return [];
+      const data = await r.json().catch(() => null);
+      return data && Array.isArray(data.projects) ? data.projects : [];
+    }
+
+    // ---------- header render ----------
+    function scopeNames() {
+      const ids = Array.isArray(conv.project_ids) ? conv.project_ids : [];
+      return ids.map(id => (projectsById.get(id) || {}).name || 'Project');
+    }
+    function renderHead() {
+      const ids = Array.isArray(conv.project_ids) ? conv.project_ids : [];
+      const names = scopeNames();
+      const total = ids.length;
+      return ''
+        + '<div class="cp-chat-head">'
+        +   '<div class="cp-chat-head-left">'
+        +     '<div class="cp-chat-head-icon"><i class="ti ti-target"></i></div>'
+        +     '<div class="cp-chat-head-meta">'
+        +       '<div class="cp-chat-head-row1">'
+        +         '<span class="label-pill">Product</span>'
+        +         '<span class="source-chip">' + jiraSvg(11) + 'Jira</span>'
+        +       '</div>'
+        +       '<div class="scope-summary">'
+        +         '<i class="ti ti-folders"></i>'
+        +         '<span><strong>' + total + ' of ' + total + '</strong> · ' + escHtml(names.join(', ') || '—') + '</span>'
+        +       '</div>'
+        +     '</div>'
+        +   '</div>'
+        +   '<button type="button" class="cp-edit-scope-btn" id="cpEditBtn">'
+        +     '<i class="ti ti-edit"></i> Edit scope'
+        +   '</button>'
+        + '</div>';
+    }
+
+    // ---------- messages render ----------
+    function visibleMessages() {
+      return messages.filter(m => {
+        if (m.role === 'tool') return false;
+        if (m.role === 'assistant' && !(m.content && m.content.length > 0)) return false;
+        return true;
+      });
+    }
+    function renderCitationRail(citations) {
+      const chips = citations.map(c => {
+        const titleBase = c.title || c.author || (c.source ? c.source[0].toUpperCase() + c.source.slice(1) : 'Source');
+        const safeBase = escHtml(titleBase);
+        const url = c.source_url || '';
+        const projectName = c.project_name || '';
+        const prefixHtml = projectName
+          ? '<span class="citation-chip-prefix">' + escHtml(projectName) + '</span>'
+          : '';
+        const inner = prefixHtml + safeBase;
+        if (url) {
+          return '<a class="chat-citation" href="' + escHtml(url) + '" target="_blank" rel="noopener noreferrer">' + inner + '</a>';
+        }
+        return '<span class="chat-citation chat-citation-noref">' + inner + '</span>';
+      }).join('');
+      return '<div class="chat-citation-rail">' + chips + '</div>';
+    }
+    function renderToolTrace(toolCalls) {
+      if (!toolCalls || toolCalls.length === 0) return '';
+      const items = toolCalls.map(tc => {
+        return '<li><span class="tool-trace-name">' + escHtml(tc.name || 'unknown') + '</span> <span class="tool-trace-result ok">✓</span></li>';
+      }).join('');
+      const summary = '🔧 ' + toolCalls.length + ' tool call' + (toolCalls.length === 1 ? '' : 's');
+      return '<details class="tool-trace"><summary>' + escHtml(summary) + '</summary><ul>' + items + '</ul></details>';
+    }
+    function renderMessage(m, allMsgs) {
+      const isUser = m.role === 'user';
+      const avatar = isUser ? deriveUserInitial(me.email) : 'EA';
+      const rel = fmtRelativeShort(m.created_at) || 'just now';
+      const meta = (isUser ? 'You · ' : 'Elinno Agent · ') + rel;
+      const citations = !isUser && Array.isArray(m.citations) ? m.citations : [];
+      // Aggregate tool_calls across the iteration cluster (same logic
+      // as v1.2 project.html — walk back from this assistant to the
+      // preceding user boundary, collect tool_calls from intermediate
+      // assistants).
+      let toolCalls = [];
+      if (!isUser) {
+        const own = Array.isArray(m.tool_calls) ? m.tool_calls : [];
+        if (m.content && m.content.length > 0) {
+          const idx = allMsgs.findIndex(am => am.id === m.id);
+          const aggregated = [];
+          for (let i = idx - 1; i >= 0; i--) {
+            const prev = allMsgs[i];
+            if (prev.role === 'user') break;
+            if (prev.role === 'assistant' && Array.isArray(prev.tool_calls) && prev.tool_calls.length > 0) {
+              aggregated.unshift(...prev.tool_calls);
+            }
+          }
+          toolCalls = [...aggregated, ...own];
+        } else {
+          toolCalls = own;
+        }
+      }
+      let stateClass = '';
+      if (!isUser) {
+        if (m.model === null || m.model === undefined) stateClass = ' error';
+        else if (citations.length === 0) stateClass = ' muted';
+      }
+      return ''
+        + '<div class="chat-msg ' + (isUser ? 'user' : 'assistant') + stateClass + '">'
+        +   '<div class="chat-msg-avatar">' + escHtml(avatar) + '</div>'
+        +   '<div class="chat-msg-body">'
+        +     '<div class="chat-msg-meta">' + escHtml(meta) + '</div>'
+        +     '<div class="chat-msg-content">' + escHtml(m.content || '') + '</div>'
+        +     renderToolTrace(toolCalls)
+        +     (citations.length > 0 ? renderCitationRail(citations) : '')
+        +   '</div>'
+        + '</div>';
+    }
+
+    function renderEmpty() {
+      const names = scopeNames();
+      const prose = naturalNameList(names) || 'your projects';
+      return ''
+        + '<div class="cp-empty">'
+        +   '<div class="cp-empty-icon"><i class="ti ti-message-circle-question"></i></div>'
+        +   '<h2 class="cp-empty-title">Ask across <strong>' + escHtml(prose) + '</strong></h2>'
+        +   '<p class="cp-empty-sub">Every reference in the answer will include the project name (e.g. "' + escHtml(names[0] || 'Rain') + '’s Sprint 12") so you can tell which data point came from where.</p>'
+        +   '<div class="cp-suggestions">'
+        +     '<div class="cp-suggestions-label">Try one of these</div>'
+        +     '<div class="cp-suggestions-grid">'
+        +       suggestionCard('ti-trending-up', 'Compare velocity between ' + names.join(' and ') + ' over the last 3 sprints')
+        +       suggestionCard('ti-clock', 'Which project has the most overdue tickets right now?')
+        +       suggestionCard('ti-users', 'Across ' + names.join(' and ') + ', who’s the busiest assignee right now?')
+        +       suggestionCard('ti-bug', 'List unresolved high-priority bugs across these projects, oldest first')
+        +     '</div>'
+        +   '</div>'
+        + '</div>';
+    }
+    function suggestionCard(icon, text) {
+      return ''
+        + '<button class="cp-suggestion" type="button" data-suggestion="' + escHtml(text) + '">'
+        +   '<div class="cp-suggestion-icon"><i class="ti ' + icon + '"></i></div>'
+        +   '<div class="cp-suggestion-text">' + escHtml(text) + '</div>'
+        + '</button>';
+    }
+
+    function renderBody() {
+      const visible = visibleMessages();
+      if (visible.length === 0) return renderEmpty();
+      const allMsgs = messages;
+      return visible.map(m => renderMessage(m, allMsgs)).join('');
+    }
+    function renderComposer() {
+      const placeholder = (() => {
+        const names = scopeNames();
+        if (names.length === 0) return 'Ask…';
+        if (names.length <= 3) return 'Ask across ' + names.join(' and ') + '…';
+        return 'Ask across ' + names.slice(0, 2).join(', ') + ' and ' + (names.length - 2) + ' more…';
+      })();
+      return ''
+        + '<div class="cp-composer">'
+        +   '<div class="cp-composer-error" id="cpComposerError" style="display:none;"></div>'
+        +   '<div class="cp-composer-row">'
+        +     '<textarea class="cp-composer-input" id="cpInput" rows="1" placeholder="' + escHtml(placeholder) + '" aria-label="Message"></textarea>'
+        +     '<button class="cp-composer-send" id="cpSend" type="button" disabled aria-label="Send"><i class="ti ti-send"></i></button>'
+        +   '</div>'
+        +   '<div class="cp-composer-footer">'
+        +     '<div>Cross-project AI · workspace cap ' + fmtUsd(workspaceSpend.used) + ' / ' + fmtUsd(workspaceSpend.cap) + ' this month</div>'
+        +     '<div>↵ to send</div>'
+        +   '</div>'
+        + '</div>';
+    }
+
+    function render() {
+      const root = document.getElementById('cpRoot');
+      root.innerHTML = ''
+        + '<div class="cp-chat-shell">'
+        +   renderHead()
+        +   '<div class="cp-chat-body" id="cpBody">' + renderBody() + '</div>'
+        +   renderComposer()
+        + '</div>';
+      wire();
+      const body = document.getElementById('cpBody');
+      if (body) body.scrollTop = body.scrollHeight;
+    }
+    function wire() {
+      const editBtn = document.getElementById('cpEditBtn');
+      if (editBtn) editBtn.addEventListener('click', openEdit);
+
+      // Suggestion chips
+      document.querySelectorAll('[data-suggestion]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const input = document.getElementById('cpInput');
+          if (input) {
+            input.value = btn.getAttribute('data-suggestion') || '';
+            input.dispatchEvent(new Event('input'));
+            input.focus();
+          }
+        });
+      });
+
+      // Composer
+      const input = document.getElementById('cpInput');
+      const send = document.getElementById('cpSend');
+      if (input && send) {
+        input.addEventListener('input', () => {
+          input.style.height = 'auto';
+          input.style.height = input.scrollHeight + 'px';
+          send.disabled = inFlight || input.value.trim().length === 0;
+        });
+        input.addEventListener('keydown', (e) => {
+          if (e.isComposing || e.keyCode === 229) return;
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+          }
+        });
+        send.addEventListener('click', sendMessage);
+      }
+    }
+
+    function showComposerError(msg) {
+      const e = document.getElementById('cpComposerError');
+      if (!e) return;
+      e.textContent = msg;
+      e.style.display = '';
+    }
+    function clearComposerError() {
+      const e = document.getElementById('cpComposerError');
+      if (!e) return;
+      e.textContent = '';
+      e.style.display = 'none';
+    }
+    function restoreComposer() {
+      inFlight = false;
+      const input = document.getElementById('cpInput');
+      const send = document.getElementById('cpSend');
+      if (send) {
+        send.innerHTML = '<i class="ti ti-send"></i>';
+        send.disabled = !input || input.value.trim().length === 0;
+      }
+      if (input) {
+        input.disabled = false;
+        input.focus();
+      }
+    }
+
+    async function sendMessage() {
+      if (inFlight) return;
+      const input = document.getElementById('cpInput');
+      const send = document.getElementById('cpSend');
+      if (!input || !send) return;
+      const content = input.value.trim();
+      if (content.length === 0) return;
+
+      inFlight = true;
+      send.innerHTML = '…';
+      send.disabled = true;
+      input.disabled = true;
+      clearComposerError();
+
+      let res;
+      try {
+        res = await fetch('/api/cross-project/conversations/' + encodeURIComponent(conv.id) + '/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        });
+      } catch {
+        restoreComposer();
+        showComposerError("Couldn't reach the server. Try again.");
+        return;
+      }
+      if (res.status === 401) { redirectToLogin(); return; }
+      if (res.status === 403) { location.replace('/cross-project/'); return; }
+      if (res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        restoreComposer();
+        let msg = data && data.error ? data.error : 'Limit reached.';
+        if (data && data.resets_at) {
+          const resetDate = new Date(data.resets_at);
+          if (!isNaN(resetDate.getTime())) {
+            msg = msg + ' Resumes ' + resetDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + '.';
+          }
+          if (typeof data.used_usd === 'number' && typeof data.cap_usd === 'number') {
+            msg = msg + ' ($' + Number(data.used_usd).toFixed(2) + ' / $' + Number(data.cap_usd).toFixed(2) + ')';
+          }
+        }
+        showComposerError(msg);
+        return;
+      }
+      if (!res.ok) {
+        restoreComposer();
+        showComposerError('Something went wrong. Please try again.');
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (!data) { restoreComposer(); return; }
+
+      if (data.user_message) messages.push(data.user_message);
+      if (data.assistant_message) messages.push(data.assistant_message);
+      // Refresh workspace spend to reflect cost added.
+      workspaceSpend = await loadWorkspaceSpend();
+
+      input.value = '';
+      input.style.height = '';
+      render();
+      restoreComposer();
+    }
+
+    // ---------- edit-scope ----------
+    async function openEdit() {
+      editSelected = new Set(Array.isArray(conv.project_ids) ? conv.project_ids : []);
+      editSubmitting = false;
+      // Lazy-load eligible projects on first open.
+      if (eligibleProjects.length === 0) {
+        eligibleProjects = await loadEligibleForEdit();
+      }
+      editOpen = true;
+      renderEdit();
+    }
+    function closeEdit() {
+      editOpen = false;
+      const ov = document.getElementById('cpEditOverlay');
+      if (ov) {
+        ov.classList.remove('open');
+        ov.innerHTML = '';
+      }
+    }
+    function renderPickerRow(p) {
+      const sprint = p.jira_active_sprint;
+      const isSelected = editSelected.has(p.id);
+      let sprintBlock = '';
+      if (sprint) {
+        const dl = sprint.days_left;
+        const urgent = dl !== null && dl <= 3;
+        const healthy = dl !== null && dl >= 7;
+        const deadlineCls = urgent ? 'urgent' : (healthy ? 'healthy' : '');
+        const deadlineText = dl === null ? '—' : (dl === 0 ? 'ends today' : (dl + ' day' + (dl === 1 ? '' : 's') + ' left'));
+        const pct = sprint.percent_complete == null ? 0 : sprint.percent_complete;
+        const fillBg = urgent ? 'var(--color-danger)' : 'var(--color-brand)';
+        const counts = sprint.ticket_counts || { total: 0, open: 0, done: 0 };
+        sprintBlock = ''
+          + '<div class="picker-row-info">'
+          +   '<div class="picker-row-name">' + escHtml(p.name) + '</div>'
+          +   '<div class="picker-row-sprint-line">'
+          +     '<span class="picker-row-sprint-name">' + escHtml(sprint.sprint_name || 'Sprint') + '</span>'
+          +     '<span class="picker-row-sprint-deadline ' + deadlineCls + '">' + escHtml(deadlineText) + '</span>'
+          +   '</div>'
+          +   '<div class="spend-bar thin picker-row-progress">'
+          +     '<div class="spend-bar-track">'
+          +       '<div class="spend-bar-fill" style="width:' + pct + '%;background:' + fillBg + ';"></div>'
+          +     '</div>'
+          +   '</div>'
+          +   '<div class="picker-row-dates">'
+          +     '<span>' + escHtml(fmtDate(sprint.start_date)) + '</span>'
+          +     '<span>' + escHtml(fmtDate(sprint.end_date)) + '</span>'
+          +   '</div>'
+          + '</div>'
+          + '<div class="picker-row-stats">'
+          +   '<div class="picker-row-stats-line">'
+          +     '<div><span class="picker-row-stat-num">' + (counts.open || 0) + '</span><span class="picker-row-stat-label">open</span></div>'
+          +     '<div><span class="picker-row-stat-num done">' + (counts.done || 0) + '</span><span class="picker-row-stat-label">done</span></div>'
+          +   '</div>'
+          +   '<div class="picker-row-stats-total">of ' + (counts.total || 0) + '</div>'
+          + '</div>';
+      } else {
+        sprintBlock = ''
+          + '<div class="picker-row-info">'
+          +   '<div class="picker-row-name">' + escHtml(p.name) + '</div>'
+          +   '<div class="picker-row-sprint-line">'
+          +     '<span class="picker-row-sprint-deadline">No active sprint</span>'
+          +   '</div>'
+          + '</div>';
+      }
+      return ''
+        + '<div class="picker-row ' + (isSelected ? 'selected' : '') + '" data-project-id="' + escHtml(p.id) + '">'
+        +   '<div class="picker-row-checkbox"><i class="ti ti-check"></i></div>'
+        +   '<div class="picker-row-avatar">' + escHtml(initialOf(p.name)) + '</div>'
+        +   sprintBlock
+        + '</div>';
+    }
+    function renderEdit() {
+      const ov = document.getElementById('cpEditOverlay');
+      if (!ov) return;
+      const rows = eligibleProjects.length === 0
+        ? '<div class="cp-picker-empty" style="padding:28px 18px;text-align:center;color:var(--color-text-muted);font-size:12px;">No projects with an active Jira connection.</div>'
+        : eligibleProjects.map(renderPickerRow).join('');
+      const count = editSelected.size;
+      const saveDisabled = count === 0 || editSubmitting;
+      const summaryNames = Array.from(editSelected)
+        .map(id => (eligibleProjects.find(p => p.id === id) || projectsById.get(id) || {}).name || 'Project')
+        .join(' + ');
+      const summary = count === 0
+        ? 'Chat: <span style="color:var(--color-text-muted);">Pick at least one project</span>'
+        : 'Chat: <strong>Product · ' + escHtml(summaryNames) + '</strong>';
+      ov.innerHTML = ''
+        + '<div class="cp-edit-modal">'
+        +   '<div class="cp-edit-head">'
+        +     '<div class="cp-edit-head-left">'
+        +       '<div class="cp-edit-eyebrow">Edit scope</div>'
+        +       '<div class="cp-edit-title-row">'
+        +         '<h2 class="cp-edit-title">Editing</h2>'
+        +         '<span class="label-pill">Product</span>'
+        +         '<span class="source-chip">' + jiraSvg(11) + 'Jira</span>'
+        +       '</div>'
+        +       '<p class="cp-edit-sub">Label and source can’t be changed.</p>'
+        +     '</div>'
+        +   '</div>'
+        +   '<div class="cp-edit-section">'
+        +     '<div class="cp-step2-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+        +       '<div class="cp-step-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--color-text-muted);font-weight:500;">Projects in scope</div>'
+        +       '<div class="cp-step2-actions" style="display:flex;gap:5px;">'
+        +         '<button type="button" class="cp-btn-mini" id="cpEditSelectAll" style="font-size:10px;color:var(--color-brand);background:var(--color-brand-tint);padding:5px 9px;border-radius:6px;font-weight:500;border:none;cursor:pointer;font-family:inherit;">Select all</button>'
+        +         '<button type="button" class="cp-btn-mini" id="cpEditClear" style="font-size:10px;color:var(--color-brand);background:var(--color-brand-tint);padding:5px 9px;border-radius:6px;font-weight:500;border:none;cursor:pointer;font-family:inherit;">Clear</button>'
+        +       '</div>'
+        +     '</div>'
+        +     '<p style="font-size:11px;color:var(--color-text-muted);line-height:1.4;margin:0 0 8px;">Projects in your workspace with a Jira connection.</p>'
+        +     '<div class="cp-picker-list" id="cpEditList" style="background:var(--color-bg-soft);border-radius:10px;overflow:hidden;margin-bottom:14px;">' + rows + '</div>'
+        +     '<div style="font-size:10px;color:var(--color-text-muted);margin-bottom:18px;line-height:1.4;display:flex;align-items:center;gap:6px;">'
+        +       '<i class="ti ti-info-circle"></i><span>Projects without a Jira connection aren’t shown.</span>'
+        +     '</div>'
+        +   '</div>'
+        +   '<div id="cpEditError" class="cp-edit-error" style="display:none;"></div>'
+        +   '<div class="cp-edit-foot">'
+        +     '<div style="font-size:12px;color:var(--color-text-body);">' + summary + '</div>'
+        +     '<div style="display:flex;gap:8px;">'
+        +       '<button type="button" class="cp-foot-btn cp-foot-btn-cancel" id="cpEditCancel" style="padding:9px 14px;border-radius:8px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;background:transparent;color:var(--color-text-dark);border:1px solid var(--color-border);cursor:pointer;font-family:inherit;">Cancel</button>'
+        +       '<button type="button" class="cp-foot-btn cp-foot-btn-go" id="cpEditSave"' + (saveDisabled ? ' disabled' : '') + ' style="padding:9px 14px;border-radius:8px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;background:var(--color-brand);color:#fff;border:none;cursor:pointer;font-family:inherit;' + (saveDisabled ? 'opacity:0.6;cursor:not-allowed;' : '') + '">' + (editSubmitting ? 'Saving…' : 'Save scope ↗') + '</button>'
+        +     '</div>'
+        +   '</div>'
+        + '</div>';
+      ov.classList.add('open');
+      wireEdit();
+    }
+    function wireEdit() {
+      const list = document.getElementById('cpEditList');
+      if (list) {
+        list.addEventListener('click', (e) => {
+          const row = e.target.closest('.picker-row');
+          if (!row) return;
+          const id = row.getAttribute('data-project-id');
+          if (!id) return;
+          if (editSelected.has(id)) editSelected.delete(id);
+          else editSelected.add(id);
+          renderEdit();
+        });
+      }
+      const selAll = document.getElementById('cpEditSelectAll');
+      if (selAll) selAll.addEventListener('click', () => {
+        eligibleProjects.forEach(p => editSelected.add(p.id));
+        renderEdit();
+      });
+      const clr = document.getElementById('cpEditClear');
+      if (clr) clr.addEventListener('click', () => {
+        editSelected.clear();
+        renderEdit();
+      });
+      const cancel = document.getElementById('cpEditCancel');
+      if (cancel) cancel.addEventListener('click', closeEdit);
+      const save = document.getElementById('cpEditSave');
+      if (save) save.addEventListener('click', onEditSave);
+    }
+    function showEditError(msg) {
+      const e = document.getElementById('cpEditError');
+      if (!e) return;
+      e.textContent = msg;
+      e.style.display = '';
+    }
+    async function onEditSave() {
+      if (editSubmitting || editSelected.size === 0) return;
+      editSubmitting = true;
+      renderEdit();
+      let res;
+      try {
+        res = await fetch('/api/cross-project/conversations/' + encodeURIComponent(conv.id), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_ids: Array.from(editSelected) }),
+        });
+      } catch {
+        editSubmitting = false;
+        renderEdit();
+        showEditError("Couldn't reach the server. Try again.");
+        return;
+      }
+      if (res.status === 401) { redirectToLogin(); return; }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        editSubmitting = false;
+        renderEdit();
+        const msg = data && data.code === 'project_not_in_workspace'
+          ? 'One of the selected projects is no longer in your workspace.'
+          : data && data.code === 'cross_project_empty_set'
+            ? 'Pick at least one project.'
+            : data && data.error
+              ? data.error
+              : 'Could not save the new scope. Try again.';
+        showEditError(msg);
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (!data || !data.conversation) {
+        editSubmitting = false;
+        renderEdit();
+        showEditError('Saved but server returned no conversation. Refresh the page.');
+        return;
+      }
+      conv = data.conversation;
+      closeEdit();
+      render();
+    }
+
+    // ---------- boot ----------
+    (async function boot() {
+      const id = getConvId();
+      if (!id) {
+        document.getElementById('cpRoot').innerHTML = '<div class="cp-error">No conversation id in URL.</div>';
+        return;
+      }
+      try {
+        me = await loadMe();
+        if (!me) return;
+        const [pmap, c, msgs, ws] = await Promise.all([
+          loadProjects(),
+          loadConv(id),
+          loadMessages(id),
+          loadWorkspaceSpend(),
+        ]);
+        projectsById = pmap;
+        workspaceSpend = ws;
+        if (!c) {
+          document.getElementById('cpRoot').innerHTML = '<div class="cp-error">Chat not found or you don’t have access.</div>';
+          return;
+        }
+        conv = c;
+        messages = msgs;
+        render();
+      } catch {
+        document.getElementById('cpRoot').innerHTML = '<div class="cp-error">Couldn’t load this chat. Refresh to try again.</div>';
+      }
+    })();
+  </script>
+</body>
+</html>

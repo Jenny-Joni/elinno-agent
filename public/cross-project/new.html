@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>New cross-project chat — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/auth.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <style>
+    body { background: rgba(0, 0, 0, 0.55); }
+    .cp-modal {
+      max-width: 600px;
+      margin: 24px auto;
+      background: #fff;
+      border-radius: 20px;
+      overflow: hidden;
+      color: var(--color-text-dark);
+    }
+    .cp-modal-head {
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .cp-modal-eyebrow {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--color-brand);
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .cp-modal-title {
+      font-size: 20px;
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin: 0;
+    }
+    .cp-modal-title strong { font-weight: 700; }
+    .cp-step {
+      padding: 20px 24px 0;
+    }
+    .cp-step-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .cp-label-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+    .cp-label-card {
+      background: var(--color-bg-soft);
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 14px;
+      cursor: pointer;
+    }
+    .cp-label-card.selected {
+      background: var(--color-brand-tint-strong);
+      border: 1.5px solid var(--color-brand);
+    }
+    .cp-label-card.locked {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+    .cp-label-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .cp-label-card-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .cp-label-card-title i { font-size: 18px; color: var(--color-brand); }
+    .cp-label-card.locked .cp-label-card-title i { color: var(--color-text-muted); }
+    .cp-label-card-check {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--color-brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cp-label-card-check i { color: #fff; font-size: 10px; }
+    .cp-label-card-v2 {
+      font-size: 8px;
+      color: var(--color-warning);
+      background: var(--color-warning-bg);
+      padding: 2px 6px;
+      border-radius: 50px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .cp-label-card-desc {
+      font-size: 11px;
+      color: var(--color-text-body);
+      line-height: 1.45;
+      margin: 0 0 8px;
+    }
+    .cp-label-card-source {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-weight: 500;
+    }
+    .cp-step2-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .cp-step2-actions { display: flex; gap: 5px; }
+    .cp-btn-mini {
+      font-size: 10px;
+      color: var(--color-brand);
+      background: var(--color-brand-tint);
+      padding: 5px 9px;
+      border-radius: 6px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .cp-step2-sub {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      line-height: 1.45;
+      margin: 0 0 8px;
+    }
+    .cp-picker-list {
+      background: var(--color-bg-soft);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .cp-picker-empty {
+      padding: 28px 18px;
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: 12px;
+    }
+    .cp-info-line {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      margin-bottom: 18px;
+      line-height: 1.4;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cp-modal-foot {
+      padding: 16px 24px;
+      background: var(--color-bg-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--color-border);
+    }
+    .cp-modal-summary {
+      font-size: 12px;
+      color: var(--color-text-body);
+    }
+    .cp-modal-summary strong { color: var(--color-text-dark); }
+    .cp-modal-summary .muted {
+      color: var(--color-text-muted);
+      font-size: 10px;
+      margin-left: 4px;
+    }
+    .cp-foot-actions { display: flex; gap: 8px; }
+    .cp-foot-btn {
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .cp-foot-btn-cancel {
+      background: transparent;
+      color: var(--color-text-dark);
+      border: 1px solid var(--color-border);
+    }
+    .cp-foot-btn-go {
+      background: var(--color-brand);
+      color: var(--color-text-inverse);
+      border: none;
+    }
+    .cp-foot-btn-go:disabled {
+      background: var(--color-text-muted);
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .cp-error {
+      background: rgba(255, 0, 131, 0.08);
+      border: 1px solid rgba(255, 0, 131, 0.3);
+      border-radius: 8px;
+      color: var(--color-error);
+      font-size: 12px;
+      padding: 10px 12px;
+      margin: 0 24px 12px;
+    }
+    .cp-loading {
+      padding: 60px 24px;
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cp-modal" id="cpModal">
+    <div class="cp-loading">Loading projects…</div>
+  </div>
+
+  <script>
+    function escHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function jiraSvg(size) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-label="Jira"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z"/></svg>';
+    }
+    function mondaySvg(size) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-label="Monday"><circle cx="6" cy="12" r="2.4" fill="#FF3D57"/><circle cx="12" cy="12" r="2.4" fill="#FFCB00"/><circle cx="18" cy="12" r="2.4" fill="#00CA72"/></svg>';
+    }
+    function initialOf(name) {
+      return (String(name || '?').trim()[0] || '?').toUpperCase();
+    }
+    function fmtDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (!isFinite(d)) return '';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    function redirectToLogin() {
+      location.replace('/login.html?next=' + encodeURIComponent('/cross-project/new'));
+    }
+
+    async function loadEligible() {
+      const r = await fetch('/api/cross-project/eligible-projects');
+      if (r.status === 401) { redirectToLogin(); return null; }
+      if (!r.ok) return null;
+      const data = await r.json().catch(() => null);
+      if (!data || !Array.isArray(data.projects)) return [];
+      return data.projects;
+    }
+
+    // ---- state ----
+    let eligible = [];
+    const selected = new Set();
+    let submitting = false;
+
+    function renderHead() {
+      return ''
+        + '<div class="cp-modal-head">'
+        +   '<div class="cp-modal-eyebrow">New cross-project chat</div>'
+        +   '<h2 class="cp-modal-title">Pick a <strong>label</strong> and projects</h2>'
+        + '</div>';
+    }
+
+    function renderLabelStep() {
+      return ''
+        + '<div class="cp-step">'
+        +   '<div class="cp-step-label">Step 1 · Label</div>'
+        +   '<div class="cp-label-grid">'
+        +     '<div class="cp-label-card selected">'
+        +       '<div class="cp-label-card-head">'
+        +         '<div class="cp-label-card-title"><i class="ti ti-target"></i><span>Product</span></div>'
+        +         '<div class="cp-label-card-check"><i class="ti ti-check"></i></div>'
+        +       '</div>'
+        +       '<p class="cp-label-card-desc">Track delivery, velocity, ticket flow</p>'
+        +       '<div class="cp-label-card-source">' + jiraSvg(12) + 'Jira</div>'
+        +     '</div>'
+        +     '<div class="cp-label-card locked" title="Finance ships in v2.0">'
+        +       '<div class="cp-label-card-head">'
+        +         '<div class="cp-label-card-title"><i class="ti ti-coin"></i><span>Finance</span></div>'
+        +         '<span class="cp-label-card-v2">v2.0</span>'
+        +       '</div>'
+        +       '<p class="cp-label-card-desc">Track budgets, spend, allocation</p>'
+        +       '<div class="cp-label-card-source">' + mondaySvg(12) + 'Monday</div>'
+        +     '</div>'
+        +   '</div>'
+        + '</div>';
+    }
+
+    function renderPickerRow(p) {
+      const sprint = p.jira_active_sprint;
+      const isSelected = selected.has(p.id);
+      let sprintBlock = '';
+      if (sprint) {
+        const dl = sprint.days_left;
+        const urgent = dl !== null && dl <= 3;
+        const healthy = dl !== null && dl >= 7;
+        const deadlineCls = urgent ? 'urgent' : (healthy ? 'healthy' : '');
+        const deadlineText = dl === null ? '—' : (dl === 0 ? 'ends today' : (dl + ' day' + (dl === 1 ? '' : 's') + ' left'));
+        const pct = sprint.percent_complete == null ? 0 : sprint.percent_complete;
+        const fillBg = urgent ? 'var(--color-danger)' : 'var(--color-brand)';
+        const counts = sprint.ticket_counts || { total: 0, open: 0, done: 0 };
+        sprintBlock = ''
+          + '<div class="picker-row-info">'
+          +   '<div class="picker-row-name">' + escHtml(p.name) + '</div>'
+          +   '<div class="picker-row-sprint-line">'
+          +     '<span class="picker-row-sprint-name">' + escHtml(sprint.sprint_name || 'Sprint') + '</span>'
+          +     '<span class="picker-row-sprint-deadline ' + deadlineCls + '">' + escHtml(deadlineText) + '</span>'
+          +   '</div>'
+          +   '<div class="spend-bar thin picker-row-progress">'
+          +     '<div class="spend-bar-track">'
+          +       '<div class="spend-bar-fill" style="width:' + pct + '%;background:' + fillBg + ';"></div>'
+          +     '</div>'
+          +   '</div>'
+          +   '<div class="picker-row-dates">'
+          +     '<span>' + escHtml(fmtDate(sprint.start_date)) + '</span>'
+          +     '<span>' + escHtml(fmtDate(sprint.end_date)) + '</span>'
+          +   '</div>'
+          + '</div>'
+          + '<div class="picker-row-stats">'
+          +   '<div class="picker-row-stats-line">'
+          +     '<div><span class="picker-row-stat-num">' + (counts.open || 0) + '</span><span class="picker-row-stat-label">open</span></div>'
+          +     '<div><span class="picker-row-stat-num done">' + (counts.done || 0) + '</span><span class="picker-row-stat-label">done</span></div>'
+          +   '</div>'
+          +   '<div class="picker-row-stats-total">of ' + (counts.total || 0) + '</div>'
+          + '</div>';
+      } else {
+        sprintBlock = ''
+          + '<div class="picker-row-info">'
+          +   '<div class="picker-row-name">' + escHtml(p.name) + '</div>'
+          +   '<div class="picker-row-sprint-line">'
+          +     '<span class="picker-row-sprint-deadline">No active sprint</span>'
+          +   '</div>'
+          + '</div>';
+      }
+      return ''
+        + '<div class="picker-row ' + (isSelected ? 'selected' : '') + '" data-project-id="' + escHtml(p.id) + '">'
+        +   '<div class="picker-row-checkbox"><i class="ti ti-check"></i></div>'
+        +   '<div class="picker-row-avatar">' + escHtml(initialOf(p.name)) + '</div>'
+        +   sprintBlock
+        + '</div>';
+    }
+
+    function renderPickerStep() {
+      const rows = eligible.length === 0
+        ? '<div class="cp-picker-empty">No projects with an active Jira connection. Connect Jira in a project first.</div>'
+        : eligible.map(renderPickerRow).join('');
+      return ''
+        + '<div class="cp-step">'
+        +   '<div class="cp-step2-head">'
+        +     '<div class="cp-step-label">Step 2 · Projects</div>'
+        +     '<div class="cp-step2-actions">'
+        +       '<button type="button" class="cp-btn-mini" id="cpSelectAll">Select all</button>'
+        +       '<button type="button" class="cp-btn-mini" id="cpClear">Clear</button>'
+        +     '</div>'
+        +   '</div>'
+        +   '<p class="cp-step2-sub">Projects in your workspace with a Jira connection.</p>'
+        +   '<div class="cp-picker-list" id="cpPickerList">' + rows + '</div>'
+        +   '<div class="cp-info-line">'
+        +     '<i class="ti ti-info-circle"></i>'
+        +     '<span>Projects without a Jira connection aren\'t shown.</span>'
+        +   '</div>'
+        + '</div>';
+    }
+
+    function renderFoot() {
+      const count = selected.size;
+      const summaryNames = Array.from(selected)
+        .map(id => (eligible.find(p => p.id === id) || {}).name || 'Project')
+        .join(' + ');
+      const summary = count === 0
+        ? '<span class="muted">No projects selected yet</span>'
+        : 'Chat: <strong>Product · ' + escHtml(summaryNames) + '</strong>';
+      const disabled = count === 0 || submitting;
+      return ''
+        + '<div id="cpError" class="cp-error" style="display:none;"></div>'
+        + '<div class="cp-modal-foot">'
+        +   '<div class="cp-modal-summary">' + summary + '</div>'
+        +   '<div class="cp-foot-actions">'
+        +     '<a href="/cross-project/" class="cp-foot-btn cp-foot-btn-cancel">Cancel</a>'
+        +     '<button type="button" class="cp-foot-btn cp-foot-btn-go" id="cpCreate"' + (disabled ? ' disabled' : '') + '>'
+        +       (submitting ? 'Creating…' : 'Create chat ↗')
+        +     '</button>'
+        +   '</div>'
+        + '</div>';
+    }
+
+    function render() {
+      document.getElementById('cpModal').innerHTML = ''
+        + renderHead()
+        + renderLabelStep()
+        + renderPickerStep()
+        + renderFoot();
+      wire();
+    }
+
+    function wire() {
+      const list = document.getElementById('cpPickerList');
+      if (list) {
+        list.addEventListener('click', (e) => {
+          const row = e.target.closest('.picker-row');
+          if (!row) return;
+          const id = row.getAttribute('data-project-id');
+          if (!id) return;
+          if (selected.has(id)) selected.delete(id);
+          else selected.add(id);
+          render();
+        });
+      }
+      const selAll = document.getElementById('cpSelectAll');
+      if (selAll) {
+        selAll.addEventListener('click', () => {
+          eligible.forEach(p => selected.add(p.id));
+          render();
+        });
+      }
+      const clr = document.getElementById('cpClear');
+      if (clr) {
+        clr.addEventListener('click', () => {
+          selected.clear();
+          render();
+        });
+      }
+      const create = document.getElementById('cpCreate');
+      if (create) {
+        create.addEventListener('click', onCreate);
+      }
+    }
+
+    function showError(msg) {
+      const e = document.getElementById('cpError');
+      if (!e) return;
+      e.textContent = msg;
+      e.style.display = '';
+    }
+    function clearError() {
+      const e = document.getElementById('cpError');
+      if (!e) return;
+      e.textContent = '';
+      e.style.display = 'none';
+    }
+
+    async function onCreate() {
+      if (submitting || selected.size === 0) return;
+      submitting = true;
+      clearError();
+      render();
+      let res;
+      try {
+        res = await fetch('/api/cross-project/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            label: 'product',
+            project_ids: Array.from(selected),
+          }),
+        });
+      } catch {
+        submitting = false;
+        render();
+        showError("Couldn't reach the server. Try again.");
+        return;
+      }
+
+      if (res.status === 401) { redirectToLogin(); return; }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        submitting = false;
+        render();
+        const msg = data && data.code === 'project_not_in_workspace'
+          ? 'One of the selected projects is no longer in your workspace.'
+          : data && data.code === 'cross_project_empty_set'
+            ? 'Pick at least one project.'
+            : data && data.error
+              ? data.error
+              : 'Could not create the chat. Try again.';
+        showError(msg);
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      if (!data || !data.conversation || !data.conversation.id) {
+        submitting = false;
+        render();
+        showError('Chat created but no id returned. Refresh the landing page.');
+        return;
+      }
+      location.replace('/cross-project/chat.html?id=' + encodeURIComponent(data.conversation.id));
+    }
+
+    (async function boot() {
+      const projects = await loadEligible();
+      if (projects === null) return;
+      eligible = projects || [];
+      render();
+    })();
+  </script>
+</body>
+</html>
