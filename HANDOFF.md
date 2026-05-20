@@ -4992,6 +4992,41 @@ Block 12.5b is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
 
 ---
 
+## Block 12.5b SHIPPED to main — 2026-05-20
+
+**Production state**: `16b2a89` on `elinnoagent.com` (was `dd6c6ff`).
+Fast-forward merge `dd6c6ff..16b2a89` — 4 commits (12.5b feat + 2
+mid-flight fixes + matrix/HANDOFF docs).
+
+Production-smoke-tested:
+- `GET /cross-project/` (HTML landing) → 200
+- `GET /cross-project/new` (creation modal, pretty URL) → 200
+- `GET /cross-project/chat.html` (chat shell) → 200
+- `GET /api/cross-project/conversations` (unauth) → 401
+- `GET /api/cross-project/eligible-projects` (unauth) → 401
+- `GET /api/dashboard` (unauth) → 401
+- `POST /api/cross-project/conversations` (unauth) → 401
+- `GET /api/projects` (unauth, v1.2 regression) → 401
+
+The cross-project capability is now reachable end-to-end on
+production — landing → creation modal → chat shell with citation-
+chip-prefix → edit-scope modal. Authenticated UI exercise was
+verified on preview deploys `9d66b79a` + `01964d9d` from the same
+SHA series; production carries the same code.
+
+**Big v1.3 milestone**: cross-project AI mode is now fully shipped
+end-user-visible. The PRD v1.3 §2.1 US-1…US-6 cells, §2.2 refusal
+contracts, §3.6 adversarial cells, §3.8 citation chip prefix
+contract, and §11.13 production bleed-in test are all SHIPPED-
+green.
+
+Block 12.5b is **SHIPPED**. Sub-block 12.6 (Workspace settings
+page + paused-banner wiring, mockups f + g) is next per
+BLOCK_12_PLAN §6.12.6. This is the **last** sub-block of v1.3 —
+landing it makes Block 12 complete and v1.3 fully shipped.
+
+---
+
 ## Block 12.5a SHIPPED to main — 2026-05-20
 
 **Production state**: `dd6c6ff` on `elinnoagent.com` (was `65483c0`).
