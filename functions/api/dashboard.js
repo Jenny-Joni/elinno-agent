@@ -85,10 +85,13 @@ export async function onRequestGet({ request, env }) {
 
     // 2. Active Jira connections per project (so the UI can render
     //    "no Jira" projects with a simplified card).
+    //    postgres-js array binding: use `IN ${sql(arr)}` not
+    //    `= ANY(${arr}::uuid[])` — the established pattern in this
+    //    codebase (see messages.js:236 comment about prior fix).
     const jiraConnRows = await sql`
       SELECT DISTINCT project_id::text AS project_id
         FROM connections
-       WHERE project_id = ANY(${projectIds}::uuid[])
+       WHERE project_id IN ${sql(projectIds)}
          AND source = 'jira'
          AND status = 'active'
          AND deleted_at IS NULL
@@ -111,7 +114,7 @@ export async function onRequestGet({ request, env }) {
              metadata->>'jira_project_key'                 AS project_key,
              source_updated_at
         FROM entities
-       WHERE project_id = ANY(${projectIds}::uuid[])
+       WHERE project_id IN ${sql(projectIds)}
          AND source = 'jira'
          AND source_type = 'jira_sprint'
          AND metadata->>'state' = 'active'
@@ -141,10 +144,10 @@ export async function onRequestGet({ request, env }) {
                metadata->>'status_category'           AS status_category,
                count(*)::int                          AS count
           FROM entities
-         WHERE project_id = ANY(${projectIdList}::uuid[])
+         WHERE project_id IN ${sql(projectIdList)}
            AND source = 'jira'
            AND source_type = 'jira_issue'
-           AND (metadata->>'sprint_id')::int = ANY(${sprintIdList}::int[])
+           AND (metadata->>'sprint_id')::int IN ${sql(sprintIdList)}
          GROUP BY project_id, sprint_id, status_category
       `;
       for (const r of countRows) {
