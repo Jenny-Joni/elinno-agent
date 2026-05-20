@@ -112,12 +112,18 @@ import { sendCostCapEmail } from '../../../../../_lib/email.js';
 // message — see DECISION H IMPLEMENTATION NOTE in the file header.
 const DEFAULT_CONVERSATION_TITLE = 'New conversation';
 
-// BLOCK_10_PLAN.md decision J: per-project daily user-message cap. Rolling
-// 24-hour window (not calendar-day) to match Block 9.1's rate-limit shape
-// and avoid a midnight-UTC reset cliff. Hardcoded per decision J — PRD
-// §8.1 names "100" without marking it configurable. Promote to a column
-// on projects only if v1.2 introduces per-project tuning.
-const DAILY_MSG_CAP = 100;
+// BLOCK_10_PLAN.md decision J: per-project daily user-message cap.
+// Rolling 24-hour window (not calendar-day) to match Block 9.1's
+// rate-limit shape and avoid a midnight-UTC reset cliff.
+//
+// v1.3 (Block 12.4): promoted from hardcoded constant to a per-project
+// `projects.daily_message_limit` column (added in
+// db/migrations/2026-05-20-block-12-4-daily-message-limit.sql). The
+// project-settings General tab Limits editor writes there. This
+// constant remains as a defensive fallback if a project row somehow
+// returns NULL for the column (shouldn't happen — NOT NULL DEFAULT
+// 100 — but defensive coding around the cap-check matters).
+const DAILY_MSG_CAP_DEFAULT = 100;
 
 // BLOCK_10_PLAN.md decision F: 80% threshold triggers the warning email.
 // 100% triggers the pause email AND blocks the message POST with a 429.
@@ -367,7 +373,7 @@ export async function onRequestPost({ request, env, params }) {
          AND deleted_at  IS NULL
     `;
     const [proj] = await sql`
-      SELECT name, ai_monthly_cap_usd, ai_cap_warned_at
+      SELECT name, ai_monthly_cap_usd, ai_cap_warned_at, daily_message_limit
         FROM projects
        WHERE id = ${params.id}
        LIMIT 1
@@ -451,12 +457,13 @@ export async function onRequestPost({ request, env, params }) {
          AND created_at   > NOW() - INTERVAL '24 hours'
          AND deleted_at  IS NULL
     `;
-    if (todayStats.today_user_msgs >= DAILY_MSG_CAP) {
+    const dailyCap = Number(proj.daily_message_limit) || DAILY_MSG_CAP_DEFAULT;
+    if (todayStats.today_user_msgs >= dailyCap) {
       const oldestMs = new Date(todayStats.oldest_user_msg).getTime();
       const retryAfterMs = (oldestMs + 24 * 60 * 60 * 1000) - Date.now();
       return json({
         ok: false,
-        error: `You've reached the daily message limit for this project (${DAILY_MSG_CAP} per 24 hours).`,
+        error: `You've reached the daily message limit for this project (${dailyCap} per 24 hours).`,
         retry_after_seconds: Math.max(0, Math.ceil(retryAfterMs / 1000)),
       }, { status: 429 });
     }

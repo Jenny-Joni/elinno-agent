@@ -459,10 +459,14 @@
               <div class="project-tabs" id="tabStrip">
                 <button class="project-tab" type="button" data-tab="chat">Chat</button>
                 <!-- v1.3 (Block 12.1): Members tab hidden — membership collapsed
-                     per BLOCK_12_PLAN decision I. 12.4 reworks the entire
-                     project settings page to General + Connections tabs. -->
+                     per BLOCK_12_PLAN decision I. 12.4 ships project_settings.html
+                     (General + Connections tabs); the Connections tab below
+                     stays for now so v1.2 in-page navigation keeps working,
+                     plus a Settings link to the new full page. v1.3.1 cleanup
+                     may consolidate. -->
                 <button class="project-tab" type="button" data-tab="members" hidden style="display:none;">Members <span class="tab-count" id="memberCountPill" style="display:none;"></span></button>
                 <button class="project-tab" type="button" data-tab="connections">Connections</button>
+                <a class="project-tab" id="projectSettingsLink" href="/project_settings.html?id=${projectId}" style="text-decoration:none;color:var(--color-text-muted);">Settings ↗</a>
               </div>
             </div>
             <div id="tabBody"></div>

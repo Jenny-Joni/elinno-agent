@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project settings — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/auth.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <style>
+    /* Project-settings page layout. Components from 12.2 (auth.css). */
+    .ps-shell {
+      background: var(--color-bg-light);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 18px 0;
+    }
+    .ps-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 22px;
+    }
+    .ps-head-eyebrow {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--color-brand);
+      font-weight: 500;
+      margin: 0 0 6px;
+    }
+    .ps-head h1 {
+      font-size: 22px;
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin: 0;
+    }
+    .ps-head h1 strong { font-weight: 700; }
+
+    .ps-tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 28px;
+    }
+    .ps-tab {
+      padding: 10px 16px;
+      font-size: 13px;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      text-decoration: none;
+      cursor: pointer;
+      background: transparent;
+      border-left: none;
+      border-right: none;
+      border-top: none;
+      font-family: inherit;
+    }
+    .ps-tab.active { color: var(--color-brand); border-bottom-color: var(--color-brand); }
+
+    .ps-section { margin-bottom: 32px; }
+    .ps-section h2 {
+      font-size: 18px;
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin: 0 0 6px;
+    }
+    .ps-section h2 strong { font-weight: 700; }
+    .ps-section h2.danger { color: var(--color-danger); }
+    .ps-section-sub {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      line-height: 1.45;
+      margin: 0 0 20px;
+    }
+    .ps-section-sub strong { color: var(--color-text-dark); }
+
+    .ps-card {
+      background: var(--color-bg-soft);
+      border-radius: 12px;
+      padding: 22px;
+    }
+    .ps-card + .ps-card { margin-top: 14px; }
+    .ps-card.danger {
+      background: var(--color-danger-bg);
+      border: 1px solid var(--color-danger-border);
+    }
+
+    .ps-row {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    .ps-row:last-child { margin-bottom: 0; }
+    .ps-row.full { grid-template-columns: 1fr; }
+    .ps-row.align-start { align-items: flex-start; }
+    .ps-row label {
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-body);
+    }
+    .ps-row .ps-row-hint {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+    .ps-row input[type="text"],
+    .ps-row input[type="number"],
+    .ps-row textarea {
+      padding: 11px 14px;
+      background: var(--color-bg-light);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--color-text-dark);
+      width: 100%;
+    }
+    .ps-row textarea {
+      font-size: 13px;
+      line-height: 1.45;
+      resize: vertical;
+      min-height: 60px;
+    }
+    .ps-row input[disabled],
+    .ps-row textarea[disabled] {
+      background: var(--color-border);
+      color: var(--color-text-muted);
+      cursor: not-allowed;
+    }
+    .ps-row input:focus,
+    .ps-row textarea:focus {
+      outline: none;
+      border-color: var(--color-brand);
+    }
+
+    .ps-row-key {
+      position: relative;
+    }
+    .ps-row-key-preview {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 10px;
+      color: var(--color-text-muted);
+      font-family: monospace;
+      pointer-events: none;
+    }
+
+    .ps-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 32px;
+    }
+    @media (max-width: 700px) { .ps-info-grid { grid-template-columns: 1fr; gap: 16px; } }
+    .ps-info-cell-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      margin: 0 0 5px;
+    }
+    .ps-info-cell-value {
+      font-size: 13px;
+      color: var(--color-text-dark);
+    }
+    .ps-info-cell-value.mono {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--color-text-body);
+    }
+
+    .ps-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .ps-actions .btn {
+      width: auto;
+      padding: 9px 16px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-radius: 8px;
+    }
+    .ps-actions .btn-secondary {
+      background: transparent;
+      color: var(--color-text-dark);
+      border: 1px solid var(--color-border);
+    }
+    .ps-actions .btn-primary {
+      background: var(--color-brand);
+      color: var(--color-text-inverse);
+      border: none;
+      width: auto;
+    }
+    .ps-actions .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ps-action-msg {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      align-self: center;
+      margin-right: 8px;
+    }
+    .ps-action-msg.success { color: var(--color-success); }
+    .ps-action-msg.error { color: var(--color-error); }
+
+    /* Logo placeholder section */
+    .ps-logo {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 24px;
+      align-items: center;
+    }
+    .ps-logo-avatar {
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      background: var(--color-brand-tint);
+      color: var(--color-brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 36px;
+    }
+    .ps-logo-meta-label {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 500;
+      text-align: center;
+      margin-top: 8px;
+    }
+    .ps-logo-body-title {
+      font-size: 13px;
+      font-weight: 500;
+      margin: 0 0 4px;
+    }
+    .ps-logo-body-sub {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      margin: 0 0 14px;
+    }
+    .ps-logo-upload-btn {
+      background: var(--color-brand);
+      color: var(--color-text-inverse);
+      border: none;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .ps-logo-upload-btn:disabled {
+      background: var(--color-bg-soft);
+      color: var(--color-text-muted);
+      cursor: not-allowed;
+      border: 1px solid var(--color-border);
+    }
+
+    /* Limits spend block */
+    .ps-limits-spend {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .ps-limits-spend-label {
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-body);
+    }
+    .ps-limits-spend-status {
+      font-size: 10px;
+      font-weight: 500;
+    }
+    .ps-limits-spend-status.healthy { color: var(--color-success); }
+    .ps-limits-spend-status.warning { color: var(--color-warning); }
+    .ps-limits-spend-status.exceeded { color: var(--color-danger); }
+    .ps-limits-spend-amount {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .ps-limits-spend-amount .num {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .ps-limits-spend-amount .of {
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+    .ps-currency-input {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      width: 160px;
+    }
+    .ps-currency-input::before {
+      content: '$';
+      position: absolute;
+      left: 14px;
+      font-size: 14px;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      pointer-events: none;
+    }
+    .ps-currency-input input { padding-left: 26px; }
+
+    /* Connections tab */
+    .ps-conn-list { display: flex; flex-direction: column; gap: 10px; }
+    .ps-conn-card {
+      background: var(--color-bg-light);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .ps-conn-head {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .ps-conn-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--color-bg-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .ps-conn-info { flex: 1; }
+    .ps-conn-name {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 3px;
+    }
+    .ps-conn-sub {
+      font-size: 11px;
+      color: var(--color-text-muted);
+    }
+    .ps-conn-disconnect {
+      background: transparent;
+      color: var(--color-text-muted);
+      border: none;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ps-conn-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--color-border);
+    }
+    @media (max-width: 700px) { .ps-conn-meta { grid-template-columns: 1fr; gap: 8px; } }
+    .ps-conn-meta-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      margin: 0 0 4px;
+    }
+    .ps-conn-meta-value { font-size: 12px; font-weight: 500; }
+    .ps-conn-sync-btn {
+      background: transparent;
+      color: var(--color-brand);
+      border: 1px solid rgba(98, 52, 252, 0.3);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      justify-self: flex-end;
+    }
+
+    .ps-conn-avail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    @media (max-width: 700px) { .ps-conn-avail-grid { grid-template-columns: 1fr; } }
+    .ps-conn-avail-card {
+      background: var(--color-bg-soft);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      padding: 16px;
+      opacity: 0.85;
+    }
+    .ps-conn-avail-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .ps-conn-avail-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--color-bg-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ps-conn-avail-name { font-size: 14px; font-weight: 600; margin: 0 0 4px; }
+    .ps-conn-avail-body { font-size: 11px; color: var(--color-text-body); line-height: 1.45; margin: 0 0 10px; }
+    .ps-conn-avail-foot { font-size: 10px; color: var(--color-text-muted); font-weight: 500; }
+
+    .ps-error {
+      background: rgba(255, 0, 131, 0.08);
+      border: 1px solid rgba(255, 0, 131, 0.3);
+      border-radius: 12px;
+      padding: 18px;
+      color: var(--color-error);
+      font-size: 13px;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .ps-loading {
+      padding: 60px 0;
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: 13px;
+    }
+
+    .ps-back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--color-text-muted);
+      text-decoration: none;
+      margin-bottom: 8px;
+    }
+    .ps-back-link:hover { color: var(--color-brand); }
+  </style>
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <div class="app-nav-actions">
+        <span id="navUser" style="color:var(--color-text-body);opacity:.85;font-size:14px;"></span>
+        <a href="/projects.html">Projects</a>
+        <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <button id="logoutBtn" class="btn-nav">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <div class="custom-container">
+      <div id="psRoot">
+        <div class="ps-loading">Loading project settings…</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ---------- helpers ----------
+    function escHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function fmtUsd(n, decimals) {
+      const d = decimals == null ? 2 : decimals;
+      const num = Number(n) || 0;
+      return '$' + num.toFixed(d);
+    }
+    function fmtDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (!isFinite(d)) return '';
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    function fmtRel(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (!isFinite(d)) return '';
+      const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+      if (diffMin < 1) return 'just now';
+      if (diffMin < 60) return diffMin + ' min ago';
+      const hr = Math.floor(diffMin / 60);
+      if (hr < 24) return hr + ' hr' + (hr === 1 ? '' : 's') + ' ago';
+      const day = Math.floor(hr / 24);
+      if (day === 1) return 'yesterday';
+      if (day < 7) return day + ' days ago';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    function deriveKey(name) {
+      return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
+    }
+    function getQueryParam(name) {
+      try { return new URL(location.href).searchParams.get(name); } catch { return null; }
+    }
+    function jiraSvg(size) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z"/></svg>';
+    }
+    function slackSvg(size) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24"><g><path fill="#E01E5A" d="M5 14.5a2 2 0 1 1 2 2H5v-2z"/><path fill="#E01E5A" d="M6 14.5a2 2 0 1 1 4 0v5a2 2 0 1 1-4 0z"/><path fill="#36C5F0" d="M9.5 5a2 2 0 1 1-2 2V5z"/><path fill="#36C5F0" d="M9.5 6a2 2 0 1 1 0 4h-5a2 2 0 0 1 0-4z"/><path fill="#2EB67D" d="M19 9.5a2 2 0 1 1-2-2h2z"/><path fill="#2EB67D" d="M18 9.5a2 2 0 1 1-4 0v-5a2 2 0 1 1 4 0z"/><path fill="#ECB22E" d="M14.5 19a2 2 0 1 1 2-2v2z"/><path fill="#ECB22E" d="M14.5 18a2 2 0 1 1 0-4h5a2 2 0 1 1 0 4z"/></g></svg>';
+    }
+    function mondaySvg(size) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4" fill="#FF3D57"/><circle cx="12" cy="12" r="2.4" fill="#FFCB00"/><circle cx="18" cy="12" r="2.4" fill="#00CA72"/></svg>';
+    }
+    function driveSvg(size) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24"><path fill="#0066DA" d="M2 16l4 7h12l-4-7z"/><path fill="#FFBA00" d="M14 2L8 12l4 7 6-10z"/><path fill="#00AC47" d="M22 16L18 9 14 2 8 12z"/></svg>';
+    }
+
+    // ---------- state ----------
+    let projectId = getQueryParam('id') || '';
+    let activeTab = getQueryParam('tab') === 'connections' ? 'connections' : 'general';
+    let project = null;
+    let connections = null;
+
+    // ---------- API ----------
+    async function api(method, path, body) {
+      const opts = { method, credentials: 'same-origin', headers: {} };
+      if (body !== undefined) {
+        opts.body = JSON.stringify(body);
+        opts.headers['Content-Type'] = 'application/json';
+      }
+      const res = await fetch(path, opts);
+      if (res.status === 401) { location.replace('/'); throw new Error('unauth'); }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || ('HTTP ' + res.status));
+      }
+      return data;
+    }
+
+    async function loadAll() {
+      if (!projectId) throw new Error('Missing project id');
+      const [projRes, connsRes, meRes] = await Promise.all([
+        api('GET', '/api/projects/' + encodeURIComponent(projectId)),
+        api('GET', '/api/projects/' + encodeURIComponent(projectId) + '/connections'),
+        api('GET', '/api/me').catch(() => null),
+      ]);
+      project = projRes.project;
+      connections = Array.isArray(connsRes.connections) ? connsRes.connections : [];
+      if (meRes && meRes.user) {
+        document.getElementById('navUser').textContent = meRes.user.email;
+        if (meRes.user.is_admin) document.getElementById('adminLink').style.display = '';
+      }
+    }
+
+    // ---------- header + tabs ----------
+    function renderHead() {
+      return ''
+        + '<a href="/project.html?id=' + escHtml(projectId) + '" class="ps-back-link"><i class="ti ti-arrow-left"></i> Back to ' + escHtml(project.name) + ' chat</a>'
+        + '<div class="ps-head">'
+        +   '<div>'
+        +     '<p class="ps-head-eyebrow">Project · ' + escHtml(project.name) + '</p>'
+        +     '<h1>Project <strong>settings</strong></h1>'
+        +   '</div>'
+        +   '<span class="label-pill">Workspace admin</span>'
+        + '</div>'
+        + '<div class="ps-tabs">'
+        +   '<button class="ps-tab' + (activeTab === 'general' ? ' active' : '') + '" data-tab="general">General</button>'
+        +   '<button class="ps-tab' + (activeTab === 'connections' ? ' active' : '') + '" data-tab="connections">Connections</button>'
+        + '</div>';
+    }
+
+    // ---------- General tab ----------
+    function renderGeneral() {
+      const cap = Number(project.ai_monthly_cap_usd) || 0;
+      const spend = Number(project.ai_spend_period_to_date_usd) || 0;
+      const pct = cap > 0 ? Math.min(100, Math.round((spend / cap) * 100)) : 0;
+      const pctClass = pct >= 100 ? 'exceeded' : (pct >= 80 ? 'warning' : 'healthy');
+      const pctLabel = pct >= 100 ? 'cap reached'
+        : (pct >= 80 ? pct + '% — approaching cap' : pct + '% used');
+
+      return ''
+        // Logo (deferred — disabled upload per BLOCK_12_PLAN decision N) -----
+        + '<section class="ps-section">'
+        +   '<h2>Project <strong>logo</strong></h2>'
+        +   '<p class="ps-section-sub">Appears on the dashboard, in cross-project chat scope chips, and on citation chips. PNG or JPG, square, max 1 MB.</p>'
+        +   '<div class="ps-card ps-logo">'
+        +     '<div>'
+        +       '<div class="ps-logo-avatar">' + escHtml((project.name || '?').trim()[0] || '?').toUpperCase() + '</div>'
+        +       '<p class="ps-logo-meta-label">Placeholder</p>'
+        +     '</div>'
+        +     '<div>'
+        +       '<p class="ps-logo-body-title">No logo uploaded</p>'
+        +       '<p class="ps-logo-body-sub">Using the initial-letter placeholder until you upload one.</p>'
+        +       '<button class="ps-logo-upload-btn" disabled title="Coming in v1.3.1"><i class="ti ti-upload"></i> Upload logo</button>'
+        +     '</div>'
+        +   '</div>'
+        + '</section>'
+
+        // Identity -----------------------------------------------------------
+        + '<section class="ps-section">'
+        +   '<h2>Project <strong>identity</strong></h2>'
+        +   '<p class="ps-section-sub">How ' + escHtml(project.name) + ' is named and described across the app.</p>'
+        +   '<form id="psIdentityForm">'
+        +     '<div class="ps-card">'
+        +       '<div class="ps-row">'
+        +         '<label for="psName">Project name</label>'
+        +         '<input id="psName" name="name" type="text" maxlength="100" value="' + escHtml(project.name) + '" />'
+        +       '</div>'
+        +       '<div class="ps-row">'
+        +         '<div>'
+        +           '<label>Project key</label>'
+        +           '<div class="ps-row-hint">Used in URLs</div>'
+        +         '</div>'
+        +         '<div class="ps-row-key">'
+        +           '<input type="text" value="' + escHtml(deriveKey(project.name)) + '" disabled />'
+        +           '<span class="ps-row-key-preview">elinnoagent.com/projects/<strong>' + escHtml(deriveKey(project.name)) + '</strong></span>'
+        +         '</div>'
+        +       '</div>'
+        +       '<div class="ps-row align-start">'
+        +         '<label for="psDescription" style="padding-top:11px;">Description</label>'
+        +         '<textarea id="psDescription" name="description" rows="2" maxlength="1000">' + escHtml(project.description || '') + '</textarea>'
+        +       '</div>'
+        +     '</div>'
+        +     '<div class="ps-actions">'
+        +       '<span id="psIdentityMsg" class="ps-action-msg"></span>'
+        +       '<button type="button" class="btn btn-secondary" id="psIdentityDiscard">Discard</button>'
+        +       '<button type="submit" class="btn btn-primary" id="psIdentitySave">Save changes</button>'
+        +     '</div>'
+        +   '</form>'
+        + '</section>'
+
+        // Project info (read-only) -------------------------------------------
+        + '<section class="ps-section">'
+        +   '<h2>Project <strong>info</strong></h2>'
+        +   '<p class="ps-section-sub">Read-only metadata.</p>'
+        +   '<div class="ps-card">'
+        +     '<div class="ps-info-grid">'
+        +       '<div><p class="ps-info-cell-label">Project ID</p><div class="ps-info-cell-value mono">' + escHtml(project.id) + '</div></div>'
+        +       '<div><p class="ps-info-cell-label">Created</p><div class="ps-info-cell-value">' + escHtml(fmtDate(project.created_at)) + '</div></div>'
+        +       '<div><p class="ps-info-cell-label">Last activity</p><div class="ps-info-cell-value">' + escHtml(fmtRel(project.updated_at)) + '</div></div>'
+        +     '</div>'
+        +   '</div>'
+        + '</section>'
+
+        // Limits -------------------------------------------------------------
+        + '<section class="ps-section">'
+        +   '<h2>Project <strong>limits</strong></h2>'
+        +   '<p class="ps-section-sub">Applies to ' + escHtml(project.name) + '’s per-project chat only. Cross-project chats charge against the <strong>workspace AI cap</strong>, set in your workspace settings.</p>'
+        +   '<div class="ps-card">'
+        +     '<div class="ps-limits-spend">'
+        +       '<div class="ps-limits-spend-label">AI spend this month</div>'
+        +       '<div class="ps-limits-spend-status ' + pctClass + '">' + pctLabel + '</div>'
+        +     '</div>'
+        +     '<div class="ps-limits-spend-amount">'
+        +       '<span class="num">' + fmtUsd(spend) + '</span>'
+        +       '<span class="of">of ' + fmtUsd(cap) + '</span>'
+        +     '</div>'
+        +     '<div class="spend-bar ' + pctClass + ' slim">'
+        +       '<div class="spend-bar-track"><div class="spend-bar-fill" style="width:' + pct + '%;"></div></div>'
+        +     '</div>'
+        +   '</div>'
+        +   '<form id="psLimitsForm">'
+        +     '<div class="ps-card">'
+        +       '<div class="ps-row">'
+        +         '<label for="psCap">Monthly AI cap</label>'
+        +         '<div style="display:flex;align-items:center;gap:10px;">'
+        +           '<div class="ps-currency-input">'
+        +             '<input id="psCap" name="ai_monthly_cap_usd" type="number" min="1" step="1" value="' + Math.round(cap) + '" />'
+        +           '</div>'
+        +           '<span style="font-size:11px;color:var(--color-text-muted);">USD / month</span>'
+        +         '</div>'
+        +       '</div>'
+        +       '<div class="ps-row">'
+        +         '<label for="psMsg">Daily message limit</label>'
+        +         '<div style="display:flex;align-items:center;gap:10px;">'
+        +           '<input id="psMsg" name="daily_message_limit" type="number" min="1" step="1" value="' + Number(project.daily_message_limit || 100) + '" style="width:160px;" />'
+        +           '<span style="font-size:11px;color:var(--color-text-muted);">messages / day</span>'
+        +         '</div>'
+        +       '</div>'
+        +     '</div>'
+        +     '<div class="ps-actions">'
+        +       '<span id="psLimitsMsg" class="ps-action-msg"></span>'
+        +       '<button type="button" class="btn btn-secondary" id="psLimitsDiscard">Discard</button>'
+        +       '<button type="submit" class="btn btn-primary" id="psLimitsSave">Save limits</button>'
+        +     '</div>'
+        +   '</form>'
+        + '</section>'
+
+        // Danger zone --------------------------------------------------------
+        + '<section class="ps-section">'
+        +   '<h2 class="danger">Danger <strong>zone</strong></h2>'
+        +   '<p class="ps-section-sub">Irreversible actions. Workspace admin only.</p>'
+        +   '<div class="ps-card danger" style="display:flex;justify-content:space-between;align-items:center;gap:24px;">'
+        +     '<div>'
+        +       '<div style="font-size:13px;font-weight:600;margin-bottom:4px;">Delete this project</div>'
+        +       '<div style="font-size:11px;color:var(--color-text-body);line-height:1.5;">' + escHtml(project.name) + ' will be soft-deleted. Connections stop syncing, chats become read-only. Data is retained for 30 days, then permanently removed.</div>'
+        +     '</div>'
+        +     '<button class="btn-danger" id="psDeleteBtn" style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;padding:10px 18px;background:var(--color-danger);color:var(--color-text-inverse);border:none;cursor:pointer;border-radius:8px;white-space:nowrap;">Delete project</button>'
+        +   '</div>'
+        + '</section>';
+    }
+
+    // ---------- Connections tab ----------
+    function renderConnections() {
+      const active = (connections || []).filter(c => c.status === 'active');
+      const slack = active.find(c => c.source === 'slack');
+      const jira  = active.find(c => c.source === 'jira');
+
+      function connCard(conn, source) {
+        const isSlack = source === 'slack';
+        const iconSvg = isSlack ? slackSvg(26) : jiraSvg(26);
+        const name = isSlack ? 'Slack' : 'Jira';
+        const sub = isSlack
+          ? (conn.external_account_id || '') + ' · ' + (conn.selected_channel_name ? '#' + conn.selected_channel_name + ' · ' : '') + 'connected'
+          : (conn.external_account_id || '') + ' · ' + (conn.selected_project_name ? conn.selected_project_name + ' board · ' : '') + 'connected';
+        return ''
+          + '<div class="ps-conn-card" data-conn-id="' + escHtml(conn.id) + '">'
+          +   '<div class="ps-conn-head">'
+          +     '<div class="ps-conn-icon">' + iconSvg + '</div>'
+          +     '<div class="ps-conn-info">'
+          +       '<div class="ps-conn-name">' + escHtml(name)
+          +         + '<span class="status-pill live"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-success);margin-right:4px;display:inline-block;"></span>Connected</span>'
+          +       '</div>'
+          +       '<div class="ps-conn-sub">' + escHtml(sub) + '</div>'
+          +     '</div>'
+          +     '<button class="ps-conn-disconnect" data-action="disconnect" data-conn-id="' + escHtml(conn.id) + '"><i class="ti ti-link-off"></i> Disconnect</button>'
+          +   '</div>'
+          +   '<div class="ps-conn-meta">'
+          +     '<div><p class="ps-conn-meta-label">Last sync</p><div class="ps-conn-meta-value">' + escHtml(fmtRel(conn.last_sync_at) || '—') + '</div></div>'
+          +     '<div><p class="ps-conn-meta-label">Status</p><div class="ps-conn-meta-value">' + escHtml(conn.status) + '</div></div>'
+          +     '<button class="ps-conn-sync-btn" data-action="sync" data-conn-id="' + escHtml(conn.id) + '"><i class="ti ti-refresh"></i> Sync now</button>'
+          +   '</div>'
+          + '</div>';
+      }
+
+      let activeHtml;
+      if (active.length === 0) {
+        activeHtml = '<div class="ps-card" style="text-align:center;color:var(--color-text-muted);font-size:12px;">No active connections yet. Connect Slack or Jira from the Available connectors section below.</div>';
+      } else {
+        activeHtml = '<div class="ps-conn-list">';
+        if (slack) activeHtml += connCard(slack, 'slack');
+        if (jira) activeHtml += connCard(jira, 'jira');
+        activeHtml += '</div>';
+      }
+
+      return ''
+        + '<section class="ps-section">'
+        +   '<h2>Active <strong>connections</strong></h2>'
+        +   '<p class="ps-section-sub">Data sources connected to ' + escHtml(project.name) + '. The agent reads from these — nothing is written back. Each connection syncs nightly.</p>'
+        +   activeHtml
+        + '</section>'
+        + '<section class="ps-section">'
+        +   '<h2 style="font-size:16px;">Available <strong>connectors</strong></h2>'
+        +   '<p class="ps-section-sub">Add another data source to ' + escHtml(project.name) + '.</p>'
+        +   '<div class="ps-conn-avail-grid">'
+        +     '<div class="ps-conn-avail-card">'
+        +       '<div class="ps-conn-avail-head">'
+        +         '<div class="ps-conn-avail-icon">' + mondaySvg(20) + '</div>'
+        +         '<span class="status-pill v2">v2.0</span>'
+        +       '</div>'
+        +       '<div class="ps-conn-avail-name">Monday</div>'
+        +       '<div class="ps-conn-avail-body">Powers Finance cross-project chats. Boards, items, columns.</div>'
+        +       '<div class="ps-conn-avail-foot">Ships in v2.0</div>'
+        +     '</div>'
+        +     '<div class="ps-conn-avail-card">'
+        +       '<div class="ps-conn-avail-head">'
+        +         '<div class="ps-conn-avail-icon">' + driveSvg(20) + '</div>'
+        +         '<span class="status-pill v2">v2.0</span>'
+        +       '</div>'
+        +       '<div class="ps-conn-avail-name">Google Drive</div>'
+        +       '<div class="ps-conn-avail-body">Docs, slides, sheets. Read-only file content + metadata.</div>'
+        +       '<div class="ps-conn-avail-foot">Ships in v2.0</div>'
+        +     '</div>'
+        +   '</div>'
+        + '</section>';
+    }
+
+    function render() {
+      const root = document.getElementById('psRoot');
+      const body = activeTab === 'general' ? renderGeneral() : renderConnections();
+      root.innerHTML = '<div class="ps-shell">' + renderHead() + body + '</div>';
+      bindHandlers();
+    }
+
+    // ---------- handlers ----------
+    function setMsg(elId, text, kind) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.textContent = text || '';
+      el.className = 'ps-action-msg' + (kind ? ' ' + kind : '');
+    }
+
+    function bindHandlers() {
+      // Tab switching
+      document.querySelectorAll('.ps-tab').forEach(b => {
+        b.addEventListener('click', () => {
+          activeTab = b.dataset.tab;
+          const url = new URL(location.href);
+          url.searchParams.set('tab', activeTab);
+          history.replaceState({}, '', url.toString());
+          render();
+        });
+      });
+
+      if (activeTab === 'general') {
+        // Identity form
+        const idForm = document.getElementById('psIdentityForm');
+        if (idForm) {
+          idForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            setMsg('psIdentityMsg', 'Saving…', '');
+            const name = document.getElementById('psName').value.trim();
+            const description = document.getElementById('psDescription').value.trim();
+            try {
+              const res = await api('PATCH', '/api/projects/' + encodeURIComponent(projectId), { name, description });
+              project = { ...project, ...res.project };
+              setMsg('psIdentityMsg', 'Saved.', 'success');
+              setTimeout(() => render(), 700);
+            } catch (err) {
+              setMsg('psIdentityMsg', String(err && err.message || err), 'error');
+            }
+          });
+          document.getElementById('psIdentityDiscard').addEventListener('click', () => render());
+        }
+
+        // Limits form
+        const limitsForm = document.getElementById('psLimitsForm');
+        if (limitsForm) {
+          limitsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            setMsg('psLimitsMsg', 'Saving…', '');
+            const ai_monthly_cap_usd = Number(document.getElementById('psCap').value);
+            const daily_message_limit = Number(document.getElementById('psMsg').value);
+            try {
+              const res = await api('PATCH', '/api/projects/' + encodeURIComponent(projectId) + '/limits', { ai_monthly_cap_usd, daily_message_limit });
+              project = { ...project, ...res.project };
+              setMsg('psLimitsMsg', 'Saved.', 'success');
+              setTimeout(() => render(), 700);
+            } catch (err) {
+              setMsg('psLimitsMsg', String(err && err.message || err), 'error');
+            }
+          });
+          document.getElementById('psLimitsDiscard').addEventListener('click', () => render());
+        }
+
+        // Delete button
+        const delBtn = document.getElementById('psDeleteBtn');
+        if (delBtn) {
+          delBtn.addEventListener('click', async () => {
+            const ok = window.prompt('Type the project name to confirm delete:\n\n' + project.name);
+            if (ok !== project.name) {
+              alert('Name did not match. Delete cancelled.');
+              return;
+            }
+            try {
+              await api('DELETE', '/api/projects/' + encodeURIComponent(projectId));
+              alert('Project deleted.');
+              location.replace('/projects.html');
+            } catch (err) {
+              alert('Delete failed: ' + (err && err.message || err));
+            }
+          });
+        }
+      } else if (activeTab === 'connections') {
+        // Sync now + Disconnect
+        document.querySelectorAll('[data-action="sync"]').forEach(b => {
+          b.addEventListener('click', async () => {
+            const connId = b.dataset.connId;
+            b.disabled = true;
+            const original = b.innerHTML;
+            b.innerHTML = '<i class="ti ti-loader"></i> Syncing…';
+            try {
+              await api('POST', '/api/projects/' + encodeURIComponent(projectId) + '/connections/' + encodeURIComponent(connId) + '/sync');
+              await loadAll();
+              render();
+            } catch (err) {
+              alert('Sync failed: ' + (err && err.message || err));
+              b.disabled = false;
+              b.innerHTML = original;
+            }
+          });
+        });
+        document.querySelectorAll('[data-action="disconnect"]').forEach(b => {
+          b.addEventListener('click', async () => {
+            if (!confirm('Disconnect this connection? Synced data stays; future syncs stop.')) return;
+            const connId = b.dataset.connId;
+            try {
+              await api('DELETE', '/api/projects/' + encodeURIComponent(projectId) + '/connections/' + encodeURIComponent(connId));
+              await loadAll();
+              render();
+            } catch (err) {
+              alert('Disconnect failed: ' + (err && err.message || err));
+            }
+          });
+        });
+      }
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+      location.replace('/');
+    });
+
+    (async function boot() {
+      try {
+        await loadAll();
+        render();
+      } catch (err) {
+        document.getElementById('psRoot').innerHTML = ''
+          + '<div class="ps-error">Couldn\'t load project settings. <br><small>'
+          + escHtml(String(err && err.message || err)) + '</small></div>';
+      }
+    })();
+  </script>
+</body>
+</html>

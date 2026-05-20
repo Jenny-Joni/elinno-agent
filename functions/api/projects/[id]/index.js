@@ -1,22 +1,31 @@
 // functions/api/projects/[id]/index.js
 //
-// Block 2 Sub-task 2.1 — projects API (read-one).
+// Block 2 Sub-task 2.1 — projects API (read-one), extended in 12.4
+// with PATCH (rename + description) and DELETE (soft-delete).
 //
 // Routes (this file):
-//   GET /api/projects/:id  → read one project in the session user's
-//                            workspace (v1.3: per-project membership
-//                            collapsed; workspace scope is the gate)
+//   GET    /api/projects/:id  → read one project in the workspace
+//   PATCH  /api/projects/:id  → workspace-admin: update name and/or
+//                               description
+//   DELETE /api/projects/:id  → workspace-admin: soft-delete
 //
-// First consumer of requireWorkspaceScope (v1.3 successor to v1.1/v1.2's
-// requireProjectRole). The helper is responsible for the three auth
-// layers (session valid, projectId is UUID, project belongs to the
-// workspace AND is not soft-deleted) per BLOCK_12_PLAN.md decision I.
+// Workspace-scope is the gate (v1.3 successor to v1.1/v1.2's
+// requireProjectRole). Edit-side handlers also require workspace-admin
+// (D1 users.is_admin = 1).
 //
-// The endpoint owns only the data fetch and the response shape. Role is
-// derived from D1 `user.is_admin` since workspace-admin is the only role
-// concept in v1.3.
+// The response from GET includes ai_monthly_cap_usd, daily_message_limit
+// (v1.3 Block 12.4), and ai_spend_period_to_date_usd computed inline.
+// The project-settings General tab reads from this response.
 import postgres from 'postgres';
-import { error, json, requireWorkspaceScope } from '../../../_lib/auth.js';
+import {
+  error,
+  json,
+  requireWorkspaceScope,
+  requireWorkspaceAdmin,
+} from '../../../_lib/auth.js';
+
+const NAME_MAX = 100;
+const DESCRIPTION_MAX = 1000;
 
 export async function onRequestGet({ request, env, params }) {
   const { error: errResp, user } = await requireWorkspaceScope(
@@ -27,8 +36,7 @@ export async function onRequestGet({ request, env, params }) {
   if (errResp) return errResp;
 
   // v1.3: workspace admin is the sole role concept. Preserves the
-  // v1.2 response field shape so the project-settings UI in 12.4 can
-  // continue to read project.role without a frontend change yet.
+  // v1.2 response field shape.
   const role = user.is_admin ? 'admin' : 'member';
 
   const sql = postgres(env.HYPERDRIVE.connectionString, {
@@ -39,8 +47,7 @@ export async function onRequestGet({ request, env, params }) {
   try {
     // Defensive `deleted_at IS NULL` filter — the helper already
     // verified this, but two layers protect against future helper
-    // refactors that might drop the check. Costs nothing (PK lookup,
-    // row likely cached by Hyperdrive from the helper's join).
+    // refactors that might drop the check.
     const [project] = await sql`
       SELECT
         id,
@@ -48,7 +55,15 @@ export async function onRequestGet({ request, env, params }) {
         description,
         owner_user_id,
         created_at,
-        updated_at
+        updated_at,
+        ai_monthly_cap_usd::float        AS ai_monthly_cap_usd,
+        daily_message_limit,
+        (SELECT COALESCE(SUM(cost_usd), 0)::float
+           FROM messages m
+          WHERE m.project_id = projects.id
+            AND m.created_at >= DATE_TRUNC('month', NOW())
+            AND m.deleted_at IS NULL
+        )                                 AS ai_spend_period_to_date_usd
         FROM projects
        WHERE id          = ${params.id}
          AND deleted_at  IS NULL
@@ -57,9 +72,7 @@ export async function onRequestGet({ request, env, params }) {
 
     if (!project) {
       // Race: project was soft-deleted between requireWorkspaceScope's
-      // check and this SELECT. The user had confirmed access moments
-      // ago, so 404 (not 403) is correct here — no leakage, since the
-      // requester is a verified workspace user of a now-deleted project.
+      // check and this SELECT.
       return error('Not found', 404);
     }
 
@@ -72,5 +85,128 @@ export async function onRequestGet({ request, env, params }) {
     } catch {
       // best-effort cleanup; never masks the return value
     }
+  }
+}
+
+// PATCH — update name and/or description (12.4 settings General tab).
+export async function onRequestPatch({ request, env, params }) {
+  const scopeResult = await requireWorkspaceScope(request, env, params.id);
+  if (scopeResult.error) return scopeResult.error;
+  const adminResult = await requireWorkspaceAdmin(request, env);
+  if (adminResult.error) return adminResult.error;
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return error('Invalid JSON', 400);
+  }
+  if (!body || typeof body !== 'object') {
+    return error('Body must be a JSON object', 400);
+  }
+
+  const updates = {};
+
+  if (body.name !== undefined) {
+    if (typeof body.name !== 'string') {
+      return error('name must be a string', 400);
+    }
+    const trimmed = body.name.trim();
+    if (trimmed.length === 0) {
+      return error('Project name is required', 400);
+    }
+    if (trimmed.length > NAME_MAX) {
+      return error(`Project name must be ${NAME_MAX} characters or fewer`, 400);
+    }
+    updates.name = trimmed;
+  }
+
+  if (body.description !== undefined) {
+    if (body.description === null) {
+      updates.description = null;
+    } else if (typeof body.description !== 'string') {
+      return error('description must be a string or null', 400);
+    } else {
+      const trimmed = body.description.trim();
+      if (trimmed.length > DESCRIPTION_MAX) {
+        return error(
+          `Project description must be ${DESCRIPTION_MAX} characters or fewer`,
+          400
+        );
+      }
+      updates.description = trimmed.length > 0 ? trimmed : null;
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return error('Nothing to update', 400);
+  }
+
+  const sql = postgres(env.HYPERDRIVE.connectionString, {
+    max: 5,
+    fetch_types: false,
+  });
+
+  try {
+    // Build the SET clause from the validated `updates` object. Each
+    // field is bound via postgres-js tagged-template — no string
+    // interpolation, safe from injection. Always bump updated_at.
+    const nameSql = updates.name !== undefined
+      ? sql`name = ${updates.name},`
+      : sql``;
+    const descSql = updates.description !== undefined
+      ? sql`description = ${updates.description},`
+      : sql``;
+
+    const [project] = await sql`
+      UPDATE projects
+         SET ${nameSql} ${descSql} updated_at = NOW()
+       WHERE id          = ${params.id}
+         AND deleted_at  IS NULL
+      RETURNING id, name, description, owner_user_id, created_at, updated_at,
+                ai_monthly_cap_usd::float AS ai_monthly_cap_usd,
+                daily_message_limit
+    `;
+
+    if (!project) {
+      return error('Not found', 404);
+    }
+    return json({ ok: true, project });
+  } catch (_err) {
+    return error('Internal error', 500);
+  } finally {
+    try { await sql.end({ timeout: 5 }); } catch {}
+  }
+}
+
+// DELETE — soft-delete the project (12.4 settings General tab Danger zone).
+export async function onRequestDelete({ request, env, params }) {
+  const scopeResult = await requireWorkspaceScope(request, env, params.id);
+  if (scopeResult.error) return scopeResult.error;
+  const adminResult = await requireWorkspaceAdmin(request, env);
+  if (adminResult.error) return adminResult.error;
+
+  const sql = postgres(env.HYPERDRIVE.connectionString, {
+    max: 5,
+    fetch_types: false,
+  });
+
+  try {
+    const result = await sql`
+      UPDATE projects
+         SET deleted_at = NOW(),
+             updated_at = NOW()
+       WHERE id          = ${params.id}
+         AND deleted_at  IS NULL
+      RETURNING id
+    `;
+    if (result.length === 0) {
+      return error('Not found', 404);
+    }
+    return json({ ok: true });
+  } catch (_err) {
+    return error('Internal error', 500);
+  } finally {
+    try { await sql.end({ timeout: 5 }); } catch {}
   }
 }

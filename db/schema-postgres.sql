@@ -120,7 +120,12 @@ CREATE TABLE IF NOT EXISTS projects (
     -- at month boundary because the comparison is
     -- "ai_cap_warned_at >= DATE_TRUNC('month', NOW())". No background
     -- reset job needed.
-    ai_cap_warned_at TIMESTAMPTZ
+    ai_cap_warned_at TIMESTAMPTZ,
+
+    -- v1.3 (Block 12.4) per-project daily user-message cap. Replaces
+    -- the v1.2 hardcoded constant DAILY_MSG_CAP=100 in messages.js;
+    -- the project-settings General tab editor writes here.
+    daily_message_limit INTEGER NOT NULL DEFAULT 100
 );
 
 -- "List my active projects" — Member's main UI query.
