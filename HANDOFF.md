@@ -4672,3 +4672,24 @@ auto-deploy → smoke-test production project settings. Then 12.5a
 
 **Production state**: `54ce80b` on `elinnoagent.com`.
 Block 12.4 is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
+
+---
+
+## Block 12.4 SHIPPED to main — 2026-05-20
+
+**Production state**: `65483c0` on `elinnoagent.com` (was `54ce80b`).
+Fast-forward merge `54ce80b..65483c0` — 4 commits (12.3 SHIPPED doc
++ 12.4 feat + NaN fix + 12.4 docs).
+
+Production-smoke-tested:
+- `/project_settings.html?id=<rain>` loads with light nav, header,
+  General/Connections tabs, Logo placeholder with disabled upload,
+  Identity form pre-populated with Rain.
+- PATCH endpoints respond 200 ok with correct round-trips.
+- Validation gates fire 400 with correct error messages.
+
+Block 12.4 is **SHIPPED**. Sub-block 12.5a (Cross-project
+**backend** — authorize step, tool surface, compiler change, system-
+prompt slice, new routes) is next per BLOCK_12_PLAN §6.12.5a.
+This is the biggest single sub-block in v1.3, security-sensitive,
+default-mode work per CLAUDE.md.
