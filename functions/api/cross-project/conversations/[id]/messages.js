@@ -31,6 +31,20 @@ const UUID_RE =
 
 function isUuid(s) { return typeof s === 'string' && UUID_RE.test(s); }
 
+// postgres-js returns UUID[] columns as a Postgres array literal STRING
+// in some configurations ('{a,b,c}') rather than a JS array. Normalize.
+function parseProjectIds(v) {
+  if (Array.isArray(v)) return v.map(String);
+  if (typeof v === 'string' && v.startsWith('{') && v.endsWith('}')) {
+    return v
+      .slice(1, -1)
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+  return [];
+}
+
 const DEFAULT_TITLE = 'New cross-project chat';
 const MESSAGE_MAX = 8000;
 
@@ -164,9 +178,7 @@ export async function onRequestPost({ request, env, params }) {
     // prefixes. Already authorized at conversation create (and re-authorized
     // on edit-scope), but defensive: filter by owner_user_id again here so
     // a soft-deleted-since-create project drops out.
-    const crossProjectIds = Array.isArray(conv.project_ids)
-      ? conv.project_ids.map(String)
-      : [];
+    const crossProjectIds = parseProjectIds(conv.project_ids);
     if (crossProjectIds.length === 0) {
       return error('Conversation has no projects in scope', 400);
     }
