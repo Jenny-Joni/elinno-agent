@@ -88,11 +88,8 @@ export async function onRequestPost({ request, env }) {
       { ok: true, conversation: { ...conv, message_count: 0 } },
       { status: 201 }
     );
-  } catch (err) {
-    // TEMP debug — surface for 12.5a preview-debugging; revert before main push.
-    return error('Internal error', 500, {
-      _debug_message: String(err && err.message ? err.message : err).slice(0, 500),
-    });
+  } catch (_err) {
+    return error('Internal error', 500);
   } finally {
     try { await sql.end({ timeout: 5 }); } catch {}
   }

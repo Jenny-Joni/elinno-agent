@@ -4693,3 +4693,216 @@ Block 12.4 is **SHIPPED**. Sub-block 12.5a (Cross-project
 prompt slice, new routes) is next per BLOCK_12_PLAN §6.12.5a.
 This is the biggest single sub-block in v1.3, security-sensitive,
 default-mode work per CLAUDE.md.
+
+---
+
+## Block 12.5a verified on preview — 2026-05-20 (awaiting ff-merge)
+
+**Branch state**: `claude/gifted-sanderson-a7e060`, 8 commits ahead of
+`origin/main` (plus the in-flight matrix + debug-revert + HANDOFF
+commit landing next):
+
+- `15707d5` feat(12.5a): cross-project tool surface — authorize + 4 tools
+- `d1f8f0d` feat(12.5a): cross-project system prompt slice + HTTP routes
+- `ee4b946` fix(12.5a): import depth on conversations/[id]/{index,messages}.js
+- `b680a98` debug(12.5a): surface conversations POST 500 error.message (reverted in this commit)
+- `b9ff496` fix(12.5a): UUID[] INSERT serialization — build literal manually
+- `f81a39e` fix(12.5a): parse UUID[] result column — postgres-js returns string
+- `b5ce706` fix(12.5a): aggregate_jira CSV array bug — third bite of the same dog
+
+**Preview deploy**: `https://17dfb95b.elinno-agent.pages.dev/`
+**Production**: `65483c0` (Block 12.4) — unchanged until ff-merge.
+
+### What landed (backend only — no UI yet)
+
+- **Schema**: none. Cross-project columns landed in 12.1.
+
+- **New helper**: `functions/_lib/ai/authorize.js` —
+  `authorizeProjectSet(sql, workspaceUserId, projectIds)` per
+  PRD §3.6.1. UUID validate → dedupe → workspace-scope lookup via
+  `WHERE owner_user_id = $1 AND id IN ${sql(deduped)} AND deleted_at IS NULL`.
+  Returns `{ok:true, projectIds:deduped}` on success or one of three
+  failure envelopes: `project_ids_malformed` (with `field`),
+  `cross_project_empty_set`, `project_not_in_workspace` (with
+  `missing[]`). Marked SECURITY-CARVE-OUT in source.
+
+- **Tool surface** (`functions/_lib/ai/tools.js`): 4 of 5 tools
+  (`search_project_data`, `query_jira_issues`, `list_jira_sprints`,
+  `aggregate_jira`) accept optional `project_ids: array<string>`.
+  `get_jira_sprint_summary` explicitly does NOT (decision B — sprint_id
+  collisions across projects). `executeTool()` dispatches authorize
+  step when `urlContext.workspaceUserId` and `input.project_ids` are
+  both present; on auth failure returns the envelope to the agent
+  loop (same shape as v1.2 validation envelope).
+
+- **Compiler** (`functions/_lib/ai/aggregate_jira_compiler.js`):
+  `'project_id'` added to `ALLOWED_COLUMNS` (position-aware — allowed
+  in `select`/`group_by`, forbidden in `where` via existing
+  `project_id_forbidden` check). `compile()` accepts `crossProjectIds`
+  arg; when non-null, base WHERE swaps from `project_id = $1` to
+  `project_id = ANY($1::uuid[])` with `params[0]` set to the manually-
+  built `'{a,b,c}'` literal string.
+
+- **System prompt** (`functions/_lib/ai/loop.js`): added
+  `CROSS_PROJECT_SYSTEM_PROMPT` per BLOCK_12_PLAN Appendix §A.1.
+  **Re-lock vs decision T**: the slice REPLACES the v1.2 base prompt
+  rather than appending — v1.2 has hard "this project only" language
+  that contradicts cross-project mode. Same four-section structure
+  (mode declaration → tool guidance → not-supported additions →
+  citation contract) preserved verbatim. `runAgent()` branches on
+  `urlContext.crossProjectIds` presence. `loadAvailableSourcesTextCrossProject`
+  takes the union across the project set. `hasConnection` check uses
+  `IN` rather than `=` so no-connected-data refusal fires correctly
+  only when no project in the scope has connections.
+
+- **HTTP routes** (all under `functions/api/cross-project/`):
+  - `eligible-projects.js` (GET) — workspace user's projects with
+    active Jira connection + per-project sprint summaries.
+  - `conversations.js` (POST + GET) — create cross-project conversation
+    (authorize → INSERT with `project_id=NULL` + `project_ids=<auth>`
+    + `label='product'`) / list user's cross-project conversations.
+  - `conversations/[id]/index.js` (GET + PATCH + DELETE) — read one,
+    edit-scope (re-runs authorize), soft-delete.
+  - `conversations/[id]/messages.js` (GET + POST) — list / send message
+    via `runAgent()` with `crossProjectIds` populated in `urlContext`.
+    Workspace cap pre-flight check from D1 `users.cross_project_ai_monthly_cap_usd`.
+    Citation enrichment with `project_id` + `project_name` per
+    decision H (server-rendered prefix data; chip prefix CSS is
+    already in auth.css from 12.2).
+  - All routes marked SECURITY-CARVE-OUT in source.
+
+### Diagnostic loops (six bites; same family, different surfaces)
+
+This sub-block was the longest debug cycle of v1.3. Catalogued for
+v1.3.1 / future-block memory:
+
+1. **Import depth** (`ee4b946`) — `conversations/[id]/{index,messages}.js`
+   nested at `functions/api/cross-project/conversations/[id]/`,
+   needs 4 `../` to reach `_lib/`. First attempt used 3, build
+   silently produced 200-but-bad-import. Fix: count the directories.
+
+2. **UUID[] INSERT serialization** (`b9ff496`) — `${jsArr}::uuid[]`
+   in tagged template serializes JS array as CSV (`'uuid1,uuid2'`)
+   which fails to parse as `uuid[]`. Fix: build Postgres array literal
+   `'{a,b,c}'` manually + `::uuid[]` cast. Same pattern in
+   `conversations/[id]/index.js` PATCH.
+
+3. **UUID[] SELECT deserialization** (`f81a39e`) — postgres-js returns
+   `project_ids` column as the raw string `'{uuid1,uuid2}'`, not a JS
+   array. Added `parseProjectIds()` helper in messages.js that handles
+   both array-form (in case the library is upgraded) and string-form.
+
+4. **aggregate_jira CSV bug** (`b5ce706`) — third bite of #2 in a
+   different place: my initial `compile()` change passed the JS array
+   to `sql.unsafe(query, params)` expecting array-binding magic, but
+   `sql.unsafe` CSV-serializes too. Same fix: literal string +
+   `ANY($1::uuid[])`.
+
+5. **Cascading "Network connection lost"** — when aggregate_jira
+   errored mid-stream, the postgres-js connection severed and
+   subsequent tool calls in the same agent loop failed with a
+   confusing connection error. Root cause was always upstream
+   (#4); the error message was a red herring. Lesson: trust the
+   first stack frame, not the last.
+
+6. **Debug catch reversion** — temporarily surfaced 500 error.message
+   to the client (`b680a98`) to diagnose #2 from the preview console.
+   Reverted in this commit. The debug catch is a useful preview-only
+   tool but must always revert before push.
+
+**v1.3.1 cleanup candidate**: extract `serializeUuidArray(arr)` →
+`'{...}'` and `parseUuidArray(str|arr)` → `string[]` into
+`functions/_lib/postgres_arrays.js` or migrate to `sql.array()` if
+the postgres-js version supports it. Three call-sites already.
+
+### Verification verdicts
+
+Full detail in `curl-matrix-block-12.5a.md`. Headline:
+
+| Section | Status |
+|---|---|
+| **A — authorizeProjectSet** | 6/6 PASS (A1–A6) — all via direct POST to `/api/cross-project/conversations` |
+| **B — tool surface** | 5/5 PASS-by-inspection / PASS-by-construction |
+| **C — compiler** | 5/5 PASS — C3 (the agent-test cell) confirmed via the cross-project comparison query landing `group_by: ['project_id','status_category']` with correct 6-row payload |
+| **D — search** | 3/3 PASS-by-inspection |
+| **E — system prompt** | 4/4 PASS (E1, E3, E4 by inspection; E2 captured here re: replace-not-append re-lock) |
+| **F — HTTP routes** | F1–F5 PASS via direct API tests; F6 PASS-by-inspection; F7+F8 DEFERRED (no frontend exercise yet) |
+| **G — v1.2 regression** | 4/4 PASS — G1 confirmed Rain single-project chat unchanged |
+| **H — adversarial cells (PRD §2.5 US-15)** | **5/5 PASS** — AD-A through AD-E |
+
+### The five adversarial cells (the launch gate)
+
+All verified via direct API calls against the preview deploy:
+
+- **AD-A** (out-of-workspace UUID) — POST
+  `{label:'product', project_ids:['00000000-0000-0000-0000-000000000001']}` →
+  400 `{code:'project_not_in_workspace', missing:['00000000-…-0001']}`.
+- **AD-B** (project_id in `where`) — PASS-by-construction; existing
+  v1.2 `'project_id' in whereRaw` check at top of compiler fires
+  before any allowlist consult. Inspection confirms unchanged in
+  cross-project path.
+- **AD-C** (empty array) — POST `{label:'product', project_ids:[]}` →
+  400 `{code:'cross_project_empty_set'}`.
+- **AD-D** (malformed UUID) — POST `{project_ids:['not-a-uuid']}` →
+  400 `{code:'project_ids_malformed', field:'not-a-uuid'}`. Non-array
+  case (`project_ids:"rain"`) → `{code:'project_ids_malformed',
+  field:'(not-an-array)'}`.
+- **AD-E** (dedupe) — POST `{project_ids:['<rain>','<rain>','<rain>','<joni>']}` →
+  201 with `conversation.project_ids` length 2 (rain, joni). Dedup
+  happens server-side before the workspace-scope check.
+
+### The cross-project comparison query (the headline test)
+
+Used Chrome MCP to drive `/api/cross-project/conversations/<id>/messages`
+end-to-end with prompt **"Compare ticket counts in Rain vs Joni by
+status"**:
+
+1. Agent's first call: `aggregate_jira` with `where:{}, select:['COUNT(*)']`
+   — no `project_ids` — got `project_id_missing` from executor (single-
+   project path was attempted with no projectId because urlContext was
+   cross-project).
+2. Agent self-corrected: re-emitted `aggregate_jira` with
+   `project_ids:[joni, rain]`,
+   `select:['project_id','status_category','COUNT(*)']`,
+   `group_by:['project_id','status_category']`.
+3. Executor ran authorize (PASS, both projects in workspace), compiler
+   emitted `WHERE project_id = ANY($1::uuid[]) ... GROUP BY project_id,
+   status_category` and returned 6 rows.
+4. Agent synthesized: **"Across Joni and Rain: Joni has 159 open tickets
+   (67 new, 92 in progress) and 183 done. Rain has 81 open tickets (33
+   new, 48 in progress) and 1,046 done."**
+
+The system-prompt contract — "Open with the scope" → "Across X and Y:"
+prefix, plus inline project names on every fact — held under live
+agent execution. The replace-not-append re-lock (decision T edit) was
+the right call: the v1.2 base would have refused to discuss cross-
+project at all.
+
+### Carry-forward into 12.5b
+
+- **Launch gate §11.12** (`messages.project_id` audit grep) — still
+  PENDING. Sweep all callsites for NULL handling. Most natural in
+  12.5b when the frontend exercises every read path.
+- **Launch gate §11.13** (production bleed-in test) — PENDING; needs
+  12.5b UI for the end-to-end flow.
+- **F6 PATCH edit-scope** — wired but no UI exercises it yet. 12.5b's
+  edit-scope modal is its first user.
+- **F7 DELETE** — wired but DEFERRED per matrix (frontend doesn't
+  expose; not load-bearing for v1.3).
+- **F8 cap-paused envelope** — code path inspected; first natural test
+  is the 12.6 paused-banner sub-block.
+- **v1.3.1 cleanup**: extract `serializeUuidArray` / `parseUuidArray`
+  helpers (or migrate to `sql.array()` if supported) — see "Diagnostic
+  loops" #2/3/4 above.
+- **v1.3.1 cleanup**: workspace cap-warning email integration. Existing
+  v1.2 cap-warning email path checked; template doesn't currently
+  branch on `cap_kind`. Wiring a workspace-variant lands as follow-up.
+
+**Pending Jenny actions**: `approve push to main` → ff-merge → CF
+auto-deploy → smoke-test production cross-project backend (eligible-
+projects + create-conversation + send-message). Then 12.5b
+(cross-project frontend — landing, creation modal, chat shell,
+edit-scope modal per mockups b/c/d/e/h).
+
+**Production state**: `65483c0` on `elinnoagent.com`.
+Block 12.5a is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.

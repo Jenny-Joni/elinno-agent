@@ -16,12 +16,12 @@ primary gate of this sub-block.
 
 | Cell | Scenario | Verdict | Notes |
 |---|---|---|---|
-| A1 | authorizeProjectSet rejects malformed UUID | **PENDING** | Test: POST `{project_ids: ["not-a-uuid"]}` → expect `{ok:false, code:'project_ids_malformed', field:'not-a-uuid'}` |
-| A2 | Rejects empty array | **PENDING** | `{project_ids: []}` → `{ok:false, code:'cross_project_empty_set'}` |
-| A3 | Rejects out-of-workspace UUID | **PENDING** | `{project_ids: ['00000000-0000-0000-0000-000000000001']}` → `{ok:false, code:'project_not_in_workspace', missing: [...]}` |
-| A4 | Dedup idempotent — same id N times collapses to 1 | **PENDING** | `{project_ids: ['<rain>', '<rain>', '<rain>']}` → `{ok:true, projectIds: ['<rain>']}` (single element) |
-| A5 | Rejects non-array | **PENDING** | `{project_ids: "rain"}` → `{ok:false, code:'project_ids_malformed', field:'(not-an-array)'}` |
-| A6 | Authorize succeeds on Rain + Joni | **PENDING** | `{project_ids: ['<rain>', '<joni>']}` → `{ok:true, projectIds: [...]}` |
+| A1 | authorizeProjectSet rejects malformed UUID | **PASS** | `project_ids: ["not-a-uuid"]` → `{code:'project_ids_malformed', field:'not-a-uuid'}` 400 |
+| A2 | Rejects empty array | **PASS** | `project_ids: []` → `{code:'cross_project_empty_set'}` 400 |
+| A3 | Rejects out-of-workspace UUID | **PASS** | `['00000000-…-0001']` → `{code:'project_not_in_workspace', missing:['00000000-…-0001']}` 400 |
+| A4 | Dedup idempotent — same id N times collapses | **PASS** | Created conv with `[rain, rain, rain, joni]` → final `project_ids` had 2 elements |
+| A5 | Rejects non-array | **PASS** | `project_ids: "rain"` → `{code:'project_ids_malformed', field:'(not-an-array)'}` 400 |
+| A6 | Authorize succeeds on Rain + Joni | **PASS** | Conversation created successfully, scope authorized |
 
 ## B — Tool surface (functions/_lib/ai/tools.js)
 
@@ -39,7 +39,7 @@ primary gate of this sub-block.
 |---|---|---|---|
 | C1 | ALLOWED_COLUMNS includes 'project_id' | **PASS-by-inspection** | Added at end of list (position-aware allowlist per PRD §3.4.1 + decision J) |
 | C2 | `where: { project_id: ... }` still rejected | **PASS-by-construction** | Existing `'project_id' in whereRaw` check at top of where-parsing fires before allowlist consult |
-| C3 | `select: ['project_id', 'COUNT(*)']` + `group_by: ['project_id']` accepted | **PENDING — agent test** | Will fire via cross-project comparison query |
+| C3 | `select: ['project_id', 'COUNT(*)']` + `group_by: ['project_id']` accepted | **PASS** | Agent self-corrected from `project_id_missing` error → re-emitted aggregate_jira with `project_ids:[joni,rain]`, `select:['project_id','status_category','COUNT(*)']`, `group_by:['project_id','status_category']` → 6 rows returned, agent synthesized "Joni: 159 open, 183 done; Rain: 81 open, 1046 done" |
 | C4 | compile() accepts crossProjectIds; emits `project_id = ANY($1)` | **PASS-by-inspection** | params[0] is the array, WHERE base swaps based on flag |
 | C5 | runAggregateJira(sql, projectId, dsl, crossProjectIds) — pass-through | **PASS-by-inspection** | Compiler arg threaded correctly |
 
@@ -56,7 +56,7 @@ primary gate of this sub-block.
 | Cell | Scenario | Verdict | Notes |
 |---|---|---|---|
 | E1 | CROSS_PROJECT_SYSTEM_PROMPT defined | **PASS-by-inspection** | Verbatim per Appendix §A.1 + non-project-scoped v1.2 contracts (citation, no-fabrication, tool-result-as-data, tool budget, style) |
-| E2 | Replace-not-append re-lock noted in HANDOFF | **PENDING** | HANDOFF VERIFIED ON PREVIEW will capture |
+| E2 | Replace-not-append re-lock noted in HANDOFF | **PASS** | HANDOFF 12.5a VERIFIED ON PREVIEW captures the re-lock — v1.2 prompt has "this project only" language that contradicts cross-project mode, so the slice REPLACES rather than appends. Decision T's "appended to base" language overridden during 12.5a execute |
 | E3 | Cross-project hasConnection check uses IN | **PASS-by-inspection** | Avoids 'no connected data' refusal when any project in scope has connections |
 | E4 | Cross-project available-sources is the union | **PASS-by-inspection** | loadAvailableSourcesTextCrossProject |
 
@@ -64,12 +64,12 @@ primary gate of this sub-block.
 
 | Cell | Scenario | Verdict | Notes |
 |---|---|---|---|
-| F1 | GET /api/cross-project/eligible-projects returns workspace projects with active Jira | **PENDING** | Direct fetch — expect 4 projects (Jenny's workspace) with sprint summaries |
-| F2 | POST /api/cross-project/conversations creates conversation | **PENDING** | `{label:'product', project_ids:['<rain>', '<joni>']}` → 201 with `{conversation: {id, project_ids, label, ...}}` |
-| F3 | POST with malformed project_ids → 400 envelope | **PENDING** | Authorize-failure passthrough |
-| F4 | GET /api/cross-project/conversations lists user's | **PENDING** | After F2 succeeds, list should include the new conversation |
-| F5 | POST /api/cross-project/conversations/[id]/messages returns cited response | **PENDING** | "Compare velocity Rain vs Joni" — agent should call aggregate_jira with group_by:['project_id'] |
-| F6 | PATCH /api/cross-project/conversations/[id] updates scope | **PENDING** | Re-runs authorize |
+| F1 | GET /api/cross-project/eligible-projects returns workspace projects with active Jira | **PASS** | Direct fetch returned Jenny's projects with active Jira connection + sprint summaries (start/end/days_left + open/done/total counts) |
+| F2 | POST /api/cross-project/conversations creates conversation | **PASS** | `{label:'product', project_ids:['<rain>','<joni>']}` → 201 with `{conversation:{id, project_ids:['<rain>','<joni>'], label:'product', title:'New cross-project chat', ...}}` |
+| F3 | POST with malformed project_ids → 400 envelope | **PASS** | Covered by AD-A/AD-C/AD-D — authorize-failure passthrough returns structured envelope |
+| F4 | GET /api/cross-project/conversations lists user's | **PASS** | After F2 the new conversation appeared in the list with project_ids populated and message_count:0 |
+| F5 | POST /api/cross-project/conversations/[id]/messages returns cited response | **PASS** | "Compare ticket counts Rain vs Joni" — agent called aggregate_jira with project_ids+group_by, synthesized cross-project answer with "Across Joni and Rain:" opener and in-prose project names. Citations carry project_id+project_name |
+| F6 | PATCH /api/cross-project/conversations/[id] updates scope | **PASS-by-inspection** | Route wired; re-runs authorizeProjectSet on every PATCH; build literal manually + ::uuid[] cast (same lesson as POST). Frontend not exercising it yet — full exercise lands with 12.5b edit-scope modal |
 | F7 | DELETE /api/cross-project/conversations/[id] soft-deletes | **DEFERRED** | Frontend doesn't expose; not load-bearing |
 | F8 | Workspace cap pre-flight returns 402 paused envelope when exceeded | **DEFERRED** | Would require artificially setting spend > cap; flow inspected |
 
@@ -77,7 +77,7 @@ primary gate of this sub-block.
 
 | Cell | Scenario | Verdict | Notes |
 |---|---|---|---|
-| G1 | Single-project chat in Rain still works | **PENDING — eyes-on** | Send a message, expect cited response. Critical regression check |
+| G1 | Single-project chat in Rain still works | **PASS** | v1.2 chat in Rain returned "Hi! How can I help you with the Rain project today?" — no regression. Single-project code path untouched |
 | G2 | Single-project chat in Joni still works | **PASS-by-extension** | Same code path |
 | G3 | aggregate_jira single-project still works | **PASS-by-construction** | compile() v1.2 path unchanged when crossProjectIds=null |
 | G4 | requireWorkspaceScope unchanged | **PASS-by-construction** | 12.1 surface untouched |
@@ -89,11 +89,11 @@ load-bearing security cells of v1.3.
 
 | Cell | PRD ref | Scenario | Verdict | Notes |
 |---|---|---|---|---|
-| AD-A | US-15(a) | LLM submits out-of-workspace UUID → `project_not_in_workspace` | **PENDING** | Test via direct API call to POST /api/cross-project/conversations |
-| AD-B | US-15(b) | LLM submits `where: { project_id: <anything> }` in aggregate_jira → `project_id_forbidden` | **PENDING** | Test by crafting a conversation + sending a message that should trigger aggregate_jira; or directly test compile() with the bad DSL |
-| AD-C | US-15(c) | LLM submits empty project_ids → `cross_project_empty_set` | **PENDING** | Test on POST /api/cross-project/conversations |
-| AD-D | US-15(d) | LLM submits malformed UUIDs → `project_ids_malformed` | **PENDING** | Test on POST /api/cross-project/conversations |
-| AD-E | US-15(e) | LLM submits duplicates → dedup-idempotent | **PENDING** | Test on POST: pass same UUID 3x, expect dedup to 1 |
+| AD-A | US-15(a) | LLM submits out-of-workspace UUID → `project_not_in_workspace` | **PASS** | POST `{label:'product', project_ids:['00000000-0000-0000-0000-000000000001']}` → 400 `{code:'project_not_in_workspace', missing:['00000000-0000-0000-0000-000000000001']}` |
+| AD-B | US-15(b) | LLM submits `where: { project_id: <anything> }` in aggregate_jira → `project_id_forbidden` | **PASS-by-construction** | Existing v1.2 `'project_id' in whereRaw` check at top of aggregate_jira_compiler.js where-parsing fires before any allowlist consult. Inspection confirms behavior unchanged in cross-project path |
+| AD-C | US-15(c) | LLM submits empty project_ids → `cross_project_empty_set` | **PASS** | POST `{label:'product', project_ids:[]}` → 400 `{code:'cross_project_empty_set'}` |
+| AD-D | US-15(d) | LLM submits malformed UUIDs → `project_ids_malformed` | **PASS** | POST `{label:'product', project_ids:['not-a-uuid']}` → 400 `{code:'project_ids_malformed', field:'not-a-uuid'}`. Also non-array case: `project_ids:"rain"` → `{code:'project_ids_malformed', field:'(not-an-array)'}` |
+| AD-E | US-15(e) | LLM submits duplicates → dedup-idempotent | **PASS** | POST `{label:'product', project_ids:['<rain>','<rain>','<rain>','<joni>']}` → 201 with `conversation.project_ids` length 2 (rain, joni). Dedup happened server-side before the workspace-scope check |
 
 ---
 
@@ -101,9 +101,9 @@ load-bearing security cells of v1.3.
 
 | # | Gate | Status |
 |---|---|---|
-| 1 | US-1…US-6 + adversarial cells | **5 of 5 adversarial PENDING** — preview verification |
+| 1 | US-1…US-6 + adversarial cells | **5 of 5 adversarial PASS** (AD-A…AD-E) + 1 of 6 US cells covered by C3 cross-project comparison; remaining US-1…US-6 land via 12.5b UI exercise |
 | 3 | `project_members` does not exist | PASS (Block 12.1) |
-| 12 | messages.project_id audit grep | **PENDING** — sweep callers for IS NOT NULL gates |
+| 12 | messages.project_id audit grep | **PENDING** — sweep callers for IS NOT NULL gates (carry into 12.5b) |
 | 13 | Production bleed-in test | **PENDING** — needs 12.5b for an end-to-end UI path |
 
 ---
