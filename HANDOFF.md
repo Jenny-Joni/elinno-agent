@@ -4469,3 +4469,94 @@ All 13 verification cells PASS (curl-matrix-block-12.2.md).
 
 **Block 12.2 is SHIPPED.** Sub-block 12.3 (Dashboard rebuild —
 mockup (a) wired to live data) is next, per BLOCK_12_PLAN §6.12.3.
+
+---
+
+## Block 12.3 verified on preview — 2026-05-20 (awaiting ff-merge)
+
+**Branch state**: `claude/gifted-sanderson-a7e060`, 6 commits ahead of
+`origin/main`:
+- `b554090` docs(12.2): SHIPPED note (held back from 12.2 ff-merge)
+- `ac0797b` feat(12.3): dashboard rebuild + /api/dashboard endpoint
+- `9042cf4` fix(12.3): JS syntax — ternary continuation pattern
+- `f3adf65` debug(12.3): preview-only catch surfacing error.message
+- `09790db` fix(12.3): postgres-js array binding — `IN ${sql(arr)}`
+- `b8fa585` feat(12.3): expired-sprint visual + revert debug catch
+
+**Preview deploy**: `https://a7140d5e.elinno-agent.pages.dev/`
+**Production**: `0975d00` (Block 12.2) — unchanged until ff-merge.
+
+What landed:
+- `functions/api/dashboard.js` — new endpoint composing user identity
+  + workspace cap/spend + cross-project chats list + per-project rows
+  with active-Jira-sprint summary in one round-trip-bounded handler
+  (6 Postgres + 1 D1).
+- `public/dashboard.html` — full rewrite per mockup (a): greeting,
+  hero card, cross-project chats strip with empty-state, project
+  cards grid with sprint summaries / expired-state / no-Jira fallback.
+- New CSS modifier `.spend-bar.pc-bar-expired` for grey-fill on
+  past-end-date sprint progress bars.
+
+**Two diagnostic loops surfaced during verification**:
+
+1. **JS ternary parse error** (commit `9042cf4`). The leading-`+`
+   multi-line concatenation pattern doesn't survive a ternary on a
+   following line — parser reads `(x > 0` then sees `+` as binary
+   then `?` as unexpected. Extracted both broken ternaries to local
+   variables. Lesson: prefer extract-to-var over multi-line ternary
+   in concat chains.
+2. **postgres-js array CSV bug** (commit `09790db`). `${arr}::uuid[]`
+   serializes the JS array as CSV `'a,b,c,d'` then casts that
+   malformed string to uuid[] — Postgres errors. The established
+   codebase pattern (per messages.js:236 comment referencing prior
+   HANDOFF 9.2 hotfix) is `WHERE col IN ${sql(arr)}` which expands
+   to `IN ($1, $2, $3, ...)` with each item as its own parameter.
+   All 4 array queries in dashboard.js switched to that pattern.
+
+**Stale "active" sprints in Jenny's Jira data**: all 4 projects have
+sprints whose Jira `state='active'` but `end_date` is past:
+- Gems Launchpad: ended 73 days ago
+- Gems Trade: ended 14 days ago
+- Joni: ended 10 days ago
+- Rain: ended 6 days ago
+
+This is a data-sync issue (Jira hasn't re-synced to flip `state` to
+`'closed'`), not a code issue. Original dashboard showed
+"0 days left" + red urgency on all 4, wildly misleading. Commit
+`b8fa585` adds an expired-sprint visual: "Ended N days ago" in
+muted text + grey progress bar via `.pc-bar-expired`. Honest
+about the data; visually distinct from genuinely-urgent
+end-of-sprint cases.
+
+**Debug-catch lifecycle**: `f3adf65` added a preview-only catch
+surfacing `err.message` + `err.stack` so the array-binding bug
+could be diagnosed without `wrangler tail`. Reverted in `b8fa585`
+before main push — production never sees the raw stack.
+
+**Verification verdicts** (full detail in `curl-matrix-block-12.3.md`):
+- A1-A12 (backend endpoint): PASS / PASS-by-inspection
+- B1-B14 (frontend renders): all PASS or PASS-by-construction
+  (B10/B11/B12 fall-back paths not exercised against Jenny's
+  data — all 4 projects have stale-active sprints, so the
+  "no active sprint" and "not connected to Jira" branches are
+  ready but unexercised)
+- C1-C4 (v1.2 regression): PASS-by-construction (12.3 didn't
+  touch the project chat / projects list / admin surfaces)
+
+**Carry-forward into 12.4**:
+- `/api/me` could retire — `/api/dashboard` returns the same user
+  identity. Other pages (admin.html etc.) still use `/api/me`;
+  migrate in v1.3.1 cleanup.
+- Empty cross-project chats grid takes half the row (white space on
+  the right). Cosmetic; resolves naturally when 12.5b ships and
+  chats exist.
+- Filtering long-expired sprints (e.g. > 30 days past) → "no active
+  sprint" instead of "ended 73 days ago" — not done; defer pending
+  product call.
+
+**Pending Jenny actions**: `approve push to main` → ff-merge → CF
+auto-deploy → smoke-test production dashboard. Then move to 12.4
+(project settings rework).
+
+**Production state**: `0975d00` on `elinnoagent.com`.
+Block 12.3 is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
