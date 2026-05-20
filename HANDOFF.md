@@ -4909,6 +4909,89 @@ Block 12.5a is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
 
 ---
 
+## Block 12.5b verified on preview — 2026-05-20 (awaiting ff-merge)
+
+**Branch state**: `claude/gifted-sanderson-a7e060`, 4 commits ahead of
+`origin/main` (post 12.5a SHIPPED at `dd6c6ff`):
+
+- `29c9f9a` feat(12.5b): cross-project frontend — landing + creation + chat shell
+- `33c00cc` fix(12.5b): redirect to login on /api/me user:null
+- `546a849` fix(12.5b): normalize UUID[] returns — fourth bite of the dog
+
+**Preview deploys**: `https://9d66b79a.elinno-agent.pages.dev/` (landing/creation/chat verified) + `https://01964d9d.elinno-agent.pages.dev/` (parse-fix re-verified A2/C2/C3/E3)
+**Production**: `dd6c6ff` (Block 12.5a) — unchanged until ff-merge.
+
+### What landed
+
+- **3 new pages** under `public/cross-project/`:
+  - `index.html` — landing per mockup (b). Lists user's cross-project chats with `.cross-project-chat-card.live` cards (label-pill, source-chip, scope-summary). v2.0-locked Finance/Monday card. Dashed "+ New cross-project chat" CTA. Reads from `/api/me`, `/api/projects`, `/api/cross-project/conversations`.
+  - `new.html` — creation modal per mockup (c). Step 1 label (Product live; Finance v2.0-locked). Step 2 picker via `/api/cross-project/eligible-projects`. Picker rows reuse `.picker-row` from 12.2 with sprint metadata + progress + ticket stats. "Select all" / "Clear" buttons. "Create chat ↗" disabled until ≥1 project selected (decision V). On submit: POST `/api/cross-project/conversations` → redirect to chat shell.
+  - `chat.html` — chat shell per mockups (d) + (e). Header: label-pill + source-chip + scope-summary ("2 of 2 · Rain, Joni") + Edit-scope button. Empty state with question-mark icon + project-name-interpolated title + 4 suggestion chips. Populated state: `.chat-msg` rendering from v1.2 patterns (user/assistant bubbles), tool-trace `<details>` badges, citation rail with `.citation-chip-prefix` ([RAIN] / [JONI] pills before each chip title). Composer with workspace cap pill. Inline edit-scope modal overlay (mockup h) — picker reuse, "Save scope" disabled if selection empty, PATCH endpoint re-runs authorize.
+- **1 CSS addition** in `public/auth.css`: `.cross-project-chat-card-status` rule (.live + .v2 variants) — small status pill in card header.
+- **1 wiring update** in `public/dashboard.html`: cross-project card href flipped from pretty URL `/cross-project/<id>` (CF Pages can't match — no static asset) to `/cross-project/chat.html?id=<id>`.
+
+### Diagnostic loops (two bites)
+
+1. **/api/me 200-with-null bug** (`33c00cc`) — landing + chat pages stuck on "Loading…" because `loadMe` only redirected on 401, but `/api/me` returns 200 with `{ user: null }` when session is missing (functions/api/me.js:6 — intentional shape). Caught when verifying on fresh preview `bfa0f65b` — fresh CF deploy URL means a fresh cookie scope, so the existing session didn't carry. Fix: redirect to login whenever `!data.user`.
+2. **UUID[] CSV-array bug, fourth bite of the dog** (`546a849`) — postgres-js returns UUID[] columns as the Postgres array literal STRING `'{a,b,c}'` in this configuration, not a JS array. The frontends iterate over `chat.project_ids` expecting `string[]` — landing card scope-summary rendered "0 of 0 · —" instead of "2 of 2 · Rain, Joni", and edit-scope pre-select was empty. Applied `parseProjectIds()` at every API boundary that returns conversations: `conversations.js` POST + GET, `conversations/[id]/index.js` GET + PATCH, `dashboard.js` cross_project_chats[]. Same code pasted 3 times. **v1.3.1 cleanup is overdue**: extract `serializeUuidArray` / `parseUuidArray` to `functions/_lib/postgres_arrays.js` — this is now the FOURTH instance of the family (12.5a's three: INSERT serialize, messages.js SELECT parse, aggregate_jira CSV).
+
+### Verification verdicts
+
+Full detail in `curl-matrix-block-12.5b.md`. Headline:
+
+| Section | Status |
+|---|---|
+| **A — Landing** | 6/6 PASS (A1, A2, A3, A4, A5 by-construction, A6) — confirmed on `01964d9d` post parse fix |
+| **B — Creation** | 10/10 PASS — picker, label step, submit happy path, button state machine all working |
+| **C — Chat empty** | 7/7 PASS — header scope, suggestion chips, composer placeholder ("Ask across Rain and Joni…") all interpolated correctly |
+| **D — Chat populated** | 7/7 PASS — user + assistant bubbles, **citation chips with [RAIN] / [JONI] prefix exactly per mockup (e) §3.8**, tool-trace badges, multi-turn, cap pill increments |
+| **E — Edit-scope** | 9/9 PASS — modal opens, pre-selects from conv.project_ids (after parse fix), toggle, summary, cancel; E6 PASS-by-construction (live exercise would mutate test data) |
+| **F — Dashboard wiring** | 4/4 PASS — strip cards, hero CTA, dashed card all route correctly |
+| **G — US-1…US-6** | **PASS via UI** — live: US-3 (status_category comparison) + US-6 (high-prio bugs) ran end-to-end with cross-project synthesis; US-1/US-2/US-4/US-5 PASS-by-extension via the same `aggregate_jira` cross-project surface (proven in same chat) |
+| **H — Refusals** | **2/2 PASS** — H1 live: agent refused cycle-time with verbatim system-prompt slice text "**Across Joni and Rain**: Cycle time isn't tracked yet — I don't have status transition history…"; H2 PASS-by-construction (UI gate + server gate verified 12.5a AD-A) |
+| **I — Bleed-in (§11.13)** | **6/6 PASS** — Rain per-project spend `$1.13` + workspace cross-project spend `$0.27` are orthogonal; cross-project endpoint returns 15 messages all NULL project_id; per-project filters exclude NULL via 3VL |
+| **J — v1.2 regression** | 4/4 PASS — Rain v1.2 chat shell unchanged; dashboard, project settings unchanged |
+
+### The cross-project comparison + refusal trace
+
+End-to-end through the UI, with `01964d9d` parse-fix live:
+
+1. Created `/cross-project/new` → picked Rain + Joni → POST → 201 → redirect to `chat?id=58d9b525-…`
+2. Sent "Compare ticket counts in Rain vs Joni by status_category". Agent: "**Across Joni and Rain**: Rain has significantly more total tickets but a higher completion rate, while Joni shows more active work in progress. Rain holds 1,046 done tickets, 48 in progress (indeterminate), and 33 new. Joni has 183 done, 92 in progress, and 67 new…" `aggregate_jira` cross-project + group_by:['project_id','status_category'] succeeded; cost $0.04.
+3. Sent "List my 5 highest-priority open bugs across Rain and Joni". Agent ran 5 tool calls (incl. some fallback path), returned a cross-project list. **Citation chips rendered with [RAIN] and [JONI] purple prefix pills** (verbatim per mockup §3.8): [RAIN] UI Bugs Mobile update, [JONI] Agent Base Bug fix, [RAIN] UI Update: Sync Progress Bar/Loadi…, etc.
+4. Sent "Compare cycle times between Rain and Joni". Agent refused per locked system-prompt slice: "**Across Joni and Rain**: Cycle time isn't tracked yet — I don't have status transition history, only the most recent update time, which doesn't tell me when a ticket moved to Done. This is unchanged in cross-project mode." Cost $0.02 (efficient refusal, no tool calls).
+
+Workspace cap pill incremented $0.14 → $0.18 → $0.27 → $0.29 across the three turns; per-project Rain spend (`$1.13`) unchanged throughout.
+
+### §11.12 audit (messages.project_id NULL handling) — PASS
+
+Inspected all 7 callsites that touch `messages.project_id`:
+- `functions/api/dashboard.js:200` cross-project spend: explicit `IS NULL` ✓
+- `functions/api/projects/[id]/index.js:63` per-project spend: `project_id = projects.id` excludes NULL via 3VL ✓
+- `functions/api/projects/[id]/conversations/[conversationId]/messages.js` per-project messages spend + daily cap + conv guard: all `project_id = $1`, NULL excluded by 3VL ✓
+- `functions/api/projects/[id]/conversations/[conversationId]/refresh-and-ask-again/[msgId].js:73` per-project refresh: JOINs via `c.project_id = $1`, NULL excluded ✓
+- `functions/api/projects/[id]/conversations/index.js:125` per-project conv list: `c.project_id = $1`, NULL excluded ✓
+- `functions/_lib/agent/refresh_runner.js:222–264` refresh runner: scopes by `conversation_id`, not project_id — independent of the NULL question ✓
+- Cross-project endpoints scope via `c.project_ids IS NOT NULL` + `m.project_id IS NULL` — intentional isolation ✓
+
+Finding: **no functional code touches `messages.project_id` in a way that bleeds cross-project rows into per-project filters or vice-versa**. The intentional default (SQL 3VL exclusion) is the load-bearing isolation guarantee, confirmed by the live bleed-in cells I3–I6.
+
+### Carry-forward into 12.6
+
+- **12.6**: workspace settings page (mockup f) + paused-banner wiring (mockup g). Cap edit endpoint + spend visualizer.
+- **v1.3.1**: extract `serializeUuidArray` / `parseUuidArray` helpers into `functions/_lib/postgres_arrays.js` — four inline copies of the same parse logic; overdue.
+- **v1.3.1**: cap-warning email integration for workspace cap (v1.2 path doesn't branch on `cap_kind`).
+- **v1.3.1**: cross-project DELETE flow (no UI exposure in 12.5b).
+- **v1.3.1**: expired-sprint visual in picker rows ("ended N days ago" instead of "ends today" for past sprints) — port from dashboard.html (12.3) treatment.
+- **v1.3.1**: cross-project chat shell's tool-trace rendering currently shows only ✓; port v1.2's error_message rendering for parity.
+
+**Pending Jenny actions**: `approve push to main` → ff-merge → CF auto-deploy → smoke-test production cross-project surfaces (landing, creation, chat). Then 12.6 (workspace settings + paused banner).
+
+**Production state**: `dd6c6ff` on `elinnoagent.com`.
+Block 12.5b is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
+
+---
+
 ## Block 12.5a SHIPPED to main — 2026-05-20
 
 **Production state**: `dd6c6ff` on `elinnoagent.com` (was `65483c0`).
