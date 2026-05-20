@@ -10,9 +10,9 @@
 // =========================================================================
 
 import postgres from 'postgres';
-import { error, json } from '../../../_lib/auth.js';
-import { getWorkspaceUserId } from '../../../_lib/workspace.js';
-import { authorizeProjectSet } from '../../../_lib/ai/authorize.js';
+import { error, json } from '../../../../_lib/auth.js';
+import { getWorkspaceUserId } from '../../../../_lib/workspace.js';
+import { authorizeProjectSet } from '../../../../_lib/ai/authorize.js';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

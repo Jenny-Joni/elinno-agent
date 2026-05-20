@@ -21,10 +21,10 @@
 // =========================================================================
 
 import postgres from 'postgres';
-import { error, json } from '../../../_lib/auth.js';
-import { getWorkspaceUserId } from '../../../_lib/workspace.js';
-import { runAgent } from '../../../_lib/ai/loop.js';
-import { computeCostUsd } from '../../../_lib/ai/pricing.js';
+import { error, json } from '../../../../_lib/auth.js';
+import { getWorkspaceUserId } from '../../../../_lib/workspace.js';
+import { runAgent } from '../../../../_lib/ai/loop.js';
+import { computeCostUsd } from '../../../../_lib/ai/pricing.js';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
