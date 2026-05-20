@@ -365,14 +365,17 @@ export function compile(dsl, projectId, crossProjectIds = null) {
   }
 
   // ── where (optional) ────────────────────────────────────────────────
-  // v1.3 Block 12.5a: project scope is single-project (param=string)
-  // OR cross-project (param=array). postgres-js's sql.unsafe() handles
-  // array-as-positional-param correctly with ANY() semantics —
-  // distinct from the tagged-template `${arr}::uuid[]` CSV bug that bit
-  // dashboard.js in 12.3. This is the runAggregateJira-via-unsafe path.
-  const params = isCrossProject ? [crossProjectIds] : [projectId];
+  // v1.3 Block 12.5a: project scope is single-project (param=string) OR
+  // cross-project (param=Postgres array literal string '{a,b,c}' cast
+  // to uuid[]). postgres-js's sql.unsafe serializes JS arrays as CSV
+  // ('a,b,c') by default — not a valid Postgres array literal — so we
+  // build the literal manually and cast. Same lesson as
+  // conversations.js INSERT (`{${ids.join(',')}}::uuid[]`).
+  const params = isCrossProject
+    ? ['{' + crossProjectIds.join(',') + '}']
+    : [projectId];
   const whereFragments = isCrossProject
-    ? [`project_id = ANY($1)`]
+    ? [`project_id = ANY($1::uuid[])`]
     : [`project_id = $1`];
 
   const whereRaw = dsl.where;
