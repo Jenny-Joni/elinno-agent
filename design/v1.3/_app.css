@@ -1,0 +1,122 @@
+/* ===================================================================
+   Elinno Agent v1.3 mockups — shared styles
+   Visual system locked across all approved screens.
+   =================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css');
+
+:root {
+  --brand: #6234fc;
+  --brand-tint: rgba(98, 52, 252, 0.10);
+  --brand-tint-strong: #f0ebff;
+  --bg: #ffffff;
+  --bg-soft: #f7f7f7;
+  --border: #eaeaea;
+  --text: #000000;
+  --text-2: #4f4f4f;
+  --text-3: #888888;
+  --success: #1d8a52;
+  --success-bg: rgba(77, 211, 136, 0.15);
+  --warning: #8a6500;
+  --warning-bg: rgba(255, 193, 61, 0.18);
+  --danger: #b3144b;
+  --danger-bg: rgba(179, 20, 75, 0.04);
+  --danger-border: rgba(179, 20, 75, 0.20);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg-soft);
+  font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+body { min-height: 100vh; padding: 32px 20px; }
+.page { max-width: 960px; margin: 0 auto; }
+
+/* Top nav back-to-index */
+.topnav {
+  max-width: 960px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.topnav a {
+  color: var(--brand);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+/* Gallery */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+.gallery-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: background 0.3s, transform 0.2s;
+}
+.gallery-card:hover {
+  background: var(--brand-tint-strong);
+  transform: translateY(-2px);
+}
+.gallery-card-id {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--brand);
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  margin-bottom: 6px;
+}
+.gallery-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.gallery-card-note {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+.intro-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.intro-eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--brand);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.intro-title {
+  font-size: 24px;
+  font-weight: 500;
+  text-transform: uppercase;
+  line-height: 1.15;
+  margin: 0 0 8px;
+}
+.intro-title strong { font-weight: 700; }
+.intro-body { font-size: 13px; color: var(--text-2); line-height: 1.5; margin: 0; max-width: 600px; }

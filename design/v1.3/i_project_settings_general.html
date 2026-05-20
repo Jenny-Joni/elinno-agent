@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>(i) Project settings — General · Elinno Agent v1.3</title>
+<link rel="stylesheet" href="_app.css" />
+</head>
+<body>
+
+<div class="topnav">
+  <a href="index.html">← All mockups</a>
+  <span>v1.3 · (i) Project settings — General · approved</span>
+</div>
+
+<div class="page">
+
+<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:24px;">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:18px;border-bottom:1px solid var(--border);margin-bottom:22px;">
+    <div>
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:var(--brand);font-weight:500;margin-bottom:6px;">Project · Rain</div>
+      <h1 style="font-size:24px;font-weight:500;text-transform:uppercase;line-height:1.15;margin:0;">Project <strong style="font-weight:700;">settings</strong></h1>
+    </div>
+    <span style="font-size:10px;color:var(--brand);background:var(--brand-tint);padding:5px 11px;border-radius:50px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Workspace admin</span>
+  </div>
+
+  <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:28px;">
+    <a href="i_project_settings_general.html" style="padding:10px 16px;font-size:13px;color:var(--brand);font-weight:500;border-bottom:2px solid var(--brand);margin-bottom:-1px;text-decoration:none;">General</a>
+    <a href="i_project_settings_connections.html" style="padding:10px 16px;font-size:13px;color:var(--text-3);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;text-decoration:none;">Connections</a>
+  </div>
+
+  <div style="margin-bottom:32px;">
+    <h2 style="font-size:18px;font-weight:500;text-transform:uppercase;line-height:1.15;margin:0 0 6px;">Project <strong style="font-weight:700;">logo</strong></h2>
+    <p style="font-size:12px;color:var(--text-3);line-height:1.45;margin:0 0 20px;">Appears on the dashboard, in cross-project chat scope chips, and on citation chips. PNG or JPG, square, max 1 MB.</p>
+
+    <div style="background:var(--bg-soft);border-radius:12px;padding:22px;display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div style="width:84px;height:84px;border-radius:50%;background:var(--brand-tint);color:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:36px;">R</div>
+        <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.1em;font-weight:500;">Placeholder</div>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:500;margin-bottom:4px;">No logo uploaded</div>
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:14px;">Using the initial-letter placeholder until you upload one.</div>
+        <button style="background:var(--brand);color:#fff;border:none;padding:9px 14px;border-radius:8px;font-family:inherit;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+          <i class="ti ti-upload" style="font-size:13px;"></i> Upload logo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:32px;">
+    <h2 style="font-size:18px;font-weight:500;text-transform:uppercase;line-height:1.15;margin:0 0 6px;">Project <strong style="font-weight:700;">identity</strong></h2>
+    <p style="font-size:12px;color:var(--text-3);line-height:1.45;margin:0 0 20px;">How Rain is named and described across the app.</p>
+
+    <div style="background:var(--bg-soft);border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:18px;">
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:18px;align-items:center;">
+        <label style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);">Project name</label>
+        <input type="text" value="Rain" style="padding:11px 14px;background:#fff;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px;color:var(--text);" />
+      </div>
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:18px;align-items:center;">
+        <div>
+          <label style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);">Project key</label>
+          <div style="font-size:10px;color:var(--text-3);margin-top:2px;">Used in URLs</div>
+        </div>
+        <div style="position:relative;">
+          <input type="text" value="rain" disabled style="padding:11px 14px;background:var(--border);border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px;color:var(--text-3);width:100%;cursor:not-allowed;" />
+          <div style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text-3);font-family:monospace;">elinnoagent.com/projects/<strong style="color:var(--text-2);">rain</strong></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:18px;align-items:flex-start;">
+        <label style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);padding-top:11px;">Description</label>
+        <textarea rows="2" style="padding:11px 14px;background:#fff;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;color:var(--text);line-height:1.45;resize:vertical;">Multi-agent research workspace. Slack threads + Jira backlog feed the agent.</textarea>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button style="background:transparent;color:var(--text);border:1px solid #e0e0e0;padding:9px 16px;border-radius:8px;font-family:inherit;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer;">Discard</button>
+      <button style="background:var(--brand);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-family:inherit;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer;">Save changes</button>
+    </div>
+  </div>
+
+  <div style="margin-bottom:32px;">
+    <h2 style="font-size:18px;font-weight:500;text-transform:uppercase;line-height:1.15;margin:0 0 6px;">Project <strong style="font-weight:700;">info</strong></h2>
+    <p style="font-size:12px;color:var(--text-3);line-height:1.45;margin:0 0 20px;">Read-only metadata.</p>
+    <div style="background:var(--bg-soft);border-radius:12px;padding:22px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;">
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-3);font-weight:500;margin-bottom:5px;">Project ID</div>
+        <div style="font-size:11px;font-family:monospace;color:var(--text-2);">a8f3c2e1-9b4d-4e7f-a3c1-0d2e5f8a1b9c</div>
+      </div>
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-3);font-weight:500;margin-bottom:5px;">Created</div>
+        <div style="font-size:13px;">April 28, 2026 · by Jenny</div>
+      </div>
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-3);font-weight:500;margin-bottom:5px;">Last activity</div>
+        <div style="font-size:13px;">May 19, 2026 · 2 hrs ago</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:32px;">
+    <h2 style="font-size:18px;font-weight:500;text-transform:uppercase;line-height:1.15;margin:0 0 6px;">Project <strong style="font-weight:700;">limits</strong></h2>
+    <p style="font-size:12px;color:var(--text-3);line-height:1.45;margin:0 0 20px;">Applies to Rain's per-project chat only. Cross-project chats charge against the <strong style="color:var(--text);">workspace AI cap</strong>, set in your workspace settings.</p>
+
+    <div style="background:var(--bg-soft);border-radius:12px;padding:22px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+        <div style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);">AI spend this month</div>
+        <div style="font-size:10px;color:var(--success);font-weight:500;">17% used · resets in 12 days</div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+        <span style="font-size:22px;font-weight:600;">$3.42</span>
+        <span style="font-size:12px;color:var(--text-3);">of $20.00</span>
+      </div>
+      <div style="height:6px;background:rgba(0,0,0,0.06);border-radius:50px;overflow:hidden;">
+        <div style="height:100%;width:17%;background:var(--success);border-radius:50px;"></div>
+      </div>
+    </div>
+
+    <div style="background:var(--bg-soft);border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:18px;">
+      <div style="display:grid;grid-template-columns:160px 1fr auto;gap:18px;align-items:center;">
+        <label style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);">Monthly AI cap</label>
+        <div style="position:relative;display:inline-flex;align-items:center;width:160px;">
+          <span style="position:absolute;left:14px;font-size:14px;color:var(--text-3);font-weight:500;">$</span>
+          <input type="number" value="20" min="1" step="1" style="padding:10px 14px 10px 26px;background:#fff;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px;color:var(--text);width:100%;" />
+        </div>
+        <span style="font-size:11px;color:var(--text-3);">USD / month</span>
+      </div>
+      <div style="display:grid;grid-template-columns:160px 1fr auto;gap:18px;align-items:center;">
+        <label style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-2);">Daily message limit</label>
+        <input type="number" value="50" min="1" step="1" style="padding:10px 14px;background:#fff;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px;color:var(--text);width:160px;" />
+        <span style="font-size:11px;color:var(--text-3);">messages / day</span>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button style="background:transparent;color:var(--text);border:1px solid #e0e0e0;padding:9px 16px;border-radius:8px;font-family:inherit;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer;">Discard</button>
+      <button style="background:var(--brand);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-family:inherit;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;cursor:pointer;">Save limits</button>
+    </div>
+  </div>
+
+  <div>
+    <h2 style="font-size:18px;font-weight:500;text-transform:uppercase;line-height:1.15;margin:0 0 6px;color:var(--danger);">Danger <strong style="font-weight:700;">zone</strong></h2>
+    <p style="font-size:12px;color:var(--text-3);line-height:1.45;margin:0 0 20px;">Irreversible actions. Workspace admin only.</p>
+    <div style="background:var(--danger-bg);border:1px solid var(--danger-border);border-radius:12px;padding:18px;display:flex;justify-content:space-between;align-items:center;gap:24px;">
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Delete this project</div>
+        <div style="font-size:11px;color:var(--text-2);line-height:1.5;">Rain will be soft-deleted. Connections will stop syncing, all chats become read-only, and the workspace cap reclaims its share of the budget. Data is retained for 30 days, then permanently removed.</div>
+      </div>
+      <button style="background:var(--danger);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-family:inherit;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;cursor:pointer;white-space:nowrap;">Delete project</button>
+    </div>
+  </div>
+
+</div>
+
+</div>
+
+</body>
+</html>
