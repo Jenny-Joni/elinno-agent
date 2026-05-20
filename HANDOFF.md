@@ -4580,3 +4580,95 @@ in error envelope (catch reverted).
 Block 12.3 is **SHIPPED**. Sub-block 12.4 (Project settings rework
 — General + Connections tabs per mockups i.1 + i.2) is next per
 BLOCK_12_PLAN §6.12.4.
+
+---
+
+## Block 12.4 verified on preview — 2026-05-20 (awaiting ff-merge)
+
+**Branch state**: `claude/gifted-sanderson-a7e060`, 4 commits ahead of
+`origin/main`:
+- `aa2e3f5` feat(12.4): project settings rework — General + Connections
+- `5207b12` fix(12.4): connection-name NaN — double-plus concat bug
+- (curl-matrix-block-12.4.md + HANDOFF VERIFIED follow this commit)
+
+**Preview deploy**: `https://4d57cb4b.elinno-agent.pages.dev/`
+**Production**: `54ce80b` (Block 12.3) — unchanged until ff-merge.
+
+What landed:
+- **Schema**: new migration
+  `db/migrations/2026-05-20-block-12-4-daily-message-limit.sql` adds
+  `projects.daily_message_limit INTEGER NOT NULL DEFAULT 100`.
+  Applied to production Neon prior to commit; all 4 existing
+  projects defaulted to 100. Replaces v1.2 hardcoded
+  `DAILY_MSG_CAP = 100` constant.
+- **Backend**:
+  - `functions/api/projects/[id]/index.js` — GET extended to include
+    `ai_monthly_cap_usd`, `daily_message_limit`, and
+    `ai_spend_period_to_date_usd` (computed subquery). New `PATCH`
+    handler (name/description, validated + workspace-admin gated).
+    New `DELETE` handler (soft-delete + workspace-admin gated).
+  - `functions/api/projects/[id]/limits.js` (new) — workspace-admin
+    PATCH for cap (0.01..10000) + msg limit (1..10000 integer);
+    each field optional, at least one required.
+  - `functions/api/projects/[id]/conversations/[conversationId]/messages.js`
+    — reads `daily_message_limit` from project row; fallback
+    constant `DAILY_MSG_CAP_DEFAULT = 100` retained for null safety.
+- **Frontend**:
+  - `public/project_settings.html` (new) — full mockup-i.1 + i.2
+    page: Logo placeholder with disabled "Upload logo" + tooltip
+    "Coming in v1.3.1" (per decision N); Identity name + key +
+    description with Save/Discard; Info read-only; Limits with spend
+    bar + cap editor + msg-limit editor; Danger zone delete-project
+    flow with name-confirmation prompt. Connections tab: active
+    connection cards (Slack + Jira) with sync + disconnect actions;
+    Available connectors grid (Monday + Drive v2.0-locked).
+  - `public/project.html` — added "Settings ↗" link in the tab strip
+    right of Connections, pointing to /project_settings.html.
+
+**One diagnostic loop**: initial render had connection names as
+"SlackNaN" / "JiraNaN" — same multi-line concat double-plus bug
+I hit in dashboard.html (12.3 ternary fix). The leading `+` on a
+continuation line followed by another `+` before the string becomes
+a unary plus, coercing the string to NaN. One-character fix
+(`5207b12`); no other instances in the file (grep verified).
+
+**Lesson**: this is now the second time this same pattern bit. Add
+to v1.3.1 cleanup: sweep all multi-line concat chains in the
+new HTML files (project_settings.html, dashboard.html, components.html)
+for `^\s*+\s*+\s*'` and refactor to template literals where it
+appears. Template literals would have caught this at parse time
+(no unary-plus pitfall).
+
+**Verification verdicts** (full detail in `curl-matrix-block-12.4.md`):
+- A1-A3 (schema migration): PASS
+- B1-B5 (endpoints): PASS via direct PATCH tests
+- B6 (DELETE): DEFERRED (won't soft-delete a real project to test)
+- B7-B10 (validation, gates, msg cap read): PASS or PASS-by-inspection
+- C1-C15 (project_settings.html rendering): PASS
+- D1-D6 (save flows): PASS (D1-D3 backend-verified, D4-D6 by
+  construction)
+- D7 (delete): DEFERRED
+- E1-E2 (project.html Settings link): PASS or PASS-by-construction
+- F1-F3 (v1.2 regression): PASS-by-construction (cap-check
+  path reads from column which defaulted to 100, otherwise unchanged)
+
+**Carry-forward into 12.5a**:
+- Logo upload (US-17) — disabled placeholder ships in 12.4; lands
+  as v1.3.1 follow-up.
+- DELETE flow (D7) untested in this verification cycle; first
+  natural exercise will validate.
+- Visual cosmetic: `$` CSS pseudo-element vs `<input>` value renders
+  tight at default widths; defer or widen padding-left if Jenny
+  notices.
+- v1.3.1 cleanup: sweep multi-line concat chains for the
+  double-plus pattern (this is the second sub-block where it bit;
+  template literals would prevent).
+- v1.3.1 cleanup: consolidate project.html's in-page Connections
+  tab with the new project_settings.html Connections tab (duplication).
+
+**Pending Jenny actions**: `approve push to main` → ff-merge → CF
+auto-deploy → smoke-test production project settings. Then 12.5a
+(cross-project backend — the security-sensitive linchpin).
+
+**Production state**: `54ce80b` on `elinnoagent.com`.
+Block 12.4 is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
