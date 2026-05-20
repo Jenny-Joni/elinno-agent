@@ -303,9 +303,13 @@
       const num = Number(n) || 0;
       return '$' + num.toFixed(2);
     }
-    function fmtDate(iso) {
-      if (!iso) return '—';
-      const d = new Date(iso);
+    function fmtDate(v) {
+      if (!v && v !== 0) return '—';
+      // D1 stores users.created_at as INTEGER unix seconds; Postgres
+      // sends ISO strings. Detect: numeric < 1e12 → seconds, otherwise
+      // ms (new Date() expects ms or ISO).
+      const t = typeof v === 'number' && v > 0 && v < 1e12 ? v * 1000 : v;
+      const d = new Date(t);
       if (!isFinite(d)) return '—';
       return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     }

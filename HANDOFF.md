@@ -5027,6 +5027,126 @@ landing it makes Block 12 complete and v1.3 fully shipped.
 
 ---
 
+## Block 12.6 verified on preview — 2026-05-20 (awaiting ff-merge)
+
+**Branch state**: `claude/gifted-sanderson-a7e060`, 2 commits ahead of
+`origin/main` (plus the in-flight matrix/HANDOFF/fmtDate-fix commit
+landing next):
+
+- `6952ff9` docs(12.5b): HANDOFF SHIPPED — bundling forward with this push
+- `98c59e6` feat(12.6): workspace settings page + paused-banner wiring
+
+**Preview deploy**: `https://e73d8988.elinno-agent.pages.dev/`
+**Production**: `16b2a89` (Block 12.5b) — unchanged until ff-merge.
+
+### What landed
+
+- **`functions/api/workspace.js`** (new, GET) — workspace metadata
+  + cross-project AI cap state. Returns `workspace.{id, name, plan,
+  user_count, project_count, created_at}` + `cross_project_ai.{cap_usd,
+  spend_usd, period_start, resets_at}`. Workspace name derived from
+  email domain stem (`jenny@elinnovation.net` → "Elinnovation"). v2.0
+  workspaces-table migration touches only this one file (decision E
+  + decision U).
+- **`functions/api/workspace/limits.js`** (new, PATCH) — workspace-
+  admin gated cap edit. Body `{cross_project_ai_monthly_cap_usd:
+  number}`, validates 0.01..10000, updates D1
+  `users.cross_project_ai_monthly_cap_usd`. Mirrors
+  `functions/api/projects/[id]/limits.js` validation shape from 12.4.
+- **`public/workspace_settings.html`** (new) — mockup (f) faithfully:
+  header with admin pill, "NEW IN V1.3 / CROSS-PROJECT AI CAP"
+  section, spend card (variant by % used: healthy/warning/exceeded),
+  cap editor input + Update button + inline ws-error/ws-success
+  feedback, workspace info grid (name, ID, plan, created). Non-admin
+  branch defensive (solo workspace model has only Jenny as admin).
+- **`public/cross-project/chat.html`** (extend) — paused-banner
+  wired per mockup (g):
+  - New state field `workspaceSpend.resets_at`; `paused` flag derived
+    via `isPaused()`.
+  - `loadWorkspaceSpend()` now prefers `/api/workspace` (has resets_at)
+    with `/api/dashboard` as fallback.
+  - `renderPausedBanner()` renders the `.paused-banner` (CSS already
+    in auth.css from 12.2) above the messages list when `isPaused()`.
+    Copy verbatim per mockup (g).
+  - `renderComposer()` disables input + flips placeholder + footer cap
+    pill to "cap reached" warning style when paused.
+  - `sendMessage()` handles the 402 paused envelope by syncing
+    `workspaceSpend` state and re-rendering — chat flips into paused
+    without a full reload.
+
+### Diagnostic loop (one bite)
+
+**D1 `created_at` unix-seconds vs milliseconds** — D1 stores
+`users.created_at` as INTEGER unix seconds (e.g., `1777552928` =
+2026-04-28). My initial `fmtDate(v)` passed the integer straight to
+`new Date(v)` which interprets as **milliseconds** → rendered as
+"January 21, 1970" on the workspace info grid. Fix: detect
+`typeof v === 'number' && v < 1e12` and multiply by 1000 to convert
+to ms. Cosmetic only (didn't block any other cells); fixed in the
+matrix+HANDOFF commit.
+
+### Verification verdicts
+
+Full detail in `curl-matrix-block-12.6.md`. Headline:
+
+| Section | Status |
+|---|---|
+| **A — Workspace API** | 5/5 PASS — payload correct, name derived from email stem, project_count, spend isolated |
+| **B — Limits PATCH** | 6/6 PASS (3 live round-trips: $20→$25→$0.10→$20; rest by-construction) |
+| **C — Workspace settings page** | 9/9 PASS — page renders, variant flips healthy↔exceeded, cap edit round-trip, workspace info grid (created date now correctly formatted via fmtDate fix) |
+| **D — Paused-banner wiring** | 9/9 PASS — banner triggers above messages, verbatim copy "$0.10 cap reached, resumes June 1 2026", composer disabled, footer flips to warning, lifting cap clears state |
+| **E — Regression** | 5/5 PASS — v1.2 + landing + creation + un-paused chat all unaffected |
+
+### The paused-banner trigger trace
+
+End-to-end through the UI on `e73d8988`:
+
+1. `/workspace_settings.html` loads → "Spend this month: $0.29 of
+   $20.00 / 1% used · resets in 12 days" (healthy, green).
+2. Set cap to $0.10, click Update cap → success ws-success block:
+   "Cap updated to $0.10 per month." API confirms `cap_usd: 0.10`.
+3. Navigate to `/cross-project/chat.html?id=58d9b525-…` →
+   **`.paused-banner` rendered above messages** with verbatim
+   copy "You've reached the workspace cap of **$0.10** for cross-
+   project AI this month. Per-project chats (Rain, Joni) are
+   unaffected and still work. Cross-project resumes automatically
+   on **June 1, 2026**." + "RAISE CAP ↗" (warning-filled) + "VIEW
+   WORKSPACE SETTINGS" (quiet) CTAs.
+4. Composer disabled: textarea greyed with "Cross-project is paused
+   this month" placeholder; footer flips to warning amber: "Cross-
+   project AI · **$0.10 / $0.10 — cap reached**", right side
+   "Paused" instead of "↵ to send". Past messages preserved.
+5. PATCH cap back to $20 → reload chat → banner gone, composer
+   enabled, footer normal "Cross-project AI · workspace cap $0.29
+   / $20.00 this month".
+
+### Launch gates after 12.6 — ALL PASS
+
+| # | Gate | Status |
+|---|---|---|
+| 1 | US-1…US-6 + adversarial cells | PASS (12.5a + 12.5b SHIPPED) |
+| 3 | `project_members` does not exist | PASS (Block 12.1) |
+| 6 | Workspace cap pause flow + per-project independence | **PASS** (12.6 D2/D9; per-project Rain $1.13 unchanged throughout cap edits) |
+| 7 | Visual system from mockups lands site-wide | **PASS** (12.1 nav + 12.2 components + 12.3 dashboard + 12.4 settings + 12.5b cross-project surfaces + 12.6 workspace settings + paused banner) |
+| 12 | messages.project_id audit grep | PASS (Block 12.5b) |
+| 13 | Production bleed-in test | PASS (Block 12.5b) |
+
+### Carry-forward into v1.3.1
+
+- **`workspaces` table v2.0 prep**: workspace.js derives name from email domain stem; v2.0 will add a `workspaces` row. Single-file swap (decision E + decision U).
+- **Workspace settings nav link**: discoverable only via paused-banner CTAs + direct URL in v1.3. Optional v1.3.1 add to dashboard nav for admins.
+- **Per-project cap overview**: workspace settings info line links to `/projects.html`, not a workspace-wide cost dashboard. v1.3.1 candidate.
+- **Workspace cap email**: still not wired (carry-forward from 12.5a HANDOFF).
+- **D1 created_at fmtDate defensive parsing**: applied here in workspace_settings.html; if other surfaces read D1 timestamps, port the same `< 1e12 → seconds * 1000` detector.
+- **`serializeUuidArray`/`parseUuidArray` helpers** (carry-forward from 12.5b): still inline at 4 callsites.
+
+**Pending Jenny actions**: `approve push to main` → ff-merge → CF auto-deploy → smoke-test production workspace settings + paused banner. After 12.6 SHIPPED, **Block 12 is COMPLETE and v1.3 is fully shipped on production**.
+
+**Production state**: `16b2a89` on `elinnoagent.com`.
+Block 12.6 is **VERIFIED ON PREVIEW**; awaiting ff-merge approval. v1.3 is **VERIFICATION-COMPLETE** pending this final ff-merge.
+
+---
+
 ## Block 12.5a SHIPPED to main — 2026-05-20
 
 **Production state**: `dd6c6ff` on `elinnoagent.com` (was `65483c0`).
