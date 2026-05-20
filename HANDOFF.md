@@ -4906,3 +4906,35 @@ edit-scope modal per mockups b/c/d/e/h).
 
 **Production state**: `65483c0` on `elinnoagent.com`.
 Block 12.5a is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
+
+---
+
+## Block 12.5a SHIPPED to main — 2026-05-20
+
+**Production state**: `dd6c6ff` on `elinnoagent.com` (was `65483c0`).
+Fast-forward merge `65483c0..dd6c6ff` — 9 commits (12.5a feat × 2 +
+fixes × 5 + docs SHIPPED).
+
+Production-smoke-tested:
+- `GET /api/cross-project/eligible-projects` (unauth) → 401 (route
+  exists, auth gating fires).
+- `GET /api/cross-project/conversations` (unauth) → 401.
+- `POST /api/cross-project/conversations` (unauth, empty body) →
+  401 (gated before body validation).
+- v1.2 HTML routes (`/dashboard.html`, `/projects.html`,
+  `/project_settings.html`) → 308 (trailing-slash canonical
+  redirect, normal CF behavior).
+- v1.2 API `/api/projects` (unauth) → 401 (unchanged).
+
+The cross-project capability is live on production behind workspace
+auth. Authenticated end-to-end verification (the cross-project
+comparison query landing 6 rows + "Across Joni and Rain:" prose)
+was confirmed on the `17dfb95b` preview deploy from the same SHA;
+no UI surface exists yet to exercise it from production, but the
+direct API path is available now.
+
+Block 12.5a is **SHIPPED**. Sub-block 12.5b (Cross-project
+**frontend** — landing page, creation modal, chat shell, edit-scope
+modal per mockups b/c/d/e/h) is next per BLOCK_12_PLAN §6.12.5b.
+The backend that 12.5b drives is proven; the new sub-block is UI-only
+work in auto mode (no SECURITY-CARVE-OUT files touched).
