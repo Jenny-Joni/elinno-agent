@@ -31,6 +31,13 @@ export const ALLOWED_COLUMNS = Object.freeze([
   'source_created_at',
   'source_updated_at',
   'labels',
+  // v1.3 Block 12.5a, PRD §3.4.1 + decision J: project_id is position-
+  // aware allowlisted. ALLOWED IN select and group_by; FORBIDDEN in
+  // where (the existing `project_id_forbidden` check at the top of
+  // where-parsing fires before this allowlist is consulted, so adding
+  // project_id here is safe — the position-aware enforcement is at
+  // the parser level).
+  'project_id',
 ]);
 const COLUMNS_SET = new Set(ALLOWED_COLUMNS);
 
@@ -280,11 +287,16 @@ function parseOrderBy(item, aliasSet, isGrouped) {
 
 // ─── Compile ──────────────────────────────────────────────────────────────
 
-export function compile(dsl, projectId) {
+export function compile(dsl, projectId, crossProjectIds = null) {
   if (!dsl || typeof dsl !== 'object' || Array.isArray(dsl)) {
     return validationError('dsl_not_object', null);
   }
-  if (typeof projectId !== 'string' || projectId.length === 0) {
+  // v1.3 Block 12.5a: cross-project mode takes precedence. When
+  // crossProjectIds is a non-empty array, projectId may be empty
+  // (cross-project routes don't bind a single project to the URL).
+  // Otherwise the v1.2 single-project requirement holds.
+  const isCrossProject = Array.isArray(crossProjectIds) && crossProjectIds.length > 0;
+  if (!isCrossProject && (typeof projectId !== 'string' || projectId.length === 0)) {
     return validationError('project_id_missing', null);
   }
 
@@ -353,8 +365,15 @@ export function compile(dsl, projectId) {
   }
 
   // ── where (optional) ────────────────────────────────────────────────
-  const params = [projectId];
-  const whereFragments = [`project_id = $1`];
+  // v1.3 Block 12.5a: project scope is single-project (param=string)
+  // OR cross-project (param=array). postgres-js's sql.unsafe() handles
+  // array-as-positional-param correctly with ANY() semantics —
+  // distinct from the tagged-template `${arr}::uuid[]` CSV bug that bit
+  // dashboard.js in 12.3. This is the runAggregateJira-via-unsafe path.
+  const params = isCrossProject ? [crossProjectIds] : [projectId];
+  const whereFragments = isCrossProject
+    ? [`project_id = ANY($1)`]
+    : [`project_id = $1`];
 
   const whereRaw = dsl.where;
   if (whereRaw !== undefined) {
@@ -443,8 +462,8 @@ export function compile(dsl, projectId) {
 
 // ─── Executor — runAggregateJira(sql, projectId, dsl) ────────────────────
 
-export async function runAggregateJira(sql, projectId, dsl) {
-  const compiled = compile(dsl, projectId);
+export async function runAggregateJira(sql, projectId, dsl, crossProjectIds = null) {
+  const compiled = compile(dsl, projectId, crossProjectIds);
   if (!compiled.ok) return compiled;
 
   const rows = await sql.unsafe(compiled.sql, compiled.params);

@@ -42,6 +42,7 @@
 
 import { searchHybrid } from './search.js';
 import { runAggregateJira } from './aggregate_jira_compiler.js';
+import { authorizeProjectSet } from './authorize.js';
 
 const TOOL_RESULT_LIMIT = 10;
 const TOOL_RESULT_TEXT_TRIM = 600;
@@ -82,7 +83,13 @@ export const TOOL_DEFINITIONS = [
         project_id: {
           type: 'string',
           description:
-            'Ignored — server substitutes from URL context. Reserved for v1.2 cross-project mode.',
+            'Ignored — server substitutes from URL context. Reserved for v1.3 cross-project mode.',
+        },
+        project_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'v1.3 cross-project mode only. Array of project UUIDs to scope this tool call. Server authorizes each ID against the workspace before SQL runs (BLOCK_12_PLAN decision K + PRD §3.6.1). Single-project chats: omit this — server uses URL-bound project_id.',
         },
       },
       required: ['query'],
@@ -141,7 +148,13 @@ export const TOOL_DEFINITIONS = [
         project_id: {
           type: 'string',
           description:
-            'Ignored — server substitutes from URL context. Reserved for v1.2 cross-project mode.',
+            'Ignored — server substitutes from URL context. Reserved for v1.3 cross-project mode.',
+        },
+        project_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'v1.3 cross-project mode only. Array of project UUIDs to scope this tool call. Server authorizes each ID against the workspace before SQL runs (BLOCK_12_PLAN decision K + PRD §3.6.1). Single-project chats: omit this — server uses URL-bound project_id.',
         },
       },
     },
@@ -169,7 +182,13 @@ export const TOOL_DEFINITIONS = [
         project_id: {
           type: 'string',
           description:
-            'Ignored — server substitutes from URL context. Reserved for v1.2 cross-project mode.',
+            'Ignored — server substitutes from URL context. Reserved for v1.3 cross-project mode.',
+        },
+        project_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'v1.3 cross-project mode only. Array of project UUIDs to scope this tool call. Server authorizes each ID against the workspace before SQL runs (BLOCK_12_PLAN decision K + PRD §3.6.1). Single-project chats: omit this — server uses URL-bound project_id.',
         },
       },
     },
@@ -177,7 +196,8 @@ export const TOOL_DEFINITIONS = [
   {
     name: 'get_jira_sprint_summary',
     description:
-      'For a given Jira sprint id, return aggregate counts: total issues, breakdown by status_category (new / indeterminate / done), total story points, and completed story points. Use this for "how many tickets in this sprint" / "how many points done" questions.',
+      'For a given Jira sprint id, return aggregate counts: total issues, breakdown by status_category (new / indeterminate / done), total story points, and completed story points. Use this for "how many tickets in this sprint" / "how many points done" questions. ' +
+      'NOTE (v1.3): this tool does NOT accept project_ids. sprint_id is not globally unique across Jira projects — two projects can independently have sprint_id=12 for unrelated sprints. For cross-project sprint questions, use aggregate_jira with group_by:["project_id","status_category"] instead.',
     input_schema: {
       type: 'object',
       properties: {
@@ -189,7 +209,7 @@ export const TOOL_DEFINITIONS = [
         project_id: {
           type: 'string',
           description:
-            'Ignored — server substitutes from URL context. Reserved for v1.2 cross-project mode.',
+            'Ignored — server substitutes from URL context. Single-project tool; does not accept project_ids.',
         },
       },
       required: ['sprint_id'],
@@ -308,7 +328,7 @@ async function hashUserMessage(userMessage) {
  * @returns {Promise<{ name: string, content: Array<object> }>}
  */
 export async function executeTool(env, sql, urlContext, toolUse) {
-  const { projectId, conversationId, userMessage } = urlContext;
+  const { projectId, conversationId, userMessage, workspaceUserId } = urlContext;
 
   if (!KNOWN_TOOL_NAMES.has(toolUse.name)) {
     return {
@@ -337,8 +357,73 @@ export async function executeTool(env, sql, urlContext, toolUse) {
     }));
   }
 
+  // v1.3 Block 12.5a — cross-project dispatch.
+  //
+  // Cross-project mode is activated ONLY when (a) the urlContext caller
+  // populated `workspaceUserId` (i.e., we're in a cross-project chat
+  // route, not the v1.2 single-project chat route), AND (b) the LLM
+  // supplied `input.project_ids` as a non-empty array. Single-project
+  // chats (v1.2 messages endpoint) leave workspaceUserId undefined, so
+  // any project_ids the LLM emits in that context is ignored — v1.2
+  // bulletproofing per PRD §3.6.3.
+  let crossProjectIds = null;
+  const rawProjectIds = input.project_ids;
+  if (
+    typeof workspaceUserId === 'string'
+    && workspaceUserId.length > 0
+    && Array.isArray(rawProjectIds)
+    && rawProjectIds.length > 0
+  ) {
+    // Decision B: get_jira_sprint_summary does not accept project_ids.
+    if (toolUse.name === 'get_jira_sprint_summary') {
+      return {
+        name: toolUse.name,
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            ok: false,
+            code: 'cross_project_unsupported',
+            tool: 'get_jira_sprint_summary',
+            error:
+              'get_jira_sprint_summary does not accept project_ids — sprint_id is not globally unique across Jira projects. Use aggregate_jira with group_by:["project_id","status_category"] for cross-project sprint questions.',
+          }),
+        }],
+      };
+    }
+
+    // Decision K: authorize the project set BEFORE any SQL on those IDs.
+    const authResult = await authorizeProjectSet(
+      sql,
+      workspaceUserId,
+      rawProjectIds
+    );
+    if (!authResult.ok) {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        event: 'cross_project_authorize_failed',
+        code: authResult.code,
+        tool_name: toolUse.name,
+        conversation_id: conversationId,
+        workspace_user_id: workspaceUserId,
+        // Include missing list / field for diagnosis; never trust to
+        // echo back to the LLM unless inside the structured envelope
+        // (which we DO — that's the whole point per PRD §3.6.7).
+        missing: authResult.missing,
+        field: authResult.field,
+      }));
+      return {
+        name: toolUse.name,
+        content: [{
+          type: 'text',
+          text: JSON.stringify(authResult),
+        }],
+      };
+    }
+    crossProjectIds = authResult.projectIds;
+  }
+
   // D4b: discard input.project_id. Per-tool helpers receive only the
-  // URL-bound projectId.
+  // URL-bound projectId (or the authorized cross-project set).
   // Per-tool dispatch wrapped in try/catch so a SQL error or unexpected
   // exception in one tool's helper returns an error-as-tool-result
   // payload (model can recover or surface to user) instead of
@@ -349,19 +434,21 @@ export async function executeTool(env, sql, urlContext, toolUse) {
   try {
     switch (toolUse.name) {
       case 'search_project_data':
-        resultPayload = await runSearchProjectData(env, sql, projectId, input);
+        resultPayload = await runSearchProjectData(env, sql, projectId, input, crossProjectIds);
         break;
       case 'query_jira_issues':
-        resultPayload = await runQueryJiraIssues(sql, projectId, input);
+        resultPayload = await runQueryJiraIssues(sql, projectId, input, crossProjectIds);
         break;
       case 'list_jira_sprints':
-        resultPayload = await runListJiraSprints(sql, projectId, input);
+        resultPayload = await runListJiraSprints(sql, projectId, input, crossProjectIds);
         break;
       case 'get_jira_sprint_summary':
+        // crossProjectIds is always null here (early-returned above when
+        // the agent tried; preserves single-project-only contract).
         resultPayload = await runGetJiraSprintSummary(sql, projectId, input);
         break;
       case 'aggregate_jira':
-        resultPayload = await runAggregateJira(sql, projectId, input);
+        resultPayload = await runAggregateJira(sql, projectId, input, crossProjectIds);
         break;
       default:
         // KNOWN_TOOL_NAMES gate above prevents this; defensive only.
@@ -396,21 +483,28 @@ export async function executeTool(env, sql, urlContext, toolUse) {
 // ---------------------------------------------------------------------------
 // Per-tool helpers. Each receives projectId (URL-bound, trusted) and the raw
 // LLM input object. None of them read input.project_id — the D4b gate at
-// executeTool's entry already discarded it. SQL is project-scoped via
-// WHERE project_id = ${projectId}.
+// executeTool's entry already discarded it.
+//
+// v1.3 Block 12.5a: each helper also accepts `crossProjectIds` — a non-null
+// array of UUIDs from authorizeProjectSet means cross-project mode; null
+// means single-project (v1.2 path unchanged). The project scope is built
+// as a postgres-js sql\`\` fragment so the rest of each WHERE clause stays
+// identical.
 // ---------------------------------------------------------------------------
 
-async function runSearchProjectData(env, sql, projectId, input) {
+async function runSearchProjectData(env, sql, projectId, input, crossProjectIds) {
   const query = typeof input.query === 'string' ? input.query : '';
   const sources = Array.isArray(input.sources) ? input.sources : null;
 
   const rows = await searchHybrid(sql, env, projectId, query, {
     limit: TOOL_RESULT_LIMIT,
     sources,
+    crossProjectIds,
   });
 
   const trimmed = rows.map((row) => ({
     entity_id: row.id,
+    project_id: row.project_id_text,
     source: row.source,
     source_type: row.source_type,
     title: row.title,
@@ -434,7 +528,7 @@ function clampLimit(raw, defaultLimit, maxLimit) {
   return truncated;
 }
 
-async function runQueryJiraIssues(sql, projectId, input) {
+async function runQueryJiraIssues(sql, projectId, input, crossProjectIds) {
   const limit = clampLimit(input.limit, JIRA_QUERY_DEFAULT_LIMIT, JIRA_QUERY_MAX_LIMIT);
   const statusCategory =
     typeof input.status_category === 'string' && input.status_category.length > 0
@@ -466,14 +560,23 @@ async function runQueryJiraIssues(sql, projectId, input) {
   // become no-op WHERE clauses. Avoids postgres-js empty-fragment
   // composition (`sql\`\``) which has unreliable behavior across
   // versions. Pattern: `AND (${val}::type IS NULL OR col = ${val})`.
+  //
+  // v1.3 Block 12.5a: project scope is either v1.2 single-project
+  // (`project_id = ${projectId}`) or v1.3 cross-project
+  // (`project_id IN ${sql(crossProjectIds)}`). Built as a fragment so the
+  // rest of the WHERE clause is unchanged.
+  const projectScope = crossProjectIds
+    ? sql`project_id IN ${sql(crossProjectIds)}`
+    : sql`project_id = ${projectId}`;
   const rows = await sql`
-    SELECT id, source_id, title, status, status_category, issue_type, priority,
+    SELECT id, project_id::text AS project_id_text,
+           source_id, title, status, status_category, issue_type, priority,
            assignee_display_name, assignee_external_id,
            reporter_display_name, reporter_external_id,
            sprint_id, sprint_name, story_points, project_key,
            source_url, source_created_at, source_updated_at, content_text
       FROM jira_issues
-     WHERE project_id = ${projectId}
+     WHERE ${projectScope}
        AND (${statusCategory}::text IS NULL OR status_category = ${statusCategory})
        AND (${status}::text IS NULL OR status = ${status})
        AND (${assigneeDisplayName}::text IS NULL OR assignee_display_name = ${assigneeDisplayName})
@@ -487,6 +590,7 @@ async function runQueryJiraIssues(sql, projectId, input) {
 
   const issues = rows.map((row) => ({
     entity_id: row.id,
+    project_id: row.project_id_text,
     source: 'jira',
     source_type: 'jira_issue',
     issue_key: row.source_id ? row.source_id.split(':issue:')[1] || null : null,
@@ -516,18 +620,21 @@ async function runQueryJiraIssues(sql, projectId, input) {
   };
 }
 
-async function runListJiraSprints(sql, projectId, input) {
+async function runListJiraSprints(sql, projectId, input, crossProjectIds) {
   const limit = clampLimit(input.limit, JIRA_SPRINTS_DEFAULT_LIMIT, JIRA_SPRINTS_MAX_LIMIT);
   const state =
     typeof input.state === 'string' && input.state.length > 0 ? input.state : null;
 
   // No jira_sprints view (decision J: one view per primary tool surface).
   // Read entities directly with WHERE source_type = 'jira_sprint'.
-  // NULL-coalescing predicate for the optional state filter (same
-  // pattern as runQueryJiraIssues; avoids postgres-js empty-fragment
-  // composition).
+  // v1.3 Block 12.5a: project scope is single-project or cross-project
+  // via fragment composition; rest of WHERE unchanged.
+  const projectScope = crossProjectIds
+    ? sql`project_id IN ${sql(crossProjectIds)}`
+    : sql`project_id = ${projectId}`;
   const rows = await sql`
-    SELECT id, source_id, title, source_url,
+    SELECT id, project_id::text AS project_id_text,
+           source_id, title, source_url,
            metadata->>'sprint_id' AS sprint_id_text,
            metadata->>'sprint_name' AS sprint_name,
            metadata->>'state' AS state,
@@ -539,7 +646,7 @@ async function runListJiraSprints(sql, projectId, input) {
            metadata->>'board_id' AS board_id_text,
            source_created_at, source_updated_at
       FROM entities
-     WHERE project_id = ${projectId}
+     WHERE ${projectScope}
        AND source = 'jira'
        AND source_type = 'jira_sprint'
        AND (${state}::text IS NULL OR metadata->>'state' = ${state})
@@ -551,6 +658,7 @@ async function runListJiraSprints(sql, projectId, input) {
     const sprintIdNum = row.sprint_id_text !== null ? Number(row.sprint_id_text) : null;
     return {
       entity_id: row.id,
+      project_id: row.project_id_text,
       source: 'jira',
       source_type: 'jira_sprint',
       sprint_id: Number.isFinite(sprintIdNum) ? sprintIdNum : null,

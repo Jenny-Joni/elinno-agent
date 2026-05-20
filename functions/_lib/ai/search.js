@@ -35,10 +35,14 @@ const RRF_K = 60;
  * @param {number} limit      - max rows
  * @returns {Promise<Array<object>>} ranked entity rows + rank
  */
-export async function searchKeyword(sql, projectId, query, limit) {
+export async function searchKeyword(sql, projectId, query, limit, crossProjectIds) {
+  const projectScope = crossProjectIds
+    ? sql`e.project_id IN ${sql(crossProjectIds)}`
+    : sql`e.project_id = ${projectId}`;
   return await sql`
     SELECT
       e.id,
+      e.project_id::text AS project_id_text,
       e.source,
       e.source_type,
       e.source_id,
@@ -56,7 +60,7 @@ export async function searchKeyword(sql, projectId, query, limit) {
         plainto_tsquery('english', ${query})
       ) AS rank
       FROM entities e
-     WHERE e.project_id = ${projectId}
+     WHERE ${projectScope}
        AND to_tsvector('english',
              COALESCE(e.title, '') || ' ' || COALESCE(e.content_text, '')
            ) @@ plainto_tsquery('english', ${query})
@@ -79,11 +83,15 @@ export async function searchKeyword(sql, projectId, query, limit) {
  * @param {number} limit      - max rows
  * @returns {Promise<Array<object>>} ranked entity rows + cosine distance
  */
-export async function searchVector(sql, projectId, queryEmbedding, limit) {
+export async function searchVector(sql, projectId, queryEmbedding, limit, crossProjectIds) {
   const vectorLiteral = '[' + queryEmbedding.join(',') + ']';
+  const projectScope = crossProjectIds
+    ? sql`ee.project_id IN ${sql(crossProjectIds)}`
+    : sql`ee.project_id = ${projectId}`;
   return await sql`
     SELECT
       e.id,
+      e.project_id::text AS project_id_text,
       e.source,
       e.source_type,
       e.source_id,
@@ -98,7 +106,7 @@ export async function searchVector(sql, projectId, queryEmbedding, limit) {
       ee.embedding <=> ${vectorLiteral}::vector AS distance
       FROM entity_embeddings ee
       JOIN entities e ON e.id = ee.entity_id
-     WHERE ee.project_id = ${projectId}
+     WHERE ${projectScope}
        AND ee.model = ${EMBEDDING_MODEL_ID}
        AND ee.chunk_index = 0
      ORDER BY ee.embedding <=> ${vectorLiteral}::vector
@@ -126,13 +134,20 @@ export async function searchVector(sql, projectId, queryEmbedding, limit) {
 export async function searchHybrid(sql, env, projectId, query, options = {}) {
   const limit = options.limit ?? 10;
   const sources = Array.isArray(options.sources) ? options.sources : null;
+  // v1.3 Block 12.5a: cross-project mode passes a non-null array of
+  // workspace-authorized project UUIDs (from authorizeProjectSet). When
+  // present, both sub-searches run with `IN ${sql(arr)}` scope; when
+  // null/absent, single-project behavior is unchanged.
+  const crossProjectIds = Array.isArray(options.crossProjectIds) && options.crossProjectIds.length > 0
+    ? options.crossProjectIds
+    : null;
 
   const subLimit = Math.max(limit * 3, 30);
 
   const queryEmbedding = await embedText(env, query);
   const [kwRows, vecRows] = await Promise.all([
-    searchKeyword(sql, projectId, query, subLimit),
-    searchVector(sql, projectId, queryEmbedding, subLimit),
+    searchKeyword(sql, projectId, query, subLimit, crossProjectIds),
+    searchVector(sql, projectId, queryEmbedding, subLimit, crossProjectIds),
   ]);
 
   const scoreById = new Map();
