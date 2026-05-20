@@ -20,6 +20,21 @@
 import postgres from 'postgres';
 import { error, getSessionUser, json } from '../_lib/auth.js';
 
+// postgres-js returns UUID[] as a Postgres array literal STRING in this
+// configuration ('{a,b,c}'). Normalize for the cross-project chats list.
+// (v1.3.1 cleanup will extract to a shared lib.)
+function parseProjectIds(v) {
+  if (Array.isArray(v)) return v.map(String);
+  if (typeof v === 'string' && v.startsWith('{') && v.endsWith('}')) {
+    return v
+      .slice(1, -1)
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+  return [];
+}
+
 export async function onRequestGet({ request, env }) {
   const user = await getSessionUser(request, env.DB);
   if (!user) return error('Not authenticated', 401);
@@ -268,7 +283,10 @@ export async function onRequestGet({ request, env }) {
         cross_project_cap_usd: cap,
         cross_project_period_start: periodStartIso,
       },
-      cross_project_chats: crossProjectChats,
+      cross_project_chats: crossProjectChats.map((c) => ({
+        ...c,
+        project_ids: parseProjectIds(c.project_ids),
+      })),
       projects: projectRows,
     });
   } catch (_err) {

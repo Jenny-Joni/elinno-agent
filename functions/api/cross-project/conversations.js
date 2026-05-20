@@ -26,6 +26,22 @@ import { authorizeProjectSet } from '../../_lib/ai/authorize.js';
 
 const ALLOWED_LABELS = new Set(['product']);
 
+// postgres-js returns UUID[] columns as a Postgres array literal STRING
+// ('{a,b,c}') in this configuration rather than a JS array. Normalize so
+// every consumer sees a string[]. Mirror of the helper in
+// conversations/[id]/messages.js (v1.3.1 will extract to a shared lib).
+function parseProjectIds(v) {
+  if (Array.isArray(v)) return v.map(String);
+  if (typeof v === 'string' && v.startsWith('{') && v.endsWith('}')) {
+    return v
+      .slice(1, -1)
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+  return [];
+}
+
 // POST — create cross-project conversation.
 export async function onRequestPost({ request, env }) {
   const userId = await getWorkspaceUserId(request, env);
@@ -85,7 +101,14 @@ export async function onRequestPost({ request, env }) {
     `;
 
     return json(
-      { ok: true, conversation: { ...conv, message_count: 0 } },
+      {
+        ok: true,
+        conversation: {
+          ...conv,
+          project_ids: parseProjectIds(conv.project_ids),
+          message_count: 0,
+        },
+      },
       { status: 201 }
     );
   } catch (_err) {
@@ -126,7 +149,11 @@ export async function onRequestGet({ request, env }) {
        ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
        LIMIT 50
     `;
-    return json({ ok: true, conversations: rows });
+    const conversations = rows.map((r) => ({
+      ...r,
+      project_ids: parseProjectIds(r.project_ids),
+    }));
+    return json({ ok: true, conversations });
   } catch (_err) {
     return error('Internal error', 500);
   } finally {

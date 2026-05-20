@@ -21,6 +21,21 @@ function isUuid(s) {
   return typeof s === 'string' && UUID_RE.test(s);
 }
 
+// postgres-js returns UUID[] as Postgres array literal string '{a,b,c}'
+// in this configuration; normalize to string[]. v1.3.1 will extract to a
+// shared lib (already inlined in messages.js + conversations.js).
+function parseProjectIds(v) {
+  if (Array.isArray(v)) return v.map(String);
+  if (typeof v === 'string' && v.startsWith('{') && v.endsWith('}')) {
+    return v
+      .slice(1, -1)
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+  return [];
+}
+
 async function loadOwned(sql, convId, userId) {
   const [row] = await sql`
     SELECT id::text         AS id,
@@ -55,7 +70,10 @@ export async function onRequestGet({ request, env, params }) {
   try {
     const conv = await loadOwned(sql, params.id, userId);
     if (!conv) return error('Not found', 404);
-    return json({ ok: true, conversation: conv });
+    return json({
+      ok: true,
+      conversation: { ...conv, project_ids: parseProjectIds(conv.project_ids) },
+    });
   } catch (_err) {
     return error('Internal error', 500);
   } finally {
@@ -117,7 +135,10 @@ export async function onRequestPatch({ request, env, params }) {
                 created_at,
                 updated_at
     `;
-    return json({ ok: true, conversation: updated });
+    return json({
+      ok: true,
+      conversation: { ...updated, project_ids: parseProjectIds(updated.project_ids) },
+    });
   } catch (_err) {
     return error('Internal error', 500);
   } finally {
