@@ -5147,6 +5147,133 @@ Block 12.6 is **VERIFIED ON PREVIEW**; awaiting ff-merge approval. v1.3 is **VER
 
 ---
 
+## Block 12.6 SHIPPED to main — 2026-05-20 — **v1.3 COMPLETE**
+
+**Production state**: `634d1e5` on `elinnoagent.com` (was `16b2a89`).
+Fast-forward merge `16b2a89..634d1e5` — 3 commits (12.5b SHIPPED doc
++ 12.6 feat + 12.6 verified docs/fmtDate).
+
+Production-smoke-tested:
+- `GET /workspace_settings.html` → 308 (canonical trailing-slash redirect, normal CF Pages behavior)
+- `GET /api/workspace` (unauth) → 401
+- `PATCH /api/workspace/limits` (unauth) → 401
+
+The workspace settings page + paused-banner wiring are now live on
+production. Authenticated UI exercise was verified on preview deploy
+`e73d8988` from the same SHA series; production carries the same code.
+
+### Block 12 is COMPLETE. v1.3 is fully SHIPPED on production.
+
+Six sub-blocks landed across the day (all PR-free, fast-forward
+merges per WORKFLOW.md):
+
+| Sub-block | Commit on main | Shipped |
+|---|---|---|
+| 12.1 | foundation (schema + middleware + nav swap + tokens) | earlier today |
+| 12.2 | additive components | earlier today |
+| 12.3 | dashboard rebuild | earlier today |
+| 12.4 | project settings rework | `65483c0` |
+| 12.5a | cross-project backend | `dd6c6ff` |
+| 12.5b | cross-project frontend | `16b2a89` |
+| 12.6 | workspace settings + paused banner | **`634d1e5`** |
+
+### What v1.3 delivers (vs v1.2 baseline at Block 11)
+
+- **Cross-project AI mode** (the headline capability):
+  - Landing page → creation modal → chat shell → edit-scope, all per
+    mockups (b/c/d/e/h).
+  - `authorizeProjectSet` server gate with 5/5 adversarial cells PASS
+    (PRD §2.5 US-15 a–e).
+  - System-prompt slice locked verbatim per BLOCK_12_PLAN Appendix
+    §A.1: agent opens with "Across X and Y:" and refuses unsupported
+    questions (cycle time, etc.) verbatim per §2.2.
+  - Citation chips render `[Project Name]` purple prefix pills per
+    §3.8 mockup (e).
+  - Production bleed-in test PASS: per-project spend $1.13 ⊥
+    workspace cross-project spend $0.27/$0.29 (orthogonal SQL sets).
+- **Membership-model collapse** (`project_members` table dropped,
+  `requireProjectRole` → `requireWorkspaceScope`).
+- **Light-mode design-system swap** (`.app-nav` inverted; 9 new
+  components landed; `.project-card` + `.section-heading` split into
+  marketing-vs-data variants).
+- **Workspace AI cap** (decision G): D1 user columns for
+  `cross_project_ai_monthly_cap_usd` + spend period start; per-
+  workspace cap independent of per-project caps; paused-banner
+  wiring per mockup (g).
+- **Per-project limits editor** in project settings (Block 12.4)
+  exposing `ai_monthly_cap_usd` + `daily_message_limit`.
+
+### Diagnostic loop log across v1.3
+
+Caught + fixed mid-flight, ordered by sub-block:
+
+| Sub-block | Loop | Commit | Notes |
+|---|---|---|---|
+| 12.1 | Schema migration ordering flag-day | (recovery) | Dropped `project_members` in production before deploying new code; Jenny ran a recovery CREATE TABLE + INSERT to restore v1.2 path, then re-dropped after code deployed. |
+| 12.1 | D1 DEFAULT expression rejected | (split SQL) | `unixepoch(date('now','start of month'))` failed; switched to ADD NULL + UPDATE backfill per §12 fallback. |
+| 12.3 | Dashboard nav email invisible | `eb13f50` | Inline `style="color:#fff"` survived CSS swap. |
+| 12.3 | Dashboard ternary parse error | (extract) | Leading-`+` multi-line concat with continuation ternary. |
+| 12.3 | Dashboard postgres-js array CSV bug (bite #1) | (`WHERE col IN ${sql(arr)}`) | postgres-js serializes JS arrays as CSV. |
+| 12.4 | Connection name `SlackNaN` / `JiraNaN` | `5207b12` | Multi-line concat double-plus → unary plus → NaN. |
+| 12.5a | Import depth on `[id]/{index,messages}.js` | `ee4b946` | 3 `../` instead of 4. |
+| 12.5a | UUID[] INSERT serialization (bite #2) | `b9ff496` | postgres-js `${jsArr}` → `'uuid1,uuid2'` not `'{a,b}'`. |
+| 12.5a | UUID[] SELECT deserialization (bite #3) | `f81a39e` | postgres-js returns column as string literal `'{a,b}'`. |
+| 12.5a | aggregate_jira CSV bug AGAIN (bite #4) | `b5ce706` | `sql.unsafe` also CSV-serializes arrays. |
+| 12.5b | `/api/me` 200-with-null bug | `33c00cc` | Pages stuck on Loading because loadMe only redirected on 401. |
+| 12.5b | UUID[] CSV-array bug, fourth bite of dog (bite #5+) | `546a849` | parseProjectIds applied at 3 more API boundaries. |
+| 12.6 | D1 created_at unix-seconds → 1970 | `634d1e5` | new Date(seconds) interpreted as ms. |
+
+The CSV-array bug family bit FIVE times across 12.3+12.5a+12.5b.
+v1.3.1 has an overdue cleanup: extract `serializeUuidArray` /
+`parseUuidArray` to `functions/_lib/postgres_arrays.js`. Inline
+implementations now exist in:
+- `functions/api/cross-project/conversations.js`
+- `functions/api/cross-project/conversations/[id]/index.js`
+- `functions/api/cross-project/conversations/[id]/messages.js`
+- `functions/api/dashboard.js`
+- `functions/_lib/ai/aggregate_jira_compiler.js`
+Five copies of the same parse + the symmetric serialize. Overdue.
+
+### Launch gates — all PASS
+
+Per BLOCK_12_PLAN §11:
+1. US-1…US-6 + adversarial cells — PASS (12.5a AD-A…AD-E + 12.5b UI exercise)
+2. (reserved)
+3. `project_members` does not exist — PASS (12.1)
+4. D1 users new columns + default cap $20 — PASS (12.1)
+5. Dashboard mockup (a) layout — PASS (12.3)
+6. Cross-project surface (landing → creation → empty → populated → edit scope) reachable — PASS (12.5b SHIPPED)
+7. Workspace settings page editable + spend bar + workspace cap pause flow — PASS (12.6 SHIPPED)
+8. Paused banner triggers + per-project unaffected — PASS (12.6 D2/D9)
+9. Per-project settings replaces old; members tab gone — PASS (12.4)
+10. Seven curl-matrix files committed — PASS (12.1, 12.2, 12.3, 12.4, 12.5a, 12.5b, 12.6)
+12. messages.project_id audit grep — PASS (12.5b)
+13. Production bleed-in test — PASS (12.5b)
+
+### Carry-forward into v1.3.1 / v2.0
+
+- **`serializeUuidArray`/`parseUuidArray` helpers** in `functions/_lib/postgres_arrays.js` — five copies inline, overdue.
+- **Logo upload (US-17)** — initial-letter placeholders ship in v1.3 per decision N; R2 + multipart upload deferred to v1.3.1.
+- **Workspace cap email** — v1.2 cap-warning email path doesn't branch on `cap_kind`; workspace-variant wiring deferred.
+- **Workspace settings nav link** — discoverable only via paused-banner CTAs + direct URL in v1.3.
+- **DELETE cross-project conversation** flow (decision F7 deferred — no UI exposure in 12.5b).
+- **Expired-sprint visual in picker rows** — "ends today" for past sprints (cosmetic); port from dashboard.html (12.3).
+- **Cross-project chat tool-trace error rendering** — currently just ✓; port v1.2's error_message rendering for parity.
+- **D1 created_at fmtDate defensive parsing** — applied here; port to other places if any read D1 timestamps.
+- **Named persistent project sets**, **cross-project share URLs**, **`workspaces` table v2.0 prep**, **transition history** (cycle time / lead time prerequisites), **OR predicates in DSL**, **materialized jira_issues view** — all v1.4+ per PRD §6.
+
+### Block 13+ scope
+
+Block 12 is complete. Next block ordering is now a fresh planning
+session against PRD v1.4 (which doesn't exist yet — Jenny will draft
+based on v1.3.1 carry-forward + new requirements).
+
+**Production state**: `634d1e5` on `elinnoagent.com`.
+
+**Block 12 is COMPLETE. v1.3 is SHIPPED.** 🎉
+
+---
+
 ## Block 12.5a SHIPPED to main — 2026-05-20
 
 **Production state**: `dd6c6ff` on `elinnoagent.com` (was `65483c0`).
