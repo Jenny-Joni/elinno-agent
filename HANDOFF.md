@@ -4560,3 +4560,23 @@ auto-deploy → smoke-test production dashboard. Then move to 12.4
 
 **Production state**: `0975d00` on `elinnoagent.com`.
 Block 12.3 is **VERIFIED ON PREVIEW**; awaiting ff-merge approval.
+
+---
+
+## Block 12.3 SHIPPED to main — 2026-05-20
+
+**Production state**: `54ce80b` on `elinnoagent.com` (was `0975d00`).
+Fast-forward merge `0975d00..54ce80b` — 7 commits, including the
+held-over 12.2 SHIPPED doc + the full 12.3 cycle (feat → ternary fix
+→ debug catch → array-binding fix → expired-sprint visual + debug
+revert → docs).
+
+Production-smoke-tested: dashboard loads with greeting, hero,
+empty-state cross-project strip, and 4 project cards with the
+expired-sprint visual ("Ended N days ago" + grey progress bars).
+Workspace cap pill reads `$0.00 / $20.00`. No 500s, no debug stack
+in error envelope (catch reverted).
+
+Block 12.3 is **SHIPPED**. Sub-block 12.4 (Project settings rework
+— General + Connections tabs per mockups i.1 + i.2) is next per
+BLOCK_12_PLAN §6.12.4.
