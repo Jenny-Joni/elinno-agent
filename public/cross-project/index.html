@@ -147,7 +147,7 @@
       const r = await fetch('/api/me');
       if (r.status === 401) { redirectToLogin(); return null; }
       const data = await r.json().catch(() => null);
-      if (!data || !data.user) return null;
+      if (!data || !data.user) { redirectToLogin(); return null; }
       const me = data.user;
       const u = document.getElementById('navUser');
       if (u) u.textContent = me.email || '';

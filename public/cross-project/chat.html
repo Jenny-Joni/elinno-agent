@@ -424,7 +424,7 @@
       const r = await fetch('/api/me');
       if (r.status === 401) { redirectToLogin(); return null; }
       const data = await r.json().catch(() => null);
-      if (!data || !data.user) return null;
+      if (!data || !data.user) { redirectToLogin(); return null; }
       const u = document.getElementById('navUser');
       if (u) u.textContent = data.user.email || '';
       if (data.user.is_admin) {
