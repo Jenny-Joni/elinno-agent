@@ -179,6 +179,9 @@
       color: var(--color-text-body);
     }
     .pc-sprint-deadline.urgent { color: var(--color-danger); }
+    .pc-sprint-deadline.expired { color: var(--color-text-muted); font-weight: 400; }
+    /* Past-end-date sprint: same 100% fill as .exceeded, but grey not pink. */
+    .spend-bar.pc-bar-expired .spend-bar-fill { background: var(--color-text-muted); }
     .pc-dates {
       display: flex;
       justify-content: space-between;
@@ -429,12 +432,30 @@
       let body;
       if (sprint) {
         const counts = sprint.ticket_counts || { total: 0, open: 0, done: 0 };
-        const deadlineCls = (sprint.days_left != null && sprint.days_left <= 3) ? ' urgent' : '';
-        const deadlineLbl = sprint.days_left == null
-          ? ''
-          : sprint.days_left + ' day' + (sprint.days_left === 1 ? '' : 's') + ' left';
+        // Sprint "expired" = end_date in the past (Jira state may still say
+        // 'active' if not re-synced recently). Show "Ended N days ago" in
+        // muted text, no red-urgency. Progress bar greys out.
+        const nowMs = Date.now();
+        const endMs = sprint.end_date ? Date.parse(sprint.end_date) : null;
+        const isExpired = Number.isFinite(endMs) && endMs < nowMs;
+        const daysOverdue = isExpired
+          ? Math.ceil((nowMs - endMs) / (1000 * 60 * 60 * 24))
+          : null;
+        let deadlineCls = '';
+        let deadlineLbl = '';
+        if (isExpired) {
+          deadlineCls = ' expired';
+          deadlineLbl = 'Ended ' + daysOverdue + ' day' + (daysOverdue === 1 ? '' : 's') + ' ago';
+        } else if (sprint.days_left != null) {
+          deadlineCls = sprint.days_left <= 3 ? ' urgent' : '';
+          deadlineLbl = sprint.days_left + ' day' + (sprint.days_left === 1 ? '' : 's') + ' left';
+        }
         const pct = sprint.percent_complete == null ? 0 : sprint.percent_complete;
-        const pctClass = pct >= 75 ? 'exceeded' : (pct >= 50 ? 'warning' : 'healthy');
+        // Past sprints use the same .exceeded (100% bar) but render in
+        // muted grey rather than danger pink via the .pc-bar-expired
+        // override below.
+        const pctClass = isExpired ? 'exceeded pc-bar-expired'
+          : (pct >= 75 ? 'exceeded' : (pct >= 50 ? 'warning' : 'healthy'));
         body = ''
           + '<div class="pc-sprint-row">'
           +   '<div class="pc-sprint-name">' + escHtml(sprint.sprint_name) + '</div>'
