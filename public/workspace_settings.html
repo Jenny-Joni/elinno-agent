@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workspace settings — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/auth.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <style>
+    .ws-card {
+      background: #fff;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 18px 0 28px;
+    }
+    .ws-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 28px;
+    }
+    .ws-eyebrow {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--color-brand);
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .ws-title {
+      font-size: 24px;
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin: 0;
+    }
+    .ws-title strong { font-weight: 700; }
+    .ws-admin-pill {
+      font-size: 10px;
+      color: var(--color-brand);
+      background: var(--color-brand-tint);
+      padding: 5px 11px;
+      border-radius: 50px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .ws-section { margin-bottom: 36px; }
+    .ws-section:last-child { margin-bottom: 0; }
+    .ws-section-eyebrow {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--color-brand);
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .ws-section-title {
+      font-size: 20px;
+      font-weight: 500;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin: 0 0 8px;
+    }
+    .ws-section-title strong { font-weight: 700; }
+    .ws-section-sub {
+      font-size: 13px;
+      color: var(--color-text-body);
+      line-height: 1.45;
+      margin: 0 0 20px;
+      max-width: 560px;
+    }
+
+    .ws-spend-card {
+      background: var(--color-bg-soft);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .ws-spend-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+    .ws-spend-label {
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-body);
+    }
+    .ws-spend-status { font-size: 11px; font-weight: 500; }
+    .ws-spend-status.healthy { color: var(--color-success); }
+    .ws-spend-status.warning { color: var(--color-warning); }
+    .ws-spend-status.exceeded { color: var(--color-danger); }
+    .ws-spend-amount {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .ws-spend-amount-big {
+      font-size: 32px;
+      font-weight: 600;
+    }
+    .ws-spend-amount-cap {
+      font-size: 14px;
+      color: var(--color-text-muted);
+    }
+    .ws-spend-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-top: 14px;
+      margin-top: 14px;
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    .ws-spend-info i { font-size: 13px; color: var(--color-text-muted); flex-shrink: 0; }
+    .ws-spend-info span { font-size: 11px; color: var(--color-text-muted); line-height: 1.5; }
+    .ws-spend-info strong { color: var(--color-text-dark); }
+    .ws-spend-info a { color: var(--color-brand); font-weight: 500; text-decoration: none; }
+
+    .ws-cap-editor {
+      background: var(--color-bg-soft);
+      border-radius: 12px;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: center;
+    }
+    .ws-cap-label {
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-body);
+      margin-bottom: 8px;
+    }
+    .ws-cap-input-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .ws-cap-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .ws-cap-prefix {
+      position: absolute;
+      left: 14px;
+      font-size: 14px;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      pointer-events: none;
+    }
+    .ws-cap-input {
+      padding: 10px 14px 10px 26px;
+      background: #fff;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--color-text-dark);
+      width: 120px;
+    }
+    .ws-cap-suffix {
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+    .ws-cap-btn {
+      background: var(--color-brand);
+      color: var(--color-text-inverse);
+      border: none;
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+    .ws-cap-btn:disabled {
+      background: var(--color-text-muted);
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .ws-info-grid {
+      background: var(--color-bg-soft);
+      border-radius: 12px;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px 32px;
+    }
+    .ws-info-key {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+    .ws-info-val {
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ws-info-id { font-size: 11px; font-family: monospace; color: var(--color-text-body); }
+    .ws-info-meta { font-size: 13px; }
+    .ws-info-meta-muted { color: var(--color-text-muted); }
+    .ws-info-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: var(--color-brand);
+      color: var(--color-text-inverse);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 11px;
+    }
+
+    .ws-error {
+      background: rgba(255, 0, 131, 0.08);
+      border: 1px solid rgba(255, 0, 131, 0.3);
+      border-radius: 8px;
+      color: var(--color-error);
+      font-size: 12px;
+      padding: 10px 12px;
+      margin: 12px 0;
+    }
+    .ws-success {
+      background: var(--color-success-bg);
+      border: 1px solid var(--color-success);
+      border-radius: 8px;
+      color: var(--color-success);
+      font-size: 12px;
+      padding: 10px 12px;
+      margin: 12px 0;
+    }
+    .ws-loading {
+      padding: 80px 0;
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: 13px;
+    }
+    .ws-forbidden {
+      background: rgba(255, 0, 131, 0.08);
+      border: 1px solid rgba(255, 0, 131, 0.3);
+      color: var(--color-error);
+      border-radius: 12px;
+      padding: 18px;
+      margin: 20px 0;
+      font-size: 13px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <div class="app-nav-actions">
+        <span id="navUser" style="color:var(--color-text-body);opacity:.85;font-size:14px;"></span>
+        <a href="/cross-project/">Cross-project</a>
+        <a href="/projects.html">Projects</a>
+        <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <button id="logoutBtn" class="btn-nav">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <div class="custom-container">
+      <div id="wsRoot">
+        <div class="ws-loading">Loading workspace settings…</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function escHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function fmtUsd(n) {
+      const num = Number(n) || 0;
+      return '$' + num.toFixed(2);
+    }
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (!isFinite(d)) return '—';
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    function daysUntil(iso) {
+      if (!iso) return null;
+      const d = new Date(iso);
+      if (!isFinite(d)) return null;
+      const ms = d.getTime() - Date.now();
+      return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+    }
+    function redirectToLogin() {
+      location.replace('/login.html?next=' + encodeURIComponent('/workspace_settings.html'));
+    }
+
+    // ---- state ----
+    let me = null;
+    let ws = null;
+    let cp = null;
+    let saving = false;
+
+    async function loadMe() {
+      const r = await fetch('/api/me');
+      if (r.status === 401) { redirectToLogin(); return null; }
+      const data = await r.json().catch(() => null);
+      if (!data || !data.user) { redirectToLogin(); return null; }
+      const u = document.getElementById('navUser');
+      if (u) u.textContent = data.user.email || '';
+      if (data.user.is_admin) {
+        const a = document.getElementById('adminLink');
+        if (a) a.style.display = '';
+      }
+      const lo = document.getElementById('logoutBtn');
+      if (lo) {
+        lo.addEventListener('click', async () => {
+          try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+          location.replace('/login.html');
+        });
+      }
+      return data.user;
+    }
+
+    async function loadWorkspace() {
+      const r = await fetch('/api/workspace');
+      if (r.status === 401) { redirectToLogin(); return null; }
+      if (!r.ok) return null;
+      const data = await r.json().catch(() => null);
+      return data || null;
+    }
+
+    function spendVariant(used, cap) {
+      if (cap <= 0) return 'healthy';
+      const pct = (used / cap) * 100;
+      if (pct >= 100) return 'exceeded';
+      if (pct >= 80) return 'warning';
+      return 'healthy';
+    }
+    function statusLabel(used, cap, resetsAt) {
+      const days = daysUntil(resetsAt);
+      const daysText = days === null ? '' : ` · resets in ${days} day${days === 1 ? '' : 's'}`;
+      if (cap <= 0) return `Cap not set${daysText}`;
+      const pct = Math.max(0, Math.min(100, Math.round((used / cap) * 100)));
+      if (pct >= 100) return `${pct}% used · cap reached${daysText}`;
+      return `${pct}% used${daysText}`;
+    }
+    function spendPercent(used, cap) {
+      if (cap <= 0) return 0;
+      return Math.max(0, Math.min(100, (used / cap) * 100));
+    }
+
+    function initialOf(name) {
+      return (String(name || '?').trim()[0] || '?').toUpperCase();
+    }
+
+    function render() {
+      if (!me.is_admin) {
+        document.getElementById('wsRoot').innerHTML = ''
+          + '<div class="ws-card">'
+          +   '<div class="ws-forbidden">Only workspace admins can view workspace settings. Ask the workspace admin to change settings on your behalf.</div>'
+          + '</div>';
+        return;
+      }
+      const used = cp.spend_usd;
+      const cap = cp.cap_usd;
+      const variant = spendVariant(used, cap);
+      const pct = spendPercent(used, cap);
+      document.getElementById('wsRoot').innerHTML = ''
+        + '<div class="ws-card">'
+        +   '<div class="ws-head">'
+        +     '<div>'
+        +       '<div class="ws-eyebrow">Workspace · ' + escHtml(ws.name) + '</div>'
+        +       '<h1 class="ws-title">Workspace <strong>settings</strong></h1>'
+        +     '</div>'
+        +     '<span class="ws-admin-pill">Workspace admin</span>'
+        +   '</div>'
+        +   '<div class="ws-section">'
+        +     '<div class="ws-section-eyebrow">New in v1.3</div>'
+        +     '<h2 class="ws-section-title">Cross-project <strong>AI cap</strong></h2>'
+        +     '<p class="ws-section-sub">A monthly budget for cross-project chats only. When the cap is hit, cross-project chats pause until the next billing cycle. Per-project chats are unaffected.</p>'
+        +     '<div class="ws-spend-card">'
+        +       '<div class="ws-spend-head">'
+        +         '<div class="ws-spend-label">Spend this month</div>'
+        +         '<div class="ws-spend-status ' + variant + '">' + escHtml(statusLabel(used, cap, cp.resets_at)) + '</div>'
+        +       '</div>'
+        +       '<div class="ws-spend-amount">'
+        +         '<span class="ws-spend-amount-big">' + fmtUsd(used) + '</span>'
+        +         '<span class="ws-spend-amount-cap">of ' + fmtUsd(cap) + '</span>'
+        +       '</div>'
+        +       '<div class="spend-bar ' + variant + '">'
+        +         '<div class="spend-bar-track">'
+        +           '<div class="spend-bar-fill" style="width:' + pct + '%;"></div>'
+        +         '</div>'
+        +       '</div>'
+        +       '<div class="ws-spend-info">'
+        +         '<i class="ti ti-info-circle"></i>'
+        +         '<span>Each per-project chat has its own separate cap. View per-project caps in <a href="/projects.html">Projects</a>.</span>'
+        +       '</div>'
+        +     '</div>'
+        +     '<div class="ws-cap-editor">'
+        +       '<div>'
+        +         '<div class="ws-cap-label">Monthly cap</div>'
+        +         '<div class="ws-cap-input-row">'
+        +           '<div class="ws-cap-wrap">'
+        +             '<span class="ws-cap-prefix">$</span>'
+        +             '<input type="number" id="wsCapInput" class="ws-cap-input" value="' + escHtml(String(cap)) + '" min="0.01" max="10000" step="1" />'
+        +           '</div>'
+        +           '<span class="ws-cap-suffix">USD per month</span>'
+        +         '</div>'
+        +       '</div>'
+        +       '<button id="wsCapBtn" class="ws-cap-btn" type="button"' + (saving ? ' disabled' : '') + '>' + (saving ? 'Updating…' : 'Update cap') + '</button>'
+        +     '</div>'
+        +     '<div id="wsFeedback"></div>'
+        +   '</div>'
+        +   '<div class="ws-section">'
+        +     '<h2 class="ws-section-title" style="font-size:18px;">Workspace <strong>info</strong></h2>'
+        +     '<p class="ws-section-sub" style="font-size:12px;color:var(--color-text-muted);">Read-only metadata.</p>'
+        +     '<div class="ws-info-grid">'
+        +       '<div>'
+        +         '<div class="ws-info-key">Workspace name</div>'
+        +         '<div class="ws-info-val"><div class="ws-info-avatar">' + escHtml(initialOf(ws.name)) + '</div>' + escHtml(ws.name) + '</div>'
+        +       '</div>'
+        +       '<div>'
+        +         '<div class="ws-info-key">Workspace ID</div>'
+        +         '<div class="ws-info-id">' + escHtml(ws.id) + '</div>'
+        +       '</div>'
+        +       '<div>'
+        +         '<div class="ws-info-key">Plan</div>'
+        +         '<div class="ws-info-meta">' + escHtml(ws.plan === 'solo' ? 'Solo' : ws.plan) + ' <span class="ws-info-meta-muted">· ' + ws.user_count + ' user · ' + ws.project_count + ' project' + (ws.project_count === 1 ? '' : 's') + '</span></div>'
+        +       '</div>'
+        +       '<div>'
+        +         '<div class="ws-info-key">Created</div>'
+        +         '<div class="ws-info-meta">' + escHtml(fmtDate(ws.created_at)) + '</div>'
+        +       '</div>'
+        +     '</div>'
+        +   '</div>'
+        + '</div>';
+      wire();
+    }
+
+    function wire() {
+      const btn = document.getElementById('wsCapBtn');
+      if (btn) btn.addEventListener('click', onSaveCap);
+    }
+
+    function setFeedback(html) {
+      const el = document.getElementById('wsFeedback');
+      if (el) el.innerHTML = html;
+    }
+
+    async function onSaveCap() {
+      if (saving) return;
+      const input = document.getElementById('wsCapInput');
+      if (!input) return;
+      const v = Number(input.value);
+      if (!Number.isFinite(v) || v < 0.01 || v > 10000) {
+        setFeedback('<div class="ws-error">Cap must be between $0.01 and $10,000.</div>');
+        return;
+      }
+      saving = true;
+      setFeedback('');
+      render();
+      let res;
+      try {
+        res = await fetch('/api/workspace/limits', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cross_project_ai_monthly_cap_usd: v }),
+        });
+      } catch {
+        saving = false;
+        render();
+        setFeedback('<div class="ws-error">Couldn’t reach the server. Try again.</div>');
+        return;
+      }
+      if (res.status === 401) { redirectToLogin(); return; }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        saving = false;
+        render();
+        setFeedback('<div class="ws-error">' + escHtml(data.error || 'Could not update cap.') + '</div>');
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (data && data.workspace) {
+        cp.cap_usd = Number(data.workspace.cross_project_ai_monthly_cap_usd) || cp.cap_usd;
+      }
+      saving = false;
+      render();
+      setFeedback('<div class="ws-success">Cap updated to ' + fmtUsd(cp.cap_usd) + ' per month.</div>');
+    }
+
+    (async function boot() {
+      try {
+        me = await loadMe();
+        if (!me) return;
+        const data = await loadWorkspace();
+        if (!data || !data.workspace) {
+          document.getElementById('wsRoot').innerHTML = '<div class="ws-forbidden">Couldn’t load workspace settings. Refresh to try again.</div>';
+          return;
+        }
+        ws = data.workspace;
+        cp = data.cross_project_ai;
+        render();
+      } catch {
+        document.getElementById('wsRoot').innerHTML = '<div class="ws-forbidden">Couldn’t load workspace settings. Refresh to try again.</div>';
+      }
+    })();
+  </script>
+</body>
+</html>

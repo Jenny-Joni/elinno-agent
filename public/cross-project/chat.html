@@ -413,11 +413,22 @@
     let projectsById = new Map(); // workspace projects (full set, for scope-name lookup)
     let eligibleProjects = [];   // for edit-scope picker
     let messages = [];           // full list incl. role='tool'
-    let workspaceSpend = { used: 0, cap: 20 };
+    let workspaceSpend = { used: 0, cap: 20, resets_at: null };
     let inFlight = false;
     let editOpen = false;
     let editSelected = new Set();
     let editSubmitting = false;
+    let paused = false;
+
+    function isPaused() {
+      return workspaceSpend.cap > 0 && workspaceSpend.used >= workspaceSpend.cap;
+    }
+    function fmtResetDate(iso) {
+      if (!iso) return 'next month';
+      const d = new Date(iso);
+      if (!isFinite(d)) return 'next month';
+      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    }
 
     // ---------- data loaders ----------
     async function loadMe() {
@@ -465,16 +476,31 @@
       return data && Array.isArray(data.messages) ? data.messages : [];
     }
     async function loadWorkspaceSpend() {
-      // Reuses /api/dashboard to read workspace cap + MTD spend.
-      // Cheap: same endpoint the dashboard renders from, server-cached
-      // patterns already in place.
-      const r = await fetch('/api/dashboard');
-      if (!r.ok) return { used: 0, cap: 20 };
-      const data = await r.json().catch(() => null);
-      if (!data || !data.workspace) return { used: 0, cap: 20 };
+      // 12.6: prefer /api/workspace (has resets_at + period_start) over
+      // /api/dashboard. The dashboard endpoint stays a fallback because
+      // it computes the same spend from the same SQL — both are safe
+      // sources of truth.
+      const r = await fetch('/api/workspace');
+      if (r.ok) {
+        const data = await r.json().catch(() => null);
+        if (data && data.cross_project_ai) {
+          return {
+            used: Number(data.cross_project_ai.spend_usd) || 0,
+            cap: Number(data.cross_project_ai.cap_usd) || 20,
+            resets_at: data.cross_project_ai.resets_at || null,
+          };
+        }
+      }
+      // Fallback for non-admin sessions where /api/workspace might 401
+      // (it doesn't right now — it's session-only — but defensive).
+      const r2 = await fetch('/api/dashboard');
+      if (!r2.ok) return { used: 0, cap: 20, resets_at: null };
+      const data2 = await r2.json().catch(() => null);
+      if (!data2 || !data2.workspace) return { used: 0, cap: 20, resets_at: null };
       return {
-        used: Number(data.workspace.cross_project_spend_usd) || 0,
-        cap: Number(data.workspace.cross_project_cap_usd) || 20,
+        used: Number(data2.workspace.cross_project_spend_usd) || 0,
+        cap: Number(data2.workspace.cross_project_cap_usd) || 20,
+        resets_at: null,
       };
     }
     async function loadEligibleForEdit() {
@@ -625,23 +651,51 @@
       const allMsgs = messages;
       return visible.map(m => renderMessage(m, allMsgs)).join('');
     }
+    function renderPausedBanner() {
+      if (!isPaused()) return '';
+      const resetText = fmtResetDate(workspaceSpend.resets_at);
+      const names = scopeNames();
+      const namesText = names.length > 0 ? names.join(', ') : 'individual projects';
+      return ''
+        + '<div class="paused-banner" style="margin:0 20px 16px;">'
+        +   '<div class="paused-banner-inner">'
+        +     '<div class="paused-banner-icon"><i class="ti ti-alert-triangle"></i></div>'
+        +     '<div class="paused-banner-body">'
+        +       '<div class="paused-banner-title">Cross-project chats paused</div>'
+        +       '<p class="paused-banner-text">You’ve reached the workspace cap of <strong>' + fmtUsd(workspaceSpend.cap) + '</strong> for cross-project AI this month. Per-project chats (' + escHtml(namesText) + ') are unaffected and still work. Cross-project resumes automatically on <strong>' + escHtml(resetText) + '</strong>.</p>'
+        +       '<div class="paused-banner-actions">'
+        +         '<a class="btn btn-warning" href="/workspace_settings.html">Raise cap ↗</a>'
+        +         '<a class="btn btn-quiet" href="/workspace_settings.html">View workspace settings</a>'
+        +       '</div>'
+        +     '</div>'
+        +   '</div>'
+        + '</div>';
+    }
     function renderComposer() {
-      const placeholder = (() => {
-        const names = scopeNames();
-        if (names.length === 0) return 'Ask…';
-        if (names.length <= 3) return 'Ask across ' + names.join(' and ') + '…';
-        return 'Ask across ' + names.slice(0, 2).join(', ') + ' and ' + (names.length - 2) + ' more…';
-      })();
+      const pausedNow = isPaused();
+      const placeholder = pausedNow
+        ? 'Cross-project is paused this month'
+        : (() => {
+            const names = scopeNames();
+            if (names.length === 0) return 'Ask…';
+            if (names.length <= 3) return 'Ask across ' + names.join(' and ') + '…';
+            return 'Ask across ' + names.slice(0, 2).join(', ') + ' and ' + (names.length - 2) + ' more…';
+          })();
+      const composerRowStyle = pausedNow ? ' style="opacity:0.55;cursor:not-allowed;"' : '';
+      const footerCap = pausedNow
+        ? 'Cross-project AI · <strong style="color:var(--color-warning);">' + fmtUsd(workspaceSpend.cap) + ' / ' + fmtUsd(workspaceSpend.cap) + ' — cap reached</strong>'
+        : 'Cross-project AI · workspace cap ' + fmtUsd(workspaceSpend.used) + ' / ' + fmtUsd(workspaceSpend.cap) + ' this month';
+      const footerHint = pausedNow ? 'Paused' : '↵ to send';
       return ''
         + '<div class="cp-composer">'
         +   '<div class="cp-composer-error" id="cpComposerError" style="display:none;"></div>'
-        +   '<div class="cp-composer-row">'
-        +     '<textarea class="cp-composer-input" id="cpInput" rows="1" placeholder="' + escHtml(placeholder) + '" aria-label="Message"></textarea>'
+        +   '<div class="cp-composer-row"' + composerRowStyle + '>'
+        +     '<textarea class="cp-composer-input" id="cpInput" rows="1" placeholder="' + escHtml(placeholder) + '" aria-label="Message"' + (pausedNow ? ' disabled' : '') + '></textarea>'
         +     '<button class="cp-composer-send" id="cpSend" type="button" disabled aria-label="Send"><i class="ti ti-send"></i></button>'
         +   '</div>'
         +   '<div class="cp-composer-footer">'
-        +     '<div>Cross-project AI · workspace cap ' + fmtUsd(workspaceSpend.used) + ' / ' + fmtUsd(workspaceSpend.cap) + ' this month</div>'
-        +     '<div>↵ to send</div>'
+        +     '<div>' + footerCap + '</div>'
+        +     '<div>' + footerHint + '</div>'
         +   '</div>'
         + '</div>';
     }
@@ -651,6 +705,7 @@
       root.innerHTML = ''
         + '<div class="cp-chat-shell">'
         +   renderHead()
+        +   renderPausedBanner()
         +   '<div class="cp-chat-body" id="cpBody">' + renderBody() + '</div>'
         +   renderComposer()
         + '</div>';
@@ -748,6 +803,25 @@
       }
       if (res.status === 401) { redirectToLogin(); return; }
       if (res.status === 403) { location.replace('/cross-project/'); return; }
+      if (res.status === 402) {
+        // 12.6: cross-project workspace cap paused envelope. Flip the
+        // chat into paused state — banner renders, composer disables.
+        const data = await res.json().catch(() => ({}));
+        if (data && typeof data.cap_usd === 'number') {
+          workspaceSpend = {
+            used: Number(data.spend_usd) || workspaceSpend.used,
+            cap: Number(data.cap_usd) || workspaceSpend.cap,
+            resets_at: data.resets_at || workspaceSpend.resets_at,
+          };
+          // Force used >= cap so isPaused() returns true even with rounding.
+          if (workspaceSpend.used < workspaceSpend.cap) {
+            workspaceSpend.used = workspaceSpend.cap;
+          }
+        }
+        inFlight = false;
+        render();
+        return;
+      }
       if (res.status === 429) {
         const data = await res.json().catch(() => ({}));
         restoreComposer();
