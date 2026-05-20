@@ -97,9 +97,13 @@ export async function onRequestPatch({ request, env, params }) {
     const auth = await authorizeProjectSet(sql, userId, body.project_ids);
     if (!auth.ok) return json(auth, { status: 400 });
 
+    // Build Postgres array literal manually (same lesson as
+    // conversations.js POST — `${jsArr}` in a tagged template serializes
+    // as CSV which fails to parse as uuid[]).
+    const projectIdsLiteral = '{' + auth.projectIds.join(',') + '}';
     const [updated] = await sql`
       UPDATE conversations
-         SET project_ids = ${auth.projectIds},
+         SET project_ids = ${projectIdsLiteral}::uuid[],
              updated_at  = NOW()
        WHERE id      = ${params.id}
          AND user_id = ${userId}

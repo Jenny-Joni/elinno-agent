@@ -63,9 +63,17 @@ export async function onRequestPost({ request, env }) {
 
     // Insert with project_id=NULL (cross-project sentinel), project_ids
     // = authorized array, label, workspace user id, default title.
+    //
+    // postgres-js array binding gotcha: `${jsArr}` in a tagged template
+    // serializes as CSV ('a,b,c'), which then fails to parse as uuid[].
+    // Build the Postgres array literal '{a,b,c}' manually and cast.
+    // (Same lesson as dashboard.js 12.3 ANY() fix and refresh_runner's
+    // `IN ${sql(arr)}` pattern — none of those apply here because this
+    // is an INSERT into a UUID[] column, not an IN/ANY filter.)
+    const projectIdsLiteral = '{' + auth.projectIds.join(',') + '}';
     const [conv] = await sql`
       INSERT INTO conversations (project_id, project_ids, label, user_id, title)
-      VALUES (NULL, ${auth.projectIds}, ${label}, ${userId}, 'New cross-project chat')
+      VALUES (NULL, ${projectIdsLiteral}::uuid[], ${label}, ${userId}, 'New cross-project chat')
       RETURNING id::text     AS id,
                 project_id,
                 project_ids,
