@@ -5,195 +5,386 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Cross-project chat — Elinno Agent</title>
   <meta name="robots" content="noindex" />
-  <link rel="stylesheet" href="/auth.css" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <link rel="stylesheet" href="/auth.css" />
   <style>
-    .cp-chat-shell {
-      background: #fff;
-      border: 1px solid var(--color-border);
-      border-radius: 12px;
-      overflow: hidden;
+    /* Cross-project chat per v1.4 mockup screen-12. v1.4 components
+       (.brandmark/.wordmark/.app-nav/.btn--*/.conv-item/.menu) live
+       in auth.css; this <style> only positions them + defines the
+       chat-local rules: sidebar grid, scope row, scopechips, mobile
+       Across (N) ▾ popover, conv-row kebab menu (per-row, Block 13.5
+       pattern from project.html), conv toast.
+
+       Block 13.6 (v1.4 Phase 6) consolidates 13.6d-1 (nav + tokens +
+       sticky-topbar), 13.6d-2 (read-only Across row, drop edit-scope
+       overlay), 13.6d-3 (.conv-row sidebar port), 13.6d-5 (mobile
+       Across popover). */
+
+    .xc-shell {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 18px 20px 30px;
+    }
+    .xc-grid {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 18px;
+      min-height: calc(100vh - 130px);
+      align-items: stretch;
+    }
+
+    /* Sidebar */
+    .xc-sidebar {
+      background: var(--bg-subtle);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 16px 12px;
       display: flex;
       flex-direction: column;
-      min-height: 75vh;
-      margin: 18px 0 28px;
+      min-height: 0;
     }
-    .cp-chat-head {
-      padding: 18px 20px;
-      border-bottom: 1px solid var(--color-border);
+    .xc-sidebar__head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 14px;
+      padding: 0 6px;
+      margin-bottom: 12px;
     }
-    .cp-chat-head-left {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      min-width: 0;
-    }
-    .cp-chat-head-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 8px;
-      background: var(--color-brand-tint);
-      color: var(--color-brand);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      font-size: 18px;
-    }
-    .cp-chat-head-meta { min-width: 0; }
-    .cp-chat-head-row1 {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
-      flex-wrap: wrap;
-    }
-    .cp-edit-scope-btn {
-      font-size: 11px;
-      color: var(--color-brand);
-      font-weight: 500;
-      padding: 6px 12px;
-      border-radius: 8px;
-      border: 1px solid rgba(98, 52, 252, 0.3);
-      background: transparent;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      cursor: pointer;
-      font-family: inherit;
-      flex-shrink: 0;
-    }
-    .cp-edit-scope-btn:hover { background: var(--color-brand-tint); }
-
-    .cp-chat-body {
-      flex: 1;
-      min-height: 0;
-      padding: 24px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      overflow-y: auto;
-    }
-
-    .cp-empty {
-      padding: 48px 24px 16px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .cp-empty-icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 12px;
-      background: var(--color-brand-tint);
-      color: var(--color-brand);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 20px;
-      font-size: 32px;
-    }
-    .cp-empty-title {
-      font-size: 20px;
-      font-weight: 500;
-      text-transform: uppercase;
-      line-height: 1.15;
-      margin: 0 0 10px;
-      text-align: center;
-    }
-    .cp-empty-title strong { font-weight: 700; }
-    .cp-empty-sub {
-      font-size: 13px;
-      color: var(--color-text-body);
-      line-height: 1.45;
-      max-width: 480px;
-      text-align: center;
-      margin: 0 0 32px;
-    }
-    .cp-suggestions {
-      width: 100%;
-      max-width: 600px;
-    }
-    .cp-suggestions-label {
+    .xc-sidebar__label {
+      font-family: var(--font);
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.14em;
-      color: var(--color-text-muted);
-      font-weight: 500;
-      margin-bottom: 12px;
-      text-align: center;
+      color: var(--text-3);
+      font-weight: 600;
     }
-    .cp-suggestions-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-    .cp-suggestion {
-      background: var(--color-bg-soft);
-      border: none;
-      border-radius: 10px;
-      padding: 14px 16px;
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      text-align: left;
-      cursor: pointer;
-      font-family: inherit;
-      color: inherit;
-    }
-    .cp-suggestion:hover { background: var(--color-brand-tint); }
-    .cp-suggestion-icon {
-      width: 28px;
-      height: 28px;
+    .xc-sidebar__new {
+      width: 24px;
+      height: 24px;
+      border: 0.5px solid var(--border-input);
       border-radius: 8px;
-      background: var(--color-brand-tint);
-      color: var(--color-brand);
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
-      font-size: 14px;
+      font-size: 15px;
+      color: var(--brand);
+      background: var(--bg);
+      text-decoration: none;
+      cursor: pointer;
     }
-    .cp-suggestion-text {
-      font-size: 12px;
-      line-height: 1.45;
-      font-weight: 500;
+    .xc-sidebar__new:hover { background: var(--brand-soft); border-color: var(--brand); }
+    .xc-conv-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
     }
 
-    .cp-composer {
-      border-top: 1px solid var(--color-border);
-      padding: 14px 18px;
-      background: #fff;
+    /* .conv-row + ⋯ menu — ported from project.html Block 13.5.
+       The .conv-item / .conv-title / .conv-meta + .menu / .kebab-btn
+       base styles are in auth.css; this block only adds the wrapper
+       positioning + visibility behavior. */
+    .conv-item {
+      padding: 9px 11px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text-2);
+      display: block;
+      transition: background var(--t-fast, 0.1s ease-out), color var(--t-fast, 0.1s ease-out);
     }
-    .cp-composer-row {
-      background: var(--color-bg-soft);
+    .conv-item:hover { background: var(--brand-soft); color: var(--text); }
+    .conv-row.active .conv-item {
+      background: var(--brand-tint);
+      color: var(--brand-strong);
+      font-weight: 500;
+    }
+    .conv-title {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: block;
+    }
+    .conv-row { position: relative; }
+    .conv-row .conv-item { padding-right: 32px; }
+    .conv-row .conv-title-wrap { display: block; min-width: 0; max-width: 100%; }
+    .conv-row .conv-rename-input {
+      padding: 2px 6px;
+      border: 1px solid var(--brand);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+      box-shadow: 0 0 0 3px var(--brand-hair);
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .conv-menu-trigger {
+      position: absolute;
+      top: 6px;
+      right: 4px;
+      opacity: 0;
+      transition: opacity var(--t-fast, 0.1s ease-out), background var(--t-fast, 0.1s ease-out);
+      z-index: 2;
+      width: 24px;
+      height: 24px;
+      font-size: 14px;
+    }
+    .conv-row:hover .conv-menu-trigger,
+    .conv-menu-trigger[aria-expanded="true"] {
+      opacity: 1;
+    }
+    .conv-menu {
+      top: 30px;
+      right: 4px;
+      min-width: 170px;
+    }
+
+    /* Conv toast — floating notice for delete + undo. */
+    .conv-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: var(--r-sm);
+      font-family: var(--font);
+      font-size: 13px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+      z-index: 2000;
+      display: none;
+    }
+    .conv-toast .btn--ghost {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      border: 0.5px solid rgba(255, 255, 255, 0.3);
+    }
+    .conv-toast .btn--ghost:hover { background: rgba(255, 255, 255, 0.2); }
+    .conv-toast-warn { background: #b80056; }
+
+    /* Main column */
+    .xc-main {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-md);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .xc-crumb {
+      padding: 14px 22px 0;
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text-3);
+    }
+    .xc-crumb a { color: var(--brand); text-decoration: none; }
+
+    /* Read-only "Across" scope row */
+    .xc-across {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex-wrap: wrap;
+      padding: 12px 22px 14px;
+      border-bottom: 0.5px solid var(--border-soft);
+    }
+    .xc-across__label {
+      font-family: var(--font);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-3);
+      font-weight: 600;
+    }
+    .scopechip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px 4px 4px;
+      border-radius: var(--r-pill);
+      background: var(--brand-soft);
+      border: 0.5px solid var(--brand-soft-border);
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .scopechip__icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    /* Mobile Across (N) ▾ button + popover */
+    .xc-across-mobile { display: none; }
+    .xc-across-pop {
+      position: absolute;
+      right: 0;
+      top: 42px;
+      z-index: 6;
+      padding: 6px;
+      width: 200px;
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-md);
+      box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.22);
+      display: none;
+    }
+    .xc-across-pop.open { display: block; }
+    .xc-across-pop__label {
+      font-family: var(--font);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-faint);
+      padding: 7px 10px 5px;
+    }
+    .xc-across-pop__row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text);
+      padding: 8px 10px;
+    }
+    .xc-across-pop__row .scopechip__icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      font-size: 11px;
+    }
+    .xc-across-pop__foot {
+      font-family: var(--font);
+      font-size: 10px;
+      color: var(--text-faint);
+      padding: 6px 10px 4px;
+      border-top: 0.5px solid #f2f2f2;
+      margin-top: 4px;
+    }
+
+    /* Chat body + composer */
+    .xc-body {
+      flex: 1;
+      min-height: 0;
+      padding: 22px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      overflow-y: auto;
+    }
+
+    .xc-empty {
+      margin: 40px auto;
+      max-width: 460px;
+      text-align: center;
+    }
+    .xc-empty__icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 14px;
+      font-size: 22px;
+    }
+    .xc-empty__title {
+      font-family: var(--font);
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text);
+      margin: 0 0 8px;
+    }
+    .xc-empty__title strong { font-weight: 600; }
+    .xc-empty__sub {
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text-2);
+      margin: 0 0 18px;
+      line-height: 1.5;
+    }
+    .xc-suggestions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      text-align: left;
+    }
+    .xc-suggestion {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 13px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text);
+      text-align: left;
+    }
+    .xc-suggestion:hover { background: var(--brand-soft); border-color: var(--brand-soft-border); }
+    .xc-suggestion__icon { color: var(--brand); flex-shrink: 0; font-size: 14px; }
+
+    .xc-composer {
+      border-top: 0.5px solid var(--border-soft);
+      padding: 14px 22px;
+      background: var(--bg);
+    }
+    .xc-composer__error {
+      background: #fff1f7;
+      border: 0.5px solid #f6c1d8;
+      color: #b80056;
+      border-radius: var(--r-sm);
+      padding: 8px 12px;
+      font-family: var(--font);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .xc-composer__row {
+      background: var(--bg-subtle);
+      border: 0.5px solid var(--border);
       border-radius: 10px;
       padding: 8px 10px 8px 14px;
       display: flex;
       align-items: flex-end;
       gap: 10px;
     }
-    .cp-composer-input {
+    .xc-composer__input {
       flex: 1;
       background: transparent;
       border: none;
-      font-family: inherit;
+      font-family: var(--font);
       font-size: 13px;
-      color: var(--color-text-dark);
+      color: var(--text);
       resize: none;
       min-height: 22px;
       max-height: 180px;
       line-height: 1.45;
       padding: 6px 0;
     }
-    .cp-composer-input:focus { outline: none; }
-    .cp-composer-send {
-      background: var(--color-brand);
+    .xc-composer__input:focus { outline: none; }
+    .xc-composer__send {
+      background: var(--brand);
       color: #fff;
       border: none;
       width: 32px;
@@ -204,160 +395,165 @@
       justify-content: center;
       cursor: pointer;
       flex-shrink: 0;
-      font-family: inherit;
     }
-    .cp-composer-send:disabled {
-      background: var(--color-text-muted);
+    .xc-composer__send:disabled {
+      background: var(--text-3);
       opacity: 0.6;
       cursor: not-allowed;
     }
-    .cp-composer-footer {
+    .xc-composer__footer {
       margin-top: 8px;
       display: flex;
       justify-content: space-between;
+      font-family: var(--font);
       font-size: 10px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       padding: 0 2px;
     }
-    .cp-composer-error {
-      background: rgba(255, 0, 131, 0.08);
-      border: 1px solid rgba(255, 0, 131, 0.3);
-      color: var(--color-error);
-      border-radius: 8px;
-      padding: 8px 12px;
-      font-size: 12px;
-      margin-bottom: 8px;
-    }
 
-    .cp-loading, .cp-error {
-      padding: 80px 0;
+    .xc-loading,
+    .xc-error {
+      padding: 60px 0;
       text-align: center;
+      font-family: var(--font);
       font-size: 13px;
+      color: var(--text-3);
     }
-    .cp-loading { color: var(--color-text-muted); }
-    .cp-error {
-      background: rgba(255, 0, 131, 0.08);
-      border: 1px solid rgba(255, 0, 131, 0.3);
-      border-radius: 12px;
-      color: var(--color-error);
-      margin: 20px 0;
+    .xc-error {
+      color: #b80056;
+      background: #fff1f7;
+      border: 0.5px solid #f6c1d8;
+      border-radius: var(--r-md);
+      padding: 18px;
+      margin: 18px;
     }
 
-    /* Edit-scope inline modal overlay */
-    .cp-edit-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.55);
-      display: none;
+    /* Paused banner */
+    .xc-paused {
+      margin: 18px 22px 0;
+      padding: 14px 16px;
+      background: #fff8e6;
+      border: 0.5px solid #f0d68a;
+      border-radius: var(--r-md);
+      display: flex;
+      gap: 12px;
       align-items: flex-start;
-      justify-content: center;
-      padding: 24px 16px;
-      z-index: 100;
-      overflow-y: auto;
     }
-    .cp-edit-overlay.open { display: flex; }
-    .cp-edit-modal {
-      max-width: 600px;
-      width: 100%;
-      background: #fff;
-      border-radius: 20px;
-      overflow: hidden;
-      color: var(--color-text-dark);
-    }
-    .cp-edit-head {
-      padding: 22px 24px 18px;
-      border-bottom: 1px solid var(--color-border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-    }
-    .cp-edit-head-left { flex: 1; min-width: 0; }
-    .cp-edit-eyebrow {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      color: var(--color-brand);
-      font-weight: 500;
-      margin-bottom: 8px;
-    }
-    .cp-edit-title-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
-      flex-wrap: wrap;
-    }
-    .cp-edit-title {
+    .xc-paused__icon {
+      color: #8a6a17;
       font-size: 18px;
-      font-weight: 500;
-      text-transform: uppercase;
-      line-height: 1.15;
-      margin: 0;
+      flex-shrink: 0;
+      margin-top: 1px;
     }
-    .cp-edit-sub {
-      font-size: 11px;
-      color: var(--color-text-muted);
-      line-height: 1.4;
-      margin: 0;
+    .xc-paused__body { flex: 1; }
+    .xc-paused__title {
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0 0 4px;
     }
-    .cp-edit-section { padding: 20px 24px 0; }
-    .cp-edit-foot {
-      padding: 16px 24px;
-      background: var(--color-bg-soft);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-top: 1px solid var(--color-border);
-    }
-    .cp-edit-error {
-      background: rgba(255, 0, 131, 0.08);
-      border: 1px solid rgba(255, 0, 131, 0.3);
-      border-radius: 8px;
-      color: var(--color-error);
+    .xc-paused__text {
+      font-family: var(--font);
       font-size: 12px;
-      padding: 10px 12px;
-      margin: 0 24px 12px;
+      color: var(--text-2);
+      line-height: 1.5;
+      margin: 0 0 8px;
+    }
+    .xc-paused__actions {
+      display: flex;
+      gap: 8px;
     }
 
-    /* Citation chip prefix is in auth.css; ensure inside chat-citation the
-       prefix sits inline before the title. */
-    .chat-citation .citation-chip-prefix { margin-right: 6px; }
+    /* Mobile (≤700px): collapse sidebar; scope row becomes Across (N) ▾. */
+    @media (max-width: 700px) {
+      .xc-shell { padding: 12px 12px 30px; }
+      .xc-grid { grid-template-columns: 1fr; gap: 0; }
+      .xc-sidebar { display: none; }
+      .xc-across { display: none; }
+      .xc-across-mobile {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 12px 18px 13px;
+        border-bottom: 0.5px solid var(--border-soft);
+        position: relative;
+      }
+      .xc-across-mobile__title {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-family: var(--font);
+        font-size: 12px;
+        color: var(--text-2);
+        border: 0.5px solid var(--border);
+        border-radius: 9px;
+        padding: 7px 12px;
+        min-width: 0;
+        flex: 1;
+      }
+      .xc-across-mobile__title i { color: var(--brand); flex-shrink: 0; font-size: 15px; }
+      .xc-across-mobile__title span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .xc-across-mobile__btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--font);
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--brand-strong);
+        background: var(--brand-tint);
+        border: 0.5px solid var(--brand);
+        border-radius: 9px;
+        padding: 7px 12px;
+        cursor: pointer;
+      }
+      .xc-body { padding: 18px 18px; }
+      .xc-composer { padding: 12px 18px; }
+    }
   </style>
 </head>
 <body>
-  <nav class="app-nav">
+
+  <nav class="app-nav" data-sticky-topbar>
     <div class="app-nav-inner">
-      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <a href="/dashboard.html" class="app-brand" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+        <span class="brandmark"></span>
+        <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
+      </a>
       <div class="app-nav-actions">
-        <span id="navUser" style="color:var(--color-text-body);opacity:.85;font-size:14px;"></span>
-        <a href="/cross-project/">Cross-project</a>
+        <a href="/dashboard.html">Dashboard</a>
         <a href="/projects.html">Projects</a>
         <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
-        <button id="logoutBtn" class="btn-nav">Log out</button>
+        <span id="navUserAvatar" class="pcard__avatar" style="width:28px;height:28px;background:var(--brand);color:#fff;font-size:11px;border-radius:50%;" title=""></span>
+        <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
       </div>
     </div>
   </nav>
 
-  <main class="app-main">
-    <div class="custom-container">
-      <div id="cpRoot">
-        <div class="cp-loading">Loading chat…</div>
+  <main style="background:var(--bg-subtle);min-height:calc(100vh - 70px);">
+    <div class="xc-shell">
+      <div id="xcRoot">
+        <div class="xc-loading">Loading chat…</div>
       </div>
     </div>
   </main>
 
-  <div class="cp-edit-overlay" id="cpEditOverlay"></div>
+  <script src="/_lib/sticky-topbar.js" defer></script>
 
   <script>
+  (function () {
+    'use strict';
+
     // ---------- utils ----------
-    function escHtml(s) {
-      return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
     function fmtUsd(n) {
       const num = Number(n) || 0;
@@ -367,8 +563,7 @@
       if (!iso) return '';
       const d = new Date(iso);
       if (!isFinite(d)) return '';
-      const diffMs = Date.now() - d.getTime();
-      const diffMin = Math.floor(diffMs / 60000);
+      const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
       if (diffMin < 1) return 'just now';
       if (diffMin < 60) return diffMin + 'm ago';
       const diffHr = Math.floor(diffMin / 60);
@@ -377,27 +572,14 @@
       if (diffDay < 7) return diffDay + 'd ago';
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
-    function fmtDate(iso) {
-      if (!iso) return '';
-      const d = new Date(iso);
-      if (!isFinite(d)) return '';
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
     function initialOf(name) {
       return (String(name || '?').trim()[0] || '?').toUpperCase();
-    }
-    function jiraSvg(size) {
-      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-label="Jira"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z"/></svg>';
     }
     function naturalNameList(names) {
       if (names.length === 0) return '';
       if (names.length === 1) return names[0];
       if (names.length === 2) return names[0] + ' and ' + names[1];
       return names.slice(0, -1).join(', ') + ', and ' + names[names.length - 1];
-    }
-    function deriveUserInitial(email) {
-      const local = String(email || '').split('@')[0];
-      return (local[0] || '?').toUpperCase();
     }
     function getConvId() {
       const sp = new URLSearchParams(location.search);
@@ -409,16 +591,12 @@
 
     // ---------- state ----------
     let me = null;
-    let conv = null;            // { id, project_ids, title, ... }
-    let projectsById = new Map(); // workspace projects (full set, for scope-name lookup)
-    let eligibleProjects = [];   // for edit-scope picker
-    let messages = [];           // full list incl. role='tool'
+    let conv = null;            // active conversation
+    let conversations = [];     // sidebar list
+    let projectsById = new Map();
+    let messages = [];
     let workspaceSpend = { used: 0, cap: 20, resets_at: null };
     let inFlight = false;
-    let editOpen = false;
-    let editSelected = new Set();
-    let editSubmitting = false;
-    let paused = false;
 
     function isPaused() {
       return workspaceSpend.cap > 0 && workspaceSpend.used >= workspaceSpend.cap;
@@ -435,21 +613,7 @@
       const r = await fetch('/api/me');
       if (r.status === 401) { redirectToLogin(); return null; }
       const data = await r.json().catch(() => null);
-      if (!data || !data.user) { redirectToLogin(); return null; }
-      const u = document.getElementById('navUser');
-      if (u) u.textContent = data.user.email || '';
-      if (data.user.is_admin) {
-        const a = document.getElementById('adminLink');
-        if (a) a.style.display = '';
-      }
-      const lo = document.getElementById('logoutBtn');
-      if (lo) {
-        lo.addEventListener('click', async () => {
-          try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
-          location.replace('/login.html');
-        });
-      }
-      return data.user;
+      return data && data.user ? data.user : null;
     }
     async function loadProjects() {
       const r = await fetch('/api/projects');
@@ -468,6 +632,13 @@
       const data = await r.json().catch(() => null);
       return data && data.conversation ? data.conversation : null;
     }
+    async function loadConvList() {
+      const r = await fetch('/api/cross-project/conversations');
+      if (r.status === 401) { redirectToLogin(); return []; }
+      if (!r.ok) return [];
+      const data = await r.json().catch(() => null);
+      return data && Array.isArray(data.conversations) ? data.conversations : [];
+    }
     async function loadMessages(id) {
       const r = await fetch('/api/cross-project/conversations/' + encodeURIComponent(id) + '/messages');
       if (r.status === 401) { redirectToLogin(); return []; }
@@ -476,10 +647,6 @@
       return data && Array.isArray(data.messages) ? data.messages : [];
     }
     async function loadWorkspaceSpend() {
-      // 12.6: prefer /api/workspace (has resets_at + period_start) over
-      // /api/dashboard. The dashboard endpoint stays a fallback because
-      // it computes the same spend from the same SQL — both are safe
-      // sources of truth.
       const r = await fetch('/api/workspace');
       if (r.ok) {
         const data = await r.json().catch(() => null);
@@ -491,8 +658,6 @@
           };
         }
       }
-      // Fallback for non-admin sessions where /api/workspace might 401
-      // (it doesn't right now — it's session-only — but defensive).
       const r2 = await fetch('/api/dashboard');
       if (!r2.ok) return { used: 0, cap: 20, resets_at: null };
       const data2 = await r2.json().catch(() => null);
@@ -503,44 +668,333 @@
         resets_at: null,
       };
     }
-    async function loadEligibleForEdit() {
-      const r = await fetch('/api/cross-project/eligible-projects');
-      if (!r.ok) return [];
-      const data = await r.json().catch(() => null);
-      return data && Array.isArray(data.projects) ? data.projects : [];
+
+    // ---------- scope helpers ----------
+    function scopeProjects() {
+      const ids = Array.isArray(conv.project_ids) ? conv.project_ids : [];
+      return ids.map(id => ({
+        id,
+        name: (projectsById.get(id) || {}).name || 'Project',
+      }));
+    }
+    function scopeNames() {
+      return scopeProjects().map(p => p.name);
     }
 
-    // ---------- header render ----------
-    function scopeNames() {
-      const ids = Array.isArray(conv.project_ids) ? conv.project_ids : [];
-      return ids.map(id => (projectsById.get(id) || {}).name || 'Project');
+    // ---------- nav ----------
+    function wireNav(user) {
+      const avatar = document.getElementById('navUserAvatar');
+      if (avatar) {
+        const label = (user && user.display_name) || (user && user.email) || '';
+        avatar.textContent = initialOf(label);
+        avatar.title = label;
+      }
+      if (user && user.is_admin) {
+        const adminLink = document.getElementById('adminLink');
+        if (adminLink) adminLink.style.display = '';
+      }
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+          try { await fetch('/api/logout', { method: 'POST' }); } catch {}
+          location.replace('/');
+        });
+      }
     }
-    function renderHead() {
-      const ids = Array.isArray(conv.project_ids) ? conv.project_ids : [];
-      const names = scopeNames();
-      const total = ids.length;
+
+    // ---------- sidebar (ported from project.html Block 13.5) ----------
+    function sidebarHtml() {
+      const items = conversations.map(c => {
+        const id = esc(c.id);
+        const title = esc(c.title || 'Untitled');
+        const meta = esc(fmtRelativeShort(c.updated_at) || '');
+        const isActive = conv && c.id === conv.id;
+        const active = isActive ? ' active' : '';
+        const menuId = 'xc-conv-menu-' + id;
+        return ''
+          + '<div class="conv-row' + active + '" data-conv-id="' + id + '">'
+          +   '<div class="conv-item" role="button" tabindex="0" data-conv-id="' + id + '">'
+          +     '<div class="conv-title-wrap">'
+          +       '<span class="conv-title">' + title + '</span>'
+          +       '<input class="conv-rename-input" value="' + title + '" maxlength="120" hidden aria-label="Rename conversation">'
+          +     '</div>'
+          +     (meta ? '<div class="conv-meta" style="font-size:11px;color:var(--text-3);margin-top:3px;">' + meta + '</div>' : '')
+          +   '</div>'
+          +   '<button class="kebab-btn conv-menu-trigger" type="button" data-menu-toggle="' + menuId + '" aria-haspopup="menu" aria-expanded="false" aria-label="Conversation actions">'
+          +     '<i class="ti ti-dots"></i>'
+          +   '</button>'
+          +   '<div class="menu conv-menu" role="menu" id="' + menuId + '" data-open="false">'
+          +     '<button class="menu__item" role="menuitem" type="button" data-action="rename" data-conv-id="' + id + '"><i class="ti ti-pencil"></i>Rename</button>'
+          +     '<button class="menu__item menu__item--danger" role="menuitem" type="button" data-action="delete" data-conv-id="' + id + '"><i class="ti ti-trash"></i>Delete</button>'
+          +   '</div>'
+          + '</div>';
+      }).join('');
       return ''
-        + '<div class="cp-chat-head">'
-        +   '<div class="cp-chat-head-left">'
-        +     '<div class="cp-chat-head-icon"><i class="ti ti-target"></i></div>'
-        +     '<div class="cp-chat-head-meta">'
-        +       '<div class="cp-chat-head-row1">'
-        +         '<span class="label-pill">Product</span>'
-        +         '<span class="source-chip">' + jiraSvg(11) + 'Jira</span>'
-        +       '</div>'
-        +       '<div class="scope-summary">'
-        +         '<i class="ti ti-folders"></i>'
-        +         '<span><strong>' + total + ' of ' + total + '</strong> · ' + escHtml(names.join(', ') || '—') + '</span>'
-        +       '</div>'
-        +     '</div>'
+        + '<aside class="xc-sidebar">'
+        +   '<div class="xc-sidebar__head">'
+        +     '<span class="xc-sidebar__label">Cross-project chats</span>'
+        +     '<a class="xc-sidebar__new" href="/cross-project/new.html" title="New cross-project chat" aria-label="New cross-project chat">+</a>'
         +   '</div>'
-        +   '<button type="button" class="cp-edit-scope-btn" id="cpEditBtn">'
-        +     '<i class="ti ti-edit"></i> Edit scope'
-        +   '</button>'
+        +   '<div class="xc-conv-list" id="xcConvList">' + items + '</div>'
+        + '</aside>';
+    }
+
+    function wireSidebar() {
+      const list = document.getElementById('xcConvList');
+      if (!list) return;
+      list.querySelectorAll('.conv-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('.conv-rename-input')) return;
+          if (e.target.closest('.conv-menu-trigger')) return;
+          const id = el.dataset.convId;
+          if (id && (!conv || id !== conv.id)) {
+            location.assign('/cross-project/chat.html?id=' + encodeURIComponent(id));
+          }
+        });
+        el.addEventListener('keydown', (e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.conv-rename-input')) {
+            e.preventDefault();
+            const id = el.dataset.convId;
+            if (id && (!conv || id !== conv.id)) {
+              location.assign('/cross-project/chat.html?id=' + encodeURIComponent(id));
+            }
+          }
+        });
+      });
+    }
+
+    // Conv menu open/close (one at a time).
+    let openConvMenu = null;
+    function closeConvMenu() {
+      if (!openConvMenu) return;
+      openConvMenu.setAttribute('data-open', 'false');
+      const trigger = document.querySelector('[data-menu-toggle="' + openConvMenu.id + '"]');
+      if (trigger) trigger.setAttribute('aria-expanded', 'false');
+      openConvMenu = null;
+    }
+    document.addEventListener('click', (e) => {
+      const trigger = e.target.closest('[data-menu-toggle]');
+      if (trigger && trigger.classList.contains('conv-menu-trigger')) {
+        e.stopPropagation();
+        const id = trigger.getAttribute('data-menu-toggle');
+        const menu = document.getElementById(id);
+        if (!menu) return;
+        if (openConvMenu === menu) { closeConvMenu(); return; }
+        closeConvMenu();
+        menu.setAttribute('data-open', 'true');
+        trigger.setAttribute('aria-expanded', 'true');
+        openConvMenu = menu;
+        return;
+      }
+      if (openConvMenu && !openConvMenu.contains(e.target)) closeConvMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && openConvMenu) closeConvMenu();
+    });
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-action][data-conv-id]');
+      if (!btn) return;
+      if (!btn.closest('.conv-menu')) return;
+      e.stopPropagation();
+      closeConvMenu();
+      const id = btn.dataset.convId;
+      const action = btn.dataset.action;
+      if (action === 'rename') startConvRename(id);
+      else if (action === 'delete') deleteConv(id);
+    });
+
+    function startConvRename(id) {
+      const row = document.querySelector('.conv-row[data-conv-id="' + id + '"]');
+      if (!row) return;
+      const titleSpan = row.querySelector('.conv-title');
+      const input = row.querySelector('.conv-rename-input');
+      if (!titleSpan || !input) return;
+      input.value = titleSpan.textContent;
+      titleSpan.hidden = true;
+      input.hidden = false;
+      input.focus();
+      input.select();
+    }
+    document.addEventListener('keydown', (e) => {
+      if (!e.target.classList || !e.target.classList.contains('conv-rename-input')) return;
+      const row = e.target.closest('.conv-row');
+      if (!row) return;
+      if (e.key === 'Enter') { e.preventDefault(); commitConvRename(row); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancelConvRename(row); }
+    });
+    document.addEventListener('blur', (e) => {
+      if (!e.target.classList || !e.target.classList.contains('conv-rename-input')) return;
+      const row = e.target.closest('.conv-row');
+      if (row) setTimeout(() => cancelConvRename(row), 100);
+    }, true);
+    async function commitConvRename(row) {
+      const input = row.querySelector('.conv-rename-input');
+      const titleSpan = row.querySelector('.conv-title');
+      const id = row.dataset.convId;
+      const next = (input.value || '').trim();
+      if (!next) { cancelConvRename(row); return; }
+      const prev = titleSpan.textContent;
+      titleSpan.textContent = next;
+      input.hidden = true;
+      titleSpan.hidden = false;
+      try {
+        const res = await fetch('/api/cross-project/conversations/' + encodeURIComponent(id), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: next }),
+        });
+        if (!res.ok) {
+          titleSpan.textContent = prev;
+          showConvToast('Rename failed', 'warn');
+          return;
+        }
+        const c = conversations.find(c => c.id === id);
+        if (c) c.title = next;
+        if (conv && conv.id === id) conv.title = next;
+      } catch {
+        titleSpan.textContent = prev;
+        showConvToast('Network error', 'warn');
+      }
+    }
+    function cancelConvRename(row) {
+      const input = row.querySelector('.conv-rename-input');
+      const titleSpan = row.querySelector('.conv-title');
+      if (!input || !titleSpan) return;
+      input.hidden = true;
+      titleSpan.hidden = false;
+    }
+
+    async function deleteConv(id) {
+      const c = conversations.find(x => x.id === id);
+      if (!c) return;
+      const wasActive = conv && id === conv.id;
+      conversations = conversations.filter(x => x.id !== id);
+      const fallback = wasActive ? (conversations[0] || null) : null;
+      renderSidebarOnly();
+
+      let serverOk = false;
+      try {
+        const res = await fetch('/api/cross-project/conversations/' + encodeURIComponent(id), { method: 'DELETE' });
+        serverOk = res.ok;
+      } catch { serverOk = false; }
+
+      if (!serverOk) {
+        conversations.push(c);
+        conversations.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+        renderSidebarOnly();
+        showConvToast('Delete failed', 'warn');
+        return;
+      }
+
+      if (wasActive) {
+        if (fallback) {
+          location.assign('/cross-project/chat.html?id=' + encodeURIComponent(fallback.id));
+          return;
+        } else {
+          location.assign('/cross-project/');
+          return;
+        }
+      }
+      showConvUndoToast(c, false);
+    }
+
+    function showConvToast(text, kind, ms) {
+      const existing = document.getElementById('convToast');
+      if (existing) existing.remove();
+      const toast = document.createElement('div');
+      toast.id = 'convToast';
+      toast.className = 'conv-toast conv-toast-' + (kind || 'info');
+      toast.textContent = text;
+      document.body.appendChild(toast);
+      toast.style.display = 'block';
+      setTimeout(() => { if (toast.parentNode) toast.remove(); }, ms || 3000);
+    }
+    function showConvUndoToast(c, wasActive) {
+      const existing = document.getElementById('convToast');
+      if (existing) existing.remove();
+      const toast = document.createElement('div');
+      toast.id = 'convToast';
+      toast.className = 'conv-toast conv-toast-info';
+      toast.style.display = 'flex';
+      toast.style.alignItems = 'center';
+      toast.style.gap = '12px';
+      toast.innerHTML = '<span>"' + esc(c.title || 'Conversation') + '" deleted.</span>';
+      const undo = document.createElement('button');
+      undo.type = 'button';
+      undo.className = 'btn btn--ghost';
+      undo.style.padding = '4px 10px';
+      undo.style.fontSize = '12px';
+      undo.textContent = 'Undo';
+      undo.addEventListener('click', async () => {
+        toast.remove();
+        try {
+          const res = await fetch('/api/cross-project/conversations/' + encodeURIComponent(c.id), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ restore: true }),
+          });
+          if (!res.ok) { showConvToast('Undo failed', 'warn'); return; }
+          conversations.push(c);
+          conversations.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+          renderSidebarOnly();
+        } catch { showConvToast('Network error', 'warn'); }
+      });
+      toast.appendChild(undo);
+      document.body.appendChild(toast);
+      setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
+    }
+
+    function renderSidebarOnly() {
+      const aside = document.querySelector('.xc-sidebar');
+      if (!aside) return;
+      aside.outerHTML = sidebarHtml();
+      wireSidebar();
+    }
+
+    // ---------- scope row ----------
+    function acrossRowHtml() {
+      const scope = scopeProjects();
+      const chips = scope.map(p => (
+        '<span class="scopechip"><span class="scopechip__icon">' + esc(initialOf(p.name)) + '</span>' + esc(p.name) + '</span>'
+      )).join('');
+      const popoverRows = scope.map(p => (
+        '<div class="xc-across-pop__row"><span class="scopechip__icon">' + esc(initialOf(p.name)) + '</span>' + esc(p.name) + '</div>'
+      )).join('');
+      const convTitle = conv && conv.title ? conv.title : 'Cross-project chat';
+      return ''
+        + '<div class="xc-crumb"><a href="/cross-project/">Cross-project</a> / ' + esc(convTitle) + '</div>'
+        + '<div class="xc-across">'
+        +   '<span class="xc-across__label">Across</span>'
+        +   chips
+        + '</div>'
+        + '<div class="xc-across-mobile">'
+        +   '<span class="xc-across-mobile__title"><i class="ti ti-messages"></i><span>' + esc(convTitle) + '</span></span>'
+        +   '<button type="button" class="xc-across-mobile__btn" id="xcAcrossBtn" aria-expanded="false" aria-controls="xcAcrossPop">Across (' + scope.length + ') <i class="ti ti-chevron-down" style="font-size:13px;"></i></button>'
+        +   '<div class="xc-across-pop" id="xcAcrossPop" role="dialog" aria-label="Scope of this chat">'
+        +     '<div class="xc-across-pop__label">This chat reads across</div>'
+        +     popoverRows
+        +     '<div class="xc-across-pop__foot">Set when the chat was created.</div>'
+        +   '</div>'
         + '</div>';
     }
+    function wireAcrossMobile() {
+      const btn = document.getElementById('xcAcrossBtn');
+      const pop = document.getElementById('xcAcrossPop');
+      if (!btn || !pop) return;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = pop.classList.toggle('open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      document.addEventListener('click', (e) => {
+        if (!pop.classList.contains('open')) return;
+        if (e.target.closest('#xcAcrossPop') || e.target.closest('#xcAcrossBtn')) return;
+        pop.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    }
 
-    // ---------- messages render ----------
+    // ---------- messages ----------
     function visibleMessages() {
       return messages.filter(m => {
         if (m.role === 'tool') return false;
@@ -551,38 +1005,33 @@
     function renderCitationRail(citations) {
       const chips = citations.map(c => {
         const titleBase = c.title || c.author || (c.source ? c.source[0].toUpperCase() + c.source.slice(1) : 'Source');
-        const safeBase = escHtml(titleBase);
-        const url = c.source_url || '';
+        const safeBase = esc(titleBase);
         const projectName = c.project_name || '';
         const prefixHtml = projectName
-          ? '<span class="citation-chip-prefix">' + escHtml(projectName) + '</span>'
+          ? '<span class="citation-chip-prefix">' + esc(projectName) + '</span>'
           : '';
         const inner = prefixHtml + safeBase;
-        if (url) {
-          return '<a class="chat-citation" href="' + escHtml(url) + '" target="_blank" rel="noopener noreferrer">' + inner + '</a>';
-        }
+        // Decision 6 (v1.4): citations are non-clickable labels, even
+        // when source_url is present. Apply to cross-project too.
         return '<span class="chat-citation chat-citation-noref">' + inner + '</span>';
       }).join('');
       return '<div class="chat-citation-rail">' + chips + '</div>';
     }
     function renderToolTrace(toolCalls) {
       if (!toolCalls || toolCalls.length === 0) return '';
-      const items = toolCalls.map(tc => {
-        return '<li><span class="tool-trace-name">' + escHtml(tc.name || 'unknown') + '</span> <span class="tool-trace-result ok">✓</span></li>';
-      }).join('');
+      const items = toolCalls.map(tc => (
+        '<li><span class="tool-trace-name">' + esc(tc.name || 'unknown') + '</span> <span class="tool-trace-result ok">✓</span></li>'
+      )).join('');
       const summary = '🔧 ' + toolCalls.length + ' tool call' + (toolCalls.length === 1 ? '' : 's');
-      return '<details class="tool-trace"><summary>' + escHtml(summary) + '</summary><ul>' + items + '</ul></details>';
+      return '<details class="tool-trace"><summary>' + esc(summary) + '</summary><ul>' + items + '</ul></details>';
     }
     function renderMessage(m, allMsgs) {
       const isUser = m.role === 'user';
-      const avatar = isUser ? deriveUserInitial(me.email) : 'EA';
+      const userInitial = me && me.email ? initialOf(String(me.email).split('@')[0]) : '?';
+      const avatar = isUser ? userInitial : 'EA';
       const rel = fmtRelativeShort(m.created_at) || 'just now';
       const meta = (isUser ? 'You · ' : 'Elinno Agent · ') + rel;
       const citations = !isUser && Array.isArray(m.citations) ? m.citations : [];
-      // Aggregate tool_calls across the iteration cluster (same logic
-      // as v1.2 project.html — walk back from this assistant to the
-      // preceding user boundary, collect tool_calls from intermediate
-      // assistants).
       let toolCalls = [];
       if (!isUser) {
         const own = Array.isArray(m.tool_calls) ? m.tool_calls : [];
@@ -608,48 +1057,42 @@
       }
       return ''
         + '<div class="chat-msg ' + (isUser ? 'user' : 'assistant') + stateClass + '">'
-        +   '<div class="chat-msg-avatar">' + escHtml(avatar) + '</div>'
+        +   '<div class="chat-msg-avatar">' + esc(avatar) + '</div>'
         +   '<div class="chat-msg-body">'
-        +     '<div class="chat-msg-meta">' + escHtml(meta) + '</div>'
-        +     '<div class="chat-msg-content">' + escHtml(m.content || '') + '</div>'
+        +     '<div class="chat-msg-meta">' + esc(meta) + '</div>'
+        +     '<div class="chat-msg-content">' + esc(m.content || '') + '</div>'
         +     renderToolTrace(toolCalls)
         +     (citations.length > 0 ? renderCitationRail(citations) : '')
         +   '</div>'
         + '</div>';
     }
-
     function renderEmpty() {
       const names = scopeNames();
       const prose = naturalNameList(names) || 'your projects';
       return ''
-        + '<div class="cp-empty">'
-        +   '<div class="cp-empty-icon"><i class="ti ti-message-circle-question"></i></div>'
-        +   '<h2 class="cp-empty-title">Ask across <strong>' + escHtml(prose) + '</strong></h2>'
-        +   '<p class="cp-empty-sub">Every reference in the answer will include the project name (e.g. "' + escHtml(names[0] || 'Rain') + '’s Sprint 12") so you can tell which data point came from where.</p>'
-        +   '<div class="cp-suggestions">'
-        +     '<div class="cp-suggestions-label">Try one of these</div>'
-        +     '<div class="cp-suggestions-grid">'
-        +       suggestionCard('ti-trending-up', 'Compare velocity between ' + names.join(' and ') + ' over the last 3 sprints')
-        +       suggestionCard('ti-clock', 'Which project has the most overdue tickets right now?')
-        +       suggestionCard('ti-users', 'Across ' + names.join(' and ') + ', who’s the busiest assignee right now?')
-        +       suggestionCard('ti-bug', 'List unresolved high-priority bugs across these projects, oldest first')
-        +     '</div>'
+        + '<div class="xc-empty">'
+        +   '<div class="xc-empty__icon"><i class="ti ti-affiliate"></i></div>'
+        +   '<h2 class="xc-empty__title">Ask across <strong>' + esc(prose) + '</strong></h2>'
+        +   '<p class="xc-empty__sub">The agent reads each project and labels every citation with the project name so you can tell which data point came from where.</p>'
+        +   '<div class="xc-suggestions">'
+        +     suggestionRow('ti-flag', 'Which projects are at risk of missing their sprint?')
+        +     suggestionRow('ti-alert-triangle', 'Where are the blockers across all projects?')
+        +     suggestionRow('ti-users', 'Across ' + (names.join(' and ') || 'projects') + ', who is the busiest assignee right now?')
         +   '</div>'
         + '</div>';
     }
-    function suggestionCard(icon, text) {
+    function suggestionRow(icon, text) {
       return ''
-        + '<button class="cp-suggestion" type="button" data-suggestion="' + escHtml(text) + '">'
-        +   '<div class="cp-suggestion-icon"><i class="ti ' + icon + '"></i></div>'
-        +   '<div class="cp-suggestion-text">' + escHtml(text) + '</div>'
+        + '<button class="xc-suggestion" type="button" data-suggestion="' + esc(text) + '">'
+        +   '<i class="ti ' + icon + ' xc-suggestion__icon"></i>'
+        +   '<span>' + esc(text) + '</span>'
         + '</button>';
     }
-
     function renderBody() {
       const visible = visibleMessages();
       if (visible.length === 0) return renderEmpty();
-      const allMsgs = messages;
-      return visible.map(m => renderMessage(m, allMsgs)).join('');
+      const all = messages;
+      return visible.map(m => renderMessage(m, all)).join('');
     }
     function renderPausedBanner() {
       if (!isPaused()) return '';
@@ -657,43 +1100,41 @@
       const names = scopeNames();
       const namesText = names.length > 0 ? names.join(', ') : 'individual projects';
       return ''
-        + '<div class="paused-banner" style="margin:0 20px 16px;">'
-        +   '<div class="paused-banner-inner">'
-        +     '<div class="paused-banner-icon"><i class="ti ti-alert-triangle"></i></div>'
-        +     '<div class="paused-banner-body">'
-        +       '<div class="paused-banner-title">Cross-project chats paused</div>'
-        +       '<p class="paused-banner-text">You’ve reached the workspace cap of <strong>' + fmtUsd(workspaceSpend.cap) + '</strong> for cross-project AI this month. Per-project chats (' + escHtml(namesText) + ') are unaffected and still work. Cross-project resumes automatically on <strong>' + escHtml(resetText) + '</strong>.</p>'
-        +       '<div class="paused-banner-actions">'
-        +         '<a class="btn btn-warning" href="/workspace_settings.html">Raise cap ↗</a>'
-        +         '<a class="btn btn-quiet" href="/workspace_settings.html">View workspace settings</a>'
-        +       '</div>'
+        + '<div class="xc-paused">'
+        +   '<i class="ti ti-alert-triangle xc-paused__icon"></i>'
+        +   '<div class="xc-paused__body">'
+        +     '<div class="xc-paused__title">Cross-project chats paused</div>'
+        +     '<p class="xc-paused__text">You’ve reached the workspace cap of <strong>' + fmtUsd(workspaceSpend.cap) + '</strong> for cross-project AI this month. Per-project chats (' + esc(namesText) + ') are unaffected. Resumes automatically on <strong>' + esc(resetText) + '</strong>.</p>'
+        +     '<div class="xc-paused__actions">'
+        +       '<a class="btn btn--primary" href="/workspace_settings.html" style="padding:6px 12px;font-size:12px;">Raise cap</a>'
+        +       '<a class="btn btn--ghost" href="/workspace_settings.html" style="padding:6px 12px;font-size:12px;">Workspace settings</a>'
         +     '</div>'
         +   '</div>'
         + '</div>';
     }
     function renderComposer() {
       const pausedNow = isPaused();
+      const names = scopeNames();
       const placeholder = pausedNow
         ? 'Cross-project is paused this month'
-        : (() => {
-            const names = scopeNames();
-            if (names.length === 0) return 'Ask…';
-            if (names.length <= 3) return 'Ask across ' + names.join(' and ') + '…';
-            return 'Ask across ' + names.slice(0, 2).join(', ') + ' and ' + (names.length - 2) + ' more…';
-          })();
-      const composerRowStyle = pausedNow ? ' style="opacity:0.55;cursor:not-allowed;"' : '';
+        : (names.length === 0
+          ? 'Ask…'
+          : names.length <= 3
+            ? 'Ask across ' + names.join(' and ') + '…'
+            : 'Ask across ' + names.slice(0, 2).join(', ') + ' and ' + (names.length - 2) + ' more…');
       const footerCap = pausedNow
-        ? 'Cross-project AI · <strong style="color:var(--color-warning);">' + fmtUsd(workspaceSpend.cap) + ' / ' + fmtUsd(workspaceSpend.cap) + ' — cap reached</strong>'
+        ? 'Cross-project AI · <strong style="color:#8a6a17;">' + fmtUsd(workspaceSpend.cap) + ' / ' + fmtUsd(workspaceSpend.cap) + ' — cap reached</strong>'
         : 'Cross-project AI · workspace cap ' + fmtUsd(workspaceSpend.used) + ' / ' + fmtUsd(workspaceSpend.cap) + ' this month';
       const footerHint = pausedNow ? 'Paused' : '↵ to send';
+      const rowOpacity = pausedNow ? 'opacity:0.55;cursor:not-allowed;' : '';
       return ''
-        + '<div class="cp-composer">'
-        +   '<div class="cp-composer-error" id="cpComposerError" style="display:none;"></div>'
-        +   '<div class="cp-composer-row"' + composerRowStyle + '>'
-        +     '<textarea class="cp-composer-input" id="cpInput" rows="1" placeholder="' + escHtml(placeholder) + '" aria-label="Message"' + (pausedNow ? ' disabled' : '') + '></textarea>'
-        +     '<button class="cp-composer-send" id="cpSend" type="button" disabled aria-label="Send"><i class="ti ti-send"></i></button>'
+        + '<div class="xc-composer">'
+        +   '<div class="xc-composer__error" id="xcComposerError" style="display:none;"></div>'
+        +   '<div class="xc-composer__row" style="' + rowOpacity + '">'
+        +     '<textarea class="xc-composer__input" id="xcInput" rows="1" placeholder="' + esc(placeholder) + '" aria-label="Message"' + (pausedNow ? ' disabled' : '') + '></textarea>'
+        +     '<button class="xc-composer__send" id="xcSend" type="button" disabled aria-label="Send"><i class="ti ti-send"></i></button>'
         +   '</div>'
-        +   '<div class="cp-composer-footer">'
+        +   '<div class="xc-composer__footer">'
         +     '<div>' + footerCap + '</div>'
         +     '<div>' + footerHint + '</div>'
         +   '</div>'
@@ -701,26 +1142,27 @@
     }
 
     function render() {
-      const root = document.getElementById('cpRoot');
+      const root = document.getElementById('xcRoot');
       root.innerHTML = ''
-        + '<div class="cp-chat-shell">'
-        +   renderHead()
-        +   renderPausedBanner()
-        +   '<div class="cp-chat-body" id="cpBody">' + renderBody() + '</div>'
-        +   renderComposer()
+        + '<div class="xc-grid">'
+        +   sidebarHtml()
+        +   '<section class="xc-main">'
+        +     acrossRowHtml()
+        +     renderPausedBanner()
+        +     '<div class="xc-body" id="xcBody">' + renderBody() + '</div>'
+        +     renderComposer()
+        +   '</section>'
         + '</div>';
-      wire();
-      const body = document.getElementById('cpBody');
+      wireSidebar();
+      wireAcrossMobile();
+      wireMain();
+      const body = document.getElementById('xcBody');
       if (body) body.scrollTop = body.scrollHeight;
     }
-    function wire() {
-      const editBtn = document.getElementById('cpEditBtn');
-      if (editBtn) editBtn.addEventListener('click', openEdit);
-
-      // Suggestion chips
+    function wireMain() {
       document.querySelectorAll('[data-suggestion]').forEach(btn => {
         btn.addEventListener('click', () => {
-          const input = document.getElementById('cpInput');
+          const input = document.getElementById('xcInput');
           if (input) {
             input.value = btn.getAttribute('data-suggestion') || '';
             input.dispatchEvent(new Event('input'));
@@ -728,10 +1170,8 @@
           }
         });
       });
-
-      // Composer
-      const input = document.getElementById('cpInput');
-      const send = document.getElementById('cpSend');
+      const input = document.getElementById('xcInput');
+      const send = document.getElementById('xcSend');
       if (input && send) {
         input.addEventListener('input', () => {
           input.style.height = 'auto';
@@ -750,21 +1190,21 @@
     }
 
     function showComposerError(msg) {
-      const e = document.getElementById('cpComposerError');
+      const e = document.getElementById('xcComposerError');
       if (!e) return;
       e.textContent = msg;
       e.style.display = '';
     }
     function clearComposerError() {
-      const e = document.getElementById('cpComposerError');
+      const e = document.getElementById('xcComposerError');
       if (!e) return;
       e.textContent = '';
       e.style.display = 'none';
     }
     function restoreComposer() {
       inFlight = false;
-      const input = document.getElementById('cpInput');
-      const send = document.getElementById('cpSend');
+      const input = document.getElementById('xcInput');
+      const send = document.getElementById('xcSend');
       if (send) {
         send.innerHTML = '<i class="ti ti-send"></i>';
         send.disabled = !input || input.value.trim().length === 0;
@@ -777,8 +1217,8 @@
 
     async function sendMessage() {
       if (inFlight) return;
-      const input = document.getElementById('cpInput');
-      const send = document.getElementById('cpSend');
+      const input = document.getElementById('xcInput');
+      const send = document.getElementById('xcSend');
       if (!input || !send) return;
       const content = input.value.trim();
       if (content.length === 0) return;
@@ -804,8 +1244,6 @@
       if (res.status === 401) { redirectToLogin(); return; }
       if (res.status === 403) { location.replace('/cross-project/'); return; }
       if (res.status === 402) {
-        // 12.6: cross-project workspace cap paused envelope. Flip the
-        // chat into paused state — banner renders, composer disables.
         const data = await res.json().catch(() => ({}));
         if (data && typeof data.cap_usd === 'number') {
           workspaceSpend = {
@@ -813,7 +1251,6 @@
             cap: Number(data.cap_usd) || workspaceSpend.cap,
             resets_at: data.resets_at || workspaceSpend.resets_at,
           };
-          // Force used >= cap so isPaused() returns true even with rounding.
           if (workspaceSpend.used < workspaceSpend.cap) {
             workspaceSpend.used = workspaceSpend.cap;
           }
@@ -848,7 +1285,6 @@
 
       if (data.user_message) messages.push(data.user_message);
       if (data.assistant_message) messages.push(data.assistant_message);
-      // Refresh workspace spend to reflect cost added.
       workspaceSpend = await loadWorkspaceSpend();
 
       input.value = '';
@@ -857,238 +1293,39 @@
       restoreComposer();
     }
 
-    // ---------- edit-scope ----------
-    async function openEdit() {
-      editSelected = new Set(Array.isArray(conv.project_ids) ? conv.project_ids : []);
-      editSubmitting = false;
-      // Lazy-load eligible projects on first open.
-      if (eligibleProjects.length === 0) {
-        eligibleProjects = await loadEligibleForEdit();
-      }
-      editOpen = true;
-      renderEdit();
-    }
-    function closeEdit() {
-      editOpen = false;
-      const ov = document.getElementById('cpEditOverlay');
-      if (ov) {
-        ov.classList.remove('open');
-        ov.innerHTML = '';
-      }
-    }
-    function renderPickerRow(p) {
-      const sprint = p.jira_active_sprint;
-      const isSelected = editSelected.has(p.id);
-      let sprintBlock = '';
-      if (sprint) {
-        const dl = sprint.days_left;
-        const urgent = dl !== null && dl <= 3;
-        const healthy = dl !== null && dl >= 7;
-        const deadlineCls = urgent ? 'urgent' : (healthy ? 'healthy' : '');
-        const deadlineText = dl === null ? '—' : (dl === 0 ? 'ends today' : (dl + ' day' + (dl === 1 ? '' : 's') + ' left'));
-        const pct = sprint.percent_complete == null ? 0 : sprint.percent_complete;
-        const fillBg = urgent ? 'var(--color-danger)' : 'var(--color-brand)';
-        const counts = sprint.ticket_counts || { total: 0, open: 0, done: 0 };
-        sprintBlock = ''
-          + '<div class="picker-row-info">'
-          +   '<div class="picker-row-name">' + escHtml(p.name) + '</div>'
-          +   '<div class="picker-row-sprint-line">'
-          +     '<span class="picker-row-sprint-name">' + escHtml(sprint.sprint_name || 'Sprint') + '</span>'
-          +     '<span class="picker-row-sprint-deadline ' + deadlineCls + '">' + escHtml(deadlineText) + '</span>'
-          +   '</div>'
-          +   '<div class="spend-bar thin picker-row-progress">'
-          +     '<div class="spend-bar-track">'
-          +       '<div class="spend-bar-fill" style="width:' + pct + '%;background:' + fillBg + ';"></div>'
-          +     '</div>'
-          +   '</div>'
-          +   '<div class="picker-row-dates">'
-          +     '<span>' + escHtml(fmtDate(sprint.start_date)) + '</span>'
-          +     '<span>' + escHtml(fmtDate(sprint.end_date)) + '</span>'
-          +   '</div>'
-          + '</div>'
-          + '<div class="picker-row-stats">'
-          +   '<div class="picker-row-stats-line">'
-          +     '<div><span class="picker-row-stat-num">' + (counts.open || 0) + '</span><span class="picker-row-stat-label">open</span></div>'
-          +     '<div><span class="picker-row-stat-num done">' + (counts.done || 0) + '</span><span class="picker-row-stat-label">done</span></div>'
-          +   '</div>'
-          +   '<div class="picker-row-stats-total">of ' + (counts.total || 0) + '</div>'
-          + '</div>';
-      } else {
-        sprintBlock = ''
-          + '<div class="picker-row-info">'
-          +   '<div class="picker-row-name">' + escHtml(p.name) + '</div>'
-          +   '<div class="picker-row-sprint-line">'
-          +     '<span class="picker-row-sprint-deadline">No active sprint</span>'
-          +   '</div>'
-          + '</div>';
-      }
-      return ''
-        + '<div class="picker-row ' + (isSelected ? 'selected' : '') + '" data-project-id="' + escHtml(p.id) + '">'
-        +   '<div class="picker-row-checkbox"><i class="ti ti-check"></i></div>'
-        +   '<div class="picker-row-avatar">' + escHtml(initialOf(p.name)) + '</div>'
-        +   sprintBlock
-        + '</div>';
-    }
-    function renderEdit() {
-      const ov = document.getElementById('cpEditOverlay');
-      if (!ov) return;
-      const rows = eligibleProjects.length === 0
-        ? '<div class="cp-picker-empty" style="padding:28px 18px;text-align:center;color:var(--color-text-muted);font-size:12px;">No projects with an active Jira connection.</div>'
-        : eligibleProjects.map(renderPickerRow).join('');
-      const count = editSelected.size;
-      const saveDisabled = count === 0 || editSubmitting;
-      const summaryNames = Array.from(editSelected)
-        .map(id => (eligibleProjects.find(p => p.id === id) || projectsById.get(id) || {}).name || 'Project')
-        .join(' + ');
-      const summary = count === 0
-        ? 'Chat: <span style="color:var(--color-text-muted);">Pick at least one project</span>'
-        : 'Chat: <strong>Product · ' + escHtml(summaryNames) + '</strong>';
-      ov.innerHTML = ''
-        + '<div class="cp-edit-modal">'
-        +   '<div class="cp-edit-head">'
-        +     '<div class="cp-edit-head-left">'
-        +       '<div class="cp-edit-eyebrow">Edit scope</div>'
-        +       '<div class="cp-edit-title-row">'
-        +         '<h2 class="cp-edit-title">Editing</h2>'
-        +         '<span class="label-pill">Product</span>'
-        +         '<span class="source-chip">' + jiraSvg(11) + 'Jira</span>'
-        +       '</div>'
-        +       '<p class="cp-edit-sub">Label and source can’t be changed.</p>'
-        +     '</div>'
-        +   '</div>'
-        +   '<div class="cp-edit-section">'
-        +     '<div class="cp-step2-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
-        +       '<div class="cp-step-label" style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--color-text-muted);font-weight:500;">Projects in scope</div>'
-        +       '<div class="cp-step2-actions" style="display:flex;gap:5px;">'
-        +         '<button type="button" class="cp-btn-mini" id="cpEditSelectAll" style="font-size:10px;color:var(--color-brand);background:var(--color-brand-tint);padding:5px 9px;border-radius:6px;font-weight:500;border:none;cursor:pointer;font-family:inherit;">Select all</button>'
-        +         '<button type="button" class="cp-btn-mini" id="cpEditClear" style="font-size:10px;color:var(--color-brand);background:var(--color-brand-tint);padding:5px 9px;border-radius:6px;font-weight:500;border:none;cursor:pointer;font-family:inherit;">Clear</button>'
-        +       '</div>'
-        +     '</div>'
-        +     '<p style="font-size:11px;color:var(--color-text-muted);line-height:1.4;margin:0 0 8px;">Projects in your workspace with a Jira connection.</p>'
-        +     '<div class="cp-picker-list" id="cpEditList" style="background:var(--color-bg-soft);border-radius:10px;overflow:hidden;margin-bottom:14px;">' + rows + '</div>'
-        +     '<div style="font-size:10px;color:var(--color-text-muted);margin-bottom:18px;line-height:1.4;display:flex;align-items:center;gap:6px;">'
-        +       '<i class="ti ti-info-circle"></i><span>Projects without a Jira connection aren’t shown.</span>'
-        +     '</div>'
-        +   '</div>'
-        +   '<div id="cpEditError" class="cp-edit-error" style="display:none;"></div>'
-        +   '<div class="cp-edit-foot">'
-        +     '<div style="font-size:12px;color:var(--color-text-body);">' + summary + '</div>'
-        +     '<div style="display:flex;gap:8px;">'
-        +       '<button type="button" class="cp-foot-btn cp-foot-btn-cancel" id="cpEditCancel" style="padding:9px 14px;border-radius:8px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;background:transparent;color:var(--color-text-dark);border:1px solid var(--color-border);cursor:pointer;font-family:inherit;">Cancel</button>'
-        +       '<button type="button" class="cp-foot-btn cp-foot-btn-go" id="cpEditSave"' + (saveDisabled ? ' disabled' : '') + ' style="padding:9px 14px;border-radius:8px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;background:var(--color-brand);color:#fff;border:none;cursor:pointer;font-family:inherit;' + (saveDisabled ? 'opacity:0.6;cursor:not-allowed;' : '') + '">' + (editSubmitting ? 'Saving…' : 'Save scope ↗') + '</button>'
-        +     '</div>'
-        +   '</div>'
-        + '</div>';
-      ov.classList.add('open');
-      wireEdit();
-    }
-    function wireEdit() {
-      const list = document.getElementById('cpEditList');
-      if (list) {
-        list.addEventListener('click', (e) => {
-          const row = e.target.closest('.picker-row');
-          if (!row) return;
-          const id = row.getAttribute('data-project-id');
-          if (!id) return;
-          if (editSelected.has(id)) editSelected.delete(id);
-          else editSelected.add(id);
-          renderEdit();
-        });
-      }
-      const selAll = document.getElementById('cpEditSelectAll');
-      if (selAll) selAll.addEventListener('click', () => {
-        eligibleProjects.forEach(p => editSelected.add(p.id));
-        renderEdit();
-      });
-      const clr = document.getElementById('cpEditClear');
-      if (clr) clr.addEventListener('click', () => {
-        editSelected.clear();
-        renderEdit();
-      });
-      const cancel = document.getElementById('cpEditCancel');
-      if (cancel) cancel.addEventListener('click', closeEdit);
-      const save = document.getElementById('cpEditSave');
-      if (save) save.addEventListener('click', onEditSave);
-    }
-    function showEditError(msg) {
-      const e = document.getElementById('cpEditError');
-      if (!e) return;
-      e.textContent = msg;
-      e.style.display = '';
-    }
-    async function onEditSave() {
-      if (editSubmitting || editSelected.size === 0) return;
-      editSubmitting = true;
-      renderEdit();
-      let res;
-      try {
-        res = await fetch('/api/cross-project/conversations/' + encodeURIComponent(conv.id), {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project_ids: Array.from(editSelected) }),
-        });
-      } catch {
-        editSubmitting = false;
-        renderEdit();
-        showEditError("Couldn't reach the server. Try again.");
-        return;
-      }
-      if (res.status === 401) { redirectToLogin(); return; }
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        editSubmitting = false;
-        renderEdit();
-        const msg = data && data.code === 'project_not_in_workspace'
-          ? 'One of the selected projects is no longer in your workspace.'
-          : data && data.code === 'cross_project_empty_set'
-            ? 'Pick at least one project.'
-            : data && data.error
-              ? data.error
-              : 'Could not save the new scope. Try again.';
-        showEditError(msg);
-        return;
-      }
-      const data = await res.json().catch(() => null);
-      if (!data || !data.conversation) {
-        editSubmitting = false;
-        renderEdit();
-        showEditError('Saved but server returned no conversation. Refresh the page.');
-        return;
-      }
-      conv = data.conversation;
-      closeEdit();
-      render();
-    }
-
     // ---------- boot ----------
     (async function boot() {
       const id = getConvId();
       if (!id) {
-        document.getElementById('cpRoot').innerHTML = '<div class="cp-error">No conversation id in URL.</div>';
+        document.getElementById('xcRoot').innerHTML = '<div class="xc-error">No conversation id in URL. <a href="/cross-project/">Back to cross-project chats</a></div>';
         return;
       }
       try {
         me = await loadMe();
-        if (!me) return;
-        const [pmap, c, msgs, ws] = await Promise.all([
+        if (!me) { redirectToLogin(); return; }
+        wireNav(me);
+        const [pmap, c, msgs, ws, convList] = await Promise.all([
           loadProjects(),
           loadConv(id),
           loadMessages(id),
           loadWorkspaceSpend(),
+          loadConvList(),
         ]);
         projectsById = pmap;
         workspaceSpend = ws;
+        conversations = convList || [];
         if (!c) {
-          document.getElementById('cpRoot').innerHTML = '<div class="cp-error">Chat not found or you don’t have access.</div>';
+          document.getElementById('xcRoot').innerHTML = '<div class="xc-error">Chat not found or you don’t have access. <a href="/cross-project/">Back to cross-project chats</a></div>';
           return;
         }
         conv = c;
         messages = msgs;
         render();
       } catch {
-        document.getElementById('cpRoot').innerHTML = '<div class="cp-error">Couldn’t load this chat. Refresh to try again.</div>';
+        document.getElementById('xcRoot').innerHTML = '<div class="xc-error">Couldn’t load this chat. Refresh to try again.</div>';
       }
     })();
+  })();
   </script>
 </body>
 </html>
