@@ -5,306 +5,320 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Dashboard — Elinno Agent</title>
   <meta name="robots" content="noindex" />
-  <link rel="stylesheet" href="/auth.css" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <link rel="stylesheet" href="/auth.css" />
   <style>
-    /* Dashboard-page-only layout. Components themselves live in auth.css. */
-    .dash-hero {
-      background: var(--color-brand);
-      border-radius: var(--radius-lg);
-      padding: 22px;
-      color: var(--color-text-inverse);
-      margin: 18px 0 28px;
-    }
-    .dash-hero-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    .dash-hero-tag .badge {
-      background: rgba(255,255,255,0.18);
-      padding: 4px 10px;
-      border-radius: 50px;
-      font-size: 10px;
+    /* Dashboard layout per v1.4 mockup screen-02. v1.4 components
+       (.brandmark/.wordmark/.eyebrow/.surface/.pill/.btn--*) live in
+       auth.css; this <style> only positions them. */
+    .dash-shell { max-width: 980px; margin: 0 auto; padding: 28px 20px 80px; }
+
+    .dash-greeting {
+      font-family: var(--font);
+      font-size: 28px;
       font-weight: 500;
-      letter-spacing: 0.04em;
+      color: var(--text);
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
     }
-    .dash-hero-tag .eyebrow {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      opacity: 0.85;
-    }
-    .dash-hero-title {
-      font-size: 20px;
-      font-weight: 500;
-      text-transform: uppercase;
-      line-height: 1.15;
-      margin: 0 0 10px;
-      color: var(--color-text-inverse);
-    }
-    .dash-hero-title strong { font-weight: 700; }
-    .dash-hero-sub {
-      font-size: 13px;
-      line-height: 1.45;
-      opacity: 0.95;
-      margin: 0 0 16px;
-    }
-    .dash-hero-cta {
-      background: var(--color-text-inverse);
-      color: var(--color-brand);
-      border: none;
-      padding: 11px 18px;
-      border-radius: 8px;
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      text-decoration: none;
-      display: inline-block;
+    .dash-greeting strong { font-weight: 600; }
+    .dash-greeting-sub {
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--text-2);
+      margin: 0 0 28px;
+      line-height: 1.5;
     }
 
-    .dash-strip-head {
+    /* Cross-project dark hero — the single dark surface in the light app. */
+    .xp-hero {
+      position: relative;
+      background: var(--hero-bg);
+      color: #fff;
+      border-radius: var(--r-lg);
+      padding: 28px 30px;
+      margin: 0 0 28px;
+      overflow: hidden;
+    }
+    .xp-hero::before {
+      content: "";
+      position: absolute;
+      right: -80px; top: -60px;
+      width: 280px; height: 280px;
+      border-radius: 50%;
+      background: var(--brand);
+      opacity: 0.4;
+      filter: blur(60px);
+      pointer-events: none;
+    }
+    .xp-hero__inner {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: center;
+    }
+    .xp-hero__title {
+      font-family: var(--font);
+      font-size: 24px;
+      font-weight: 500;
+      line-height: 1.2;
+      margin: 0 0 8px;
+      color: #fff;
+      max-width: 520px;
+    }
+    .xp-hero__sub {
+      font-family: var(--font);
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.72);
+      line-height: 1.5;
+      margin: 0;
+      max-width: 520px;
+    }
+    .xp-hero__cta {
+      background: #fff;
+      color: var(--text);
+      border: none;
+      padding: 12px 18px;
+      border-radius: var(--r-sm);
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+      transition: transform var(--t-fast), background var(--t-fast);
+    }
+    .xp-hero__cta:hover { background: #f0f0f0; }
+
+    /* Admin spend meter (visible only when data.user.is_admin === true). */
+    .spend-card {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 18px 22px;
+      margin: 0 0 28px;
+    }
+    .spend-card__head {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      padding: 0 6px 12px;
+      margin-bottom: 10px;
     }
-    .dash-strip-title {
-      font-size: 12px;
+    .spend-card__title {
+      font-family: var(--font);
+      font-size: 13px;
       font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      color: var(--text);
     }
-    .dash-strip-sub {
-      font-size: 10px;
-      color: var(--color-text-muted);
-      margin-top: 3px;
-    }
-    .dash-strip-cta {
-      color: var(--color-brand);
+    .spend-card__pct {
+      font-family: var(--font);
       font-size: 11px;
-      font-weight: 500;
-      text-decoration: none;
+      color: var(--text-3);
     }
-    .dash-grid {
+    .spend-card__amount {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text-2);
+      margin-bottom: 8px;
+    }
+
+    /* Projects grid. Admin: 3-up + "+ New project" card. Member: 2-up, no create. */
+    .projects-section { margin-top: 8px; }
+    .projects-section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 14px;
+    }
+    .projects-section-head a {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--brand);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .projects-grid-admin {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 22px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .projects-grid-member {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
     }
     @media (max-width: 700px) {
-      .dash-grid { grid-template-columns: 1fr; }
+      .projects-grid-admin,
+      .projects-grid-member { grid-template-columns: 1fr; }
+      .xp-hero__inner { grid-template-columns: 1fr; }
+      .xp-hero__cta { justify-content: center; width: 100%; }
+      .dash-shell { padding: 16px 14px 64px; }
+      .dash-greeting { font-size: 22px; }
     }
 
-    .dash-greeting {
-      padding: 0 6px 16px;
-    }
-    .dash-greeting-eyebrow {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      color: var(--color-brand);
-      font-weight: 500;
-      margin: 0 0 6px;
-    }
-    .dash-greeting h1 {
-      font-size: 22px;
-      font-weight: 500;
-      text-transform: uppercase;
-      line-height: 1.15;
-      margin: 0 0 4px;
-    }
-    .dash-greeting h1 strong { font-weight: 700; }
-    .dash-greeting p {
-      font-size: 13px;
-      color: var(--color-text-body);
-      line-height: 1.45;
-      margin: 0;
-    }
-
-    /* Project card — built on .project-card.data from 12.2, plus
-       project-specific sprint metadata layout. */
-    .project-card.data {
-      display: block;
+    .pcard {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 18px;
       text-decoration: none;
       color: inherit;
+      display: block;
+      transition: background var(--t-fast), border-color var(--t-fast);
     }
-    .pc-head {
+    .pcard:hover {
+      background: var(--brand-tint);
+      border-color: var(--brand-soft-border);
+    }
+    .pcard__head {
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
-    .pc-avatar {
-      width: 34px;
-      height: 34px;
-      border-radius: 8px;
-      background: var(--color-brand-tint);
-      color: var(--color-brand);
+    .pcard__avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--r-sm);
+      background: var(--brand-tint);
+      color: var(--brand);
       display: flex;
       align-items: center;
       justify-content: center;
+      font-family: var(--font);
       font-weight: 600;
       font-size: 13px;
       flex-shrink: 0;
     }
-    .pc-name {
-      font-size: 14px;
+    .pcard__name {
+      font-family: var(--font);
       font-weight: 500;
-      line-height: 1.1;
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.2;
     }
-    .pc-meta {
+    .pcard__updated {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
+      margin-top: 2px;
+    }
+    .pcard__sources {
       display: flex;
       align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 0.5px solid var(--border-soft);
+    }
+    .pcard__sources .srcchip {
+      display: inline-flex;
+      align-items: center;
       gap: 5px;
-      margin-top: 5px;
+      padding: 3px 9px 3px 6px;
+      border-radius: var(--r-pill);
+      font-family: var(--font);
       font-size: 10px;
-      color: var(--color-text-body);
-    }
-    .pc-sprint-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      margin-bottom: 6px;
-    }
-    .pc-sprint-name {
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .pc-sprint-deadline {
-      font-size: 11px;
       font-weight: 500;
-      color: var(--color-text-body);
     }
-    .pc-sprint-deadline.urgent { color: var(--color-danger); }
-    .pc-sprint-deadline.expired { color: var(--color-text-muted); font-weight: 400; }
-    /* Past-end-date sprint: same 100% fill as .exceeded, but grey not pink. */
-    .spend-bar.pc-bar-expired .spend-bar-fill { background: var(--color-text-muted); }
-    .pc-dates {
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-      color: var(--color-text-muted);
-      margin-bottom: 14px;
+    .pcard__sources .srcchip--jira {
+      background: var(--jira-chip);
+      border: 0.5px solid var(--jira-chip-border);
+      color: var(--jira-text);
     }
-    .pc-stats {
-      display: flex;
-      align-items: baseline;
-      gap: 14px;
-      margin-bottom: 4px;
+    .pcard__sources .srcchip--none {
+      color: var(--text-3);
+      font-style: italic;
     }
-    .pc-stat-num {
-      font-size: 22px;
-      font-weight: 600;
-    }
-    .pc-stat-num.done { color: var(--color-success); }
-    .pc-stat-label {
-      font-size: 11px;
-      color: var(--color-text-body);
-    }
-    .pc-stat-total {
-      font-size: 11px;
-      color: var(--color-text-muted);
-    }
-    .pc-empty {
-      font-size: 12px;
-      color: var(--color-text-muted);
-      padding: 18px 0 6px;
-      text-align: center;
-    }
-
-    /* Dashed "+ New" card variant. */
-    .dash-card-dashed {
+    .pcard-create {
       background: transparent;
-      border: 1.5px dashed rgba(98, 52, 252, 0.4);
-      border-radius: 12px;
+      border: 1.5px dashed var(--brand-soft-border);
+      border-radius: var(--r-md);
       padding: 18px;
       text-decoration: none;
-      color: inherit;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
-      min-height: 200px;
-      transition: background var(--t-form);
+      transition: background var(--t-fast), border-color var(--t-fast);
+      min-height: 130px;
     }
-    .dash-card-dashed:hover { background: var(--color-brand-tint); }
-    .dash-card-dashed-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      background: var(--color-brand-tint);
-      color: var(--color-brand);
+    .pcard-create:hover {
+      background: var(--brand-soft);
+      border-color: var(--brand);
+    }
+    .pcard-create__icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--r-sm);
+      background: var(--brand-tint);
+      color: var(--brand);
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 10px;
-      font-size: 20px;
+      margin-bottom: 8px;
+      font-size: 18px;
     }
-    .dash-card-dashed-title {
+    .pcard-create__label {
+      font-family: var(--font);
       font-size: 13px;
       font-weight: 500;
-      color: var(--color-brand);
-      margin-bottom: 4px;
-    }
-    .dash-card-dashed-sub {
-      font-size: 11px;
-      color: var(--color-text-muted);
-      line-height: 1.45;
-      max-width: 220px;
+      color: var(--brand);
     }
 
-    .dash-loading {
-      padding: 80px 0;
-      text-align: center;
-      color: var(--color-text-muted);
-      font-size: 13px;
-    }
-
+    .dash-loading,
     .dash-error {
-      background: rgba(255, 0, 131, 0.08);
-      border: 1px solid rgba(255, 0, 131, 0.3);
-      border-radius: 12px;
-      padding: 18px;
-      color: var(--color-error);
-      font-size: 13px;
+      padding: 60px 0;
       text-align: center;
-      margin: 20px 0;
+      color: var(--text-3);
+      font-family: var(--font);
+      font-size: 13px;
     }
+    .dash-error { color: var(--danger); }
   </style>
 </head>
 <body>
-  <nav class="app-nav">
+
+  <nav class="app-nav" data-sticky-topbar>
     <div class="app-nav-inner">
-      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <a href="/dashboard.html" class="app-brand" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+        <span class="brandmark"></span>
+        <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
+      </a>
       <div class="app-nav-actions">
-        <span id="navUser" style="color:var(--color-text-body);opacity:.85;font-size:14px;"></span>
+        <a href="/dashboard.html" class="is-active">Dashboard</a>
         <a href="/projects.html">Projects</a>
         <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
-        <button id="logoutBtn" class="btn-nav">Log out</button>
+        <span id="navUserAvatar" class="pcard__avatar" style="width:28px;height:28px;background:var(--brand);color:#fff;font-size:11px;border-radius:50%;" title=""></span>
+        <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
       </div>
     </div>
   </nav>
 
-  <main class="app-main">
-    <div class="custom-container">
+  <main style="background:var(--bg-subtle);min-height:calc(100vh - 70px);">
+    <div class="dash-shell">
       <div id="dashRoot">
         <div class="dash-loading">Loading workspace…</div>
       </div>
     </div>
   </main>
 
+  <script src="/_lib/sticky-topbar.js" defer></script>
+
   <script>
-    function escHtml(s) {
-      return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+  (function () {
+    'use strict';
+
+    function $(s, root) { return (root || document).querySelector(s); }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
     function fmtUsd(n) {
       const num = Number(n) || 0;
@@ -316,21 +330,16 @@
       if (h < 18) return 'afternoon';
       return 'evening';
     }
-    function nameFromEmail(email) {
-      if (!email) return 'there';
-      const local = String(email).split('@')[0];
-      // "jenny" → "Jenny", "jenny.smith" → "Jenny"
+    function nameFromUser(user) {
+      // Use display_name if present; fall back to email local-part with title-case.
+      if (user && user.display_name && user.display_name.trim()) return user.display_name.trim();
+      if (!user || !user.email) return 'there';
+      const local = String(user.email).split('@')[0];
       const first = local.split(/[._-]/)[0] || local;
       return first.charAt(0).toUpperCase() + first.slice(1);
     }
-    function initialOf(name) {
-      return (String(name || '?').trim()[0] || '?').toUpperCase();
-    }
-    function fmtDate(iso) {
-      if (!iso) return '';
-      const d = new Date(iso);
-      if (!isFinite(d)) return '';
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    function initial(s) {
+      return (String(s || '?').trim()[0] || '?').toUpperCase();
     }
     function fmtRelative(iso) {
       if (!iso) return '';
@@ -341,198 +350,105 @@
       if (diffMin < 1) return 'just now';
       if (diffMin < 60) return diffMin + ' min ago';
       const diffHr = Math.floor(diffMin / 60);
-      if (diffHr < 24) return diffHr + ' hr' + (diffHr === 1 ? '' : 's') + ' ago';
+      if (diffHr < 24) return diffHr + (diffHr === 1 ? ' hr ago' : ' hrs ago');
       const diffDay = Math.floor(diffHr / 24);
       if (diffDay === 1) return 'yesterday';
       if (diffDay < 7) return diffDay + ' days ago';
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
-    function jiraSvg(size) {
-      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-label="Jira"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z"/></svg>';
+
+    function renderGreeting(user, projects) {
+      const greeting = nameFromUser(user);
+      const count = projects.length;
+      const noun = count === 1 ? 'project' : 'projects';
+      return ''
+        + '<div class="eyebrow"><span class="eyebrow__label">Workspace</span><span class="eyebrow__rule"></span></div>'
+        + '<h1 class="dash-greeting">Good ' + timeOfDay() + ', <strong>' + esc(greeting) + '</strong></h1>'
+        + '<p class="dash-greeting-sub">' + count + ' ' + noun + ' in your workspace. Ask on any one, or start a chat that spans every project.</p>';
     }
 
     function renderHero() {
       return ''
-        + '<div class="dash-hero">'
-        +   '<div class="dash-hero-tag">'
-        +     '<span class="badge">New in v1.3</span>'
-        +     '<span class="eyebrow">Cross-project chat</span>'
+        + '<div class="xp-hero">'
+        +   '<div class="xp-hero__inner">'
+        +     '<div>'
+        +       '<h2 class="xp-hero__title">Ask across all your projects at once</h2>'
+        +       '<p class="xp-hero__sub">Track delivery across projects — who\'s shipping, who\'s blocked, what\'s at risk.</p>'
+        +     '</div>'
+        +     '<a class="xp-hero__cta" href="/cross-project/new.html">Start chat <i class="ti ti-arrow-right"></i></a>'
         +   '</div>'
-        +   '<h2 class="dash-hero-title">Ask questions across <strong>all your projects</strong> at once</h2>'
-        +   '<p class="dash-hero-sub">Compare velocity and spot delivery risk across your portfolio.</p>'
-        +   '<a href="/cross-project/" class="dash-hero-cta">Start cross-project chat ↗</a>'
         + '</div>';
     }
 
-    function renderCrossProjectCard(chat, projectsById) {
-      const projectIds = Array.isArray(chat.project_ids) ? chat.project_ids : [];
-      const names = projectIds.map(id => (projectsById.get(id)?.name) || 'Project').join(', ');
-      const count = projectIds.length;
-      const labelText = chat.label || 'Product';
-      const lastAt = chat.last_message_at || chat.created_at;
+    function renderSpendCard(workspace) {
+      const spend = Number(workspace.cross_project_spend_usd) || 0;
+      const cap = Number(workspace.cross_project_cap_usd) || 0;
+      const pct = cap > 0 ? Math.min(100, (spend / cap) * 100) : 0;
+      const variant = pct >= 100 ? 'exceeded' : pct >= 80 ? 'warning' : 'healthy';
       return ''
-        + '<a class="cross-project-chat-card live" href="/cross-project/chat.html?id=' + escHtml(chat.id) + '">'
-        +   '<div class="cross-project-chat-card-head">'
-        +     '<span class="label-pill">' + escHtml(labelText) + '</span>'
-        +     '<span class="status-pill live">Live</span>'
+        + '<div class="spend-card">'
+        +   '<div class="spend-card__head">'
+        +     '<span class="spend-card__title">Cross-project AI spend</span>'
+        +     '<span class="spend-card__pct">' + Math.round(pct) + '%</span>'
         +   '</div>'
-        +   '<div class="cross-project-chat-card-source-row">'
-        +     '<div class="cross-project-chat-card-source-icon"><i class="ti ti-target"></i></div>'
-        +     '<span class="source-chip">' + jiraSvg(14) + ' Jira</span>'
-        +   '</div>'
-        +   '<p class="cross-project-chat-card-body">'
-        +     (chat.title ? escHtml(chat.title) : 'Compare velocity, throughput, ticket flow across projects.')
-        +   '</p>'
-        +   '<span class="scope-summary" style="margin-bottom:14px;display:flex;">'
-        +     '<i class="ti ti-folders"></i>'
-        +     '<span><strong>' + count + ' of ' + count + '</strong> · ' + escHtml(names || '—') + '</span>'
-        +   '</span>'
-        +   '<div class="cross-project-chat-card-foot">'
-        +     '<span class="cross-project-chat-card-foot-meta">' + escHtml(fmtRelative(lastAt)) + '</span>'
-        +     '<span class="cross-project-chat-card-foot-cta">Open ↗</span>'
-        +   '</div>'
-        + '</a>';
-    }
-
-    function renderNewCrossProjectCta() {
-      return ''
-        + '<a href="/cross-project/new" class="dash-card-dashed">'
-        +   '<div class="dash-card-dashed-icon"><i class="ti ti-plus"></i></div>'
-        +   '<div class="dash-card-dashed-title">New cross-project chat</div>'
-        +   '<div class="dash-card-dashed-sub">Pick a label and projects. Setup in under a minute.</div>'
-        + '</a>';
-    }
-
-    function renderCrossProjectStrip(chats, projectsById, workspace) {
-      const chatCount = chats.length;
-      const chatSuffix = chatCount === 1 ? '' : 's';
-      const viewAllLink = chatCount > 0
-        ? '<a href="/cross-project/" class="dash-strip-cta">View all →</a>'
-        : '';
-      const subLine = chatCount + ' chat' + chatSuffix
-        + ' · workspace cap ' + fmtUsd(workspace.cross_project_spend_usd)
-        + ' / ' + fmtUsd(workspace.cross_project_cap_usd) + ' this month';
-      const head = ''
-        + '<div class="dash-strip-head">'
-        +   '<div>'
-        +     '<div class="dash-strip-title">Your cross-project chats</div>'
-        +     '<div class="dash-strip-sub">' + subLine + '</div>'
-        +   '</div>'
-        +   viewAllLink
-        + '</div>';
-      const cards = chats.map(c => renderCrossProjectCard(c, projectsById)).join('')
-        + renderNewCrossProjectCta();
-      return head + '<div class="dash-grid">' + cards + '</div>';
-    }
-
-    function renderProjectCard(project) {
-      const sprint = project.jira_active_sprint;
-      const initial = initialOf(project.name);
-
-      let body;
-      if (sprint) {
-        const counts = sprint.ticket_counts || { total: 0, open: 0, done: 0 };
-        // Sprint "expired" = end_date in the past (Jira state may still say
-        // 'active' if not re-synced recently). Show "Ended N days ago" in
-        // muted text, no red-urgency. Progress bar greys out.
-        const nowMs = Date.now();
-        const endMs = sprint.end_date ? Date.parse(sprint.end_date) : null;
-        const isExpired = Number.isFinite(endMs) && endMs < nowMs;
-        const daysOverdue = isExpired
-          ? Math.ceil((nowMs - endMs) / (1000 * 60 * 60 * 24))
-          : null;
-        let deadlineCls = '';
-        let deadlineLbl = '';
-        if (isExpired) {
-          deadlineCls = ' expired';
-          deadlineLbl = 'Ended ' + daysOverdue + ' day' + (daysOverdue === 1 ? '' : 's') + ' ago';
-        } else if (sprint.days_left != null) {
-          deadlineCls = sprint.days_left <= 3 ? ' urgent' : '';
-          deadlineLbl = sprint.days_left + ' day' + (sprint.days_left === 1 ? '' : 's') + ' left';
-        }
-        const pct = sprint.percent_complete == null ? 0 : sprint.percent_complete;
-        // Past sprints use the same .exceeded (100% bar) but render in
-        // muted grey rather than danger pink via the .pc-bar-expired
-        // override below.
-        const pctClass = isExpired ? 'exceeded pc-bar-expired'
-          : (pct >= 75 ? 'exceeded' : (pct >= 50 ? 'warning' : 'healthy'));
-        body = ''
-          + '<div class="pc-sprint-row">'
-          +   '<div class="pc-sprint-name">' + escHtml(sprint.sprint_name) + '</div>'
-          +   '<div class="pc-sprint-deadline' + deadlineCls + '">' + escHtml(deadlineLbl) + '</div>'
-          + '</div>'
-          + '<div class="spend-bar ' + pctClass + ' thin" style="margin-bottom:5px;">'
-          +   '<div class="spend-bar-track">'
-          +     '<div class="spend-bar-fill" style="width:' + pct + '%;"></div>'
-          +   '</div>'
-          + '</div>'
-          + '<div class="pc-dates"><span>' + escHtml(fmtDate(sprint.start_date)) + '</span><span>' + escHtml(fmtDate(sprint.end_date)) + '</span></div>'
-          + '<div class="pc-stats">'
-          +   '<div><span class="pc-stat-num">' + counts.open + '</span> <span class="pc-stat-label">open</span></div>'
-          +   '<div><span class="pc-stat-num done">' + counts.done + '</span> <span class="pc-stat-label">done</span></div>'
-          + '</div>'
-          + '<div class="pc-stat-total">of ' + counts.total + ' total</div>';
-      } else if (project.has_jira) {
-        body = '<div class="pc-empty">No active sprint</div>';
-      } else {
-        body = '<div class="pc-empty">Not connected to Jira</div>';
-      }
-
-      const jiraMetaHtml = project.has_jira
-        ? '<div class="pc-meta">' + jiraSvg(12) + ' <span style="font-weight:500;">Jira</span></div>'
-        : '';
-
-      return ''
-        + '<a class="project-card data" href="/project.html?id=' + escHtml(project.id) + '">'
-        +   '<div class="pc-head">'
-        +     '<div class="pc-avatar">' + escHtml(initial) + '</div>'
-        +     '<div style="flex:1;">'
-        +       '<div class="pc-name">' + escHtml(project.name) + '</div>'
-        +       jiraMetaHtml
+        +   '<div class="spend-card__amount">' + fmtUsd(spend) + ' of ' + fmtUsd(cap) + ' this month</div>'
+        +   '<div class="spend-bar ' + variant + ' slim">'
+        +     '<div class="spend-bar-track">'
+        +       '<div class="spend-bar-fill" style="width:' + pct + '%;"></div>'
         +     '</div>'
         +   '</div>'
-        +   body
+        + '</div>';
+    }
+
+    function jiraChip() {
+      return '<span class="srcchip srcchip--jira">'
+        + '<svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 000 1.06l4.95 4.95a.75.75 0 001.06 0L17.54 8l-5.49-5.49a.75.75 0 00-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 000 1.06l4.95 4.95a.75.75 0 001.06 0L22 7.92 17.05 2.97a.75.75 0 00-1.06 0z"/></svg>'
+        + 'Jira'
+        + '</span>';
+    }
+
+    function renderProjectCard(p) {
+      const hasJira = !!p.has_jira;
+      const sources = hasJira
+        ? jiraChip()
+        : '<span class="srcchip srcchip--none">No sources yet</span>';
+      const updated = p.updated_at ? esc(fmtRelative(p.updated_at)) : '';
+      return ''
+        + '<a class="pcard" href="/project.html?id=' + esc(p.id) + '">'
+        +   '<div class="pcard__head">'
+        +     '<div class="pcard__avatar">' + esc(initial(p.name)) + '</div>'
+        +     '<div style="flex:1;min-width:0;">'
+        +       '<div class="pcard__name">' + esc(p.name) + '</div>'
+        +       (updated ? '<div class="pcard__updated">Updated ' + updated + '</div>' : '')
+        +     '</div>'
+        +   '</div>'
+        +   '<div class="pcard__sources">' + sources + '</div>'
         + '</a>';
     }
 
-    function renderProjectsStrip(projects) {
-      const jiraCount = projects.filter(p => p.has_jira).length;
-      const total = projects.length;
-      const head = ''
-        + '<div class="dash-strip-head">'
-        +   '<div>'
-        +     '<div class="dash-strip-title">Your projects</div>'
-        +     '<div class="dash-strip-sub">'
-        +       total + ' total · ' + jiraCount + ' connected to Jira'
-        +     '</div>'
-        +   '</div>'
-        +   '<a href="/projects.html" class="dash-strip-cta">View all projects →</a>'
+    function renderProjectsSection(projects, isAdmin) {
+      const gridCls = isAdmin ? 'projects-grid-admin' : 'projects-grid-member';
+      const cards = projects.map(renderProjectCard).join('');
+      const createCard = isAdmin
+        ? '<a href="/projects/new.html" class="pcard-create"><div class="pcard-create__icon"><i class="ti ti-plus"></i></div><span class="pcard-create__label">New project</span></a>'
+        : '';
+      return ''
+        + '<div class="projects-section">'
+        +   '<div class="eyebrow"><span class="eyebrow__label">Projects</span><span class="eyebrow__rule"></span></div>'
+        +   '<div class="projects-section-head"><span></span><a href="/projects.html">View all →</a></div>'
+        +   '<div class="' + gridCls + '">' + cards + createCard + '</div>'
         + '</div>';
-      if (projects.length === 0) {
-        return head + '<div class="dash-grid"><a href="/projects/new" class="dash-card-dashed">'
-          + '<div class="dash-card-dashed-icon"><i class="ti ti-plus"></i></div>'
-          + '<div class="dash-card-dashed-title">Create your first project</div>'
-          + '<div class="dash-card-dashed-sub">Connect Slack or Jira to get started.</div>'
-          + '</a></div>';
-      }
-      return head + '<div class="dash-grid">' + projects.map(renderProjectCard).join('') + '</div>';
     }
 
     function render(data) {
-      const root = document.getElementById('dashRoot');
-      const projectsById = new Map(data.projects.map(p => [p.id, p]));
-      const name = nameFromEmail(data.user && data.user.email);
-      const greetingHtml = ''
-        + '<div class="dash-greeting">'
-        +   '<p class="dash-greeting-eyebrow">— Workspace</p>'
-        +   '<h1>Good ' + timeOfDay() + ', <strong>' + escHtml(name) + '</strong></h1>'
-        +   '<p>' + data.projects.length + ' project' + (data.projects.length === 1 ? '' : 's') + ' in your workspace. Ask on any one, or open a cross-project chat to compare across.</p>'
-        + '</div>';
-      root.innerHTML = ''
-        + greetingHtml
-        + renderHero()
-        + renderCrossProjectStrip(data.cross_project_chats, projectsById, data.workspace)
-        + renderProjectsStrip(data.projects);
+      const root = $('#dashRoot');
+      const isAdmin = !!(data.user && data.user.is_admin);
+      const parts = [];
+      parts.push(renderGreeting(data.user, data.projects));
+      parts.push(renderHero());
+      if (isAdmin && data.workspace) parts.push(renderSpendCard(data.workspace));
+      parts.push(renderProjectsSection(data.projects, isAdmin));
+      root.innerHTML = parts.join('');
     }
 
     async function boot() {
@@ -542,23 +458,23 @@
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || 'Failed to load');
-        // Populate nav user info from data.user
-        document.getElementById('navUser').textContent = data.user.email;
-        if (data.user.is_admin) document.getElementById('adminLink').style.display = '';
+        const av = $('#navUserAvatar');
+        av.textContent = initial(data.user.display_name || data.user.email);
+        av.title = (data.user.display_name || '') + (data.user.email ? ' · ' + data.user.email : '');
+        if (data.user.is_admin) $('#adminLink').style.display = '';
         render(data);
       } catch (err) {
-        document.getElementById('dashRoot').innerHTML = ''
-          + '<div class="dash-error">Couldn\'t load workspace. Retry in a moment.<br>'
-          + '<small>' + escHtml(String(err && err.message || err)) + '</small></div>';
+        $('#dashRoot').innerHTML = '<div class="dash-error">Couldn\'t load workspace. <small>' + esc(String(err && err.message || err)) + '</small></div>';
       }
     }
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
+    $('#logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' }).catch(() => {});
       location.replace('/');
     });
 
     boot();
+  })();
   </script>
 </body>
 </html>

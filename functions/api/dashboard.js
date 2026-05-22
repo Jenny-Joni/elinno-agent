@@ -87,7 +87,7 @@ export async function onRequestGet({ request, env }) {
     if (projectIds.length === 0) {
       return json({
         ok: true,
-        user: { id: user.id, email: user.email, is_admin: !!user.is_admin },
+        user: { id: user.id, email: user.email, display_name: user.display_name || '', is_admin: !!user.is_admin },
         workspace: {
           cross_project_spend_usd: 0,
           cross_project_cap_usd: cap,
@@ -276,6 +276,7 @@ export async function onRequestGet({ request, env }) {
       user: {
         id: user.id,
         email: user.email,
+        display_name: user.display_name || '',
         is_admin: !!user.is_admin,
       },
       workspace: {
