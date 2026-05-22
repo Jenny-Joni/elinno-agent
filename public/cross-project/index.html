@@ -5,60 +5,118 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Cross-project chats — Elinno Agent</title>
   <meta name="robots" content="noindex" />
-  <link rel="stylesheet" href="/auth.css" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <link rel="stylesheet" href="/auth.css" />
   <style>
-    .cp-landing {
-      background: #fff;
-      border: 1px solid var(--color-border);
-      border-radius: 12px;
-      overflow: hidden;
-      margin: 18px 0 28px;
+    /* Cross-project landing per v1.4. v1.4 components
+       (.brandmark/.wordmark/.eyebrow/.btn--*) live in auth.css. */
+    .cp-shell { max-width: 760px; margin: 0 auto; padding: 30px 30px 60px; }
+    .cp-crumb {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text-3);
+      margin-bottom: 14px;
     }
-    .cp-landing-head {
-      padding: 24px 24px 18px;
-      border-bottom: 1px solid var(--color-border);
+    .cp-crumb a { color: var(--brand); text-decoration: none; }
+    .cp-head-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 14px;
+      margin-bottom: 24px;
     }
-    .cp-landing-eyebrow {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--color-brand);
+    .cp-title {
+      font-family: var(--font);
+      font-size: 28px;
       font-weight: 500;
-      margin-bottom: 8px;
-    }
-    .cp-landing-title {
-      font-size: 22px;
-      font-weight: 500;
-      text-transform: uppercase;
-      line-height: 1.15;
       margin: 0 0 8px;
+      letter-spacing: -0.01em;
     }
-    .cp-landing-title strong { font-weight: 700; }
-    .cp-landing-sub {
-      font-size: 13px;
-      color: var(--color-text-body);
-      line-height: 1.45;
+    .cp-sub {
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--text-2);
       margin: 0;
-      max-width: 540px;
+      max-width: 460px;
+      line-height: 1.5;
     }
-    .cp-landing-grid {
-      padding: 18px 18px 6px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+
+    .cp-list { display: flex; flex-direction: column; gap: 10px; }
+    .cp-row {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 0.5px solid var(--border);
+      background: var(--bg);
+      border-radius: var(--r-md);
+      text-decoration: none;
+      color: inherit;
+      transition: background var(--t-fast), border-color var(--t-fast);
     }
-    .cp-landing-footer {
-      padding: 6px 18px 24px;
+    .cp-row:hover {
+      background: var(--brand-soft);
+      border-color: var(--brand-soft-border);
     }
+    .cp-row__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--r-sm);
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 16px;
+    }
+    .cp-row__body { flex: 1; min-width: 0; }
+    .cp-row__title {
+      font-family: var(--font);
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cp-row__scope {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cp-row__meta {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
+      flex-shrink: 0;
+    }
+
+    .cp-empty {
+      padding: 36px 18px;
+      text-align: center;
+      color: var(--text-3);
+      font-family: var(--font);
+      font-size: 13px;
+      border: 1.5px dashed var(--border);
+      border-radius: var(--r-md);
+    }
+
     .cp-new-cta {
       width: 100%;
       box-sizing: border-box;
       background: transparent;
-      color: var(--color-brand);
-      border: 1.5px dashed rgba(98, 52, 252, 0.4);
+      color: var(--brand);
+      border: 1.5px dashed var(--brand-soft-border);
       padding: 16px;
-      border-radius: 12px;
+      border-radius: var(--r-md);
+      font-family: var(--font);
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
@@ -67,65 +125,82 @@
       justify-content: center;
       gap: 8px;
       text-decoration: none;
+      margin-top: 16px;
+      transition: background var(--t-fast), border-color var(--t-fast);
     }
-    .cp-new-cta:hover { background: var(--color-brand-tint); }
-    .cp-empty {
-      padding: 28px 18px 12px;
-      text-align: center;
-      color: var(--color-text-muted);
-      font-size: 13px;
+    .cp-new-cta:hover {
+      background: var(--brand-soft);
+      border-color: var(--brand);
     }
-    .cp-loading, .cp-error {
-      padding: 80px 0;
-      text-align: center;
-      font-size: 13px;
-    }
-    .cp-loading { color: var(--color-text-muted); }
+
+    .cp-loading,
     .cp-error {
-      background: rgba(255, 0, 131, 0.08);
-      border: 1px solid rgba(255, 0, 131, 0.3);
-      border-radius: 12px;
-      color: var(--color-error);
-      margin: 20px 0;
+      padding: 60px 0;
+      text-align: center;
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text-3);
+    }
+    .cp-error {
+      color: #b80056;
+      background: #fff1f7;
+      border: 0.5px solid #f6c1d8;
+      border-radius: var(--r-md);
+      padding: 18px;
+    }
+
+    @media (max-width: 700px) {
+      .cp-shell { padding: 22px 18px 60px; }
+      .cp-title { font-size: 23px; }
+      .cp-head-row { flex-direction: column; align-items: flex-start; }
+      .cp-row__meta { display: none; }
     }
   </style>
 </head>
 <body>
-  <nav class="app-nav">
+
+  <nav class="app-nav" data-sticky-topbar>
     <div class="app-nav-inner">
-      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <a href="/dashboard.html" class="app-brand" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+        <span class="brandmark"></span>
+        <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
+      </a>
       <div class="app-nav-actions">
-        <span id="navUser" style="color:var(--color-text-body);opacity:.85;font-size:14px;"></span>
+        <a href="/dashboard.html">Dashboard</a>
         <a href="/projects.html">Projects</a>
         <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
-        <button id="logoutBtn" class="btn-nav">Log out</button>
+        <span id="navUserAvatar" class="pcard__avatar" style="width:28px;height:28px;background:var(--brand);color:#fff;font-size:11px;border-radius:50%;" title=""></span>
+        <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
       </div>
     </div>
   </nav>
 
-  <main class="app-main">
-    <div class="custom-container">
+  <main style="background:var(--bg-subtle);min-height:calc(100vh - 70px);">
+    <div class="cp-shell">
       <div id="cpRoot">
         <div class="cp-loading">Loading cross-project chats…</div>
       </div>
     </div>
   </main>
 
+  <script src="/_lib/sticky-topbar.js" defer></script>
+
   <script>
-    function escHtml(s) {
-      return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+  (function () {
+    'use strict';
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function initial(s) {
+      return (String(s || '?').trim()[0] || '?').toUpperCase();
     }
     function fmtRelative(iso) {
       if (!iso) return '';
       const d = new Date(iso);
       if (!isFinite(d)) return '';
-      const diffMs = Date.now() - d.getTime();
-      const diffMin = Math.floor(diffMs / 60000);
+      const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
       if (diffMin < 1) return 'just now';
       if (diffMin < 60) return diffMin + ' min ago';
       const diffHr = Math.floor(diffMin / 60);
@@ -135,10 +210,6 @@
       if (diffDay < 7) return diffDay + ' days ago';
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
-    function jiraSvg(size) {
-      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-label="Jira"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z"/></svg>';
-    }
-
     function redirectToLogin() {
       location.replace('/login.html?next=' + encodeURIComponent('/cross-project/'));
     }
@@ -147,24 +218,8 @@
       const r = await fetch('/api/me');
       if (r.status === 401) { redirectToLogin(); return null; }
       const data = await r.json().catch(() => null);
-      if (!data || !data.user) { redirectToLogin(); return null; }
-      const me = data.user;
-      const u = document.getElementById('navUser');
-      if (u) u.textContent = me.email || '';
-      if (me.is_admin) {
-        const a = document.getElementById('adminLink');
-        if (a) a.style.display = '';
-      }
-      const lo = document.getElementById('logoutBtn');
-      if (lo) {
-        lo.addEventListener('click', async () => {
-          try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
-          location.replace('/login.html');
-        });
-      }
-      return me;
+      return data && data.user ? data.user : null;
     }
-
     async function loadProjects() {
       const r = await fetch('/api/projects');
       if (r.status === 401) { redirectToLogin(); return new Map(); }
@@ -175,7 +230,6 @@
       }
       return map;
     }
-
     async function loadConversations() {
       const r = await fetch('/api/cross-project/conversations');
       if (r.status === 401) { redirectToLogin(); return []; }
@@ -184,101 +238,84 @@
       return data.conversations;
     }
 
-    function renderCard(chat, projectsById) {
+    function wireNav(user) {
+      const avatar = document.getElementById('navUserAvatar');
+      if (avatar) {
+        const label = (user && user.display_name) || (user && user.email) || '';
+        avatar.textContent = initial(label);
+        avatar.title = label;
+      }
+      if (user && user.is_admin) {
+        const adminLink = document.getElementById('adminLink');
+        if (adminLink) adminLink.style.display = '';
+      }
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+          try { await fetch('/api/logout', { method: 'POST' }); } catch {}
+          location.replace('/');
+        });
+      }
+    }
+
+    function rowHtml(chat, projectsById) {
       const projectIds = Array.isArray(chat.project_ids) ? chat.project_ids : [];
-      const total = projectIds.length;
       const names = projectIds
         .map(id => (projectsById.get(id) || {}).name || 'Project')
         .join(', ');
       const lastAt = chat.last_message_at || chat.updated_at || chat.created_at;
       const title = chat.title || 'Cross-project chat';
+      const scope = projectIds.length === 0
+        ? 'No projects'
+        : 'Across ' + projectIds.length + ' · ' + names;
       return ''
-        + '<a class="cross-project-chat-card live" href="/cross-project/chat.html?id=' + escHtml(chat.id) + '">'
-        +   '<div class="cross-project-chat-card-head">'
-        +     '<span class="label-pill">Product</span>'
-        +     '<span class="cross-project-chat-card-status live">Live</span>'
+        + '<a class="cp-row" href="/cross-project/chat.html?id=' + esc(chat.id) + '">'
+        +   '<div class="cp-row__icon"><i class="ti ti-messages"></i></div>'
+        +   '<div class="cp-row__body">'
+        +     '<div class="cp-row__title">' + esc(title) + '</div>'
+        +     '<div class="cp-row__scope">' + esc(scope) + '</div>'
         +   '</div>'
-        +   '<div class="cross-project-chat-card-source-row">'
-        +     '<div class="cross-project-chat-card-source-icon"><i class="ti ti-target"></i></div>'
-        +     '<div class="source-chip">' + jiraSvg(14) + 'Jira</div>'
-        +   '</div>'
-        +   '<p class="cross-project-chat-card-body">' + escHtml(title) + '</p>'
-        +   '<div class="scope-summary">'
-        +     '<i class="ti ti-folders"></i>'
-        +     '<span><strong>' + total + ' of ' + total + '</strong> · ' + escHtml(names || '—') + '</span>'
-        +   '</div>'
-        +   '<div class="cross-project-chat-card-foot">'
-        +     '<span class="cross-project-chat-card-foot-meta">' + escHtml(fmtRelative(lastAt) || 'new') + '</span>'
-        +     '<span class="cross-project-chat-card-foot-cta">Open ↗</span>'
-        +   '</div>'
+        +   '<div class="cp-row__meta">' + esc(fmtRelative(lastAt) || '') + '</div>'
         + '</a>';
     }
 
-    function renderLockedV2Card() {
-      return ''
-        + '<div class="cross-project-chat-card locked-v2">'
-        +   '<div class="cross-project-chat-card-head">'
-        +     '<span class="label-pill">Finance</span>'
-        +     '<span class="cross-project-chat-card-status v2">v2.0</span>'
-        +   '</div>'
-        +   '<div class="cross-project-chat-card-source-row">'
-        +     '<div class="cross-project-chat-card-source-icon"><i class="ti ti-coin"></i></div>'
-        +     '<div class="source-chip muted"><svg width="14" height="14" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4" fill="#FF3D57"/><circle cx="12" cy="12" r="2.4" fill="#FFCB00"/><circle cx="18" cy="12" r="2.4" fill="#00CA72"/></svg>Monday</div>'
-        +   '</div>'
-        +   '<p class="cross-project-chat-card-body">Track budgets, spend, resource allocation across projects.</p>'
-        +   '<div class="scope-summary">'
-        +     '<i class="ti ti-folders"></i>'
-        +     '<span><strong>Requires Monday</strong></span>'
-        +   '</div>'
-        +   '<div class="cross-project-chat-card-foot">'
-        +     '<span class="cross-project-chat-card-foot-meta">Ships in v2.0</span>'
-        +     '<span class="cross-project-chat-card-foot-cta">Locked</span>'
-        +   '</div>'
-        + '</div>';
-    }
-
-    function renderLanding(conversations, projectsById) {
-      const liveCards = conversations.map(c => renderCard(c, projectsById)).join('');
-      const emptyHtml = conversations.length === 0
+    function render(conversations, projectsById) {
+      const list = conversations.length === 0
         ? '<div class="cp-empty">No cross-project chats yet — start one below.</div>'
-        : '';
-      return ''
-        + '<div class="cp-landing">'
-        +   '<div class="cp-landing-head">'
-        +     '<div class="cp-landing-eyebrow">— Cross-project</div>'
-        +     '<h2 class="cp-landing-title">Your <strong>cross-project chats</strong></h2>'
-        +     '<p class="cp-landing-sub">Each chat is labeled by function and typed to a data source. Scope is the projects you choose. Authorization re-runs on every question.</p>'
+        : '<div class="cp-list">' + conversations.map(c => rowHtml(c, projectsById)).join('') + '</div>';
+      document.getElementById('cpRoot').innerHTML = ''
+        + '<div class="cp-crumb"><a href="/dashboard.html">Dashboard</a> / Cross-project chats</div>'
+        + '<div class="cp-head-row">'
+        +   '<div>'
+        +     '<div class="eyebrow"><span class="eyebrow__label">Cross-project</span><span class="eyebrow__rule"></span></div>'
+        +     '<h1 class="cp-title">Your cross-project chats</h1>'
+        +     '<p class="cp-sub">Each chat reads across a fixed set of projects you pick at the start. Begin a new chat to ask across a different set.</p>'
         +   '</div>'
-        +   emptyHtml
-        +   '<div class="cp-landing-grid">'
-        +     liveCards
-        +     renderLockedV2Card()
-        +   '</div>'
-        +   '<div class="cp-landing-footer">'
-        +     '<a href="/cross-project/new" class="cp-new-cta">'
-        +       '<i class="ti ti-plus"></i> New cross-project chat'
-        +     '</a>'
-        +   '</div>'
-        + '</div>';
+        + '</div>'
+        + list
+        + '<a href="/cross-project/new.html" class="cp-new-cta"><i class="ti ti-plus"></i> New cross-project chat</a>';
     }
 
-    function renderError(msg) {
-      return '<div class="cp-error">' + escHtml(msg) + '</div>';
+    function renderError() {
+      document.getElementById('cpRoot').innerHTML =
+        '<div class="cp-error">Couldn’t load cross-project chats. Refresh to try again.</div>';
     }
 
     (async function boot() {
       try {
         const me = await loadMe();
-        if (!me) return;
+        if (!me) { redirectToLogin(); return; }
+        wireNav(me);
         const [projectsById, conversations] = await Promise.all([
           loadProjects(),
           loadConversations(),
         ]);
-        document.getElementById('cpRoot').innerHTML = renderLanding(conversations, projectsById);
+        render(conversations, projectsById);
       } catch {
-        document.getElementById('cpRoot').innerHTML = renderError("Couldn't load cross-project chats. Refresh to try again.");
+        renderError();
       }
     })();
+  })();
   </script>
 </body>
 </html>
