@@ -2687,12 +2687,7 @@ table.users-table {
 }
 .confirm-modal__type-prompt strong {
   color: var(--text);
-  font-weight: 500;
-  font-family: 'Menlo', 'Monaco', monospace;
-  background: var(--bg-subtle);
-  border: 0.5px solid var(--border);
-  padding: 1px 6px;
-  border-radius: 4px;
+  font-weight: 600;
 }
 .confirm-modal__type-input {
   width: 100%;
@@ -2714,27 +2709,6 @@ table.users-table {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-.confirm-modal__actions .btn,
-.confirm-modal__actions .confirm-modal__confirm-danger {
-  padding: 10px 16px;
-  font-size: 13px;
-  width: auto;
-}
-.confirm-modal__confirm-danger {
-  background: var(--danger);
-  color: #fff;
-  border: none;
-  border-radius: var(--r-sm);
-  font-family: var(--font);
-  font-weight: 500;
-  cursor: pointer;
-  transition: filter var(--t-fast);
-}
-.confirm-modal__confirm-danger:hover:not(:disabled) { filter: brightness(1.05); }
-.confirm-modal__confirm-danger:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 /* Mobile: bottom-sheet for confirm modals (centered desktop / sheet phone). */
@@ -2955,4 +2929,126 @@ table.users-table {
   .app-nav.is-hidden {
     transform: none;
   }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   v1.4 button family — BEM-style modifiers, sentence-case.
+   Distinct from the legacy .btn-primary/.btn-ghost/.btn-danger
+   (single-dash, uppercase, 14px, 8px radius) which stay in place for
+   pre-v1.4 surfaces. The BEM double-dash names (.btn--primary etc.)
+   never collide with the legacy single-dash names.
+
+   Consumers opt in by combining the base .btn class with the v1.4
+   modifier — e.g. <button class="btn btn--primary">Sign in</button>.
+   The modifier selector overrides the legacy .btn rule's font-size
+   / padding / text-transform / radius via cascade, so old buttons
+   that only use .btn (no BEM modifier) keep their legacy look.
+   ──────────────────────────────────────────────────────────────────── */
+.btn--primary,
+.btn--ghost,
+.btn--danger {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  border-radius: var(--r-sm);
+  padding: 10px 18px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  transition: filter var(--t-fast), background var(--t-fast), color var(--t-fast);
+  width: auto;
+}
+.btn--primary {
+  background: var(--brand);
+  color: #fff;
+}
+.btn--primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn--ghost {
+  background: var(--bg);
+  color: var(--text-2);
+  border: 0.5px solid var(--border);
+}
+.btn--ghost:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--brand-soft);
+}
+.btn--danger {
+  background: var(--danger);
+  color: #fff;
+}
+.btn--danger:hover:not(:disabled) { filter: brightness(1.05); }
+.btn--primary:disabled,
+.btn--ghost:disabled,
+.btn--danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Confirm modal — destructive variant.
+   .modal.confirm.confirm--danger uses a centered layout: an icon
+   slot above the title (typically a Tabler alert-triangle in a
+   danger-tinted rounded box), no top-bar × close, and centered
+   body copy + prompt + input. Buttons stay right-aligned in the
+   footer. Used by delete-project, remove-member, and any other
+   destructive flow.
+
+   Markup:
+     <div class="modal confirm confirm--danger" role="dialog" aria-modal="true">
+       <div class="modal-backdrop"></div>
+       <div class="modal-content">
+         <div class="modal-body">
+           <div class="confirm-modal__icon"><i class="ti ti-alert-triangle"></i></div>
+           <h3 class="confirm-modal__title">Delete Rain?</h3>
+           <p class="confirm-modal__text">…</p>
+           <p class="confirm-modal__type-prompt">Type <strong>Rain</strong> to confirm</p>
+           <input class="confirm-modal__type-input" data-confirm-token="Rain" placeholder="Rain">
+           <div class="confirm-modal__actions">
+             <button class="btn btn--ghost" data-close-modal>Cancel</button>
+             <button class="btn btn--danger" disabled>Delete project</button>
+           </div>
+         </div>
+       </div>
+     </div>
+   ──────────────────────────────────────────────────────────────────── */
+.modal.confirm.confirm--danger .modal-header { display: none; }
+.modal.confirm.confirm--danger .modal-content {
+  padding-top: 24px;
+}
+.modal.confirm.confirm--danger .modal-body {
+  text-align: center;
+  padding: 0 28px 22px;
+}
+.confirm-modal__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(179, 20, 75, 0.10);
+  color: var(--danger);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin: 0 0 14px;
+}
+.modal.confirm.confirm--danger .confirm-modal__icon i { line-height: 1; }
+.confirm-modal__title {
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 10px;
+}
+.modal.confirm.confirm--danger .confirm-modal__text { text-align: center; }
+.modal.confirm.confirm--danger .confirm-modal__type-prompt { text-align: center; }
+.modal.confirm.confirm--danger .confirm-modal__type-input { text-align: center; }
+.modal.confirm.confirm--danger .confirm-modal__actions {
+  justify-content: flex-end;
+  padding-top: 4px;
 }
