@@ -212,8 +212,15 @@ export async function onRequestGet({ request, env }) {
     // 7. K redirect. Destination derived from row.project_id; no
     // callback query param contributes. No redirect_to. No echo of
     // Slack's params. Decision K closes the open-redirect class.
-    const dest = new URL('/project.html', new URL(request.url).origin);
-    dest.searchParams.set('project_id', row.project_id);
+    //
+    // Block 13.7b: retargeted from /project.html to /project_settings.html
+    // (the new home for connection management per Phase 7a). Also fixes a
+    // pre-existing param-name mismatch — both project.html and
+    // project_settings.html read ?id=, not ?project_id=, so the legacy
+    // redirect was silently broken at the URL-param-name layer. Source
+    // (row.project_id) is unchanged; only the URL key name is normalized.
+    const dest = new URL('/project_settings.html', new URL(request.url).origin);
+    dest.searchParams.set('id', row.project_id);
     dest.searchParams.set('tab', 'connections');
     dest.searchParams.set('just_connected', 'slack');
     return Response.redirect(dest.toString(), 302);
