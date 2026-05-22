@@ -5176,3 +5176,135 @@ Block 12.5a is **SHIPPED**. Sub-block 12.5b (Cross-project
 modal per mockups b/c/d/e/h) is next per BLOCK_12_PLAN §6.12.5b.
 The backend that 12.5b drives is proven; the new sub-block is UI-only
 work in auto mode (no SECURITY-CARVE-OUT files touched).
+
+---
+
+## v1.4 session — 2026-05-22 (Blocks 13.0–13.5 SHIPPED)
+
+**Production state**: `e45b5df` on `elinnoagent.com`.
+Five sub-blocks landed in one session: 13.0 → 13.1 → 13.2 → 13.3 →
+13.4 → 13.5. Block 12 was complete + v1.3 fully shipped at the start
+of session (prod was at `0ee4dc1` after 12.6); v1.4 is now ~75% live
+(Phases 1, 2, 3, 4 a/b/c/g/d/e/f, and 5 — i.e. everything except
+cross-project alignment, connections consolidation, slug system,
+cleanup).
+
+**Decisions locked**: see `BLOCK_13_DECISIONS.md` (committed
+`7465594`). Seven irreversibles settled in chat before any code:
+membership model stays workspace-only (option b — `project_members`
+stays dropped); `display_name TEXT NOT NULL DEFAULT ''` + email-
+prefix backfill; `must_change_password INTEGER NOT NULL DEFAULT 0`
+co-locked in the same migration; slug workspace-unique with reserved
+list (`new`, `settings`, `admin`, `dashboard`, `projects`, `api`,
+`login`, `logout`, `forgot-password`, `reset-password`, `workspace`,
+`cross-project`, `_dev`); v1.4 design tokens are bare-noun
+(`--brand`, `--text`, `--r-md`) — legacy `--color-*` tokens left
+intact, both namespaces coexist; citations become non-clickable
+labels everywhere (Decision 6); `authorizeProjectSet` unchanged.
+
+### What shipped per block
+
+| Block | Commit | Production-visible change |
+|---|---|---|
+| **13.0** — design-system foundation | `48f9210` + `77e1dce` + `1a83383` + `2fbe44d` + `a1ebf94` | 21 bare-noun tokens + 8 reusable components in `public/auth.css` (`.eyebrow`, `.brandmark`/`.wordmark`, `.surface`, `.pill` role+status, `.password-field`, `.modal.confirm` + `.confirm--danger`, `.inline-edit`, `.kebab-btn`+`.menu`); sticky-top-bar progressive-enhancement helper at `public/_lib/sticky-topbar.js`; components gallery extended to `/_dev/components.html`. v1.4 `.btn` BEM family (`.btn--primary`/`--ghost`/`--danger`) added in the polish commit so all Phase-4 reskins can drop in mockup HTML unchanged. |
+| **13.1** — login brand-mark + redirect | `0ee4dc1` | `public/index.html` swapped from inline SVG `<svg>` brand glyph to `.brandmark` + `.wordmark` CSS component (matches mockup screen-01). Both-roles `location.replace('/dashboard.html')` post-auth (was `is_admin ? /admin.html : /dashboard.html`). `.brandmark` + `.wordmark` rules ported into `public/styles.css` too, since the unauthed entry uses styles.css not auth.css. |
+| **13.2** — admin pilot | `70d09e4` (migration) + `0e49365` (endpoints) + `9107298` (UI) | D1 migration applied — `users.display_name TEXT NOT NULL DEFAULT ''` (backfilled to email prefix via `substr(email, 1, instr(email, '@') - 1)`) + `users.must_change_password INTEGER NOT NULL DEFAULT 0`. Jenny ran the DDL via `wrangler d1 execute elinno-agent-db --file=db/migrations/2026-05-22-block-13-2-users-display-name.sql --remote`. `db/schema-d1.sql` updated as the canonical post-state. New `PATCH /api/admin/users/[id]` with last-admin guard for demote + admin reset-password — crypto carve-out: reuses existing `hashPassword` (PBKDF2-100k via Web Crypto), no new primitive, no plaintext persistence. `display_name` threaded through `getSessionUser` (auth.js SELECT) + `/api/me` + `/api/admin/users` list. `public/admin.html` reskinned per mockup screen-10 (Display name → Email → Role → Password create form with `.password-field` Generate + eye; members list with role + status pills; per-row ⋯ menu wiring rename / role-toggle / reset-password / remove; reset-password modal uses `.modal.confirm` info variant; remove modal uses `.modal.confirm.confirm--danger` type-to-confirm). Last-admin guard surfaces in the UI: ⋯ menu items disabled with `title` tooltip when target is the only admin. |
+| **13.3** — landing + projects + auth screens | `1ec110f` (dashboard) + `51ee077` (projects) + `4fda047` (projects/new) + `3d858e5` (forgot/reset) + `3c3c654` (jira.svg externalize) + `94dc640` (drop _routes.json) | `public/dashboard.html` reskinned per screen-02 — dark `#1a1530` cross-project hero with blurred purple orb, `.eyebrow` "WORKSPACE" + greeting, admin spend-meter card, project-card grid (3-up admin / 2-up member per Decision 1: both roles see all workspace projects). `public/projects.html` reskinned per screen-05. `public/projects/new.html` reskinned per screen-06 with "Create & connect a source →" CTA + post-create redirect to `/project_settings.html?id=<new>&tab=connections&just_created=1`. `public/forgot-password.html` + `public/reset-password.html` reskinned per screen-13 — light card on soft purple-gradient backdrop, privacy-safe sent state ("If an account exists for {email}…"), live "Passwords match" check on reset. `functions/api/dashboard.js` patched to include `display_name` in both user-payload branches. |
+| **13.4** — project chat + settings | `cb51e71` + `dfbf704` | `public/project.html`: brandmark + wordmark in nav, tab strip collapsed to Chat-only (Members + Connections tabs hidden via `display:none;` to KEEP the eager `connections` fetch + `getConnectionState`/`getSuggestionList` driving the chat empty-state suggestion chips — Phase 7b will strip the button + handler after Phase 7a ports the full connect flow into Settings → Connections), Settings demoted from tab to header gear button (`<i class="ti ti-settings">`), citation `<a>` branch in `renderCitationRailHtml` collapsed — every citation renders as `.chat-citation-noref` span per Decision 6, sticky-bar wired. `public/project_settings.html` nav swap + sticky-bar (General + Connections tab body untouched, awaits Phase 7). |
+| **13.5** — conversation rename/delete/undo | `29bb77b` + `e45b5df` | New `PATCH /api/projects/[id]/conversations/[conversationId]` (`title` + `restore`) and `DELETE` (soft-delete via `deleted_at = NOW()`). Extended `PATCH /api/cross-project/conversations/[id]` to accept `title` and `restore: true` in addition to `project_ids`. Sidebar UI in `public/project.html`: each `.conv-item` now lives inside a `.conv-row` wrapper with a `.kebab-btn.conv-menu-trigger` + `.menu.conv-menu` (Rename + Delete). Rename = inline `<input>` swap (Enter saves via PATCH + optimistic update + rollback on failure, Esc cancels). Delete = optimistic removal from sidebar + DELETE call + 5-second `.conv-toast` with Undo button that calls `PATCH {restore: true}`. Active conversation falls back to next on delete; clears the chat surface if no fallback exists. Endpoints verified 401 for unauthed PATCH + DELETE. |
+
+### The Cloudflare Pages inline-SVG-in-JS bug
+
+The session's biggest detour was a Cloudflare-side regression I
+diagnosed on the Phase 4 preview deploy. Documented for future v1.4
+work + general posterity:
+
+- **Repro**: serve a static `.html` file via Cloudflare Pages where
+  the inline `<script>` block contains raw SVG `<path>` data inside
+  a JS template literal (e.g. `'<svg ...><path d="M11.53 2..."/></svg>'`).
+- **Symptom**: worker layer returns HTTP **500 with `content-length: 0`**
+  and an empty body. `/api/*` Functions still work; only the static
+  HTML 500s. Same SVG markup served from a standalone `.svg` file
+  is fine.
+- **Reproduced 4×** across different deploy hashes for the same
+  branch (`1ec110f`, `51ee077`, `8a8cffd`, `a9dc9db0`). Binary-search
+  isolated the trigger:
+    - minimal dashboard.html (209B): 200
+    - full v1.4 dashboard.html (16336B): 500
+    - script-stripped (8894B): 200
+    - SVG-content stripped (15987B): 200
+    - full file with SVG inlined: 500
+- **Fix**: externalized to `public/icons/jira.svg`, referenced via
+  `<img src="/icons/jira.svg" width="10" height="10" alt="Jira">`
+  in the template literal. Visual identical, ships clean.
+- **Rule going forward**: any inline SVG in a JS string concat goes
+  to `public/icons/<name>.svg`. The old dashboard's `jiraSvg(size)`
+  function pattern was already in production (similar shape) and
+  apparently survived — possibly through a build cache. Don't rely
+  on that. Externalize from the start.
+- **Detour cost**: ~30 tool calls debugging. False leads:
+  `_routes.json` to scope Functions to `/api/*` (which then
+  accidentally bypassed Functions entirely, breaking `/api/*` —
+  reverted in `94dc640`); cache-control headers; URL-pattern
+  hypotheses. None of those were causal.
+
+### Untracked + housekeeping
+
+- `package-lock.json` is untracked in the working tree. Originated
+  from a `npm install` early in the session for a wrangler-dev
+  experiment that didn't pan out. Decide whether to commit,
+  gitignore, or delete — no v1.4 code depends on it.
+- `scripts/delete-all-projects.sql` is gitignored (Block 13.0
+  `.gitignore` add: `scripts/*.sql`). The file in `scripts/` is
+  stale (references `project_members` dropped in Block 12.1) and
+  should be either updated or deleted before next use.
+- Branches `block-13.0-design-foundation`, `block-13.1-login-brandmark`,
+  `block-13.2-admin-pilot`, `block-13.3-screen-reskin`,
+  `block-13.4-project-chat`, `block-13.5-conversation-mgmt` are all
+  merged to `main`. Safe to delete remote + local.
+
+### What's left of v1.4
+
+| Phase | Scope | Carve-out / blocker |
+|---|---|---|
+| **6** | Cross-project picker (`functions/api/cross-project/eligible-projects.js` extend with per-project active-connection metadata for source chips) + screen-11 picker UI + screen-12 chat layout (read-only "Across …" scope row, per-project organized answer rendering, mobile `Across (N) ▾` popover, system-prompt copy refinements). | Project-scoping enforcement carve-out: any edit to `functions/_lib/ai/authorize.js` or its callsites — default mode, second look at the diff. Per Decision 7 the semantics don't change; this is enrichment, not gate changes. |
+| **7a** | Port the FULL Slack/Jira connect flow into `public/project_settings.html` Connections tab (OAuth start, Jira connect form, channel/board pickers, `?just_connected=slack|jira` auto-open, 3 modals). Both `project.html` and `project_settings.html` temporarily support connect. | OAuth-callback-adjacent carve-out: the modal/initiator code touches Slack + Jira OAuth start URLs. The actual callback handlers (`functions/api/connectors/slack/oauth/callback.js`, `functions/api/connectors/jira/auth/save.js`) don't change. |
+| **7b** | Strip Connections from `project.html` (remove the now-hidden Connections tab button + its `data-tab="connections"` handler in renderTabBody). Repoint the chat empty-state CTA to `/project_settings.html?id=<X>&tab=connections`. KEEP the eager `connections` fetch + `getConnectionState`/`getSuggestionList` — only the tab/UI goes; the data stays for the suggestion-chip empty state. | Sequencing-critical: only after 7a verified live on a preview deploy. |
+| **8** | Postgres migration: `ALTER TABLE projects ADD COLUMN slug TEXT UNIQUE NOT NULL` (workspace-unique per Decision 4) + backfill from `name` via kebab-case slugify + reserved-words rejection. New `GET /api/projects/slug-available?slug=<x>` returning `{available: bool}`. New `functions/project/[[path]].js` rewrites `/project/<slug>` → `/project.html?id=<uuid>` (preserves existing query-string model; no risk of breaking `?id=` callers). `public/projects/new.html` shows live-derived slug; `public/project_settings.html` General tab adds the editable slug field. | **Neon production DDL — Jenny runs**. Schema carve-out. Draft + dry-run on a Neon branch first. |
+| **9** | HANDOFF.md closeout + audit any hardcoded data from the new screens against real records + delete merged branches + decide on `package-lock.json` + tidy. | None. |
+
+### Carry-forward into v1.4.1+
+
+- **Phase 7b sequencing**: after Phase 7a ships, the legacy
+  Connections-tab code path in `project.html` (lines 540–700-ish:
+  `renderTabBody`'s `connections` case, `openChannelPicker`,
+  `openJiraConnectModal`, `?just_connected=` auto-open) becomes
+  dead code. Strip in one focused commit; do NOT also touch the
+  eager `connections` fetch + `getConnectionState` /
+  `getSuggestionList` — they still drive the chat empty-state
+  suggestion chips.
+- **Slug routing edge case**: `/project/<slug>` must NOT collide
+  with `public/project.html` at the routing layer. The fix is a
+  Pages Function `functions/project/[[path]].js` that resolves
+  slug → project_id → 302 to `/project.html?id=<uuid>`. The static
+  `project.html` keeps serving via its existing static path; the
+  catch-all only fires on `/project/...` (with a trailing segment).
+- **Phase 5 cross-project sidebar**: the `.conv-row` + ⋯ menu in
+  `public/project.html` is per-project only. Cross-project chat
+  sidebar at `public/cross-project/chat.html` still has the old
+  flat list. The cross-project PATCH+DELETE endpoints are ready;
+  just needs the UI port. Goes naturally with Phase 6 (cross-
+  project chat alignment).
+- **Sticky-bar wiring debt**: `public/_lib/sticky-topbar.js` is
+  wired into admin, dashboard, projects, projects/new, project,
+  project_settings, components.html. **Not yet wired** in
+  `forgot-password.html`, `reset-password.html` (no nav, fine),
+  `workspace_settings.html`, `cross-project/index.html`,
+  `cross-project/new.html`, `cross-project/chat.html`. Phase 6
+  picks up the cross-project ones; workspace_settings will pick
+  up in Phase 9.
+
+**Pending Jenny actions** (none blocking): clean up untracked
+`package-lock.json`, delete merged branches, optionally smoke-test
+the v1.4 chat surface (Rain or Joni project, send a message, verify
+non-clickable citations + ⋯ menu rename + delete + undo round-trip).
