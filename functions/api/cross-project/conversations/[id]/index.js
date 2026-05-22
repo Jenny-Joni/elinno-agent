@@ -96,8 +96,26 @@ export async function onRequestPatch({ request, env, params }) {
   if (!body || typeof body !== 'object') {
     return error('Body must be a JSON object', 400);
   }
-  if (!('project_ids' in body)) {
-    return error('Nothing to update — project_ids is the only editable field on a cross-project conversation', 400);
+
+  // v1.4 (Block 13.5): rename support. PATCH now accepts:
+  //   - project_ids — re-scope (existing v1.3 behavior; re-authorizes)
+  //   - title       — rename
+  //   - restore: true — clear deleted_at (undo)
+  // At least one of the three is required.
+  const hasProjectIds = 'project_ids' in body;
+  const hasTitle = 'title' in body;
+  const hasRestore = body.restore === true;
+  if (!hasProjectIds && !hasTitle && !hasRestore) {
+    return error('Provide at least one of: project_ids, title, restore', 400);
+  }
+
+  let nextTitle = null;
+  if (hasTitle) {
+    const t = (body.title || '').trim();
+    if (typeof body.title !== 'string' || t.length < 1 || t.length > 120) {
+      return error('Title must be 1–120 characters', 400);
+    }
+    nextTitle = t;
   }
 
   const sql = postgres(env.HYPERDRIVE.connectionString, {
@@ -106,35 +124,100 @@ export async function onRequestPatch({ request, env, params }) {
   });
   try {
     // Workspace ownership check first — 404 on cross-tenant attempts so
-    // we never leak existence to a non-owner.
-    const owned = await loadOwned(sql, params.id, userId);
+    // we never leak existence to a non-owner. For restore, allow
+    // soft-deleted rows; for rename/re-scope, restrict to live rows.
+    const owned = hasRestore
+      ? await sql`
+          SELECT id::text AS id, user_id, deleted_at
+            FROM conversations
+           WHERE id = ${params.id} AND user_id = ${userId}
+           LIMIT 1
+        `.then(rows => rows[0])
+      : await loadOwned(sql, params.id, userId);
     if (!owned) return error('Not found', 404);
 
-    // Re-authorize the new project set. Same gate as create — server
-    // never trusts the LLM-supplied set even on edit.
-    const auth = await authorizeProjectSet(sql, userId, body.project_ids);
-    if (!auth.ok) return json(auth, { status: 400 });
+    let projectIdsLiteral = null;
+    if (hasProjectIds) {
+      // Re-authorize the new project set. Same gate as create — server
+      // never trusts the LLM-supplied set even on edit.
+      const auth = await authorizeProjectSet(sql, userId, body.project_ids);
+      if (!auth.ok) return json(auth, { status: 400 });
+      // Build Postgres array literal manually (same lesson as
+      // conversations.js POST — `${jsArr}` in a tagged template serializes
+      // as CSV which fails to parse as uuid[]).
+      projectIdsLiteral = '{' + auth.projectIds.join(',') + '}';
+    }
 
-    // Build Postgres array literal manually (same lesson as
-    // conversations.js POST — `${jsArr}` in a tagged template serializes
-    // as CSV which fails to parse as uuid[]).
-    const projectIdsLiteral = '{' + auth.projectIds.join(',') + '}';
-    const [updated] = await sql`
-      UPDATE conversations
-         SET project_ids = ${projectIdsLiteral}::uuid[],
-             updated_at  = NOW()
-       WHERE id      = ${params.id}
-         AND user_id = ${userId}
-      RETURNING id::text     AS id,
-                project_id,
-                project_ids,
-                label,
-                user_id,
-                title,
-                last_message_at,
-                created_at,
-                updated_at
-    `;
+    // Unroll the dynamic UPDATE — three fields, eight combinations is
+    // unwieldy. Build SET clauses incrementally with three sql`` fragments
+    // joined manually. postgres-js supports sql.unsafe for raw fragments
+    // but the unroll keeps each binding in a tagged-template segment
+    // where it belongs (no SQL-injection foot-gun).
+    let updated;
+    if (hasProjectIds && hasTitle && hasRestore) {
+      [updated] = await sql`
+        UPDATE conversations
+           SET project_ids = ${projectIdsLiteral}::uuid[],
+               title       = ${nextTitle},
+               deleted_at  = NULL,
+               updated_at  = NOW()
+         WHERE id = ${params.id} AND user_id = ${userId}
+        RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
+      `;
+    } else if (hasProjectIds && hasTitle) {
+      [updated] = await sql`
+        UPDATE conversations
+           SET project_ids = ${projectIdsLiteral}::uuid[],
+               title       = ${nextTitle},
+               updated_at  = NOW()
+         WHERE id = ${params.id} AND user_id = ${userId}
+        RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
+      `;
+    } else if (hasProjectIds && hasRestore) {
+      [updated] = await sql`
+        UPDATE conversations
+           SET project_ids = ${projectIdsLiteral}::uuid[],
+               deleted_at  = NULL,
+               updated_at  = NOW()
+         WHERE id = ${params.id} AND user_id = ${userId}
+        RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
+      `;
+    } else if (hasTitle && hasRestore) {
+      [updated] = await sql`
+        UPDATE conversations
+           SET title       = ${nextTitle},
+               deleted_at  = NULL,
+               updated_at  = NOW()
+         WHERE id = ${params.id} AND user_id = ${userId}
+        RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
+      `;
+    } else if (hasProjectIds) {
+      [updated] = await sql`
+        UPDATE conversations
+           SET project_ids = ${projectIdsLiteral}::uuid[],
+               updated_at  = NOW()
+         WHERE id = ${params.id} AND user_id = ${userId}
+        RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
+      `;
+    } else if (hasTitle) {
+      [updated] = await sql`
+        UPDATE conversations
+           SET title       = ${nextTitle},
+               updated_at  = NOW()
+         WHERE id = ${params.id} AND user_id = ${userId}
+        RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
+      `;
+    } else {
+      // restore only
+      [updated] = await sql`
+        UPDATE conversations
+           SET deleted_at = NULL,
+               updated_at = NOW()
+         WHERE id = ${params.id} AND user_id = ${userId}
+        RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
+      `;
+    }
+
     return json({
       ok: true,
       conversation: { ...updated, project_ids: parseProjectIds(updated.project_ids) },
