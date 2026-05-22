@@ -33,11 +33,8 @@
     <header class="main-navbar">
       <nav class="navbar custom-container">
         <a class="navbar-brand" href="/" aria-label="Elinno Agent">
-          <svg viewBox="0 0 40 40" width="28" height="28" aria-hidden="true">
-            <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1.4" />
-            <path d="M20 2 A18 18 0 0 1 20 38 Z" fill="currentColor" />
-          </svg>
-          <span class="brand-text">Elinno&nbsp;Agent</span>
+          <span class="brandmark brandmark--light" style="width:22px;height:22px;"></span>
+          <span class="wordmark" style="font-size:16px;">Elinno&nbsp;Agent</span>
         </a>
       </nav>
     </header>
@@ -77,11 +74,8 @@
       <div class="innerfooter">
         <div class="footerleft">
           <a class="footer-brand" href="/">
-            <svg viewBox="0 0 40 40" width="28" height="28" aria-hidden="true">
-              <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1.4" />
-              <path d="M20 2 A18 18 0 0 1 20 38 Z" fill="currentColor" />
-            </svg>
-            <span>Elinno&nbsp;Agent</span>
+            <span class="brandmark" style="width:22px;height:22px;"></span>
+            <span class="wordmark" style="font-size:18px;">Elinno&nbsp;Agent</span>
           </a>
           <p class="logopara">
             A thoughtful, precise agent made to work alongside you.
@@ -97,9 +91,11 @@
   </footer>
 
   <script>
-    // Already signed in? Skip straight to the right destination.
+    // Already signed in? Skip straight to the dashboard. (v1.4 SPEC §5.2:
+    // both roles land at /dashboard.html; admins reach /admin.html from
+    // the dashboard nav, not via a separate login redirect.)
     fetch('/api/me').then(r => r.json()).then(d => {
-      if (d.user) location.replace(d.user.is_admin ? '/admin.html' : '/dashboard.html');
+      if (d.user) location.replace('/dashboard.html');
     }).catch(() => {});
 
     const form = document.getElementById('loginForm');
@@ -133,7 +129,7 @@
           btn.textContent = 'Sign in';
           return;
         }
-        location.replace(data.user?.is_admin ? '/admin.html' : '/dashboard.html');
+        location.replace('/dashboard.html');
       } catch (err) {
         showMsg('Network error. Please try again.', 'error');
         btn.disabled = false;

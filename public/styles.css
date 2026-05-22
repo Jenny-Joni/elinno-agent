@@ -163,6 +163,40 @@ a, button, div, h1, h2, h3, h4, h5, h6, p, span, ul {
   pointer-events: none;
 }
 
+/* ── v1.4 brand mark (Block 13.1) ─────────
+   Half-circle glyph + uppercase wordmark. Mirrors the .brandmark /
+   .wordmark CSS from auth.css so the un-authed entry page (login +
+   footer) uses the same component as every authed surface, without
+   pulling in all of auth.css. Uses the styles.css legacy --color-*
+   tokens already defined above so no new tokens are introduced.
+   ───────────────────────────────────────── */
+.brandmark {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.4px solid var(--color-brand);
+  display: inline-block;
+  position: relative;
+  flex-shrink: 0;
+}
+.brandmark::after {
+  content: "";
+  position: absolute;
+  inset: 2px 2px 2px 50%;
+  background: var(--color-brand);
+  border-radius: 0 50px 50px 0;
+}
+.brandmark--light { border-color: #fff; }
+.brandmark--light::after { background: #fff; }
+
+.wordmark {
+  font-family: var(--font-medium);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 /* ── Navbar (glass over hero) ────────────── */
 .main-navbar {
   position: absolute;
