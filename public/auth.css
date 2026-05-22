@@ -2409,3 +2409,550 @@ table.users-table {
   /* Font alias — points at the existing Clash Grotesk stack. */
   --font: var(--font-regular);
 }
+
+/* ────────────────────────────────────────────────────────────────────
+   Eyebrow — uppercase label + short hair-rule. Used as a section
+   divider across v1.4 surfaces. Pairs the brand purple label with a
+   48px lavender hair line.
+   ──────────────────────────────────────────────────────────────────── */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.eyebrow__label {
+  font-family: var(--font);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--brand);
+  font-weight: 600;
+}
+.eyebrow__rule {
+  display: block;
+  height: 1px;
+  width: 48px;
+  background: var(--brand-hair);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Brand mark — the half-circle glyph + uppercase wordmark used in
+   the v1.4 login hero and authed top bars. .brandmark--light flips
+   it for dark surfaces.
+   ──────────────────────────────────────────────────────────────────── */
+.brandmark {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.4px solid var(--brand);
+  display: inline-block;
+  position: relative;
+  flex-shrink: 0;
+}
+.brandmark::after {
+  content: "";
+  position: absolute;
+  inset: 2px 2px 2px 50%;
+  background: var(--brand);
+  border-radius: 0 50px 50px 0;
+}
+.brandmark--light { border-color: #fff; }
+.brandmark--light::after { background: #fff; }
+.wordmark {
+  font-family: var(--font);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Surface — bare-bones white-bordered card primitive. The v1.4
+   equivalent of the legacy .card (which has 32px padding + thicker
+   border baked in). Consumers add padding inline per use case. The
+   --padded modifier adds the mockup default 18px.
+   ──────────────────────────────────────────────────────────────────── */
+.surface {
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-md);
+}
+.surface--lg { border-radius: var(--r-lg); }
+.surface--padded { padding: 18px; }
+.surface--tint { background: var(--bg-card-tint); }
+
+/* ────────────────────────────────────────────────────────────────────
+   Pill — status + role + neutral variants.
+   - .pill--role-admin (brand-tint + brand-strong text)
+   - .pill--role-member (neutral grey)
+   - .pill--status-active (green; Connected, Active)
+   - .pill--status-amber (amber; Needs-setup, Invited)
+   - .pill--status-danger (danger tint)
+   Use .pill__dot for the optional leading dot.
+   ──────────────────────────────────────────────────────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+.pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.pill--role-admin {
+  background: var(--brand-tint);
+  color: var(--brand-strong);
+}
+.pill--role-member {
+  background: #f4f4f4;
+  color: var(--text-2);
+}
+.pill--status-active {
+  background: var(--success-tint);
+  color: var(--success);
+}
+.pill--status-amber {
+  background: var(--amber-tint);
+  color: var(--amber-text);
+  border: 0.5px solid var(--amber-border);
+}
+.pill--status-amber .pill__dot { background: var(--amber-dot); }
+.pill--status-danger {
+  background: rgba(179, 20, 75, 0.06);
+  color: var(--danger);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Password field — input + Generate helper link + show/hide eye.
+   Used in Admin create (10), Reset password (13), Reset-password
+   admin modal (10). All toggling and generation are JS — this is
+   the visual shell only.
+
+   Structure (BEM-ish):
+     .password-field
+       .password-field__label-row
+         label.password-field__label
+         button.password-field__generate
+       .password-field__input-wrap
+         input.password-field__input (type=password)
+         button.password-field__eye (toggles input.type)
+       .password-field__hint (optional)
+   ──────────────────────────────────────────────────────────────────── */
+.password-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.password-field__label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.password-field__label {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.password-field__generate {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--brand);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.password-field__generate:hover { color: var(--brand-strong); }
+.password-field__generate:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+.password-field__input-wrap {
+  position: relative;
+}
+.password-field__input {
+  width: 100%;
+  padding: 10px 38px 10px 13px;
+  border: 0.5px solid var(--border-input);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.4;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.password-field__input::placeholder { color: var(--text-3); }
+.password-field__input:focus {
+  outline: none;
+  border-color: var(--brand);
+  background: var(--bg);
+}
+.password-field__eye {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-3);
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+}
+.password-field__eye:hover { color: var(--text-2); background: var(--brand-soft); }
+.password-field__eye i { font-size: 16px; }
+.password-field__hint {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Confirm modal — extends the existing .modal shell with focus-trap
+   + focus-restore behavior (see public/_lib/confirm-modal.js) and a
+   type-to-confirm destructive variant.
+
+   Markup (the .modal + .modal-backdrop + .modal-content shell from
+   the Block 4 modal is reused; add the .confirm class on .modal for
+   the v1.4 sizing/layout and .confirm--danger for the type-to-confirm
+   destructive variant):
+
+     <div class="modal confirm" role="dialog" aria-modal="true">
+       <div class="modal-backdrop"></div>
+       <div class="modal-content">
+         <div class="modal-header">
+           <h3 class="modal-heading">…</h3>
+           <button class="modal-close">×</button>
+         </div>
+         <div class="modal-body">
+           <p class="confirm-modal__text">…</p>
+           <!-- danger variant only: -->
+           <p class="confirm-modal__type-prompt">Type <strong>NAME</strong> to confirm</p>
+           <input class="confirm-modal__type-input" data-confirm-token="NAME">
+           <div class="confirm-modal__actions">
+             <button class="btn btn-ghost">Cancel</button>
+             <button class="confirm-modal__confirm-danger" disabled>Delete</button>
+           </div>
+         </div>
+       </div>
+     </div>
+   ──────────────────────────────────────────────────────────────────── */
+.modal.confirm .modal-content {
+  width: min(440px, 90vw);
+  border-radius: var(--r-md);
+  border: 0.5px solid var(--border);
+  background: var(--bg);
+}
+.modal.confirm .modal-header {
+  border-bottom: 0.5px solid var(--border-soft);
+  padding: 16px 22px;
+}
+.modal.confirm .modal-heading {
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+}
+.modal.confirm .modal-body {
+  padding: 18px 22px 22px;
+}
+.confirm-modal__text {
+  margin: 0 0 16px;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.confirm-modal__type-prompt {
+  margin: 4px 0 10px;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--text-3);
+}
+.confirm-modal__type-prompt strong {
+  color: var(--text);
+  font-weight: 500;
+  font-family: 'Menlo', 'Monaco', monospace;
+  background: var(--bg-subtle);
+  border: 0.5px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.confirm-modal__type-input {
+  width: 100%;
+  padding: 9px 12px;
+  margin-bottom: 16px;
+  border: 0.5px solid var(--border-input);
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+}
+.confirm-modal__type-input:focus {
+  outline: none;
+  border-color: var(--danger);
+  background: var(--bg);
+}
+.confirm-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.confirm-modal__actions .btn,
+.confirm-modal__actions .confirm-modal__confirm-danger {
+  padding: 10px 16px;
+  font-size: 13px;
+  width: auto;
+}
+.confirm-modal__confirm-danger {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-sm);
+  font-family: var(--font);
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter var(--t-fast);
+}
+.confirm-modal__confirm-danger:hover:not(:disabled) { filter: brightness(1.05); }
+.confirm-modal__confirm-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Mobile: bottom-sheet for confirm modals (centered desktop / sheet phone). */
+@media (max-width: 700px) {
+  .modal.confirm {
+    align-items: flex-end;
+  }
+  .modal.confirm .modal-content {
+    width: 100%;
+    max-width: 100%;
+    border-radius: var(--r-md) var(--r-md) 0 0;
+    max-height: 85vh;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Inline-edit — turns a label into an input in place. Used for
+   conversation rename + member-name edit. Purple focus ring matches
+   the brand-hair token. JS toggles the .editing class.
+
+   Markup:
+     <span class="inline-edit" data-inline-edit>
+       <span class="inline-edit__label">Current name</span>
+       <input class="inline-edit__input" value="Current name">
+       <button class="inline-edit__save" aria-label="Save"><i class="ti ti-check"></i></button>
+     </span>
+   ──────────────────────────────────────────────────────────────────── */
+.inline-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+.inline-edit__label {
+  cursor: text;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+  border: 0.5px solid transparent;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.inline-edit__label:hover {
+  background: var(--brand-soft);
+  border-color: var(--brand-soft-border);
+}
+.inline-edit__input {
+  display: none;
+  padding: 2px 8px;
+  border: 1px solid var(--brand);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--brand-hair);
+  min-width: 140px;
+  max-width: 100%;
+}
+.inline-edit__save {
+  display: none;
+  background: var(--brand);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.inline-edit__save:hover { background: var(--brand-strong); }
+.inline-edit.editing .inline-edit__label { display: none; }
+.inline-edit.editing .inline-edit__input { display: inline-block; }
+.inline-edit.editing .inline-edit__save { display: inline-flex; }
+
+/* ────────────────────────────────────────────────────────────────────
+   Overflow (⋯) menu — popover on desktop, bottom-sheet on mobile.
+   Used by: per-row menus on conversations, members, admin users.
+
+   Markup:
+     <button class="kebab-btn" aria-haspopup="menu" aria-expanded="false">
+       <i class="ti ti-dots"></i>
+     </button>
+     <div class="menu" role="menu" data-open="false">
+       <button class="menu__item" role="menuitem">
+         <i class="ti ti-pencil"></i> Rename
+       </button>
+       <div class="menu__divider"></div>
+       <button class="menu__item menu__item--danger" role="menuitem">
+         <i class="ti ti-trash"></i> Delete
+       </button>
+     </div>
+
+   The menu is absolute-positioned by JS relative to its trigger.
+   On mobile (≤700px), the rule below promotes it to a bottom-sheet.
+   ──────────────────────────────────────────────────────────────────── */
+.kebab-btn {
+  background: transparent;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--text-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  transition: background var(--t-fast), color var(--t-fast);
+  padding: 0;
+}
+.kebab-btn:hover { background: var(--brand-soft); color: var(--text-2); }
+.kebab-btn[aria-expanded="true"] {
+  background: var(--brand-tint);
+  color: var(--brand);
+}
+
+.menu {
+  position: absolute;
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  min-width: 200px;
+  z-index: 100;
+  display: none;
+}
+.menu[data-open="true"] { display: block; }
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  transition: background var(--t-fast);
+}
+.menu__item:hover:not(:disabled) { background: var(--brand-soft); }
+.menu__item:disabled { color: var(--text-3); cursor: not-allowed; }
+.menu__item i { font-size: 14px; flex-shrink: 0; color: var(--text-3); }
+.menu__item:hover:not(:disabled) i { color: var(--brand); }
+.menu__item--danger { color: var(--danger); }
+.menu__item--danger i { color: var(--danger); }
+.menu__item--danger:hover:not(:disabled) {
+  background: rgba(179, 20, 75, 0.06);
+}
+.menu__item--danger:hover:not(:disabled) i { color: var(--danger); }
+.menu__divider {
+  height: 1px;
+  background: var(--border-soft);
+  margin: 4px 2px;
+}
+
+/* Mobile: bottom-sheet menu. */
+@media (max-width: 700px) {
+  .menu[data-open="true"] {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: 100%;
+    min-width: 0;
+    border-radius: var(--r-md) var(--r-md) 0 0;
+    padding: 12px 8px calc(env(safe-area-inset-bottom, 0px) + 12px);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+  }
+  .menu__item {
+    padding: 14px 12px;
+    font-size: 15px;
+  }
+  .menu__divider { margin: 6px 4px; }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Sticky top bar — progressive-enhancement hook classes added by
+   public/_lib/sticky-topbar.js. The bar itself is already
+   position: sticky via .app-nav (defined further up in this file);
+   these rules just style the on-scroll affordances.
+
+   - .is-lifted (desktop + mobile): subtle shadow, hairline border
+     drops away.
+   - .is-hidden (mobile only): translates the bar offscreen on
+     scroll-down so the user reclaims viewport height; pulled back
+     into view on scroll-up.
+   ──────────────────────────────────────────────────────────────────── */
+.app-nav {
+  transition: box-shadow var(--t-fast), border-color var(--t-fast), transform 0.2s ease-out;
+}
+.app-nav.is-lifted {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border-bottom-color: transparent;
+}
+
+@media (max-width: 700px) {
+  .app-nav.is-hidden {
+    transform: translateY(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-nav {
+    transition: none;
+  }
+  .app-nav.is-hidden {
+    transform: none;
+  }
+}
