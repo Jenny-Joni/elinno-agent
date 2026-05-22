@@ -5,191 +5,770 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin — Elinno Agent</title>
   <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
   <link rel="stylesheet" href="/auth.css" />
+  <style>
+    /* Admin-screen-only layout: mirror the v1.4 mockup screen-10.
+       All v1.4 components (.brandmark/.wordmark/.eyebrow/.surface/
+       .pill/.password-field/.modal.confirm/.kebab-btn/.menu/.inline-edit)
+       live in auth.css; this <style> only positions them. */
+    .admin-shell { max-width: 980px; margin: 0 auto; padding: 32px 20px 80px; }
+    .admin-heading {
+      font-family: var(--font);
+      font-size: 32px;
+      font-weight: 500;
+      color: var(--text);
+      margin: 0 0 10px;
+      letter-spacing: -0.01em;
+    }
+    .admin-sub {
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--text-2);
+      margin: 0 0 28px;
+      line-height: 1.5;
+    }
+    .admin-card {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+    .admin-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 200px;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .admin-form-field { display: flex; flex-direction: column; gap: 6px; }
+    .admin-form-field label {
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-2);
+    }
+    .admin-form-field input,
+    .admin-form-field select {
+      width: 100%;
+      padding: 10px 13px;
+      border: 0.5px solid var(--border-input);
+      border-radius: var(--r-sm);
+      background: var(--bg-subtle);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+    }
+    .admin-form-field input:focus,
+    .admin-form-field select:focus {
+      outline: none;
+      border-color: var(--brand);
+      background: var(--bg);
+    }
+    .admin-form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding-top: 8px;
+    }
+    .admin-form-msg {
+      font-family: var(--font);
+      font-size: 13px;
+      margin-bottom: 12px;
+      padding: 10px 13px;
+      border-radius: var(--r-sm);
+      display: none;
+    }
+    .admin-form-msg.show { display: block; }
+    .admin-form-msg.error { background: rgba(179,20,75,0.06); color: var(--danger); }
+    .admin-form-msg.success { background: var(--success-tint); color: var(--success); }
+
+    .members-section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin: 0 0 14px;
+    }
+    .members-count {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text-3);
+    }
+    .members-row {
+      display: grid;
+      grid-template-columns: 1fr 110px 110px 44px;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 0.5px solid var(--border-soft);
+    }
+    .members-row:last-child { border-bottom: none; }
+    .members-row__person {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    .members-row__avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--brand-tint);
+      color: var(--brand-strong);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font);
+      font-weight: 600;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .members-row__avatar.self {
+      background: var(--brand);
+      color: #fff;
+    }
+    .members-row__name {
+      font-family: var(--font);
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .members-row__name .self-tag {
+      color: var(--text-3);
+      font-weight: 400;
+      font-size: 12px;
+      margin-left: 4px;
+    }
+    .members-row__email {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text-3);
+      margin-top: 2px;
+    }
+    .members-row__menu-wrap {
+      position: relative;
+      justify-self: end;
+    }
+    .members-loading,
+    .members-empty {
+      padding: 40px;
+      text-align: center;
+      color: var(--text-3);
+      font-family: var(--font);
+      font-size: 13px;
+    }
+
+    /* Reset-password modal body — uses the .password-field component. */
+    .reset-pw-modal-body { padding: 18px 22px 22px; }
+
+    @media (max-width: 700px) {
+      .admin-shell { padding: 18px 14px 64px; }
+      .admin-heading { font-size: 26px; }
+      .admin-card { padding: 18px; }
+      .admin-form-grid { grid-template-columns: 1fr; }
+      .members-row {
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        padding: 14px;
+      }
+      .members-row .role-pill-cell,
+      .members-row .status-pill-cell { grid-column: 1; }
+      .members-row__menu-wrap { grid-column: 2; grid-row: 1 / span 3; align-self: start; }
+    }
+  </style>
 </head>
 <body>
-  <nav class="app-nav">
+
+  <nav class="app-nav" data-sticky-topbar>
     <div class="app-nav-inner">
-      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <a href="/dashboard.html" class="app-brand" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+        <span class="brandmark"></span>
+        <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
+      </a>
       <div class="app-nav-actions">
-        <span id="navUser" style="color:var(--color-text-body);opacity:.85;font-size:14px;"></span>
         <a href="/dashboard.html">Dashboard</a>
         <a href="/projects.html">Projects</a>
-        <button id="logoutBtn" class="btn-nav">Log out</button>
+        <a href="/admin.html" class="is-active">Admin</a>
+        <span id="navUserAvatar" class="members-row__avatar self" style="width:28px;height:28px;font-size:11px;" title=""></span>
+        <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
       </div>
     </div>
   </nav>
 
-  <main class="app-main">
-    <div class="custom-container">
-      <p class="section-eyebrow">Admin</p>
-      <span class="section-line"></span>
-      <h1 class="section-heading">User management</h1>
-      <p class="section-sub">Add new users, promote them to admins, or remove them.</p>
+  <main class="app-main" style="background:var(--bg-subtle);min-height:calc(100vh - 70px);padding:0;">
+    <div class="admin-shell">
+      <div class="eyebrow">
+        <span class="eyebrow__label">Workspace admin</span>
+        <span class="eyebrow__rule"></span>
+      </div>
+      <h1 class="admin-heading">Members</h1>
+      <p class="admin-sub">Add a colleague to your workspace with a name, email, role, and password. New members are active immediately and can sign in right away.</p>
 
-      <div class="card" style="margin-bottom:30px;">
-        <h2 style="margin:0 0 20px;font-family:var(--font-medium);font-size:18px;text-transform:uppercase;letter-spacing:0.5px;">Add user</h2>
-        <div id="addMsg" class="form-msg hidden"></div>
+      <!-- Create form -->
+      <section class="admin-card" aria-labelledby="addMemberTitle">
+        <h2 id="addMemberTitle" style="position:absolute;left:-9999px;">Add member</h2>
+        <div id="addMsg" class="admin-form-msg" role="status"></div>
         <form id="addForm" novalidate>
-          <div class="add-user-row">
-            <div class="field">
-              <label for="newEmail">Email</label>
-              <input id="newEmail" type="email" required placeholder="user@example.com" />
+          <div class="admin-form-grid">
+            <div class="admin-form-field">
+              <label for="newName">Display name</label>
+              <input id="newName" type="text" required placeholder="e.g. Sam Rivera" maxlength="80" autocomplete="off" />
             </div>
-            <div class="field">
-              <label for="newPassword">Initial password</label>
-              <input id="newPassword" type="text" required minlength="8" placeholder="at least 8 chars" />
+            <div class="admin-form-field">
+              <label for="newEmail">Email address</label>
+              <input id="newEmail" type="email" required placeholder="name@company.com" autocomplete="off" />
             </div>
-            <label class="check">
-              <input id="newIsAdmin" type="checkbox" />
-              Admin
-            </label>
-            <button type="submit" class="btn btn-primary" id="addBtn" style="width:auto;">Add user</button>
+            <div class="admin-form-field">
+              <label for="newRole">Role</label>
+              <select id="newRole">
+                <option value="member" selected>Member</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <div class="password-field" data-password-field style="margin-bottom:18px;">
+            <div class="password-field__label-row">
+              <label class="password-field__label" for="newPassword">Password</label>
+              <button type="button" class="password-field__generate" data-pw-generate>Generate</button>
+            </div>
+            <div class="password-field__input-wrap">
+              <input id="newPassword" class="password-field__input" type="password" placeholder="At least 8 characters" minlength="8" required autocomplete="new-password" />
+              <button type="button" class="password-field__eye" data-pw-eye aria-label="Show password">
+                <i class="ti ti-eye"></i>
+              </button>
+            </div>
+            <div class="password-field__hint">At least 8 characters. Share it with the new member however you prefer.</div>
+          </div>
+          <div class="admin-form-actions">
+            <button id="addBtn" type="submit" class="btn btn--primary">
+              <i class="ti ti-user-plus"></i> Add member
+            </button>
           </div>
         </form>
-      </div>
+      </section>
 
-      <div id="listMsg" class="form-msg hidden"></div>
-      <div class="users-table-wrap">
-        <table class="users-table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Role</th>
-              <th class="col-created">Created</th>
-              <th style="text-align:right;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="usersBody">
-            <tr><td colspan="4" style="text-align:center;color:var(--color-text-muted);padding:40px;">Loading…</td></tr>
-          </tbody>
-        </table>
+      <!-- Members table -->
+      <div class="eyebrow">
+        <span class="eyebrow__label">Workspace members</span>
+        <span class="eyebrow__rule"></span>
       </div>
+      <div class="members-section-head">
+        <span></span>
+        <span id="membersCount" class="members-count"></span>
+      </div>
+      <div id="listMsg" class="admin-form-msg" role="status"></div>
+      <section class="admin-card" style="padding:0;">
+        <div id="membersList">
+          <div class="members-loading">Loading members…</div>
+        </div>
+      </section>
     </div>
   </main>
 
+  <!-- Reset-password modal (info variant) -->
+  <div class="modal confirm" id="resetPwModal" role="dialog" aria-modal="true" aria-labelledby="resetPwTitle" style="display:none;">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-heading" id="resetPwTitle">Reset password</h3>
+        <button class="modal-close" data-close-modal aria-label="Close">×</button>
+      </div>
+      <div class="modal-body reset-pw-modal-body">
+        <p class="confirm-modal__text" id="resetPwText">Set a new password for this member. Share it with them however you prefer.</p>
+        <div id="resetPwMsg" class="admin-form-msg" style="margin:0 0 12px;"></div>
+        <div class="password-field" data-password-field>
+          <div class="password-field__label-row">
+            <label class="password-field__label" for="resetPwInput">New password</label>
+            <button type="button" class="password-field__generate" data-pw-generate>Generate</button>
+          </div>
+          <div class="password-field__input-wrap">
+            <input id="resetPwInput" class="password-field__input" type="password" placeholder="At least 8 characters" minlength="8" autocomplete="new-password" />
+            <button type="button" class="password-field__eye" data-pw-eye aria-label="Show password">
+              <i class="ti ti-eye"></i>
+            </button>
+          </div>
+          <div class="password-field__hint">At least 8 characters.</div>
+        </div>
+        <div class="confirm-modal__actions" style="margin-top:18px;">
+          <button class="btn btn--ghost" type="button" data-close-modal>Cancel</button>
+          <button class="btn btn--primary" type="button" id="resetPwSubmit">Reset password</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Remove-from-workspace modal (danger variant) -->
+  <div class="modal confirm confirm--danger" id="removeModal" role="dialog" aria-modal="true" aria-labelledby="removeTitle" style="display:none;">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-heading" id="removeTitle">Remove from workspace</h3>
+        <button class="modal-close" data-close-modal aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="confirm-modal__icon"><i class="ti ti-alert-triangle"></i></div>
+        <h3 class="confirm-modal__title" id="removeBodyTitle">Remove this member?</h3>
+        <p class="confirm-modal__text" id="removeText">This removes them from the workspace and immediately invalidates their sessions. This can't be undone.</p>
+        <p class="confirm-modal__type-prompt">Type <strong id="removeTokenLabel"></strong> to confirm</p>
+        <input class="confirm-modal__type-input" id="removeTypeInput" placeholder="" />
+        <div id="removeMsg" class="admin-form-msg" style="margin:6px 0 6px;text-align:center;"></div>
+        <div class="confirm-modal__actions">
+          <button class="btn btn--ghost" type="button" data-close-modal>Cancel</button>
+          <button class="btn btn--danger" type="button" id="removeSubmit" disabled>Remove</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/_lib/sticky-topbar.js" defer></script>
+
   <script>
-    let me = null;
+  (function () {
+    'use strict';
 
-    function showMsg(el, text, kind) { el.textContent = text; el.className = 'form-msg ' + kind; }
-    function hideMsg(el) { el.className = 'form-msg hidden'; }
-    function fmtDate(unix) {
-      if (!unix) return '';
-      try { return new Date(unix * 1000).toLocaleDateString(); } catch { return ''; }
-    }
+    // ── state ─────────────────────────────────────────────────────────
+    let me = null;        // signed-in user (id, email, display_name, is_admin)
+    let users = [];       // list of all users
+    let openMenu = null;  // currently-open .menu (only one at a time)
+    let lastFocused = null;
+    let resetPwTargetId = null;
+    let removeTargetId = null;
+
+    // ── helpers ──────────────────────────────────────────────────────
+    function $(s, root) { return (root || document).querySelector(s); }
     function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      return String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function initial(name) {
+      const t = (name || '').trim();
+      return (t ? t[0] : '?').toUpperCase();
+    }
+    function showFormMsg(el, text, kind) {
+      el.textContent = text;
+      el.className = 'admin-form-msg show ' + (kind || '');
+    }
+    function hideFormMsg(el) { el.className = 'admin-form-msg'; el.textContent = ''; }
+
+    function generatePassword() {
+      const buf = new Uint8Array(12);
+      (window.crypto || window.msCrypto).getRandomValues(buf);
+      return btoa(String.fromCharCode.apply(null, buf))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     }
 
-    // Auth gate
+    function adminCount() {
+      return users.reduce((n, u) => n + (u.is_admin ? 1 : 0), 0);
+    }
+
+    // ── auth gate ─────────────────────────────────────────────────────
     fetch('/api/me').then(r => r.json()).then(d => {
       if (!d.user) { location.replace('/'); return; }
       if (!d.user.is_admin) { location.replace('/dashboard.html'); return; }
       me = d.user;
-      document.getElementById('navUser').textContent = d.user.email;
+      const av = $('#navUserAvatar');
+      av.textContent = initial(me.display_name || me.email);
+      av.title = me.display_name ? me.display_name + ' · ' + me.email : me.email;
       loadUsers();
     }).catch(() => location.replace('/'));
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
+    $('#logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' }).catch(() => {});
       location.replace('/');
     });
 
+    // ── password-field interactions (eye + Generate) ─────────────────
+    document.addEventListener('click', (e) => {
+      const eye = e.target.closest('[data-pw-eye]');
+      if (eye) {
+        const input = eye.parentElement.querySelector('input');
+        if (!input) return;
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        eye.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+        const icon = eye.querySelector('i');
+        if (icon) icon.className = showing ? 'ti ti-eye' : 'ti ti-eye-off';
+        return;
+      }
+      const gen = e.target.closest('[data-pw-generate]');
+      if (gen) {
+        const field = gen.closest('[data-password-field]');
+        const input = field && field.querySelector('input');
+        if (!input) return;
+        input.value = generatePassword();
+        input.type = 'text';
+        const eyeBtn = field.querySelector('[data-pw-eye]');
+        if (eyeBtn) {
+          eyeBtn.setAttribute('aria-label', 'Hide password');
+          const icon = eyeBtn.querySelector('i');
+          if (icon) icon.className = 'ti ti-eye-off';
+        }
+      }
+    });
+
+    // ── load + render members ────────────────────────────────────────
     async function loadUsers() {
-      const listMsg = document.getElementById('listMsg');
-      const tbody = document.getElementById('usersBody');
-      hideMsg(listMsg);
+      const list = $('#membersList');
+      const listMsg = $('#listMsg');
+      hideFormMsg(listMsg);
       try {
         const res = await fetch('/api/admin/users');
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          showMsg(listMsg, data.error || 'Failed to load users', 'error');
-          tbody.innerHTML = '';
+          showFormMsg(listMsg, data.error || 'Failed to load members.', 'error');
+          list.innerHTML = '';
           return;
         }
         const data = await res.json();
-        if (!data.users.length) {
-          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--color-text-muted);padding:30px;">No users yet.</td></tr>';
-          return;
-        }
-        tbody.innerHTML = data.users.map(u => `
-          <tr data-id="${u.id}">
-            <td>${escapeHtml(u.email)}${u.id === me.id ? ' <span class="badge" style="background:#eee;color:#888;">you</span>' : ''}</td>
-            <td>${u.is_admin ? '<span class="badge">Admin</span>' : '<span style="color:var(--color-text-muted);">User</span>'}</td>
-            <td class="col-created" style="color:var(--color-text-muted);">${fmtDate(u.created_at)}</td>
-            <td style="text-align:right;">
-              ${u.id === me.id ? '' : `<button class="btn btn-danger" data-action="delete" data-id="${u.id}" data-email="${escapeHtml(u.email)}">Remove</button>`}
-            </td>
-          </tr>
-        `).join('');
+        users = data.users || [];
+        $('#membersCount').textContent = users.length + (users.length === 1 ? ' person' : ' people');
+        renderMembers();
       } catch (err) {
-        showMsg(listMsg, 'Network error loading users.', 'error');
+        showFormMsg(listMsg, 'Network error loading members.', 'error');
       }
     }
 
-    // Delete (event delegation)
-    document.getElementById('usersBody').addEventListener('click', async (e) => {
-      const btn = e.target.closest('[data-action="delete"]');
+    function renderMembers() {
+      const list = $('#membersList');
+      if (!users.length) {
+        list.innerHTML = '<div class="members-empty">No members yet.</div>';
+        return;
+      }
+      list.innerHTML = users.map(u => renderRow(u)).join('');
+    }
+
+    function renderRow(u) {
+      const isSelf = me && u.id === me.id;
+      const onlyAdmin = u.is_admin && adminCount() <= 1;
+      const rolePill = u.is_admin
+        ? '<span class="pill pill--role-admin">Admin</span>'
+        : '<span class="pill pill--role-member">Member</span>';
+      // Status: v1.4 every user lands Active (no invited/needs-setup in v1.4).
+      const statusPill = '<span class="pill pill--status-active"><span class="pill__dot"></span>Active</span>';
+
+      // ⋯ menu items (mockup screen-10 + last-admin guard).
+      const roleToggleLabel = u.is_admin
+        ? '<i class="ti ti-arrow-down"></i>Change to member'
+        : '<i class="ti ti-arrow-up"></i>Make admin';
+      const roleToggleDisabled = u.is_admin && onlyAdmin ? 'disabled title="Promote another member first — a workspace needs at least one admin."' : '';
+      const removeDisabled = onlyAdmin ? 'disabled title="Promote another member first — a workspace needs at least one admin."' : '';
+      const menuId = 'menu-' + u.id;
+
+      const nameHtml = isSelf
+        ? `<span class="members-row__name">${escapeHtml(u.display_name || u.email)} <span class="self-tag">· you</span></span>`
+        : `<span class="inline-edit" data-inline-edit data-id="${u.id}">
+             <span class="inline-edit__label members-row__name">${escapeHtml(u.display_name || u.email)}</span>
+             <input class="inline-edit__input" value="${escapeHtml(u.display_name || '')}" maxlength="80">
+             <button class="inline-edit__save" type="button" aria-label="Save"><i class="ti ti-check"></i></button>
+           </span>`;
+
+      return `
+        <div class="members-row" data-row="${u.id}">
+          <div class="members-row__person">
+            <span class="members-row__avatar${isSelf ? ' self' : ''}">${escapeHtml(initial(u.display_name || u.email))}</span>
+            <div style="min-width:0;">
+              ${nameHtml}
+              <div class="members-row__email">${escapeHtml(u.email)}</div>
+            </div>
+          </div>
+          <div class="role-pill-cell">${rolePill}</div>
+          <div class="status-pill-cell">${statusPill}</div>
+          <div class="members-row__menu-wrap">
+            <button class="kebab-btn" type="button" data-menu-toggle="${menuId}" aria-haspopup="menu" aria-expanded="false" aria-label="Member actions">
+              <i class="ti ti-dots"></i>
+            </button>
+            <div class="menu" role="menu" id="${menuId}" data-open="false" style="top:32px;right:0;">
+              <button class="menu__item" role="menuitem" type="button" data-action="rename" data-id="${u.id}"${isSelf ? ' disabled' : ''}><i class="ti ti-pencil"></i>Edit name</button>
+              <button class="menu__item" role="menuitem" type="button" data-action="role-toggle" data-id="${u.id}" ${roleToggleDisabled}>${roleToggleLabel}</button>
+              <button class="menu__item" role="menuitem" type="button" data-action="reset-password" data-id="${u.id}"><i class="ti ti-key"></i>Reset password</button>
+              <div class="menu__divider"></div>
+              <button class="menu__item menu__item--danger" role="menuitem" type="button" data-action="remove" data-id="${u.id}" ${removeDisabled}${isSelf ? ' disabled title="You cannot remove your own account"' : ''}><i class="ti ti-trash"></i>Remove from workspace</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ── ⋯ menu open/close ────────────────────────────────────────────
+    function closeOpenMenu() {
+      if (!openMenu) return;
+      const id = openMenu.id;
+      openMenu.setAttribute('data-open', 'false');
+      const trigger = document.querySelector('[data-menu-toggle="' + id + '"]');
+      if (trigger) trigger.setAttribute('aria-expanded', 'false');
+      openMenu = null;
+    }
+    document.addEventListener('click', (e) => {
+      const trigger = e.target.closest('[data-menu-toggle]');
+      if (trigger) {
+        e.stopPropagation();
+        const id = trigger.getAttribute('data-menu-toggle');
+        const menu = document.getElementById(id);
+        if (!menu) return;
+        if (openMenu === menu) { closeOpenMenu(); return; }
+        closeOpenMenu();
+        menu.setAttribute('data-open', 'true');
+        trigger.setAttribute('aria-expanded', 'true');
+        openMenu = menu;
+        return;
+      }
+      if (openMenu && !openMenu.contains(e.target)) closeOpenMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && openMenu) closeOpenMenu();
+    });
+
+    // ── row actions: rename, role-toggle, reset-password, remove ─────
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-action]');
       if (!btn) return;
-      const id = btn.dataset.id;
-      const email = btn.dataset.email;
-      if (!confirm(`Remove user ${email}? This cannot be undone.`)) return;
-      btn.disabled = true;
-      btn.textContent = 'Removing…';
-      try {
-        const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          alert(data.error || 'Failed to remove user');
-          btn.disabled = false;
-          btn.textContent = 'Remove';
-          return;
-        }
-        loadUsers();
-      } catch (err) {
-        alert('Network error.');
-        btn.disabled = false;
-        btn.textContent = 'Remove';
+      const action = btn.dataset.action;
+      const id = parseInt(btn.dataset.id, 10);
+      const user = users.find(u => u.id === id);
+      if (!user) return;
+      closeOpenMenu();
+
+      if (action === 'rename') {
+        const row = document.querySelector(`[data-row="${id}"] .inline-edit`);
+        if (!row) return;
+        row.classList.add('editing');
+        const input = row.querySelector('.inline-edit__input');
+        input.value = user.display_name || '';
+        input.focus();
+        input.select();
+        return;
+      }
+
+      if (action === 'role-toggle') {
+        if (btn.disabled) return;
+        await patchUser(id, { is_admin: !user.is_admin });
+        return;
+      }
+
+      if (action === 'reset-password') {
+        openResetPwModal(user);
+        return;
+      }
+
+      if (action === 'remove') {
+        if (btn.disabled) return;
+        openRemoveModal(user);
+        return;
       }
     });
 
-    // Add user
-    document.getElementById('addForm').addEventListener('submit', async (e) => {
+    // ── inline-edit commit / cancel (name rename) ────────────────────
+    document.addEventListener('keydown', (e) => {
+      if (!e.target.classList.contains('inline-edit__input')) return;
+      const root = e.target.closest('.inline-edit');
+      if (e.key === 'Enter') { e.preventDefault(); commitRename(root); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancelRename(root); }
+    });
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.inline-edit__save')) {
+        const root = e.target.closest('.inline-edit');
+        commitRename(root);
+      }
+    });
+    async function commitRename(root) {
+      if (!root) return;
+      const id = parseInt(root.dataset.id, 10);
+      const next = (root.querySelector('.inline-edit__input').value || '').trim();
+      if (!next) { cancelRename(root); return; }
+      root.classList.remove('editing');
+      await patchUser(id, { display_name: next });
+    }
+    function cancelRename(root) {
+      if (!root) return;
+      root.classList.remove('editing');
+    }
+
+    // ── PATCH helper ─────────────────────────────────────────────────
+    async function patchUser(id, payload) {
+      const listMsg = $('#listMsg');
+      hideFormMsg(listMsg);
+      try {
+        const res = await fetch('/api/admin/users/' + id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showFormMsg(listMsg, data.error || 'Update failed', 'error');
+          loadUsers();
+          return null;
+        }
+        loadUsers();
+        return data.user;
+      } catch {
+        showFormMsg(listMsg, 'Network error.', 'error');
+        loadUsers();
+        return null;
+      }
+    }
+
+    // ── add-member form ──────────────────────────────────────────────
+    $('#addForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const addMsg = document.getElementById('addMsg');
-      const addBtn = document.getElementById('addBtn');
-      hideMsg(addMsg);
-      const email    = document.getElementById('newEmail').value;
-      const password = document.getElementById('newPassword').value;
-      const is_admin = document.getElementById('newIsAdmin').checked;
-      addBtn.disabled = true;
-      addBtn.textContent = 'Adding…';
+      const msg = $('#addMsg');
+      const btn = $('#addBtn');
+      hideFormMsg(msg);
+      const display_name = $('#newName').value.trim();
+      const email = $('#newEmail').value.trim();
+      const role = $('#newRole').value;
+      const password = $('#newPassword').value;
+      if (!display_name) { showFormMsg(msg, 'Display name is required.', 'error'); return; }
+      if (!email) { showFormMsg(msg, 'Email is required.', 'error'); return; }
+      if (password.length < 8) { showFormMsg(msg, 'Password must be at least 8 characters.', 'error'); return; }
+      btn.disabled = true;
+      const btnHtml = btn.innerHTML;
+      btn.innerHTML = '<i class="ti ti-loader"></i> Adding…';
       try {
         const res = await fetch('/api/admin/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, is_admin }),
+          body: JSON.stringify({
+            display_name, email, password,
+            is_admin: role === 'admin',
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          showMsg(addMsg, data.error || 'Failed to add user', 'error');
-          addBtn.disabled = false;
-          addBtn.textContent = 'Add user';
+          showFormMsg(msg, data.error || 'Failed to add member', 'error');
           return;
         }
-        showMsg(addMsg, `Added ${email}. Share the password with them so they can sign in.`, 'success');
-        document.getElementById('newEmail').value = '';
-        document.getElementById('newPassword').value = '';
-        document.getElementById('newIsAdmin').checked = false;
-        addBtn.disabled = false;
-        addBtn.textContent = 'Add user';
+        showFormMsg(msg, 'Added ' + display_name + '. They can sign in with the password you set.', 'success');
+        $('#newName').value = '';
+        $('#newEmail').value = '';
+        $('#newPassword').value = '';
+        $('#newRole').value = 'member';
         loadUsers();
-      } catch (err) {
-        showMsg(addMsg, 'Network error.', 'error');
-        addBtn.disabled = false;
-        addBtn.textContent = 'Add user';
+      } catch {
+        showFormMsg(msg, 'Network error.', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = btnHtml;
       }
     });
+
+    // ── reset-password modal ─────────────────────────────────────────
+    function openResetPwModal(user) {
+      resetPwTargetId = user.id;
+      const modal = $('#resetPwModal');
+      $('#resetPwText').innerHTML = 'Set a new password for <strong>' + escapeHtml(user.display_name || user.email) + '</strong>. Share it with them however you prefer.';
+      $('#resetPwInput').value = '';
+      $('#resetPwInput').type = 'password';
+      hideFormMsg($('#resetPwMsg'));
+      const eye = $('#resetPwModal [data-pw-eye] i');
+      if (eye) eye.className = 'ti ti-eye';
+      openModal(modal);
+    }
+    $('#resetPwSubmit').addEventListener('click', async () => {
+      const pw = $('#resetPwInput').value;
+      const msg = $('#resetPwMsg');
+      hideFormMsg(msg);
+      if (pw.length < 8) {
+        showFormMsg(msg, 'At least 8 characters.', 'error');
+        return;
+      }
+      const btn = $('#resetPwSubmit');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/admin/users/' + resetPwTargetId, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showFormMsg(msg, data.error || 'Failed to reset password', 'error');
+          return;
+        }
+        closeModal($('#resetPwModal'));
+        showFormMsg($('#listMsg'), 'Password reset for ' + (data.user?.display_name || data.user?.email || 'member') + '.', 'success');
+      } catch {
+        showFormMsg(msg, 'Network error.', 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ── remove-from-workspace modal ──────────────────────────────────
+    function openRemoveModal(user) {
+      removeTargetId = user.id;
+      const modal = $('#removeModal');
+      const token = user.display_name || user.email;
+      $('#removeBodyTitle').textContent = 'Remove ' + token + '?';
+      $('#removeText').textContent = 'This removes ' + token + ' from the workspace and immediately invalidates their sessions. This can’t be undone.';
+      $('#removeTokenLabel').textContent = token;
+      const input = $('#removeTypeInput');
+      input.value = '';
+      input.placeholder = token;
+      input.setAttribute('data-confirm-token', token);
+      $('#removeSubmit').disabled = true;
+      hideFormMsg($('#removeMsg'));
+      input.oninput = function () {
+        $('#removeSubmit').disabled = input.value !== token;
+      };
+      openModal(modal);
+    }
+    $('#removeSubmit').addEventListener('click', async () => {
+      const btn = $('#removeSubmit');
+      const msg = $('#removeMsg');
+      hideFormMsg(msg);
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/admin/users/' + removeTargetId, { method: 'DELETE' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showFormMsg(msg, data.error || 'Failed to remove member', 'error');
+          return;
+        }
+        closeModal($('#removeModal'));
+        showFormMsg($('#listMsg'), 'Removed.', 'success');
+        loadUsers();
+      } catch {
+        showFormMsg(msg, 'Network error.', 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ── modal open/close (focus-trap + restore) ──────────────────────
+    function openModal(modal) {
+      lastFocused = document.activeElement;
+      modal.style.display = 'flex';
+      const focusables = modal.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length) focusables[0].focus();
+    }
+    function closeModal(modal) {
+      if (!modal) return;
+      modal.style.display = 'none';
+      if (lastFocused && lastFocused.focus) lastFocused.focus();
+      lastFocused = null;
+    }
+    document.addEventListener('click', (e) => {
+      const closer = e.target.closest('[data-close-modal]');
+      if (closer) closeModal(closer.closest('.modal'));
+    });
+    document.addEventListener('keydown', (e) => {
+      const open = document.querySelector('.modal[style*="display: flex"], .modal[style*="display:flex"]');
+      if (!open) return;
+      if (e.key === 'Escape') { e.preventDefault(); closeModal(open); return; }
+      if (e.key !== 'Tab') return;
+      const focusable = Array.prototype.slice.call(open.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter(el => el.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+  })();
   </script>
 </body>
 </html>
