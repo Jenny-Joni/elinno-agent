@@ -1,6 +1,0 @@
-{
-  "version": 1,
-  "description": "Scope Cloudflare Pages Functions to /api/* only. Everything else falls through to static assets in public/. Added in Block 13.3 to fix a runtime 500 on /dashboard, where the worker was being invoked for a path that has no function (and a static file does).",
-  "include": ["/api/*"],
-  "exclude": ["/*"]
-}
