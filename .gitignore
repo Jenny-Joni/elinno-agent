@@ -7,3 +7,7 @@
 node_modules/
 .dev.vars
 .pr-body-*.md
+
+# Ad-hoc operational SQL scripts (e.g. local-only data wipes).
+# Schema migrations live under db/migrations/ and ARE tracked.
+scripts/*.sql
