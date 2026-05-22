@@ -5,465 +5,422 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>New cross-project chat — Elinno Agent</title>
   <meta name="robots" content="noindex" />
-  <link rel="stylesheet" href="/auth.css" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <link rel="stylesheet" href="/auth.css" />
   <style>
-    body { background: rgba(0, 0, 0, 0.55); }
-    .cp-modal {
-      max-width: 600px;
-      margin: 24px auto;
-      background: #fff;
-      border-radius: 20px;
-      overflow: hidden;
-      color: var(--color-text-dark);
+    /* Cross-project picker per v1.4 mockup screen-11. v1.4 components
+       (.brandmark/.wordmark/.eyebrow/.btn--*/.card) live in auth.css;
+       this <style> only positions them + defines picker-local rules. */
+    .xp-shell { max-width: 760px; margin: 0 auto; padding: 30px 30px 60px; }
+    .xp-crumb {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text-3);
+      margin-bottom: 14px;
     }
-    .cp-modal-head {
-      padding: 22px 24px 18px;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .cp-modal-eyebrow {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      color: var(--color-brand);
+    .xp-crumb a { color: var(--brand); text-decoration: none; }
+    .xp-title {
+      font-family: var(--font);
+      font-size: 28px;
       font-weight: 500;
-      margin-bottom: 8px;
+      margin: 0 0 8px;
+      letter-spacing: -0.01em;
     }
-    .cp-modal-title {
-      font-size: 20px;
-      font-weight: 500;
-      text-transform: uppercase;
-      line-height: 1.15;
-      margin: 0;
+    .xp-sub {
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--text-2);
+      margin: 0 0 24px;
+      max-width: 460px;
+      line-height: 1.5;
     }
-    .cp-modal-title strong { font-weight: 700; }
-    .cp-step {
-      padding: 20px 24px 0;
-    }
-    .cp-step-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--color-text-muted);
-      font-weight: 500;
-      margin-bottom: 8px;
-    }
-    .cp-label-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 22px;
-    }
-    .cp-label-card {
-      background: var(--color-bg-soft);
-      border: 1px solid var(--color-border);
-      border-radius: 10px;
-      padding: 14px;
-      cursor: pointer;
-    }
-    .cp-label-card.selected {
-      background: var(--color-brand-tint-strong);
-      border: 1.5px solid var(--color-brand);
-    }
-    .cp-label-card.locked {
-      cursor: not-allowed;
-      opacity: 0.7;
-    }
-    .cp-label-card-head {
+
+    .xp-section-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 8px;
+      margin-bottom: 14px;
     }
-    .cp-label-card-title {
+    .xp-select-all {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--brand);
+      font-weight: 500;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .xp-select-all:hover { text-decoration: underline; }
+
+    .xp-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+    .xp-row {
+      padding: 14px 16px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      font-weight: 600;
+      gap: 13px;
+      border: 0.5px solid var(--border);
+      background: var(--bg);
+      border-radius: var(--r-md);
+      cursor: pointer;
+      transition: background var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
     }
-    .cp-label-card-title i { font-size: 18px; color: var(--color-brand); }
-    .cp-label-card.locked .cp-label-card-title i { color: var(--color-text-muted); }
-    .cp-label-card-check {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: var(--color-brand);
+    .xp-row:hover:not(.xp-row--disabled):not(.xp-row--selected) {
+      background: var(--brand-soft);
+      border-color: var(--brand-soft-border);
+    }
+    .xp-row--selected {
+      border: 0.5px solid var(--brand);
+      background: var(--bg-card-tint);
+      box-shadow: 0 0 0 3px rgba(98, 52, 252, 0.08);
+    }
+    .xp-row--disabled {
+      background: #fbfbfb;
+      cursor: not-allowed;
+    }
+    .xp-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
+      border: 1.5px solid var(--brand-hair);
+      transition: background var(--t-fast), border-color var(--t-fast);
     }
-    .cp-label-card-check i { color: #fff; font-size: 10px; }
-    .cp-label-card-v2 {
-      font-size: 8px;
-      color: var(--color-warning);
-      background: var(--color-warning-bg);
-      padding: 2px 6px;
-      border-radius: 50px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+    .xp-row--selected .xp-check {
+      background: var(--brand);
+      border-color: var(--brand);
+      color: #fff;
     }
-    .cp-label-card-desc {
-      font-size: 11px;
-      color: var(--color-text-body);
-      line-height: 1.45;
-      margin: 0 0 8px;
+    .xp-row--selected .xp-check i { font-size: 14px; }
+    .xp-row--disabled .xp-check {
+      border-color: var(--border-input);
+      background: #f4f4f4;
     }
-    .cp-label-card-source {
-      font-size: 10px;
-      color: var(--color-text-muted);
+    .xp-ptile {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      border-radius: var(--r-sm);
+      background: var(--brand-tint);
+      color: var(--brand);
       display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font);
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .xp-row--disabled .xp-ptile {
+      background: #f0f0f0;
+      color: var(--text-faint);
+    }
+    .xp-body { flex: 1; min-width: 0; }
+    .xp-name {
+      font-family: var(--font);
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.2;
+    }
+    .xp-row--disabled .xp-name { color: var(--text-3); }
+    .xp-helper {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-faint);
+      margin-top: 2px;
+    }
+    .xp-chips { display: flex; gap: 6px; flex-shrink: 0; }
+    .srcchip {
+      display: inline-flex;
       align-items: center;
       gap: 5px;
-      font-weight: 500;
-    }
-    .cp-step2-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-    .cp-step2-actions { display: flex; gap: 5px; }
-    .cp-btn-mini {
+      padding: 3px 9px 3px 6px;
+      border-radius: var(--r-pill);
+      font-family: var(--font);
       font-size: 10px;
-      color: var(--color-brand);
-      background: var(--color-brand-tint);
-      padding: 5px 9px;
-      border-radius: 6px;
       font-weight: 500;
-      border: none;
-      cursor: pointer;
-      font-family: inherit;
+      border: 0.5px solid var(--border-soft);
+      background: var(--bg-subtle);
+      color: var(--text-2);
     }
-    .cp-step2-sub {
+    .srcchip--jira { background: #eaf2ff; border-color: #d0e1ff; color: #1d5dcc; }
+    .srcchip--slack { background: #fef7e7; border-color: #f7e3a8; color: #8a6a17; }
+    .xp-unavailable {
+      font-family: var(--font);
       font-size: 11px;
-      color: var(--color-text-muted);
-      line-height: 1.45;
-      margin: 0 0 8px;
+      color: var(--text-faint);
+      border: 0.5px dashed var(--border-input);
+      border-radius: var(--r-pill);
+      padding: 3px 10px;
+      flex-shrink: 0;
     }
-    .cp-picker-list {
-      background: var(--color-bg-soft);
-      border-radius: 10px;
-      overflow: hidden;
-      margin-bottom: 14px;
-    }
-    .cp-picker-empty {
-      padding: 28px 18px;
-      text-align: center;
-      color: var(--color-text-muted);
-      font-size: 12px;
-    }
-    .cp-info-line {
-      font-size: 10px;
-      color: var(--color-text-muted);
-      margin-bottom: 18px;
-      line-height: 1.4;
+
+    .xp-member-info {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-faint);
+      margin-bottom: 20px;
       display: flex;
       align-items: center;
       gap: 6px;
     }
-    .cp-modal-foot {
-      padding: 16px 24px;
-      background: var(--color-bg-soft);
+    .xp-member-info i { font-size: 13px; }
+
+    .xp-foot {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-top: 1px solid var(--color-border);
+      padding-top: 18px;
+      border-top: 0.5px solid var(--border-soft);
+      gap: 12px;
     }
-    .cp-modal-summary {
+    .xp-foot-summary {
+      font-family: var(--font);
       font-size: 12px;
-      color: var(--color-text-body);
+      color: var(--text-3);
     }
-    .cp-modal-summary strong { color: var(--color-text-dark); }
-    .cp-modal-summary .muted {
-      color: var(--color-text-muted);
-      font-size: 10px;
-      margin-left: 4px;
-    }
-    .cp-foot-actions { display: flex; gap: 8px; }
-    .cp-foot-btn {
-      padding: 9px 14px;
-      border-radius: 8px;
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      text-decoration: none;
-      cursor: pointer;
-      font-family: inherit;
-    }
-    .cp-foot-btn-cancel {
-      background: transparent;
-      color: var(--color-text-dark);
-      border: 1px solid var(--color-border);
-    }
-    .cp-foot-btn-go {
-      background: var(--color-brand);
-      color: var(--color-text-inverse);
-      border: none;
-    }
-    .cp-foot-btn-go:disabled {
-      background: var(--color-text-muted);
-      cursor: not-allowed;
-      opacity: 0.6;
-    }
-    .cp-error {
-      background: rgba(255, 0, 131, 0.08);
-      border: 1px solid rgba(255, 0, 131, 0.3);
-      border-radius: 8px;
-      color: var(--color-error);
+    .xp-foot-actions { display: flex; gap: 10px; }
+    .xp-error {
+      font-family: var(--font);
       font-size: 12px;
+      color: #b80056;
+      background: #fff1f7;
+      border: 0.5px solid #f6c1d8;
+      border-radius: var(--r-sm);
       padding: 10px 12px;
-      margin: 0 24px 12px;
+      margin: 0 0 14px;
     }
-    .cp-loading {
-      padding: 60px 24px;
+    .xp-loading,
+    .xp-empty {
+      padding: 60px 0;
       text-align: center;
-      color: var(--color-text-muted);
+      color: var(--text-3);
+      font-family: var(--font);
       font-size: 13px;
+    }
+
+    @media (max-width: 700px) {
+      .xp-shell { padding: 22px 18px 60px; }
+      .xp-title { font-size: 23px; }
+      .xp-foot { flex-direction: column; align-items: stretch; }
+      .xp-foot-actions { flex-direction: column-reverse; gap: 9px; }
+      .xp-foot-actions .btn { justify-content: center; }
+      .xp-foot-summary { text-align: center; margin-bottom: 2px; }
     }
   </style>
 </head>
 <body>
 
-  <div class="cp-modal" id="cpModal">
-    <div class="cp-loading">Loading projects…</div>
-  </div>
+  <nav class="app-nav" data-sticky-topbar>
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+        <span class="brandmark"></span>
+        <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
+      </a>
+      <div class="app-nav-actions">
+        <a href="/dashboard.html">Dashboard</a>
+        <a href="/projects.html">Projects</a>
+        <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <span id="navUserAvatar" class="pcard__avatar" style="width:28px;height:28px;background:var(--brand);color:#fff;font-size:11px;border-radius:50%;" title=""></span>
+        <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main style="background:var(--bg-subtle);min-height:calc(100vh - 70px);">
+    <div class="xp-shell">
+      <div id="xpRoot">
+        <div class="xp-loading">Loading projects…</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/_lib/sticky-topbar.js" defer></script>
 
   <script>
-    function escHtml(s) {
-      return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    }
-    function jiraSvg(size) {
-      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-label="Jira"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z"/></svg>';
-    }
-    function mondaySvg(size) {
-      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-label="Monday"><circle cx="6" cy="12" r="2.4" fill="#FF3D57"/><circle cx="12" cy="12" r="2.4" fill="#FFCB00"/><circle cx="18" cy="12" r="2.4" fill="#00CA72"/></svg>';
-    }
-    function initialOf(name) {
-      return (String(name || '?').trim()[0] || '?').toUpperCase();
-    }
-    function fmtDate(iso) {
-      if (!iso) return '';
-      const d = new Date(iso);
-      if (!isFinite(d)) return '';
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
+  (function () {
+    'use strict';
 
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function initial(s) {
+      return (String(s || '?').trim()[0] || '?').toUpperCase();
+    }
     function redirectToLogin() {
-      location.replace('/login.html?next=' + encodeURIComponent('/cross-project/new'));
+      location.replace('/login.html?next=' + encodeURIComponent('/cross-project/new.html'));
     }
 
-    async function loadEligible() {
-      const r = await fetch('/api/cross-project/eligible-projects');
+    // ---- state ----
+    let me = null;
+    let eligible = [];
+    const selected = new Set();
+    let submitting = false;
+    let errorMsg = '';
+
+    async function fetchMe() {
+      const r = await fetch('/api/me');
       if (r.status === 401) { redirectToLogin(); return null; }
       if (!r.ok) return null;
+      const data = await r.json().catch(() => null);
+      return data && data.user ? data.user : null;
+    }
+    async function fetchEligible() {
+      const r = await fetch('/api/cross-project/eligible-projects');
+      if (r.status === 401) { redirectToLogin(); return null; }
+      if (!r.ok) return [];
       const data = await r.json().catch(() => null);
       if (!data || !Array.isArray(data.projects)) return [];
       return data.projects;
     }
 
-    // ---- state ----
-    let eligible = [];
-    const selected = new Set();
-    let submitting = false;
-
-    function renderHead() {
-      return ''
-        + '<div class="cp-modal-head">'
-        +   '<div class="cp-modal-eyebrow">New cross-project chat</div>'
-        +   '<h2 class="cp-modal-title">Pick a <strong>label</strong> and projects</h2>'
-        + '</div>';
+    function isAvailable(p) {
+      return Array.isArray(p.connections) && p.connections.length > 0;
+    }
+    function availableCount() {
+      return eligible.reduce((n, p) => n + (isAvailable(p) ? 1 : 0), 0);
     }
 
-    function renderLabelStep() {
-      return ''
-        + '<div class="cp-step">'
-        +   '<div class="cp-step-label">Step 1 · Label</div>'
-        +   '<div class="cp-label-grid">'
-        +     '<div class="cp-label-card selected">'
-        +       '<div class="cp-label-card-head">'
-        +         '<div class="cp-label-card-title"><i class="ti ti-target"></i><span>Product</span></div>'
-        +         '<div class="cp-label-card-check"><i class="ti ti-check"></i></div>'
-        +       '</div>'
-        +       '<p class="cp-label-card-desc">Track delivery, velocity, ticket flow</p>'
-        +       '<div class="cp-label-card-source">' + jiraSvg(12) + 'Jira</div>'
-        +     '</div>'
-        +     '<div class="cp-label-card locked" title="Finance ships in v2.0">'
-        +       '<div class="cp-label-card-head">'
-        +         '<div class="cp-label-card-title"><i class="ti ti-coin"></i><span>Finance</span></div>'
-        +         '<span class="cp-label-card-v2">v2.0</span>'
-        +       '</div>'
-        +       '<p class="cp-label-card-desc">Track budgets, spend, allocation</p>'
-        +       '<div class="cp-label-card-source">' + mondaySvg(12) + 'Monday</div>'
-        +     '</div>'
-        +   '</div>'
-        + '</div>';
-    }
-
-    function renderPickerRow(p) {
-      const sprint = p.jira_active_sprint;
-      const isSelected = selected.has(p.id);
-      let sprintBlock = '';
-      if (sprint) {
-        const dl = sprint.days_left;
-        const urgent = dl !== null && dl <= 3;
-        const healthy = dl !== null && dl >= 7;
-        const deadlineCls = urgent ? 'urgent' : (healthy ? 'healthy' : '');
-        const deadlineText = dl === null ? '—' : (dl === 0 ? 'ends today' : (dl + ' day' + (dl === 1 ? '' : 's') + ' left'));
-        const pct = sprint.percent_complete == null ? 0 : sprint.percent_complete;
-        const fillBg = urgent ? 'var(--color-danger)' : 'var(--color-brand)';
-        const counts = sprint.ticket_counts || { total: 0, open: 0, done: 0 };
-        sprintBlock = ''
-          + '<div class="picker-row-info">'
-          +   '<div class="picker-row-name">' + escHtml(p.name) + '</div>'
-          +   '<div class="picker-row-sprint-line">'
-          +     '<span class="picker-row-sprint-name">' + escHtml(sprint.sprint_name || 'Sprint') + '</span>'
-          +     '<span class="picker-row-sprint-deadline ' + deadlineCls + '">' + escHtml(deadlineText) + '</span>'
-          +   '</div>'
-          +   '<div class="spend-bar thin picker-row-progress">'
-          +     '<div class="spend-bar-track">'
-          +       '<div class="spend-bar-fill" style="width:' + pct + '%;background:' + fillBg + ';"></div>'
-          +     '</div>'
-          +   '</div>'
-          +   '<div class="picker-row-dates">'
-          +     '<span>' + escHtml(fmtDate(sprint.start_date)) + '</span>'
-          +     '<span>' + escHtml(fmtDate(sprint.end_date)) + '</span>'
-          +   '</div>'
-          + '</div>'
-          + '<div class="picker-row-stats">'
-          +   '<div class="picker-row-stats-line">'
-          +     '<div><span class="picker-row-stat-num">' + (counts.open || 0) + '</span><span class="picker-row-stat-label">open</span></div>'
-          +     '<div><span class="picker-row-stat-num done">' + (counts.done || 0) + '</span><span class="picker-row-stat-label">done</span></div>'
-          +   '</div>'
-          +   '<div class="picker-row-stats-total">of ' + (counts.total || 0) + '</div>'
-          + '</div>';
-      } else {
-        sprintBlock = ''
-          + '<div class="picker-row-info">'
-          +   '<div class="picker-row-name">' + escHtml(p.name) + '</div>'
-          +   '<div class="picker-row-sprint-line">'
-          +     '<span class="picker-row-sprint-deadline">No active sprint</span>'
-          +   '</div>'
-          + '</div>';
+    function srcchipHtml(source) {
+      if (source === 'jira') {
+        return '<span class="srcchip srcchip--jira"><img src="/icons/jira.svg" width="11" height="11" alt=""> Jira</span>';
       }
-      return ''
-        + '<div class="picker-row ' + (isSelected ? 'selected' : '') + '" data-project-id="' + escHtml(p.id) + '">'
-        +   '<div class="picker-row-checkbox"><i class="ti ti-check"></i></div>'
-        +   '<div class="picker-row-avatar">' + escHtml(initialOf(p.name)) + '</div>'
-        +   sprintBlock
-        + '</div>';
+      if (source === 'slack') {
+        return '<span class="srcchip srcchip--slack"><img src="/icons/slack.svg" width="10" height="10" alt=""> Slack</span>';
+      }
+      return '<span class="srcchip">' + esc(source) + '</span>';
     }
 
-    function renderPickerStep() {
-      const rows = eligible.length === 0
-        ? '<div class="cp-picker-empty">No projects with an active Jira connection. Connect Jira in a project first.</div>'
-        : eligible.map(renderPickerRow).join('');
+    function rowHtml(p) {
+      const available = isAvailable(p);
+      const isSel = available && selected.has(p.id);
+      const cls = 'xp-row'
+        + (available ? '' : ' xp-row--disabled')
+        + (isSel ? ' xp-row--selected' : '');
+      const check = '<span class="xp-check">' + (isSel ? '<i class="ti ti-check"></i>' : '') + '</span>';
+      const tile = '<span class="xp-ptile">' + esc(initial(p.name)) + '</span>';
+      let trailing;
+      if (available) {
+        const chips = p.connections.map(c => srcchipHtml(c.source)).join('');
+        trailing = '<div class="xp-chips">' + chips + '</div>';
+      } else {
+        trailing = '<span class="xp-unavailable">Unavailable</span>';
+      }
+      const helper = available
+        ? ''
+        : '<div class="xp-helper">No sources connected — can’t be included</div>';
       return ''
-        + '<div class="cp-step">'
-        +   '<div class="cp-step2-head">'
-        +     '<div class="cp-step-label">Step 2 · Projects</div>'
-        +     '<div class="cp-step2-actions">'
-        +       '<button type="button" class="cp-btn-mini" id="cpSelectAll">Select all</button>'
-        +       '<button type="button" class="cp-btn-mini" id="cpClear">Clear</button>'
-        +     '</div>'
-        +   '</div>'
-        +   '<p class="cp-step2-sub">Projects in your workspace with a Jira connection.</p>'
-        +   '<div class="cp-picker-list" id="cpPickerList">' + rows + '</div>'
-        +   '<div class="cp-info-line">'
-        +     '<i class="ti ti-info-circle"></i>'
-        +     '<span>Projects without a Jira connection aren\'t shown.</span>'
-        +   '</div>'
-        + '</div>';
-    }
-
-    function renderFoot() {
-      const count = selected.size;
-      const summaryNames = Array.from(selected)
-        .map(id => (eligible.find(p => p.id === id) || {}).name || 'Project')
-        .join(' + ');
-      const summary = count === 0
-        ? '<span class="muted">No projects selected yet</span>'
-        : 'Chat: <strong>Product · ' + escHtml(summaryNames) + '</strong>';
-      const disabled = count === 0 || submitting;
-      return ''
-        + '<div id="cpError" class="cp-error" style="display:none;"></div>'
-        + '<div class="cp-modal-foot">'
-        +   '<div class="cp-modal-summary">' + summary + '</div>'
-        +   '<div class="cp-foot-actions">'
-        +     '<a href="/cross-project/" class="cp-foot-btn cp-foot-btn-cancel">Cancel</a>'
-        +     '<button type="button" class="cp-foot-btn cp-foot-btn-go" id="cpCreate"' + (disabled ? ' disabled' : '') + '>'
-        +       (submitting ? 'Creating…' : 'Create chat ↗')
-        +     '</button>'
-        +   '</div>'
+        + '<div class="' + cls + '" data-project-id="' + esc(p.id) + (available ? '' : '" data-disabled="1"') + '">'
+        +   check
+        +   tile
+        +   '<div class="xp-body"><div class="xp-name">' + esc(p.name) + '</div>' + helper + '</div>'
+        +   trailing
         + '</div>';
     }
 
     function render() {
-      document.getElementById('cpModal').innerHTML = ''
-        + renderHead()
-        + renderLabelStep()
-        + renderPickerStep()
-        + renderFoot();
+      if (eligible.length === 0) {
+        document.getElementById('xpRoot').innerHTML = ''
+          + '<div class="xp-crumb"><a href="/dashboard.html">Dashboard</a> / New cross-project chat</div>'
+          + '<div class="eyebrow"><span class="eyebrow__label">Cross-project</span><span class="eyebrow__rule"></span></div>'
+          + '<h1 class="xp-title">Which projects?</h1>'
+          + '<p class="xp-sub">No projects in your workspace yet. Create one first, then start a cross-project chat.</p>'
+          + '<a href="/projects/new.html" class="btn btn--primary">Create a project</a>';
+        return;
+      }
+
+      const isAdmin = !!(me && me.is_admin);
+      const sectionLabel = isAdmin ? 'Your projects' : 'Projects you can access';
+      const availN = availableCount();
+      const totalN = eligible.length;
+      const selN = selected.size;
+      const summary = selN === 0
+        ? 'Pick at least one project to start'
+        : selN + ' of ' + availN + (isAdmin ? ' connected projects selected' : ' selected');
+
+      const memberInfo = isAdmin
+        ? ''
+        : '<div class="xp-member-info"><i class="ti ti-info-circle"></i> You can chat across the projects you have access to. Ask a workspace admin to be added to more.</div>';
+
+      const selectAllBtn = (isAdmin && availN > 0)
+        ? '<button type="button" class="xp-select-all" id="xpSelectAll"><i class="ti ti-checks"></i> Select all</button>'
+        : '';
+
+      const err = errorMsg ? '<div class="xp-error">' + esc(errorMsg) + '</div>' : '';
+
+      document.getElementById('xpRoot').innerHTML = ''
+        + '<div class="xp-crumb"><a href="/dashboard.html">Dashboard</a> / New cross-project chat</div>'
+        + '<div class="eyebrow"><span class="eyebrow__label">Cross-project</span><span class="eyebrow__rule"></span></div>'
+        + '<h1 class="xp-title">Which projects?</h1>'
+        + '<p class="xp-sub">Pick the projects this chat reads across. The scope is fixed once you start — begin a new chat to ask across a different set.</p>'
+        + err
+        + '<div class="xp-section-head">'
+        +   '<div class="eyebrow" style="margin:0;"><span class="eyebrow__label" style="letter-spacing:.18em;">' + esc(sectionLabel) + '</span><span class="eyebrow__rule" style="width:44px;"></span></div>'
+        +   selectAllBtn
+        + '</div>'
+        + '<div class="xp-list" id="xpList">' + eligible.map(rowHtml).join('') + '</div>'
+        + memberInfo
+        + '<div class="xp-foot">'
+        +   '<span class="xp-foot-summary">' + esc(summary) + '</span>'
+        +   '<div class="xp-foot-actions">'
+        +     '<a href="/cross-project/" class="btn btn--ghost">Cancel</a>'
+        +     '<button type="button" id="xpStart" class="btn btn--primary"'
+        +       ((selN === 0 || submitting) ? ' disabled' : '') + '>'
+        +       (submitting ? 'Starting…' : 'Start chat')
+        +       ' <i class="ti ti-arrow-right"></i>'
+        +     '</button>'
+        +   '</div>'
+        + '</div>';
+
       wire();
     }
 
     function wire() {
-      const list = document.getElementById('cpPickerList');
+      const list = document.getElementById('xpList');
       if (list) {
         list.addEventListener('click', (e) => {
-          const row = e.target.closest('.picker-row');
+          const row = e.target.closest('.xp-row');
           if (!row) return;
+          if (row.getAttribute('data-disabled') === '1') return;
           const id = row.getAttribute('data-project-id');
           if (!id) return;
           if (selected.has(id)) selected.delete(id);
           else selected.add(id);
+          errorMsg = '';
           render();
         });
       }
-      const selAll = document.getElementById('cpSelectAll');
+      const selAll = document.getElementById('xpSelectAll');
       if (selAll) {
         selAll.addEventListener('click', () => {
-          eligible.forEach(p => selected.add(p.id));
+          const allSelected = eligible.every(p => !isAvailable(p) || selected.has(p.id));
+          if (allSelected) {
+            selected.clear();
+          } else {
+            for (const p of eligible) {
+              if (isAvailable(p)) selected.add(p.id);
+            }
+          }
+          errorMsg = '';
           render();
         });
       }
-      const clr = document.getElementById('cpClear');
-      if (clr) {
-        clr.addEventListener('click', () => {
-          selected.clear();
-          render();
-        });
-      }
-      const create = document.getElementById('cpCreate');
-      if (create) {
-        create.addEventListener('click', onCreate);
-      }
+      const startBtn = document.getElementById('xpStart');
+      if (startBtn) startBtn.addEventListener('click', onStart);
     }
 
-    function showError(msg) {
-      const e = document.getElementById('cpError');
-      if (!e) return;
-      e.textContent = msg;
-      e.style.display = '';
-    }
-    function clearError() {
-      const e = document.getElementById('cpError');
-      if (!e) return;
-      e.textContent = '';
-      e.style.display = 'none';
-    }
-
-    async function onCreate() {
+    async function onStart() {
       if (submitting || selected.size === 0) return;
       submitting = true;
-      clearError();
+      errorMsg = '';
       render();
       let res;
       try {
@@ -477,43 +434,63 @@
         });
       } catch {
         submitting = false;
+        errorMsg = "Couldn't reach the server. Try again.";
         render();
-        showError("Couldn't reach the server. Try again.");
         return;
       }
-
       if (res.status === 401) { redirectToLogin(); return; }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         submitting = false;
-        render();
-        const msg = data && data.code === 'project_not_in_workspace'
+        errorMsg = (data && data.code === 'project_not_in_workspace')
           ? 'One of the selected projects is no longer in your workspace.'
-          : data && data.code === 'cross_project_empty_set'
+          : (data && data.code === 'cross_project_empty_set')
             ? 'Pick at least one project.'
-            : data && data.error
+            : (data && data.error)
               ? data.error
-              : 'Could not create the chat. Try again.';
-        showError(msg);
+              : 'Could not start the chat. Try again.';
+        render();
         return;
       }
-
       const data = await res.json().catch(() => null);
       if (!data || !data.conversation || !data.conversation.id) {
         submitting = false;
+        errorMsg = 'Chat created but no id returned. Refresh the landing page.';
         render();
-        showError('Chat created but no id returned. Refresh the landing page.');
         return;
       }
       location.replace('/cross-project/chat.html?id=' + encodeURIComponent(data.conversation.id));
     }
 
+    function wireNav(user) {
+      const avatar = document.getElementById('navUserAvatar');
+      if (avatar) {
+        const label = (user && user.display_name) || (user && user.email) || '';
+        avatar.textContent = initial(label);
+        avatar.title = label;
+      }
+      if (user && user.is_admin) {
+        const adminLink = document.getElementById('adminLink');
+        if (adminLink) adminLink.style.display = '';
+      }
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+          try { await fetch('/api/logout', { method: 'POST' }); } catch {}
+          location.replace('/');
+        });
+      }
+    }
+
     (async function boot() {
-      const projects = await loadEligible();
-      if (projects === null) return;
+      const [user, projects] = await Promise.all([fetchMe(), fetchEligible()]);
+      if (user === null || projects === null) return;
+      me = user;
       eligible = projects || [];
+      wireNav(user);
       render();
     })();
+  })();
   </script>
 </body>
 </html>
