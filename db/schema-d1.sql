@@ -13,6 +13,12 @@
 --                                                  per §12 fallback path,
 --                                                  D1 rejected the
 --                                                  unixepoch(date(...)) DEFAULT)
+-- v1.4 (Block 13.2): two columns added for member display + future-proofing
+-- per BLOCK_13_DECISIONS.md decisions 2 + 3:
+--   display_name                          TEXT    NOT NULL DEFAULT ''
+--                                                  (backfilled from email prefix on migration)
+--   must_change_password                  INTEGER NOT NULL DEFAULT 0
+--                                                  (column exists; v1.4 never reads or writes it)
 -- The existing is_admin flag remains the workspace-admin gate (decision E).
 CREATE TABLE IF NOT EXISTS users (
   id                                    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,7 +29,9 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at                            INTEGER NOT NULL DEFAULT (unixepoch()),
   cross_project_ai_monthly_cap_usd      REAL    NOT NULL DEFAULT 20,
   cross_project_ai_cap_warned_at        INTEGER,
-  cross_project_ai_spend_period_start   INTEGER
+  cross_project_ai_spend_period_start   INTEGER,
+  display_name                          TEXT    NOT NULL DEFAULT '',
+  must_change_password                  INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
