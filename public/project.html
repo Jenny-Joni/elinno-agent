@@ -8,6 +8,80 @@
   <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
   <link rel="stylesheet" href="/auth.css" />
+  <style>
+    /* v1.4 (Block 13.5): per-row ⋯ menu on conversation sidebar.
+       The legacy .conv-item rule in auth.css styles the row text; this
+       block wraps it in a .conv-row that adds a kebab trigger and an
+       absolute-positioned menu. The button visibility follows the
+       mockup: hover-only on desktop, always-visible on touch / ≤700px. */
+    .conv-row {
+      position: relative;
+    }
+    .conv-row .conv-item {
+      padding-right: 36px;
+    }
+    .conv-row .conv-title-wrap { display: inline-block; min-width: 0; max-width: 100%; }
+    .conv-row .conv-rename-input {
+      padding: 2px 6px;
+      border: 1px solid var(--brand);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+      box-shadow: 0 0 0 3px var(--brand-hair);
+      width: 100%;
+    }
+    .conv-menu-trigger {
+      position: absolute;
+      top: 8px;
+      right: 6px;
+      opacity: 0;
+      transition: opacity var(--t-fast, 0.1s ease-out), background var(--t-fast, 0.1s ease-out);
+      z-index: 2;
+      width: 24px;
+      height: 24px;
+      font-size: 14px;
+    }
+    .conv-row:hover .conv-menu-trigger,
+    .conv-menu-trigger[aria-expanded="true"] {
+      opacity: 1;
+    }
+    .conv-menu {
+      top: 32px;
+      right: 4px;
+      min-width: 170px;
+    }
+    @media (max-width: 700px) {
+      .conv-menu-trigger { opacity: 1; }
+    }
+
+    /* Conv toast — top-right floating notice for delete + undo. */
+    .conv-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: var(--r-sm);
+      font-family: var(--font);
+      font-size: 13px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+      z-index: 2000;
+      display: none;
+    }
+    .conv-toast .btn--ghost {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      border: 0.5px solid rgba(255, 255, 255, 0.3);
+    }
+    .conv-toast .btn--ghost:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .conv-toast-warn { background: var(--danger); }
+  </style>
 </head>
 <body>
   <nav class="app-nav">
@@ -516,7 +590,7 @@
       renderTabBody();
     }
 
-    // ---------- Sidebar ----------
+    // ---------- Sidebar (v1.4: per-row ⋯ menu with Rename + Delete) ----------
     function renderSidebar() {
       const list = document.getElementById('convList');
       list.innerHTML = conversations.map(c => {
@@ -524,16 +598,234 @@
         const meta = escapeHtml(fmtConvMeta(c.updated_at, c.message_count));
         const active = c.id === activeConvId ? ' active' : '';
         const id = escapeHtml(c.id);
+        const menuId = 'conv-menu-' + id;
         return `
-          <button class="conv-item${active}" type="button" data-conv-id="${id}">
-            <div class="conv-title">${title}</div>
-            <div class="conv-meta">${meta}</div>
-          </button>
+          <div class="conv-row${active}" data-conv-id="${id}">
+            <div class="conv-item" role="button" tabindex="0" data-conv-id="${id}">
+              <div class="conv-title-wrap">
+                <span class="conv-title">${title}</span>
+                <input class="conv-rename-input" value="${title}" maxlength="120" hidden aria-label="Rename conversation">
+              </div>
+              <div class="conv-meta">${meta}</div>
+            </div>
+            <button class="kebab-btn conv-menu-trigger" type="button" data-menu-toggle="${menuId}" aria-haspopup="menu" aria-expanded="false" aria-label="Conversation actions">
+              <i class="ti ti-dots"></i>
+            </button>
+            <div class="menu conv-menu" role="menu" id="${menuId}" data-open="false">
+              <button class="menu__item" role="menuitem" type="button" data-action="rename" data-conv-id="${id}"><i class="ti ti-pencil"></i>Rename</button>
+              <button class="menu__item menu__item--danger" role="menuitem" type="button" data-action="delete" data-conv-id="${id}"><i class="ti ti-trash"></i>Delete</button>
+            </div>
+          </div>
         `;
       }).join('');
+
+      // Row click → open the conversation (skip when click is in the
+      // menu trigger / menu / rename input — they handle their own).
       list.querySelectorAll('.conv-item').forEach(el => {
-        el.addEventListener('click', () => onConvClick(el.dataset.convId));
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('.conv-rename-input')) return;
+          onConvClick(el.dataset.convId);
+        });
+        el.addEventListener('keydown', (e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.conv-rename-input')) {
+            e.preventDefault();
+            onConvClick(el.dataset.convId);
+          }
+        });
       });
+    }
+
+    // ---------- Conv menu open/close (one at a time) ----------
+    let openConvMenu = null;
+    function closeConvMenu() {
+      if (!openConvMenu) return;
+      openConvMenu.setAttribute('data-open', 'false');
+      const trigger = document.querySelector('[data-menu-toggle="' + openConvMenu.id + '"]');
+      if (trigger) trigger.setAttribute('aria-expanded', 'false');
+      openConvMenu = null;
+    }
+    document.addEventListener('click', (e) => {
+      const trigger = e.target.closest('[data-menu-toggle]');
+      if (trigger && trigger.classList.contains('conv-menu-trigger')) {
+        e.stopPropagation();
+        const id = trigger.getAttribute('data-menu-toggle');
+        const menu = document.getElementById(id);
+        if (!menu) return;
+        if (openConvMenu === menu) { closeConvMenu(); return; }
+        closeConvMenu();
+        menu.setAttribute('data-open', 'true');
+        trigger.setAttribute('aria-expanded', 'true');
+        openConvMenu = menu;
+        return;
+      }
+      if (openConvMenu && !openConvMenu.contains(e.target)) closeConvMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && openConvMenu) closeConvMenu();
+    });
+
+    // ---------- Conv-row actions ----------
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-action][data-conv-id]');
+      if (!btn) return;
+      // Only act on actions inside the sidebar's conv menus.
+      if (!btn.closest('.conv-menu')) return;
+      e.stopPropagation();
+      closeConvMenu();
+      const id = btn.dataset.convId;
+      const action = btn.dataset.action;
+      if (action === 'rename') startConvRename(id);
+      else if (action === 'delete') deleteConv(id);
+    });
+
+    // Inline-edit rename.
+    function startConvRename(id) {
+      const row = document.querySelector('.conv-row[data-conv-id="' + id + '"]');
+      if (!row) return;
+      const titleSpan = row.querySelector('.conv-title');
+      const input = row.querySelector('.conv-rename-input');
+      if (!titleSpan || !input) return;
+      input.value = titleSpan.textContent;
+      titleSpan.hidden = true;
+      input.hidden = false;
+      input.focus();
+      input.select();
+    }
+    document.addEventListener('keydown', (e) => {
+      if (!e.target.classList.contains('conv-rename-input')) return;
+      const row = e.target.closest('.conv-row');
+      if (!row) return;
+      if (e.key === 'Enter') { e.preventDefault(); commitConvRename(row); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancelConvRename(row); }
+    });
+    document.addEventListener('blur', (e) => {
+      if (!e.target.classList.contains('conv-rename-input')) return;
+      const row = e.target.closest('.conv-row');
+      if (row) setTimeout(() => cancelConvRename(row), 100);
+    }, true);
+    async function commitConvRename(row) {
+      const input = row.querySelector('.conv-rename-input');
+      const titleSpan = row.querySelector('.conv-title');
+      const id = row.dataset.convId;
+      const next = (input.value || '').trim();
+      if (!next) { cancelConvRename(row); return; }
+      const prev = titleSpan.textContent;
+      // Optimistic update.
+      titleSpan.textContent = next;
+      input.hidden = true;
+      titleSpan.hidden = false;
+      try {
+        const res = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/conversations/' + encodeURIComponent(id), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: next }),
+        });
+        if (!res.ok) {
+          titleSpan.textContent = prev; // roll back
+          showConvToast('Rename failed', 'warn');
+          return;
+        }
+        // Update local state too so future re-renders show the new title.
+        const c = conversations.find(c => c.id === id);
+        if (c) c.title = next;
+      } catch {
+        titleSpan.textContent = prev;
+        showConvToast('Network error', 'warn');
+      }
+    }
+    function cancelConvRename(row) {
+      const input = row.querySelector('.conv-rename-input');
+      const titleSpan = row.querySelector('.conv-title');
+      if (!input || !titleSpan) return;
+      input.hidden = true;
+      titleSpan.hidden = false;
+    }
+
+    // Delete with 5s undo toast.
+    async function deleteConv(id) {
+      const c = conversations.find(c => c.id === id);
+      if (!c) return;
+      const wasActive = id === activeConvId;
+      // Optimistically remove from sidebar.
+      conversations = conversations.filter(x => x.id !== id);
+      if (wasActive) {
+        activeConvId = conversations[0]?.id || null;
+      }
+      renderSidebar();
+      if (wasActive && activeConvId) {
+        onConvClick(activeConvId);
+      } else if (wasActive) {
+        // No fallback conversation — clear the chat surface.
+        renderTabBody();
+      }
+
+      // Server delete (soft).
+      let serverOk = false;
+      try {
+        const res = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/conversations/' + encodeURIComponent(id), { method: 'DELETE' });
+        serverOk = res.ok;
+      } catch { serverOk = false; }
+
+      if (!serverOk) {
+        // Roll back the optimistic removal.
+        conversations.push(c);
+        if (wasActive) activeConvId = id;
+        renderSidebar();
+        showConvToast('Delete failed', 'warn');
+        return;
+      }
+
+      // Show undo toast (5s).
+      showConvUndoToast(c, wasActive);
+    }
+
+    // Conv toast — simple top-of-sidebar message. Auto-dismisses.
+    function showConvToast(text, kind, ms) {
+      const existing = document.getElementById('convToast');
+      if (existing) existing.remove();
+      const toast = document.createElement('div');
+      toast.id = 'convToast';
+      toast.className = 'conv-toast conv-toast-' + (kind || 'info');
+      toast.textContent = text;
+      document.body.appendChild(toast);
+      toast.style.display = 'block';
+      setTimeout(() => { if (toast.parentNode) toast.remove(); }, ms || 3000);
+    }
+    function showConvUndoToast(c, wasActive) {
+      const existing = document.getElementById('convToast');
+      if (existing) existing.remove();
+      const toast = document.createElement('div');
+      toast.id = 'convToast';
+      toast.className = 'conv-toast conv-toast-info';
+      toast.style.display = 'flex';
+      toast.style.alignItems = 'center';
+      toast.style.gap = '12px';
+      toast.innerHTML = '<span>"' + escapeHtml(c.title || 'Conversation') + '" deleted.</span>';
+      const undo = document.createElement('button');
+      undo.type = 'button';
+      undo.className = 'btn btn--ghost';
+      undo.style.padding = '4px 10px';
+      undo.style.fontSize = '12px';
+      undo.textContent = 'Undo';
+      undo.addEventListener('click', async () => {
+        toast.remove();
+        try {
+          const res = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/conversations/' + encodeURIComponent(c.id), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ restore: true }),
+          });
+          if (!res.ok) { showConvToast('Undo failed', 'warn'); return; }
+          conversations.push(c);
+          conversations.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+          if (wasActive) activeConvId = c.id;
+          renderSidebar();
+          if (wasActive) onConvClick(c.id);
+        } catch { showConvToast('Network error', 'warn'); }
+      });
+      toast.appendChild(undo);
+      document.body.appendChild(toast);
+      setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
     }
 
     // ---------- Tab strip ----------
