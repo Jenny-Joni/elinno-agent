@@ -1,12 +1,15 @@
 // functions/api/cross-project/eligible-projects.js
 //
-// Block 12.5a — GET /api/cross-project/eligible-projects
-// Returns the workspace user's projects that have an active Jira
-// connection, for the cross-project chat creation picker (mockup c).
+// GET /api/cross-project/eligible-projects
+// Returns the workspace user's projects for the cross-project chat
+// picker, each enriched with per-project active-connection metadata
+// (source-chips) and the most-recent active Jira sprint summary
+// (legacy field, kept for parity with the v1.3 picker payload).
 //
-// v1.3 picker shows every project with Jira connected. Slack-only
-// projects aren't shown — the live cross-project label is "Product"
-// which is Jira-typed (Finance/Monday is v2.0-locked).
+// Block 13.6 (v1.4 Phase 6): widened from Jira-only to all workspace
+// projects. Sourceless projects appear with `connections: []` so the
+// screen-11 picker can render them as disabled "Unavailable" rows.
+// Slack-only projects now also appear, with a slack source-chip.
 
 import postgres from 'postgres';
 import { error, json } from '../../_lib/auth.js';
@@ -22,10 +25,10 @@ export async function onRequestGet({ request, env }) {
   });
 
   try {
-    // For each project in the workspace that's not soft-deleted and
-    // has at least one active Jira connection, return identity + the
-    // most-recent active Jira sprint summary (so the picker rows can
-    // render the sprint metadata the mockup shows).
+    // All workspace projects (not soft-deleted). Block 13.6 dropped the
+    // Jira-only EXISTS filter so sourceless + Slack-only projects also
+    // appear in the picker — sourceless ones render as disabled rows
+    // per screen-11, Slack-only ones render with a slack source-chip.
     const projects = await sql`
       SELECT p.id::text       AS id,
              p.name,
@@ -36,13 +39,6 @@ export async function onRequestGet({ request, env }) {
         FROM projects p
        WHERE p.owner_user_id = ${userId}
          AND p.deleted_at IS NULL
-         AND EXISTS (
-           SELECT 1 FROM connections c
-            WHERE c.project_id = p.id
-              AND c.source = 'jira'
-              AND c.status = 'active'
-              AND c.deleted_at IS NULL
-         )
        ORDER BY p.updated_at DESC, p.id DESC
     `;
 
@@ -50,9 +46,30 @@ export async function onRequestGet({ request, env }) {
       return json({ ok: true, projects: [] });
     }
 
+    // Per-project active-connection metadata for screen-11 source-chips.
+    // Uses connections_project_active_idx (project_id WHERE deleted_at
+    // IS NULL). Returns one row per active connection; the output
+    // mapping below groups them into an array per project.
+    const projectIds = projects.map((p) => p.id);
+    const connectionRows = await sql`
+      SELECT project_id::text AS project_id,
+             source,
+             status
+        FROM connections
+       WHERE project_id IN ${sql(projectIds)}
+         AND deleted_at IS NULL
+         AND status = 'active'
+       ORDER BY project_id, source
+    `;
+    const connectionsByProject = new Map();
+    for (const c of connectionRows) {
+      const list = connectionsByProject.get(c.project_id) || [];
+      list.push({ source: c.source, status: c.status });
+      connectionsByProject.set(c.project_id, list);
+    }
+
     // Sprint summary per project: pick the most recently updated active
     // sprint (matches dashboard.js / runListJiraSprints behavior).
-    const projectIds = projects.map((p) => p.id);
     const sprintRows = await sql`
       SELECT project_id::text                       AS project_id,
              metadata->>'sprint_name'               AS sprint_name,
@@ -136,7 +153,11 @@ export async function onRequestGet({ request, env }) {
           ticket_counts: counts || { total: 0, open: 0, done: 0 },
         };
       }
-      return { ...p, jira_active_sprint: activeSprint };
+      return {
+        ...p,
+        connections: connectionsByProject.get(p.id) || [],
+        jira_active_sprint: activeSprint,
+      };
     });
 
     return json({ ok: true, projects: out });
