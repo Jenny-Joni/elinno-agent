@@ -5,206 +5,256 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>New project — Elinno Agent</title>
   <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
   <link rel="stylesheet" href="/auth.css" />
+  <style>
+    /* New-project page per v1.4 mockup screen-06. */
+    .np-shell { max-width: 520px; margin: 0 auto; padding: 32px 20px 80px; }
+    .np-heading {
+      font-family: var(--font);
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--text);
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
+    }
+    .np-sub {
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text-2);
+      margin: 0 0 22px;
+      line-height: 1.5;
+    }
+    .np-card {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 24px;
+    }
+    .np-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .np-field label {
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-2);
+    }
+    .np-field input,
+    .np-field textarea {
+      width: 100%;
+      padding: 10px 13px;
+      border: 0.5px solid var(--border-input);
+      border-radius: var(--r-sm);
+      background: var(--bg-subtle);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .np-field textarea { min-height: 90px; resize: vertical; }
+    .np-field input:focus,
+    .np-field textarea:focus {
+      outline: none;
+      border-color: var(--brand);
+      background: var(--bg);
+    }
+    .np-hint {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
+    }
+    .np-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 22px;
+    }
+    .np-msg {
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 10px 13px;
+      border-radius: var(--r-sm);
+      display: none;
+      margin-bottom: 12px;
+    }
+    .np-msg.show { display: block; }
+    .np-msg.error { background: rgba(179,20,75,0.06); color: var(--danger); }
+
+    .np-unauthorized {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 48px 24px;
+      text-align: center;
+    }
+    .np-unauthorized__icon {
+      width: 44px; height: 44px;
+      border-radius: var(--r-sm);
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      margin-bottom: 10px;
+    }
+    .np-unauthorized__title { font-family: var(--font); font-size: 16px; font-weight: 500; color: var(--text); margin: 0 0 6px; }
+    .np-unauthorized__body { font-family: var(--font); font-size: 13px; color: var(--text-2); margin: 0 auto 16px; max-width: 320px; line-height: 1.5; }
+
+    @media (max-width: 700px) {
+      .np-shell { padding: 18px 14px 64px; }
+      .np-actions { flex-direction: column-reverse; gap: 8px; }
+      .np-actions .btn { width: 100%; }
+    }
+  </style>
 </head>
 <body>
-  <nav class="app-nav">
+
+  <nav class="app-nav" data-sticky-topbar>
     <div class="app-nav-inner">
-      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <a href="/dashboard.html" class="app-brand" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+        <span class="brandmark"></span>
+        <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
+      </a>
       <div class="app-nav-actions">
-        <span id="navUser" style="color:#fff;opacity:.85;font-size:14px;"></span>
         <a href="/dashboard.html">Dashboard</a>
-        <a href="/projects.html">Projects</a>
+        <a href="/projects.html" class="is-active">Projects</a>
         <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
-        <button id="logoutBtn" class="btn-nav">Log out</button>
+        <span id="navUserAvatar" style="width:28px;height:28px;background:var(--brand);color:#fff;font-size:11px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font);font-weight:600;" title=""></span>
+        <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
       </div>
     </div>
   </nav>
 
-  <main class="app-main">
-    <div class="custom-container">
-      <p class="section-eyebrow">
-        <a href="/projects.html" style="color: var(--color-text-muted);">← Projects</a>
-      </p>
-      <span class="section-line"></span>
-      <h1 class="section-heading">New project</h1>
-      <p class="section-sub">A project is a separate workspace with its own connected tools, members, and conversation history.</p>
-
+  <main style="background:var(--bg-subtle);min-height:calc(100vh - 70px);">
+    <div class="np-shell">
+      <a href="/projects.html" style="font-family:var(--font);font-size:12px;color:var(--text-3);text-decoration:none;display:inline-block;margin-bottom:14px;">← Projects</a>
+      <h1 class="np-heading">New project</h1>
+      <p class="np-sub">A project has its own connected tools and chat history. After creating, you'll connect a source like Jira or Slack.</p>
       <div id="formContainer">
-        <!-- First-paint loading skeleton; JS swaps this for the form (admin) or unauthorized state (non-admin) once /api/me resolves. -->
-        <div class="card form-narrow" aria-busy="true" aria-label="Loading">
-          <div style="display:flex;flex-direction:column;gap:18px;">
-            <div>
-              <div class="skeleton-shape" style="height:14px;width:90px;margin-bottom:8px;"></div>
-              <div class="skeleton-shape" style="height:48px;border-radius:8px;"></div>
-            </div>
-            <div>
-              <div class="skeleton-shape" style="height:14px;width:140px;margin-bottom:8px;"></div>
-              <div class="skeleton-shape" style="height:120px;border-radius:8px;"></div>
-            </div>
-            <div style="display:flex;gap:12px;margin-top:6px;">
-              <div class="skeleton-shape" style="height:48px;width:140px;border-radius:8px;"></div>
-              <div class="skeleton-shape" style="height:48px;width:80px;border-radius:8px;"></div>
-            </div>
-          </div>
+        <div class="np-card" aria-busy="true">
+          <p class="np-hint">Loading…</p>
         </div>
       </div>
     </div>
   </main>
 
-  <script>
-    let me = null;
+  <script src="/_lib/sticky-topbar.js" defer></script>
 
-    // Auth gate — match dashboard.html / admin.html pattern: redirect to '/' on missing user.
-    // Non-admins land in the unauthorized state (decision O); admins get the form.
+  <script>
+  (function () {
+    'use strict';
+    let me = null;
+    function $(s) { return document.querySelector(s); }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function initial(s) { return (String(s || '?').trim()[0] || '?').toUpperCase(); }
+
     fetch('/api/me').then(r => r.json()).then(d => {
       if (!d.user) { location.replace('/'); return; }
       me = d.user;
-      document.getElementById('navUser').textContent = d.user.email;
-      if (d.user.is_admin) {
-        document.getElementById('adminLink').style.display = '';
+      const av = $('#navUserAvatar');
+      av.textContent = initial(me.display_name || me.email);
+      av.title = (me.display_name || '') + (me.email ? ' · ' + me.email : '');
+      if (me.is_admin) {
+        $('#adminLink').style.display = '';
         renderForm();
       } else {
         renderUnauthorized();
       }
     }).catch(() => location.replace('/'));
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
+    $('#logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' }).catch(() => {});
       location.replace('/');
     });
 
+    function renderUnauthorized() {
+      $('#formContainer').innerHTML = ''
+        + '<div class="np-unauthorized">'
+        +   '<div class="np-unauthorized__icon"><i class="ti ti-lock"></i></div>'
+        +   '<h2 class="np-unauthorized__title">Workspace admin only</h2>'
+        +   '<p class="np-unauthorized__body">Only workspace admins can create projects. Ask your admin to create one for you.</p>'
+        +   '<a class="btn btn--ghost" href="/projects.html">← Back to projects</a>'
+        + '</div>';
+    }
+
     function renderForm() {
-      const container = document.getElementById('formContainer');
-      container.innerHTML = `
-        <div class="card form-narrow">
-          <div id="formMsg" class="form-msg hidden" role="alert"></div>
-          <form id="createForm" novalidate>
-            <div class="field">
-              <label for="projectName">Project name</label>
-              <input id="projectName" name="name" type="text" required maxlength="100" placeholder="e.g. Q4 Product Launch" />
-            </div>
-            <div class="field">
-              <label for="projectDesc">Description (optional)</label>
-              <p class="field-hint">A short note about what this project is for. Members will see it on the projects list.</p>
-              <textarea id="projectDesc" name="description" maxlength="1000" placeholder="What is this project about?"></textarea>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary auto" id="submitBtn">Create project</button>
-              <a href="/projects.html" class="btn btn-ghost">Cancel</a>
-            </div>
-          </form>
-        </div>
-      `;
+      $('#formContainer').innerHTML = ''
+        + '<div class="np-card">'
+        +   '<div id="formMsg" class="np-msg" role="alert"></div>'
+        +   '<form id="createForm" novalidate>'
+        +     '<div class="np-field">'
+        +       '<label for="projectName">Project name</label>'
+        +       '<input id="projectName" name="name" type="text" required maxlength="100" placeholder="e.g. Rain" autocomplete="off" />'
+        +     '</div>'
+        +     '<div class="np-field">'
+        +       '<label for="projectDesc">Description <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>'
+        +       '<textarea id="projectDesc" name="description" maxlength="1000" placeholder="What is this project about?"></textarea>'
+        +       '<p class="np-hint">Visible on the projects list for everyone in the workspace.</p>'
+        +     '</div>'
+        +     '<div class="np-actions">'
+        +       '<a href="/projects.html" class="btn btn--ghost">Cancel</a>'
+        +       '<button type="submit" class="btn btn--primary" id="submitBtn" disabled>Create &amp; connect a source <i class="ti ti-arrow-right"></i></button>'
+        +     '</div>'
+        +   '</form>'
+        + '</div>';
       wireForm();
     }
 
-    function renderUnauthorized() {
-      document.getElementById('formContainer').innerHTML = `
-        <div class="state-card">
-          <div class="state-card-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="5" y="11" width="14" height="9" rx="2"/>
-              <path d="M8 11V7a4 4 0 018 0v4"/>
-            </svg>
-          </div>
-          <h2 class="state-card-heading">Workspace admin only</h2>
-          <p class="state-card-body">Only workspace admins can create projects. Ask your admin to create one and invite you.</p>
-          <div class="state-card-actions">
-            <a href="/projects.html" class="btn btn-ghost">← Back to projects</a>
-          </div>
-        </div>
-      `;
-    }
-
-    // POST /api/projects with explicit try/catch — no timeout fallback per decision P.
-    // Decision N error mapping:
-    //   401 → /login.html?next=...
-    //   403 → flip to unauthorized (server is the truth; spoofed client gate ends here)
-    //   400 with body.error → render verbatim in .form-msg.error
-    //   500 / network / malformed JSON → "Something went wrong. Please try again."
-    // Form values stay populated on every failure path; submit button re-enables.
     function wireForm() {
-      const form      = document.getElementById('createForm');
-      const nameInput = document.getElementById('projectName');
-      const descInput = document.getElementById('projectDesc');
-      const submitBtn = document.getElementById('submitBtn');
-      const formMsg   = document.getElementById('formMsg');
+      const form = $('#createForm');
+      const name = $('#projectName');
+      const desc = $('#projectDesc');
+      const btn = $('#submitBtn');
+      const msg = $('#formMsg');
 
-      // Submit button disabled while name is empty after trim (decision Q — client-light).
-      function syncSubmitState() {
-        submitBtn.disabled = nameInput.value.trim().length === 0;
-      }
-      nameInput.addEventListener('input', syncSubmitState);
-      syncSubmitState();
+      function sync() { btn.disabled = name.value.trim().length === 0; }
+      name.addEventListener('input', sync);
 
-      function showError(text) {
-        formMsg.textContent = text;
-        formMsg.className   = 'form-msg error';
-      }
-      function hideMsg() {
-        formMsg.className   = 'form-msg hidden';
-        formMsg.textContent = '';
-      }
+      function showErr(text) { msg.textContent = text; msg.className = 'np-msg show error'; }
+      function hideErr() { msg.className = 'np-msg'; msg.textContent = ''; }
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        hideMsg();
-
-        const name        = nameInput.value.trim();
-        const description = descInput.value.trim();
-        if (name.length === 0) return; // belt-and-suspenders; button should be disabled
-
-        submitBtn.disabled    = true;
-        submitBtn.textContent = 'Creating…';
-
+        hideErr();
+        const n = name.value.trim();
+        const d = desc.value.trim();
+        if (!n) return;
+        btn.disabled = true;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = 'Creating…';
         try {
           const res = await fetch('/api/projects', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(description ? { name, description } : { name }),
+            body: JSON.stringify(d ? { name: n, description: d } : { name: n }),
           });
-
-          if (res.status === 401) {
-            location.replace('/login.html?next=' + encodeURIComponent('/projects/new.html'));
-            return;
-          }
-
-          if (res.status === 403) {
-            // Decision O: spoofed client gate → server says no → page flips.
-            renderUnauthorized();
-            return;
-          }
-
+          if (res.status === 401) { location.replace('/'); return; }
+          if (res.status === 403) { renderUnauthorized(); return; }
           const data = await res.json().catch(() => ({}));
-
           if (!res.ok) {
-            const msg = (res.status >= 500)
-              ? 'Something went wrong. Please try again.'
-              : (data && typeof data.error === 'string' ? data.error : 'Something went wrong. Please try again.');
-            showError(msg);
-            submitBtn.textContent = 'Create project';
-            syncSubmitState();
+            showErr(res.status >= 500 ? 'Something went wrong. Please try again.' : (data.error || 'Something went wrong. Please try again.'));
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
             return;
           }
-
-          // Success: redirect via href (decision T — back-button-friendly).
-          if (data && data.project && data.project.id) {
-            window.location.href = '/project.html?id=' + encodeURIComponent(data.project.id);
-            return;
+          // Per SPEC §6: redirect to NEW project's Settings → Connections tab.
+          // Graceful fallback to projects list if the new ID is unresolvable.
+          const newId = data && data.project && data.project.id;
+          if (newId) {
+            location.replace('/project_settings.html?id=' + encodeURIComponent(newId) + '&tab=connections&just_created=1');
+          } else {
+            location.replace('/projects.html');
           }
-
-          // Defensive: 2xx but malformed body — surface so the user isn't stuck on a half-success.
-          showError('Project created, but the response was malformed. Refresh the projects list to see it.');
-          submitBtn.textContent = 'Create project';
-          syncSubmitState();
-        } catch (err) {
-          showError('Something went wrong. Please try again.');
-          submitBtn.textContent = 'Create project';
-          syncSubmitState();
+        } catch {
+          showErr('Network error. Please try again.');
+          btn.disabled = false;
+          btn.innerHTML = originalHtml;
         }
       });
     }
+  })();
   </script>
 </body>
 </html>
