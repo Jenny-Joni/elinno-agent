@@ -5,17 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Project — Elinno Agent</title>
   <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
   <link rel="stylesheet" href="/auth.css" />
 </head>
 <body>
   <nav class="app-nav">
     <div class="app-nav-inner">
-      <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
+      <a href="/dashboard.html" class="app-brand" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+        <span class="brandmark"></span>
+        <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
+      </a>
       <div class="app-nav-actions">
-        <span id="navUser" style="color:var(--color-text-body);opacity:.85;font-size:14px;"></span>
+        <span id="navUser" style="color:var(--text-3);font-size:12px;"></span>
+        <a href="/dashboard.html">Dashboard</a>
         <a href="/projects.html">Projects</a>
         <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
-        <button id="logoutBtn" class="btn-nav">Log out</button>
+        <button id="logoutBtn" class="btn btn--ghost" style="padding:6px 12px;font-size:12px;">Log out</button>
       </div>
     </div>
   </nav>
@@ -458,15 +464,20 @@
               </div>
               <div class="project-tabs" id="tabStrip">
                 <button class="project-tab" type="button" data-tab="chat">Chat</button>
-                <!-- v1.3 (Block 12.1): Members tab hidden — membership collapsed
-                     per BLOCK_12_PLAN decision I. 12.4 ships project_settings.html
-                     (General + Connections tabs); the Connections tab below
-                     stays for now so v1.2 in-page navigation keeps working,
-                     plus a Settings link to the new full page. v1.3.1 cleanup
-                     may consolidate. -->
+                <!-- v1.4 (Block 13.4): tab strip collapsed to Chat-only per SPEC §8.
+                     Members tab stays hidden (collapsed in v1.3 Block 12.1).
+                     Connections tab hidden — sequencing-critical: kept in the DOM
+                     with the existing JS handler so the eager connections fetch
+                     and getConnectionState/getSuggestionList still drive the
+                     chat empty-state suggestion chips. Phase 7a ports the full
+                     connect flow into Settings → Connections; 7b strips this
+                     button + its handler. -->
                 <button class="project-tab" type="button" data-tab="members" hidden style="display:none;">Members <span class="tab-count" id="memberCountPill" style="display:none;"></span></button>
-                <button class="project-tab" type="button" data-tab="connections">Connections</button>
-                <a class="project-tab" id="projectSettingsLink" href="/project_settings.html?id=${projectId}" style="text-decoration:none;color:var(--color-text-muted);">Settings ↗</a>
+                <button class="project-tab" type="button" data-tab="connections" hidden style="display:none;">Connections</button>
+                <!-- Settings demoted from tab to header gear button (SPEC §8). -->
+                <a class="project-tab" id="projectSettingsLink" href="/project_settings.html?id=${projectId}" title="Project settings" style="text-decoration:none;color:var(--text-3);margin-left:auto;padding:8px 10px;" aria-label="Project settings">
+                  <i class="ti ti-settings" style="font-size:18px;line-height:1;"></i>
+                </a>
               </div>
             </div>
             <div id="tabBody"></div>
@@ -932,12 +943,13 @@
         const staleClass = fresh.stale ? ' chat-citation-stale' : '';
         const freshHtml = `<span class="chat-citation-freshness${staleClass}">${safeSuffix}</span>`;
         const labelHtml = `${safeBase}${freshHtml}`;
-        const url = c.source_url || '';
+        // v1.4 (Block 13.4) per BLOCK_13_DECISIONS.md decision 6:
+        // citations are non-clickable labels. The outbound URL is dropped
+        // — every citation renders as a .chat-citation-noref span regardless
+        // of whether c.source_url is present. "Refresh & re-ask" stays as
+        // the interactive affordance below the chip row.
         const titleStr = fmtCitationTitle(fresh.titleSource);
         const titleAttr = titleStr ? ` title="${escapeHtml(titleStr)}"` : '';
-        if (url) {
-          return `<a class="chat-citation" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"${titleAttr}>${labelHtml}</a>`;
-        }
         return `<span class="chat-citation chat-citation-noref"${titleAttr}>${labelHtml}</span>`;
       }).join('');
       // Block 10.1 decision C: ↻ Refresh & re-ask button on every assistant
