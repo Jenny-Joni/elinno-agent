@@ -254,6 +254,20 @@
     let initialConvId = initialParams.get('c');
     const initialTabRaw = initialParams.get('tab');
 
+    // Block 13.7a: bounce ?just_connected= to project_settings.html, the
+    // new home for connection management. The Slack OAuth callback still
+    // redirects to /project.html?...&just_connected=slack (carve-out kept
+    // unchanged in 7a); this redirect forwards the user to Settings →
+    // Connections so the channel/project picker auto-opens there. Phase
+    // 7b retargets the Slack callback directly and removes this bounce.
+    const justConnectedParam = initialParams.get('just_connected');
+    if (projectId && (justConnectedParam === 'slack' || justConnectedParam === 'jira')) {
+      const target = '/project_settings.html?id=' + encodeURIComponent(projectId)
+        + '&tab=connections&just_connected=' + encodeURIComponent(justConnectedParam);
+      location.replace(target);
+      // Page is navigating away — no further init needed.
+    }
+
     // ---------- Helpers ----------
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
