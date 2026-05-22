@@ -399,7 +399,8 @@
       margin: 0 0 4px;
     }
     .ps-conn-meta-value { font-size: 12px; font-weight: 500; }
-    .ps-conn-sync-btn {
+    .ps-conn-sync-btn,
+    .ps-conn-setup-btn {
       background: transparent;
       color: var(--color-brand);
       border: 1px solid rgba(98, 52, 252, 0.3);
@@ -414,39 +415,29 @@
       gap: 5px;
       justify-self: flex-end;
     }
+    .ps-conn-setup-btn {
+      background: var(--color-brand);
+      color: var(--color-text-inverse);
+      border-color: var(--color-brand);
+    }
 
-    .ps-conn-avail-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 16px;
-    }
-    @media (max-width: 700px) { .ps-conn-avail-grid { grid-template-columns: 1fr; } }
-    .ps-conn-avail-card {
-      background: var(--color-bg-soft);
-      border: 1px solid var(--color-border);
-      border-radius: 12px;
-      padding: 16px;
-      opacity: 0.85;
-    }
-    .ps-conn-avail-head {
+    /* Empty state in Connections tab (no connections yet). Uses
+       .state-card primitive from auth.css; this block is just for
+       the inline action buttons row. */
+    .ps-conn-empty-actions {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 14px;
-    }
-    .ps-conn-avail-icon {
-      width: 34px;
-      height: 34px;
-      border-radius: 8px;
-      background: var(--color-bg-light);
-      display: flex;
-      align-items: center;
+      gap: 8px;
       justify-content: center;
+      flex-wrap: wrap;
     }
-    .ps-conn-avail-name { font-size: 14px; font-weight: 600; margin: 0 0 4px; }
-    .ps-conn-avail-body { font-size: 11px; color: var(--color-text-body); line-height: 1.45; margin: 0 0 10px; }
-    .ps-conn-avail-foot { font-size: 10px; color: var(--color-text-muted); font-weight: 500; }
+    .ps-conn-empty-actions .btn { width: auto; }
+
+    /* "Add another" CTA when one source already connected. */
+    .ps-conn-add-other {
+      margin-top: 12px;
+      text-align: center;
+    }
+    .ps-conn-add-other .btn { width: auto; }
 
     .ps-error {
       background: rgba(255, 0, 131, 0.08);
@@ -502,6 +493,90 @@
     </div>
   </main>
 
+  <!-- Block 13.7a port: channel picker modal (Slack channel selection). Verbatim
+       from project.html lines 115-127. Opened by openChannelPicker() in the
+       Connections-tab logic. Closes on Escape, click-outside (backdrop), and
+       the close button. -->
+  <div id="channelPickerModal" class="modal" style="display: none;"
+       role="dialog" aria-modal="true" aria-labelledby="channelPickerHeading">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" role="document">
+      <div class="modal-header">
+        <h2 id="channelPickerHeading" class="modal-heading">Select a Slack channel</h2>
+        <button class="modal-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body channel-picker-list">
+        Loading…
+      </div>
+    </div>
+  </div>
+
+  <!-- Block 13.7a port: Jira connect form. Verbatim from project.html lines
+       134-175. Jira uses API tokens (no OAuth consent); form POSTs directly to
+       /api/connectors/jira/auth/save. On success, redirects to
+       /project_settings.html?…&just_connected=jira so the project picker
+       auto-opens. -->
+  <div id="jiraConnectModal" class="modal" style="display: none;"
+       role="dialog" aria-modal="true" aria-labelledby="jiraConnectHeading">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" role="document">
+      <div class="modal-header">
+        <h2 id="jiraConnectHeading" class="modal-heading">Connect Jira</h2>
+        <button class="modal-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="state-card-body" style="margin-bottom: 16px;">
+          Generate an API token at
+          <a href="https://id.atlassian.com/manage-profile/security/api-tokens"
+             target="_blank" rel="noopener noreferrer">id.atlassian.com</a>
+          first, then enter your details below.
+        </p>
+        <form id="jiraConnectForm" autocomplete="off">
+          <div style="margin-bottom: 12px;">
+            <label for="jiraSiteUrl" style="display:block; margin-bottom:4px; font-weight:600;">Site URL</label>
+            <input type="text" id="jiraSiteUrl" required
+                   placeholder="mycompany.atlassian.net"
+                   style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label for="jiraEmail" style="display:block; margin-bottom:4px; font-weight:600;">Account email</label>
+            <input type="email" id="jiraEmail" required
+                   placeholder="you@example.com"
+                   style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
+          </div>
+          <div style="margin-bottom: 16px;">
+            <label for="jiraApiToken" style="display:block; margin-bottom:4px; font-weight:600;">API token</label>
+            <input type="password" id="jiraApiToken" required
+                   style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
+          </div>
+          <div id="jiraConnectError" style="display:none; color:#b00020; margin-bottom:12px; padding:8px; background:#fce8eb; border-radius:4px;"></div>
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <button class="btn btn-ghost" type="button" id="jiraConnectCancelBtn">Cancel</button>
+            <button class="btn btn-primary" type="submit" id="jiraConnectSubmitBtn">Connect</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Block 13.7a port: Jira project picker. Verbatim from project.html lines
+       181-193. Mirrors channelPickerModal. Auto-opens after ?just_connected=jira
+       from the connect-form redirect, or via "Pick project" button on a Jira
+       connection that needs setup. -->
+  <div id="jiraProjectPickerModal" class="modal" style="display: none;"
+       role="dialog" aria-modal="true" aria-labelledby="jiraProjectPickerHeading">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" role="document">
+      <div class="modal-header">
+        <h2 id="jiraProjectPickerHeading" class="modal-heading">Select a Jira project</h2>
+        <button class="modal-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body jira-project-picker-list">
+        Loading…
+      </div>
+    </div>
+  </div>
+
   <script>
     // ---------- helpers ----------
     function escHtml(s) {
@@ -512,6 +587,8 @@
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
     }
+    // Alias for ported code that uses escapeHtml (from project.html).
+    function escapeHtml(s) { return escHtml(s); }
     function fmtUsd(n, decimals) {
       const d = decimals == null ? 2 : decimals;
       const num = Number(n) || 0;
@@ -543,17 +620,14 @@
     function getQueryParam(name) {
       try { return new URL(location.href).searchParams.get(name); } catch { return null; }
     }
+    function redirectToLogin() {
+      location.replace('/');
+    }
     function jiraSvg(size) {
       return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24"><path fill="#2684FF" d="M11.53 2L2 11.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L17.54 8l-5.49-5.49a.75.75 0 0 0-1.06 0z"/><path fill="#2684FF" opacity="0.7" d="M11.95 5.95l-7.53 7.53a.75.75 0 0 0 0 1.06l4.95 4.95a.75.75 0 0 0 1.06 0L22 7.92 17.05 2.97a.75.75 0 0 0-1.06 0z"/></svg>';
     }
     function slackSvg(size) {
       return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24"><g><path fill="#E01E5A" d="M5 14.5a2 2 0 1 1 2 2H5v-2z"/><path fill="#E01E5A" d="M6 14.5a2 2 0 1 1 4 0v5a2 2 0 1 1-4 0z"/><path fill="#36C5F0" d="M9.5 5a2 2 0 1 1-2 2V5z"/><path fill="#36C5F0" d="M9.5 6a2 2 0 1 1 0 4h-5a2 2 0 0 1 0-4z"/><path fill="#2EB67D" d="M19 9.5a2 2 0 1 1-2-2h2z"/><path fill="#2EB67D" d="M18 9.5a2 2 0 1 1-4 0v-5a2 2 0 1 1 4 0z"/><path fill="#ECB22E" d="M14.5 19a2 2 0 1 1 2-2v2z"/><path fill="#ECB22E" d="M14.5 18a2 2 0 1 1 0-4h5a2 2 0 1 1 0 4z"/></g></svg>';
-    }
-    function mondaySvg(size) {
-      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4" fill="#FF3D57"/><circle cx="12" cy="12" r="2.4" fill="#FFCB00"/><circle cx="18" cy="12" r="2.4" fill="#00CA72"/></svg>';
-    }
-    function driveSvg(size) {
-      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24"><path fill="#0066DA" d="M2 16l4 7h12l-4-7z"/><path fill="#FFBA00" d="M14 2L8 12l4 7 6-10z"/><path fill="#00AC47" d="M22 16L18 9 14 2 8 12z"/></svg>';
     }
 
     // ---------- state ----------
@@ -561,6 +635,10 @@
     let activeTab = getQueryParam('tab') === 'connections' ? 'connections' : 'general';
     let project = null;
     let connections = null;
+    let me = null;
+    // Block 13.7a port: one-shot guard so ?just_connected= auto-opens the
+    // picker exactly once per page-load (re-renders shouldn't re-trigger).
+    let justConnectedHandled = false;
 
     // ---------- API ----------
     async function api(method, path, body) {
@@ -588,6 +666,7 @@
       project = projRes.project;
       connections = Array.isArray(connsRes.connections) ? connsRes.connections : [];
       if (meRes && meRes.user) {
+        me = meRes.user;
         document.getElementById('navUser').textContent = meRes.user.email;
         if (meRes.user.is_admin) document.getElementById('adminLink').style.display = '';
       }
@@ -741,78 +820,82 @@
         + '</section>';
     }
 
-    // ---------- Connections tab ----------
+    // ---------- Connections tab (Block 13.7a port) ----------
     function renderConnections() {
       const active = (connections || []).filter(c => c.status === 'active');
       const slack = active.find(c => c.source === 'slack');
       const jira  = active.find(c => c.source === 'jira');
 
+      // Empty state — no connections yet.
+      if (!slack && !jira) {
+        return ''
+          + '<section class="ps-section">'
+          +   '<h2>Connect <strong>a data source</strong></h2>'
+          +   '<p class="ps-section-sub">Start indexing ' + escHtml(project.name) + ' by connecting Slack or Jira. The agent reads from these — nothing is written back.</p>'
+          +   '<div class="ps-card" style="text-align:center;">'
+          +     '<div style="margin-bottom:18px;color:var(--color-text-muted);font-size:13px;">No tools connected yet.</div>'
+          +     '<div class="ps-conn-empty-actions">'
+          +       '<button class="btn btn-primary" id="connectSlackBtn">Connect Slack</button>'
+          +       '<button class="btn btn-primary" id="connectJiraBtn">Connect Jira</button>'
+          +     '</div>'
+          +   '</div>'
+          + '</section>';
+      }
+
+      // Render active rows + "Add another" CTA when only one source connected.
       function connCard(conn, source) {
         const isSlack = source === 'slack';
         const iconSvg = isSlack ? slackSvg(26) : jiraSvg(26);
         const name = isSlack ? 'Slack' : 'Jira';
+        const needsSetup = isSlack
+          ? !conn.selected_channel_id
+          : !conn.selected_project_key;
         const sub = isSlack
-          ? (conn.external_account_id || '') + ' · ' + (conn.selected_channel_name ? '#' + conn.selected_channel_name + ' · ' : '') + 'connected'
-          : (conn.external_account_id || '') + ' · ' + (conn.selected_project_name ? conn.selected_project_name + ' board · ' : '') + 'connected';
+          ? (conn.external_account_id || '') + ' · ' + (conn.selected_channel_name ? '#' + conn.selected_channel_name + ' · ' : '') + (needsSetup ? 'channel not picked' : 'connected')
+          : (conn.external_account_id || '') + ' · ' + (conn.selected_project_name ? conn.selected_project_name + ' · ' : '') + (needsSetup ? 'project not picked' : 'connected');
+        const pillHtml = needsSetup
+          ? '<span class="status-pill" style="background:var(--color-warning-bg);color:var(--color-warning);"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-warning);margin-right:4px;display:inline-block;"></span>Needs setup</span>'
+          : '<span class="status-pill live"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-success);margin-right:4px;display:inline-block;"></span>Connected</span>';
+        const setupBtnHtml = needsSetup
+          ? '<button class="ps-conn-setup-btn" data-action="' + (isSlack ? 'pick-channel' : 'pick-project') + '" data-conn-id="' + escHtml(conn.id) + '"><i class="ti ti-settings"></i> ' + (isSlack ? 'Pick channel' : 'Pick project') + '</button>'
+          : '<button class="ps-conn-sync-btn" data-action="sync" data-conn-id="' + escHtml(conn.id) + '"><i class="ti ti-refresh"></i> Sync now</button>';
         return ''
           + '<div class="ps-conn-card" data-conn-id="' + escHtml(conn.id) + '">'
           +   '<div class="ps-conn-head">'
           +     '<div class="ps-conn-icon">' + iconSvg + '</div>'
           +     '<div class="ps-conn-info">'
-          +       '<div class="ps-conn-name">' + escHtml(name)
-          +         ' <span class="status-pill live"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-success);margin-right:4px;display:inline-block;"></span>Connected</span>'
-          +       '</div>'
+          +       '<div class="ps-conn-name">' + escHtml(name) + ' ' + pillHtml + '</div>'
           +       '<div class="ps-conn-sub">' + escHtml(sub) + '</div>'
           +     '</div>'
-          +     '<button class="ps-conn-disconnect" data-action="disconnect" data-conn-id="' + escHtml(conn.id) + '"><i class="ti ti-link-off"></i> Disconnect</button>'
+          +     '<button class="ps-conn-disconnect" data-action="disconnect" data-source="' + source + '" data-conn-id="' + escHtml(conn.id) + '"><i class="ti ti-link-off"></i> Disconnect</button>'
           +   '</div>'
           +   '<div class="ps-conn-meta">'
           +     '<div><p class="ps-conn-meta-label">Last sync</p><div class="ps-conn-meta-value">' + escHtml(fmtRel(conn.last_sync_at) || '—') + '</div></div>'
           +     '<div><p class="ps-conn-meta-label">Status</p><div class="ps-conn-meta-value">' + escHtml(conn.status) + '</div></div>'
-          +     '<button class="ps-conn-sync-btn" data-action="sync" data-conn-id="' + escHtml(conn.id) + '"><i class="ti ti-refresh"></i> Sync now</button>'
+          +     setupBtnHtml
           +   '</div>'
           + '</div>';
       }
 
-      let activeHtml;
-      if (active.length === 0) {
-        activeHtml = '<div class="ps-card" style="text-align:center;color:var(--color-text-muted);font-size:12px;">No active connections yet. Connect Slack or Jira from the Available connectors section below.</div>';
-      } else {
-        activeHtml = '<div class="ps-conn-list">';
-        if (slack) activeHtml += connCard(slack, 'slack');
-        if (jira) activeHtml += connCard(jira, 'jira');
-        activeHtml += '</div>';
-      }
+      let listHtml = '<div class="ps-conn-list">';
+      if (slack) listHtml += connCard(slack, 'slack');
+      if (jira)  listHtml += connCard(jira, 'jira');
+      listHtml += '</div>';
+
+      // "Add another" CTA when only one source is connected (v1.1 single-
+      // instance per source per BLOCK_6_PLAN.md decision F).
+      const addOtherHtml = (slack && !jira)
+        ? '<div class="ps-conn-add-other"><button class="btn btn-ghost" id="connectJiraBtn">+ Connect Jira</button></div>'
+        : (!slack && jira)
+        ? '<div class="ps-conn-add-other"><button class="btn btn-ghost" id="connectSlackBtn">+ Connect Slack</button></div>'
+        : '';
 
       return ''
         + '<section class="ps-section">'
         +   '<h2>Active <strong>connections</strong></h2>'
-        +   '<p class="ps-section-sub">Data sources connected to ' + escHtml(project.name) + '. The agent reads from these — nothing is written back. Each connection syncs nightly.</p>'
-        +   activeHtml
-        + '</section>'
-        + '<section class="ps-section">'
-        +   '<h2 style="font-size:16px;">Available <strong>connectors</strong></h2>'
-        +   '<p class="ps-section-sub">Add another data source to ' + escHtml(project.name) + '.</p>'
-        +   '<div class="ps-conn-avail-grid">'
-        +     '<div class="ps-conn-avail-card">'
-        +       '<div class="ps-conn-avail-head">'
-        +         '<div class="ps-conn-avail-icon">' + mondaySvg(20) + '</div>'
-        +         '<span class="status-pill v2">v2.0</span>'
-        +       '</div>'
-        +       '<div class="ps-conn-avail-name">Monday</div>'
-        +       '<div class="ps-conn-avail-body">Powers Finance cross-project chats. Boards, items, columns.</div>'
-        +       '<div class="ps-conn-avail-foot">Ships in v2.0</div>'
-        +     '</div>'
-        +     '<div class="ps-conn-avail-card">'
-        +       '<div class="ps-conn-avail-head">'
-        +         '<div class="ps-conn-avail-icon">' + driveSvg(20) + '</div>'
-        +         '<span class="status-pill v2">v2.0</span>'
-        +       '</div>'
-        +       '<div class="ps-conn-avail-name">Google Drive</div>'
-        +       '<div class="ps-conn-avail-body">Docs, slides, sheets. Read-only file content + metadata.</div>'
-        +       '<div class="ps-conn-avail-foot">Ships in v2.0</div>'
-        +     '</div>'
-        +   '</div>'
+        +   '<p class="ps-section-sub">Data sources connected to ' + escHtml(project.name) + '. The agent reads from these — nothing is written back.</p>'
+        +   listHtml
+        +   addOtherHtml
         + '</section>';
     }
 
@@ -821,6 +904,26 @@
       const body = activeTab === 'general' ? renderGeneral() : renderConnections();
       root.innerHTML = '<div class="ps-shell">' + renderHead() + body + '</div>';
       bindHandlers();
+
+      // Block 13.7a port: ?just_connected= one-shot auto-open.
+      if (activeTab === 'connections' && !justConnectedHandled) {
+        justConnectedHandled = true;
+        const params = new URLSearchParams(location.search);
+        const just = params.get('just_connected');
+        const active = (connections || []).filter(c => c.status === 'active');
+        const slack = active.find(c => c.source === 'slack');
+        const jira  = active.find(c => c.source === 'jira');
+        if (just === 'slack' && slack && !slack.selected_channel_id) {
+          setTimeout(() => openChannelPicker(slack.id), 0);
+        } else if (just === 'jira' && jira && !jira.selected_project_key) {
+          setTimeout(() => openJiraProjectPicker(jira.id), 0);
+        }
+        if (params.has('just_connected')) {
+          const url = new URL(location.href);
+          url.searchParams.delete('just_connected');
+          history.replaceState(null, '', url.toString());
+        }
+      }
     }
 
     // ---------- handlers ----------
@@ -903,7 +1006,28 @@
           });
         }
       } else if (activeTab === 'connections') {
-        // Sync now + Disconnect
+        // Connect Slack — full-page redirect to OAuth start.
+        const connectSlackBtn = document.getElementById('connectSlackBtn');
+        if (connectSlackBtn) {
+          connectSlackBtn.addEventListener('click', () => {
+            location.href = '/api/connectors/slack/oauth/start?project_id=' + encodeURIComponent(projectId);
+          });
+        }
+        // Connect Jira — open manual-token modal.
+        const connectJiraBtn = document.getElementById('connectJiraBtn');
+        if (connectJiraBtn) {
+          connectJiraBtn.addEventListener('click', openJiraConnectModal);
+        }
+
+        // Pick channel / Pick project (setup needed state).
+        document.querySelectorAll('[data-action="pick-channel"]').forEach(b => {
+          b.addEventListener('click', () => openChannelPicker(b.dataset.connId));
+        });
+        document.querySelectorAll('[data-action="pick-project"]').forEach(b => {
+          b.addEventListener('click', () => openJiraProjectPicker(b.dataset.connId));
+        });
+
+        // Sync now
         document.querySelectorAll('[data-action="sync"]').forEach(b => {
           b.addEventListener('click', async () => {
             const connId = b.dataset.connId;
@@ -921,9 +1045,12 @@
             }
           });
         });
+
+        // Disconnect
         document.querySelectorAll('[data-action="disconnect"]').forEach(b => {
           b.addEventListener('click', async () => {
-            if (!confirm('Disconnect this connection? Synced data stays; future syncs stop.')) return;
+            const src = b.dataset.source === 'slack' ? 'Slack' : 'Jira';
+            if (!confirm('Disconnect ' + src + '? Synced data stays; future syncs stop.')) return;
             const connId = b.dataset.connId;
             try {
               await api('DELETE', '/api/projects/' + encodeURIComponent(projectId) + '/connections/' + encodeURIComponent(connId));
@@ -934,6 +1061,308 @@
             }
           });
         });
+      }
+    }
+
+    // ---------- Modal handlers (Block 13.7a port from project.html) ----------
+    //
+    // The 3 modals + their open/close/select handlers are ported verbatim
+    // from project.html, with two adaptations:
+    //   1. `escapeHtml` → call site stays, alias defined at the top of this
+    //      script so the ported code works unchanged.
+    //   2. After a successful pick / save, we call `loadAll(); render()`
+    //      instead of project.html's `connections = null; renderTabBody()`.
+    //
+    // The OAuth callback handlers at functions/api/connectors/**/callback.js
+    // + functions/api/connectors/jira/auth/save.js are NOT modified by
+    // Phase 7a (carve-out boundary). After successful Jira save, this
+    // redirects to /project_settings.html?id=…&tab=connections&just_connected=jira
+    // — the previously-untouched callback redirect target for Slack stays
+    // /project.html?…&just_connected=slack, and project.html bounces to
+    // /project_settings.html in commit 13.7a-2.
+
+    // --- Jira connect modal ---
+    function openJiraConnectModal() {
+      const modal = document.getElementById('jiraConnectModal');
+      if (!modal) return;
+      modal.style.display = '';
+      const form = document.getElementById('jiraConnectForm');
+      if (form) form.reset();
+      const err = document.getElementById('jiraConnectError');
+      if (err) { err.style.display = 'none'; err.textContent = ''; }
+
+      modal.querySelector('.modal-close').onclick = closeJiraConnectModal;
+      modal.querySelector('.modal-backdrop').onclick = closeJiraConnectModal;
+      document.getElementById('jiraConnectCancelBtn').onclick = closeJiraConnectModal;
+      document.addEventListener('keydown', _jiraConnectEscapeHandler);
+
+      form.onsubmit = submitJiraConnect;
+
+      setTimeout(() => document.getElementById('jiraSiteUrl')?.focus(), 0);
+    }
+    function closeJiraConnectModal() {
+      const modal = document.getElementById('jiraConnectModal');
+      if (modal) modal.style.display = 'none';
+      document.removeEventListener('keydown', _jiraConnectEscapeHandler);
+    }
+    function _jiraConnectEscapeHandler(e) {
+      if (e.key === 'Escape') closeJiraConnectModal();
+    }
+    async function submitJiraConnect(event) {
+      event.preventDefault();
+      const errEl = document.getElementById('jiraConnectError');
+      const submitBtn = document.getElementById('jiraConnectSubmitBtn');
+      errEl.style.display = 'none';
+      errEl.textContent = '';
+
+      // Strip any accidentally-pasted protocol/path (jira.js requires
+      // hostname-only).
+      let siteUrl = (document.getElementById('jiraSiteUrl').value || '').trim();
+      siteUrl = siteUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      const accountEmail = (document.getElementById('jiraEmail').value || '').trim();
+      const apiToken = document.getElementById('jiraApiToken').value || '';
+
+      if (!siteUrl || !accountEmail || !apiToken) {
+        errEl.textContent = 'All three fields are required.';
+        errEl.style.display = '';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Connecting…';
+
+      try {
+        const res = await fetch('/api/connectors/jira/auth/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: projectId,
+            site_url: siteUrl,
+            account_email: accountEmail,
+            api_token: apiToken,
+          }),
+        });
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          let msg = (data && typeof data.error === 'string') ? data.error : 'Could not connect.';
+          if (msg === 'invalid_credentials') msg = 'Invalid credentials. Check the site URL, email, and API token.';
+          if (msg === 'already_connected') msg = 'A Jira connection already exists for this project.';
+          errEl.textContent = msg;
+          errEl.style.display = '';
+          return;
+        }
+        // Block 13.7a port adaptation: redirect to project_settings.html
+        // (the new connections home), NOT project.html.
+        const url = new URL(location.href);
+        url.searchParams.set('tab', 'connections');
+        url.searchParams.set('just_connected', 'jira');
+        location.href = url.toString();
+      } catch {
+        errEl.textContent = 'Could not connect. Please try again.';
+        errEl.style.display = '';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Connect';
+      }
+    }
+
+    // --- Jira project picker ---
+    async function openJiraProjectPicker(connId) {
+      const modal = document.getElementById('jiraProjectPickerModal');
+      if (!modal) return;
+      modal.style.display = '';
+      const list = modal.querySelector('.jira-project-picker-list');
+      list.innerHTML = '<div class="tab-loading">Loading projects…</div>';
+
+      modal.querySelector('.modal-close').onclick = closeJiraProjectPicker;
+      modal.querySelector('.modal-backdrop').onclick = closeJiraProjectPicker;
+      document.addEventListener('keydown', _jiraProjectPickerEscapeHandler);
+
+      try {
+        const res = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId) + '/jira/projects'
+        );
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok) {
+          list.innerHTML = '<p class="state-card-body">Could not load projects. The Jira API token may be invalid or revoked.</p>';
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        const projects = Array.isArray(data.projects) ? data.projects : [];
+        if (projects.length === 0) {
+          list.innerHTML = '<p class="state-card-body">No projects visible to this API token.</p>';
+          return;
+        }
+        list.innerHTML = projects.map(p => `
+          <button class="channel-list-item" type="button"
+                  data-project-key="${escapeHtml(p.key)}"
+                  data-project-name="${escapeHtml(p.name)}">
+            <span class="channel-list-name">${escapeHtml(p.name)}</span>
+            <span class="channel-list-tag">${escapeHtml(p.key)}</span>
+          </button>
+        `).join('');
+        list.querySelectorAll('.channel-list-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const key = item.getAttribute('data-project-key');
+            const name = item.getAttribute('data-project-name');
+            selectJiraProject(connId, key, name);
+          });
+        });
+      } catch {
+        list.innerHTML = '<p class="state-card-body">Could not load projects. Please try again.</p>';
+      }
+    }
+    function closeJiraProjectPicker() {
+      const modal = document.getElementById('jiraProjectPickerModal');
+      if (modal) modal.style.display = 'none';
+      document.removeEventListener('keydown', _jiraProjectPickerEscapeHandler);
+    }
+    function _jiraProjectPickerEscapeHandler(e) {
+      if (e.key === 'Escape') closeJiraProjectPicker();
+    }
+    async function selectJiraProject(connId, projectKey, projectName) {
+      const modal = document.getElementById('jiraProjectPickerModal');
+      const list = modal.querySelector('.jira-project-picker-list');
+      list.innerHTML = '<div class="tab-loading">Setting project and starting sync…</div>';
+      try {
+        const patchRes = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId),
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              credential_metadata: {
+                selected_project_key: projectKey,
+                selected_project_name: projectName,
+              },
+            }),
+          }
+        );
+        if (patchRes.status === 401) { redirectToLogin(); return; }
+        if (!patchRes.ok) {
+          let msg = 'Could not set project. Please try again.';
+          if (patchRes.status >= 400 && patchRes.status < 500) {
+            const data = await patchRes.json().catch(() => ({}));
+            if (data && typeof data.error === 'string') msg = data.error;
+          }
+          list.innerHTML = '<p class="state-card-body">' + escapeHtml(msg) + '</p>';
+          return;
+        }
+        // Fire-and-don't-await sync — Jira backfill can take 10-30s.
+        fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId) + '/sync',
+          { method: 'POST' }
+        ).catch(() => { /* surfaces in sync_runs */ });
+
+        closeJiraProjectPicker();
+        // Block 13.7a port adaptation: project_settings.html idiom.
+        await loadAll();
+        render();
+      } catch {
+        list.innerHTML = '<p class="state-card-body">Could not set project. Please try again.</p>';
+      }
+    }
+
+    // --- Slack channel picker ---
+    async function openChannelPicker(connId) {
+      const modal = document.getElementById('channelPickerModal');
+      if (!modal) return;
+      modal.style.display = '';
+      const list = modal.querySelector('.channel-picker-list');
+      list.innerHTML = '<div class="tab-loading">Loading channels…</div>';
+
+      modal.querySelector('.modal-close').onclick = closeChannelPicker;
+      modal.querySelector('.modal-backdrop').onclick = closeChannelPicker;
+      document.addEventListener('keydown', _channelPickerEscapeHandler);
+
+      try {
+        const res = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId) + '/slack/channels'
+        );
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok) {
+          list.innerHTML = '<p class="state-card-body">Could not load channels. The Slack app may need to be re-installed.</p>';
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        const channels = Array.isArray(data.channels) ? data.channels : [];
+        if (channels.length === 0) {
+          list.innerHTML = '<p class="state-card-body">No channels visible to the bot. Add the bot to a channel in Slack and re-open this picker.</p>';
+          return;
+        }
+        list.innerHTML = channels.map(c => `
+          <button class="channel-list-item" type="button"
+                  data-channel-id="${escapeHtml(c.id)}"
+                  data-channel-name="${escapeHtml(c.name)}">
+            <span class="channel-list-name">#${escapeHtml(c.name)}</span>
+            ${c.is_member ? '<span class="channel-list-tag">bot in channel</span>' : ''}
+          </button>
+        `).join('');
+        list.querySelectorAll('.channel-list-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const id = item.getAttribute('data-channel-id');
+            const name = item.getAttribute('data-channel-name');
+            selectChannel(connId, id, name);
+          });
+        });
+      } catch {
+        list.innerHTML = '<p class="state-card-body">Could not load channels. Please try again.</p>';
+      }
+    }
+    function closeChannelPicker() {
+      const modal = document.getElementById('channelPickerModal');
+      if (modal) modal.style.display = 'none';
+      document.removeEventListener('keydown', _channelPickerEscapeHandler);
+    }
+    function _channelPickerEscapeHandler(e) {
+      if (e.key === 'Escape') closeChannelPicker();
+    }
+    async function selectChannel(connId, channelId, channelName) {
+      const modal = document.getElementById('channelPickerModal');
+      const list = modal.querySelector('.channel-picker-list');
+      list.innerHTML = '<div class="tab-loading">Setting channel and starting sync…</div>';
+      try {
+        const patchRes = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId),
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              credential_metadata: {
+                selected_channel_id: channelId,
+                selected_channel_name: channelName,
+              },
+            }),
+          }
+        );
+        if (patchRes.status === 401) { redirectToLogin(); return; }
+        if (!patchRes.ok) {
+          let msg = 'Could not set channel. Please try again.';
+          if (patchRes.status >= 400 && patchRes.status < 500) {
+            const data = await patchRes.json().catch(() => ({}));
+            if (data && typeof data.error === 'string') msg = data.error;
+          }
+          list.innerHTML = '<p class="state-card-body">' + escapeHtml(msg) + '</p>';
+          return;
+        }
+        fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/connections/' + encodeURIComponent(connId) + '/sync',
+          { method: 'POST' }
+        ).catch(() => { /* surfaces in sync_runs */ });
+
+        closeChannelPicker();
+        // Block 13.7a port adaptation: project_settings.html idiom.
+        await loadAll();
+        render();
+      } catch {
+        list.innerHTML = '<p class="state-card-body">Could not set channel. Please try again.</p>';
       }
     }
 
