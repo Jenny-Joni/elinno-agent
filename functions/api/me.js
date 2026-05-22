@@ -5,6 +5,11 @@ export async function onRequestGet({ request, env }) {
   const user = await getSessionUser(request, env.DB);
   if (!user) return json({ user: null }, { status: 200 });
   return json({
-    user: { id: user.id, email: user.email, is_admin: !!user.is_admin },
+    user: {
+      id: user.id,
+      email: user.email,
+      display_name: user.display_name || '',
+      is_admin: !!user.is_admin,
+    },
   });
 }

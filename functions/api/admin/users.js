@@ -15,19 +15,31 @@ async function requireAdmin(request, env) {
   return { user };
 }
 
+// Display name shape (Block 13.2): trimmed string, 1–80 chars. Block 13.2
+// requires display_name on create + edit; an empty string is the column-
+// default sentinel for the migration backfill, not a user-supplied value.
+function isValidDisplayName(s) {
+  return typeof s === 'string' && s.trim().length >= 1 && s.trim().length <= 80;
+}
+
 // GET /api/admin/users — list all users
 export async function onRequestGet({ request, env }) {
   const { error: errResp } = await requireAdmin(request, env);
   if (errResp) return errResp;
 
   const result = await env.DB
-    .prepare(`SELECT id, email, is_admin, created_at FROM users ORDER BY created_at DESC`)
+    .prepare(
+      `SELECT id, email, display_name, is_admin, created_at
+         FROM users
+        ORDER BY created_at DESC`
+    )
     .all();
 
   return json({
     users: (result.results || []).map((u) => ({
       id: u.id,
       email: u.email,
+      display_name: u.display_name || '',
       is_admin: !!u.is_admin,
       created_at: u.created_at,
     })),
@@ -35,7 +47,7 @@ export async function onRequestGet({ request, env }) {
 }
 
 // POST /api/admin/users — create a new user
-//   body: { email, password, is_admin? }
+//   body: { display_name, email, password, is_admin? }
 export async function onRequestPost({ request, env }) {
   const { error: errResp } = await requireAdmin(request, env);
   if (errResp) return errResp;
@@ -47,10 +59,12 @@ export async function onRequestPost({ request, env }) {
     return error('Invalid JSON', 400);
   }
 
+  const displayName = (body.display_name || '').trim();
   const email = (body.email || '').trim().toLowerCase();
   const password = body.password || '';
   const isAdmin = body.is_admin ? 1 : 0;
 
+  if (!isValidDisplayName(displayName)) return error('Display name is required (1–80 chars)', 400);
   if (!isValidEmail(email)) return error('Invalid email', 400);
   if (!isValidPassword(password)) return error('Password must be at least 8 characters', 400);
 
@@ -65,10 +79,10 @@ export async function onRequestPost({ request, env }) {
 
   const result = await env.DB
     .prepare(
-      `INSERT INTO users (email, password_hash, is_admin, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?4)`
+      `INSERT INTO users (email, password_hash, is_admin, display_name, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?5)`
     )
-    .bind(email, hash, isAdmin, now)
+    .bind(email, hash, isAdmin, displayName, now)
     .run();
 
   return json({
@@ -76,6 +90,7 @@ export async function onRequestPost({ request, env }) {
     user: {
       id: result.meta.last_row_id,
       email,
+      display_name: displayName,
       is_admin: !!isAdmin,
       created_at: now,
     },

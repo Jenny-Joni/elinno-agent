@@ -138,7 +138,7 @@ export async function getSessionUser(request, db) {
   const now = Math.floor(Date.now() / 1000);
   const row = await db
     .prepare(
-      `SELECT u.id, u.email, u.is_admin, s.expires_at
+      `SELECT u.id, u.email, u.display_name, u.is_admin, s.expires_at
          FROM sessions s
          JOIN users u ON u.id = s.user_id
         WHERE s.token = ?1
