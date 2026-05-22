@@ -108,89 +108,11 @@
     </div>
   </main>
 
-  <!-- Block 4 commit 8: channel-picker modal. Hidden by default; opened by
-       openChannelPicker() in the Connections-tab logic. Body-level so it
-       overlays the entire shell. Closes on Escape, click-outside (backdrop),
-       and the close button per locked sub-decision (g). -->
-  <div id="channelPickerModal" class="modal" style="display: none;"
-       role="dialog" aria-modal="true" aria-labelledby="channelPickerHeading">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content" role="document">
-      <div class="modal-header">
-        <h2 id="channelPickerHeading" class="modal-heading">Select a Slack channel</h2>
-        <button class="modal-close" type="button" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body channel-picker-list">
-        Loading…
-      </div>
-    </div>
-  </div>
-
-  <!-- Block 6 commit 9: Jira connect form. Jira uses API tokens (decision
-       A), not OAuth — so no consent redirect; the form POSTs directly to
-       /api/connectors/jira/auth/save (decision N). On success, redirects
-       to /project.html?…&just_connected=jira to trigger the project picker
-       below. Closes on Escape, click-outside, and the close button. -->
-  <div id="jiraConnectModal" class="modal" style="display: none;"
-       role="dialog" aria-modal="true" aria-labelledby="jiraConnectHeading">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content" role="document">
-      <div class="modal-header">
-        <h2 id="jiraConnectHeading" class="modal-heading">Connect Jira</h2>
-        <button class="modal-close" type="button" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p class="state-card-body" style="margin-bottom: 16px;">
-          Generate an API token at
-          <a href="https://id.atlassian.com/manage-profile/security/api-tokens"
-             target="_blank" rel="noopener noreferrer">id.atlassian.com</a>
-          first, then enter your details below.
-        </p>
-        <form id="jiraConnectForm" autocomplete="off">
-          <div style="margin-bottom: 12px;">
-            <label for="jiraSiteUrl" style="display:block; margin-bottom:4px; font-weight:600;">Site URL</label>
-            <input type="text" id="jiraSiteUrl" required
-                   placeholder="mycompany.atlassian.net"
-                   style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
-          </div>
-          <div style="margin-bottom: 12px;">
-            <label for="jiraEmail" style="display:block; margin-bottom:4px; font-weight:600;">Account email</label>
-            <input type="email" id="jiraEmail" required
-                   placeholder="you@example.com"
-                   style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
-          </div>
-          <div style="margin-bottom: 16px;">
-            <label for="jiraApiToken" style="display:block; margin-bottom:4px; font-weight:600;">API token</label>
-            <input type="password" id="jiraApiToken" required
-                   style="width:100%; padding:8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;">
-          </div>
-          <div id="jiraConnectError" style="display:none; color:#b00020; margin-bottom:12px; padding:8px; background:#fce8eb; border-radius:4px;"></div>
-          <div style="display:flex; gap:8px; justify-content:flex-end;">
-            <button class="btn btn-ghost" type="button" id="jiraConnectCancelBtn">Cancel</button>
-            <button class="btn btn-primary" type="submit" id="jiraConnectSubmitBtn">Connect</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Block 6 commit 9: Jira project picker. Mirrors channelPickerModal
-       structure. Opened by openJiraProjectPicker() — auto-opens after
-       ?just_connected=jira from the connect form's redirect, or via
-       "Pick project" button on a Jira connection that needs setup. -->
-  <div id="jiraProjectPickerModal" class="modal" style="display: none;"
-       role="dialog" aria-modal="true" aria-labelledby="jiraProjectPickerHeading">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content" role="document">
-      <div class="modal-header">
-        <h2 id="jiraProjectPickerHeading" class="modal-heading">Select a Jira project</h2>
-        <button class="modal-close" type="button" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body jira-project-picker-list">
-        Loading…
-      </div>
-    </div>
-  </div>
+  <!-- Block 13.7b: the channel-picker / Jira-connect / Jira-project-picker
+       modals (Block 4/6) lived here. Phase 7a ported them to
+       project_settings.html and Phase 7b retargeted the Slack OAuth
+       callback to land directly on /project_settings.html. The modals
+       are no longer reachable from project.html — removed. -->
 
   <script>
     // ============================================================
@@ -246,27 +168,18 @@
     // tab switches must not re-trigger.
     let justConnectedHandled = false;
 
-    const VALID_TABS = { chat: 1, members: 1, connections: 1 };
+    // Block 13.7b: dropped `connections` from VALID_TABS — the Connections
+    // tab UI now lives on /project_settings.html. `members` is left for
+    // legacy URL compatibility; its render path is unused in v1.4.
+    const VALID_TABS = { chat: 1, members: 1 };
 
     // Read URL params once at module init; resolved/overwritten during boot.
     const initialParams = new URLSearchParams(location.search);
     const projectId = initialParams.get('id');
     let initialConvId = initialParams.get('c');
     const initialTabRaw = initialParams.get('tab');
-
-    // Block 13.7a: bounce ?just_connected= to project_settings.html, the
-    // new home for connection management. The Slack OAuth callback still
-    // redirects to /project.html?...&just_connected=slack (carve-out kept
-    // unchanged in 7a); this redirect forwards the user to Settings →
-    // Connections so the channel/project picker auto-opens there. Phase
-    // 7b retargets the Slack callback directly and removes this bounce.
-    const justConnectedParam = initialParams.get('just_connected');
-    if (projectId && (justConnectedParam === 'slack' || justConnectedParam === 'jira')) {
-      const target = '/project_settings.html?id=' + encodeURIComponent(projectId)
-        + '&tab=connections&just_connected=' + encodeURIComponent(justConnectedParam);
-      location.replace(target);
-      // Page is navigating away — no further init needed.
-    }
+    // Block 13.7b: the 7a-2 ?just_connected= bounce to project_settings.html
+    // is removed — the Slack OAuth callback now redirects there directly.
 
     // ---------- Helpers ----------
     function escapeHtml(s) {
@@ -561,7 +474,9 @@
                      connect flow into Settings → Connections; 7b strips this
                      button + its handler. -->
                 <button class="project-tab" type="button" data-tab="members" hidden style="display:none;">Members <span class="tab-count" id="memberCountPill" style="display:none;"></span></button>
-                <button class="project-tab" type="button" data-tab="connections" hidden style="display:none;">Connections</button>
+                <!-- Block 13.7b: Connections tab button removed; the Connections UI lives on /project_settings.html. -->
+                <!-- The Members tab button is kept (hidden) for legacy URL tab=members compatibility. -->
+
                 <!-- Settings demoted from tab to header gear button (SPEC §8). -->
                 <a class="project-tab" id="projectSettingsLink" href="/project_settings.html?id=${projectId}" title="Project settings" style="text-decoration:none;color:var(--text-3);margin-left:auto;padding:8px 10px;" aria-label="Project settings">
                   <i class="ti ti-settings" style="font-size:18px;line-height:1;"></i>
@@ -856,11 +771,15 @@
     }
 
     // ---------- Tab body ----------
+    // Block 13.7b: the `connections` branch is removed — the Connections
+    // UI now lives on /project_settings.html. Any URL with ?tab=connections
+    // falls through to chat (VALID_TABS dropped `connections`, so the
+    // boot path normalizes it to `chat`).
     function renderTabBody() {
       const body = document.getElementById('tabBody');
       if (activeTab === 'chat') renderChat(body);
       else if (activeTab === 'members') renderMembers(body);
-      else renderConnections(body);
+      else renderChat(body);
     }
 
     function renderChat(body) {
@@ -944,10 +863,13 @@
     // other three render the source-gated suggestion grid.
     function renderSuggestionsHtml(state) {
       if (state === 'none') {
+        // Block 13.7b: CTA now navigates to /project_settings.html (the new
+        // connections home). Was a same-page tab switch via
+        // data-suggestions-link="connections" — the legacy tab is removed.
         return `
           <div class="chat-suggestions-empty">
             <div class="chat-suggestions-empty-title">Connect Slack or Jira to start asking questions</div>
-            <a class="chat-suggestions-empty-link" href="#" data-suggestions-link="connections">Open Connections tab</a>
+            <a class="chat-suggestions-empty-link" href="/project_settings.html?id=${encodeURIComponent(projectId)}&amp;tab=connections">Open Connections</a>
           </div>
         `;
       }
@@ -981,14 +903,10 @@
           input.dispatchEvent(new Event('input', { bubbles: true }));
         });
       });
-      const tabLink = scope.querySelector('[data-suggestions-link="connections"]');
-      if (tabLink) {
-        tabLink.addEventListener('click', (e) => {
-          e.preventDefault();
-          const tabBtn = document.querySelector('.project-tab[data-tab="connections"]');
-          if (tabBtn) tabBtn.click();
-        });
-      }
+      // Block 13.7b: the data-suggestions-link="connections" handler that
+      // simulated a click on the in-page Connections tab is removed —
+      // the empty-state CTA is now a plain <a href="/project_settings.html?...">
+      // navigation link.
     }
 
     function renderMessages() {
@@ -1921,129 +1839,19 @@
       }
     }
 
-    async function renderConnections(body) {
-      // Render placeholder while we (re)load if needed.
-      if (connections === null) {
-        body.innerHTML = '<div class="tab-loading">Loading…</div>';
-        await loadConnections();
-      }
+    // Block 13.7b: the Connections-tab render path + 24 supporting
+    // helpers (renderConnections, renderSlackRowHtml, renderJiraRowHtml,
+    // 3 modal open/close/select handlers, submitJiraConnect, sync /
+    // disconnect / activity-drawer helpers) lived here. Phase 7a ported
+    // the flow to /project_settings.html; Phase 7b's callback retarget
+    // makes Settings the single source. About 720 lines of dead code
+    // removed. loadConnections + getConnectionState + getSuggestionList
+    // are kept above — they drive the chat empty-state suggestion chips.
 
-      const slack = (connections || []).find(c => c.source === 'slack');
-      const jira = (connections || []).find(c => c.source === 'jira');
-
-      if (!slack && !jira) {
-        body.innerHTML = `
-          <div class="tab-content">
-            <div class="state-card">
-              <div class="state-card-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
-                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
-                </svg>
-              </div>
-              <h2 class="state-card-heading">No tools connected yet</h2>
-              <p class="state-card-body">Connect a tool to start indexing data into this project.</p>
-              <div class="state-card-actions" style="display:flex; gap:8px; justify-content:center;">
-                <button class="btn btn-primary" id="connectSlackBtn">Connect Slack</button>
-                <button class="btn btn-primary" id="connectJiraBtn">Connect Jira</button>
-              </div>
-            </div>
-          </div>
-        `;
-        document.getElementById('connectSlackBtn')?.addEventListener('click', () => {
-          location.href = '/api/connectors/slack/oauth/start?project_id=' + encodeURIComponent(projectId);
-        });
-        document.getElementById('connectJiraBtn')?.addEventListener('click', openJiraConnectModal);
-        return;
-      }
-
-      // Render rows for each connected source plus an "Add another" footer
-      // when only one of {slack, jira} is connected (v1.1 single-instance
-      // per source per BLOCK_6_PLAN.md decision F).
-      const rows = [];
-      if (slack) rows.push(renderSlackRowHtml(slack));
-      if (jira)  rows.push(renderJiraRowHtml(jira));
-
-      const addOtherHtml = (slack && !jira)
-        ? '<div class="tab-section-footer" style="margin-top:12px;"><button class="btn btn-ghost" id="connectJiraBtn">+ Connect Jira</button></div>'
-        : (!slack && jira)
-        ? '<div class="tab-section-footer" style="margin-top:12px;"><button class="btn btn-ghost" id="connectSlackBtn">+ Connect Slack</button></div>'
-        : '';
-
-      body.innerHTML = `
-        <div class="tab-content">
-          ${rows.join('')}
-          ${addOtherHtml}
-        </div>
-      `;
-
-      // Wire Slack row handlers.
-      if (slack) {
-        const slackNeedsSetup = !slack.selected_channel_id;
-        if (slackNeedsSetup) {
-          document.getElementById('pickChannelBtn')?.addEventListener('click', () => openChannelPicker(slack.id));
-        }
-        // Block 9.1: Sync now + View activity (admin-only; render-time gated)
-        document.getElementById('syncSlackBtn')?.addEventListener('click', () => triggerManualSync(slack.id, 'slack'));
-        document.getElementById('activitySlackBtn')?.addEventListener('click', () => toggleActivityDrawer(slack.id, 'slack'));
-        document.getElementById('disconnectSlackBtn')?.addEventListener('click', () => disconnectSlack(slack.id));
-      }
-
-      // Wire Jira row handlers.
-      if (jira) {
-        const jiraNeedsSetup = !jira.selected_project_key;
-        if (jiraNeedsSetup) {
-          document.getElementById('pickProjectBtn')?.addEventListener('click', () => openJiraProjectPicker(jira.id));
-        }
-        // Block 9.1: Sync now + View activity (admin-only; render-time gated)
-        document.getElementById('syncJiraBtn')?.addEventListener('click', () => triggerManualSync(jira.id, 'jira'));
-        document.getElementById('activityJiraBtn')?.addEventListener('click', () => toggleActivityDrawer(jira.id, 'jira'));
-        document.getElementById('disconnectJiraBtn')?.addEventListener('click', () => disconnectJira(jira.id));
-      }
-
-      // Wire "+ Connect Jira/Slack" footer button (whichever is shown).
-      document.getElementById('connectJiraBtn')?.addEventListener('click', openJiraConnectModal);
-      document.getElementById('connectSlackBtn')?.addEventListener('click', () => {
-        location.href = '/api/connectors/slack/oauth/start?project_id=' + encodeURIComponent(projectId);
-      });
-
-      // ?just_connected one-shot: auto-open the relevant picker.
-      if (!justConnectedHandled) {
-        justConnectedHandled = true;
-        const params = new URLSearchParams(location.search);
-        const just = params.get('just_connected');
-        if (just === 'slack' && slack && !slack.selected_channel_id) {
-          setTimeout(() => openChannelPicker(slack.id), 0);
-        } else if (just === 'jira' && jira && !jira.selected_project_key) {
-          setTimeout(() => openJiraProjectPicker(jira.id), 0);
-        }
-        if (params.has('just_connected')) {
-          const url = new URL(location.href);
-          url.searchParams.delete('just_connected');
-          history.replaceState(null, '', url.toString());
-        }
-      }
-    }
-
-    // ---------- per-source row HTML ----------
-
-    // Block 9.1 decision N: compute client-side rate-limit state from
-    // connections.last_sync_at. CAVEAT: server uses MAX(sync_runs.started_at)
-    // which includes failures; client only sees last_sync_at (bumped on
-    // non-inert success). Client may show "available" when server returns
-    // 429 — surfaced as a toast in triggerManualSync.
-    const SYNC_RATE_LIMIT_MS = 3600 * 1000;
-    function computeSyncBlocked(connection) {
-      if (!connection || !connection.last_sync_at) return { blocked: false, minutesRemaining: 0 };
-      const blockedUntil = new Date(connection.last_sync_at).getTime() + SYNC_RATE_LIMIT_MS;
-      const remainingMs = blockedUntil - Date.now();
-      if (remainingMs <= 0) return { blocked: false, minutesRemaining: 0 };
-      return { blocked: true, minutesRemaining: Math.ceil(remainingMs / 60000) };
-    }
-
-    // Block 9.1: fixed-position toast for sync-related feedback. Lives
-    // outside #tabBody so renderTabBody() re-renders don't wipe it. Auto-
-    // dismisses after 5s; consecutive calls reset the timer + replace text.
+    // Block 13.7b: showConnToast was previously defined alongside the
+    // (now-removed) connections code, but it's also called by the
+    // refresh-and-re-ask code path (Block 10.1 — see line ~975+).
+    // Keeping it here as a standalone helper.
     function showConnToast(msg, type) {
       let toast = document.getElementById('connToast');
       if (!toast) {
@@ -2056,589 +1864,6 @@
       toast.style.display = 'block';
       clearTimeout(toast._timer);
       toast._timer = setTimeout(() => { toast.style.display = 'none'; }, 5000);
-    }
-
-    // Block 9.1 decision L: admin-only manual full sync. Disables the
-    // clicked button while in-flight; refreshes connections + re-renders
-    // the tab on success so the new last_sync_at + Active pill update.
-    // 429 surfaces via toast per decision N's caveat (client/server clock-
-    // source mismatch). Other errors render a generic toast — the sync_run
-    // failed-row narrative shows up in the activity drawer (commit 3).
-    // Block 9.1 decision O: activity drawer formatters + render helpers.
-
-    // Duration: finished_at - started_at as 'Xs' or 'Xm Ys'. '—' if still
-    // running (no finished_at) or if the inputs don't parse.
-    function fmtSyncDuration(start, end) {
-      if (!start || !end) return '—';
-      const ms = new Date(end).getTime() - new Date(start).getTime();
-      if (!isFinite(ms) || ms < 0) return '—';
-      const secs = Math.round(ms / 1000);
-      if (secs < 60) return secs + 's';
-      const mins = Math.floor(secs / 60);
-      const remSecs = secs % 60;
-      return remSecs === 0 ? mins + 'm' : mins + 'm ' + remSecs + 's';
-    }
-
-    // Error cell: trim + truncate >120 chars with ellipsis per decision O.
-    // Returns HTML-escaped string (no markup). Caller wraps in italic+red.
-    function fmtSyncError(err) {
-      if (!err) return '';
-      const trimmed = String(err).trim();
-      if (trimmed.length <= 120) return escapeHtml(trimmed);
-      return escapeHtml(trimmed.slice(0, 120)) + '…';
-    }
-
-    // 50-row activity table. Columns per decision O:
-    // When | Status | Mode | Duration | Records (+ins / ~upd / ⊘skip) | Error
-    function renderSyncRunsTableHtml(runs) {
-      if (!Array.isArray(runs) || runs.length === 0) {
-        return '<div class="activity-empty">No sync runs yet.</div>';
-      }
-      const rows = runs.map(r => {
-        const whenAbs = fmtCitationTitle(r.started_at);
-        const whenRel = fmtRelativeShort(r.started_at) || 'now';
-        const dur = (r.status === 'running') ? '—' : fmtSyncDuration(r.started_at, r.finished_at);
-        const counts = '+' + (r.records_inserted || 0) + ' / ~' + (r.records_updated || 0) + ' / ⊘' + (r.records_skipped || 0);
-        const errorHtml = (r.status === 'failed' && r.error)
-          ? '<span class="activity-error">' + fmtSyncError(r.error) + '</span>'
-          : '';
-        return `
-          <tr>
-            <td title="${escapeHtml(whenAbs)}">${escapeHtml(whenRel)}</td>
-            <td><span class="activity-status activity-status-${escapeHtml(r.status || 'unknown')}">${escapeHtml(r.status || '—')}</span></td>
-            <td>${escapeHtml(r.sync_mode || '')}</td>
-            <td>${escapeHtml(dur)}</td>
-            <td class="activity-counts">${escapeHtml(counts)}</td>
-            <td>${errorHtml}</td>
-          </tr>
-        `;
-      }).join('');
-      return `
-        <table class="activity-table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Status</th>
-              <th>Mode</th>
-              <th>Duration</th>
-              <th>Records</th>
-              <th>Error</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      `;
-    }
-
-    // Toggle the drawer for a given connection source. First open fetches
-    // the sync-runs list (member-accessible endpoint at sync-runs.js:31);
-    // subsequent toggles just show/hide without re-fetching to avoid
-    // refresh-thrash. Click "Refresh" inside the drawer if needed (future
-    // enhancement — for v1.1 the user can just close + reopen).
-    async function toggleActivityDrawer(connId, source) {
-      const drawerId = source + 'ActivityDrawer';
-      const drawer = document.getElementById(drawerId);
-      if (!drawer) return;
-      if (drawer.style.display === 'block') {
-        drawer.style.display = 'none';
-        return;
-      }
-      drawer.style.display = 'block';
-      if (drawer.dataset.loaded === 'true') return;  // already fetched
-      drawer.innerHTML = '<div class="activity-loading">Loading…</div>';
-      try {
-        const res = await fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/connections/' + encodeURIComponent(connId) + '/sync-runs'
-        );
-        if (res.status === 401) { redirectToLogin(); return; }
-        if (!res.ok) {
-          drawer.innerHTML = '<div class="activity-empty">Could not load sync runs.</div>';
-          return;
-        }
-        const data = await res.json().catch(() => ({}));
-        const runs = Array.isArray(data.sync_runs) ? data.sync_runs : [];
-        drawer.innerHTML = renderSyncRunsTableHtml(runs);
-        drawer.dataset.loaded = 'true';
-      } catch {
-        drawer.innerHTML = '<div class="activity-empty">Could not load sync runs.</div>';
-      }
-    }
-
-    async function triggerManualSync(connId, source) {
-      const btnId = source === 'slack' ? 'syncSlackBtn' : 'syncJiraBtn';
-      const btn = document.getElementById(btnId);
-      if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
-      try {
-        const res = await fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/connections/' + encodeURIComponent(connId) + '/sync',
-          { method: 'POST' }
-        );
-        if (res.status === 401) { redirectToLogin(); return; }
-        if (res.status === 429) {
-          const data = await res.json().catch(() => ({}));
-          const mins = data.retry_after_seconds
-            ? Math.ceil(data.retry_after_seconds / 60)
-            : 60;
-          showConnToast('Rate limit: next sync in ' + mins + 'm', 'warn');
-          return;
-        }
-        if (!res.ok) {
-          showConnToast('Sync failed. Check the activity drawer for details.', 'warn');
-          return;
-        }
-        await loadConnections();
-        showConnToast('Sync complete.', 'success');
-        if (activeTab === 'connections') renderTabBody();
-      } catch {
-        showConnToast('Sync failed. Network or server error.', 'warn');
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Sync now'; }
-      }
-    }
-
-    function renderSlackRowHtml(slack) {
-      const channelId = slack.selected_channel_id || null;
-      const channelName = slack.selected_channel_name || null;
-      const needsSetup = !channelId;
-      const lastSyncRel = slack.last_sync_at ? fmtRelativeShort(slack.last_sync_at) : null;
-      let pillText, pillClass;
-      if (needsSetup) { pillText = 'Needs setup'; pillClass = 'pill-setup'; }
-      else if (slack.last_sync_at) { pillText = 'Active'; pillClass = 'pill-active'; }
-      else { pillText = 'Syncing…'; pillClass = 'pill-syncing'; }
-
-      // Block 9.1 decisions L + N: admin-only Sync now button + client-side
-      // disabled state when within 1h of last successful sync. Tooltip
-      // surfaces the remaining minutes.
-      const isAdmin = !!(me && me.is_admin);
-      const blocked = computeSyncBlocked(slack);
-      const syncBtnHtml = (isAdmin && !needsSetup)
-        ? `<button class="btn btn-ghost" id="syncSlackBtn"${blocked.blocked ? ' disabled title="Next sync available in ' + blocked.minutesRemaining + 'm"' : ''}>Sync now</button>`
-        : '';
-      // Block 9.1 decision O: View activity link, admin-only UI gate even
-      // though endpoint is member-accessible (tighter endpoint gate is a
-      // Block 10 cleanup, not 9.1's surface).
-      const activityBtnHtml = isAdmin
-        ? '<button class="btn btn-ghost" id="activitySlackBtn">View activity</button>'
-        : '';
-
-      return `
-        <div class="connection-row-group">
-          <div class="connection-row">
-            <div class="connection-info">
-              <div class="connection-source">Slack</div>
-              <div class="connection-meta">
-                ${channelName ? '#' + escapeHtml(channelName) : 'No channel selected'}
-                ${lastSyncRel ? ' &middot; last sync ' + escapeHtml(lastSyncRel) : ''}
-              </div>
-            </div>
-            <div class="connection-pill ${pillClass}">${escapeHtml(pillText)}</div>
-            <div class="connection-actions">
-              ${needsSetup ? '<button class="btn btn-ghost" id="pickChannelBtn">Pick channel</button>' : ''}
-              ${activityBtnHtml}
-              ${syncBtnHtml}
-              <button class="btn btn-ghost" id="disconnectSlackBtn" aria-label="Disconnect Slack">Disconnect</button>
-            </div>
-          </div>
-          <div class="activity-drawer" id="slackActivityDrawer" style="display:none;"></div>
-        </div>
-      `;
-    }
-
-    function renderJiraRowHtml(jira) {
-      const projectKey = jira.selected_project_key || null;
-      const projectName = jira.selected_project_name || null;
-      const needsSetup = !projectKey;
-      const lastSyncRel = jira.last_sync_at ? fmtRelativeShort(jira.last_sync_at) : null;
-      let pillText, pillClass;
-      if (needsSetup) { pillText = 'Needs setup'; pillClass = 'pill-setup'; }
-      else if (jira.last_sync_at) { pillText = 'Active'; pillClass = 'pill-active'; }
-      else { pillText = 'Syncing…'; pillClass = 'pill-syncing'; }
-
-      const metaText = projectName
-        ? `${escapeHtml(projectName)} (${escapeHtml(projectKey)})`
-        : (projectKey ? escapeHtml(projectKey) : 'No project selected');
-
-      // Block 9.1 decisions L + N: admin-only Sync now button with client-
-      // side disabled state — same pattern as Slack row.
-      const isAdmin = !!(me && me.is_admin);
-      const blocked = computeSyncBlocked(jira);
-      const syncBtnHtml = (isAdmin && !needsSetup)
-        ? `<button class="btn btn-ghost" id="syncJiraBtn"${blocked.blocked ? ' disabled title="Next sync available in ' + blocked.minutesRemaining + 'm"' : ''}>Sync now</button>`
-        : '';
-      // Block 9.1 decision O: View activity link, admin-only UI gate.
-      const activityBtnHtml = isAdmin
-        ? '<button class="btn btn-ghost" id="activityJiraBtn">View activity</button>'
-        : '';
-
-      return `
-        <div class="connection-row-group">
-          <div class="connection-row">
-            <div class="connection-info">
-              <div class="connection-source">Jira</div>
-              <div class="connection-meta">
-                ${metaText}
-                ${lastSyncRel ? ' &middot; last sync ' + escapeHtml(lastSyncRel) : ''}
-              </div>
-            </div>
-            <div class="connection-pill ${pillClass}">${escapeHtml(pillText)}</div>
-            <div class="connection-actions">
-              ${needsSetup ? '<button class="btn btn-ghost" id="pickProjectBtn">Pick project</button>' : ''}
-              ${activityBtnHtml}
-              ${syncBtnHtml}
-              <button class="btn btn-ghost" id="disconnectJiraBtn" aria-label="Disconnect Jira">Disconnect</button>
-            </div>
-          </div>
-          <div class="activity-drawer" id="jiraActivityDrawer" style="display:none;"></div>
-        </div>
-      `;
-    }
-
-    // ---------- Jira connect form (decision N + L) ----------
-
-    function openJiraConnectModal() {
-      const modal = document.getElementById('jiraConnectModal');
-      if (!modal) return;
-      modal.style.display = '';
-      // Reset form + error each time the modal opens.
-      const form = document.getElementById('jiraConnectForm');
-      if (form) form.reset();
-      const err = document.getElementById('jiraConnectError');
-      if (err) { err.style.display = 'none'; err.textContent = ''; }
-
-      modal.querySelector('.modal-close').onclick = closeJiraConnectModal;
-      modal.querySelector('.modal-backdrop').onclick = closeJiraConnectModal;
-      document.getElementById('jiraConnectCancelBtn').onclick = closeJiraConnectModal;
-      document.addEventListener('keydown', _jiraConnectEscapeHandler);
-
-      // Wire the form submit. Idempotent — reattaching is fine.
-      form.onsubmit = submitJiraConnect;
-
-      // Focus the first field for quick entry.
-      setTimeout(() => document.getElementById('jiraSiteUrl')?.focus(), 0);
-    }
-
-    function closeJiraConnectModal() {
-      const modal = document.getElementById('jiraConnectModal');
-      if (modal) modal.style.display = 'none';
-      document.removeEventListener('keydown', _jiraConnectEscapeHandler);
-    }
-
-    function _jiraConnectEscapeHandler(e) {
-      if (e.key === 'Escape') closeJiraConnectModal();
-    }
-
-    async function submitJiraConnect(event) {
-      event.preventDefault();
-      const errEl = document.getElementById('jiraConnectError');
-      const submitBtn = document.getElementById('jiraConnectSubmitBtn');
-      errEl.style.display = 'none';
-      errEl.textContent = '';
-
-      // Strip any accidentally-pasted protocol/path so the validator
-      // doesn't reject (matches jira.js's hostname-only requirement).
-      let siteUrl = (document.getElementById('jiraSiteUrl').value || '').trim();
-      siteUrl = siteUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-      const accountEmail = (document.getElementById('jiraEmail').value || '').trim();
-      const apiToken = document.getElementById('jiraApiToken').value || '';
-
-      if (!siteUrl || !accountEmail || !apiToken) {
-        errEl.textContent = 'All three fields are required.';
-        errEl.style.display = '';
-        return;
-      }
-
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Connecting…';
-
-      try {
-        const res = await fetch('/api/connectors/jira/auth/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project_id: projectId,
-            site_url: siteUrl,
-            account_email: accountEmail,
-            api_token: apiToken,
-          }),
-        });
-        if (res.status === 401) { redirectToLogin(); return; }
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          let msg = (data && typeof data.error === 'string') ? data.error : 'Could not connect.';
-          if (msg === 'invalid_credentials') msg = 'Invalid credentials. Check the site URL, email, and API token.';
-          if (msg === 'already_connected') msg = 'A Jira connection already exists for this project.';
-          errEl.textContent = msg;
-          errEl.style.display = '';
-          return;
-        }
-        // Success — full reload with ?just_connected=jira so the project
-        // picker auto-opens once renderConnections re-runs.
-        const url = new URL(location.href);
-        url.searchParams.set('tab', 'connections');
-        url.searchParams.set('just_connected', 'jira');
-        location.href = url.toString();
-      } catch {
-        errEl.textContent = 'Could not connect. Please try again.';
-        errEl.style.display = '';
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Connect';
-      }
-    }
-
-    // ---------- Jira project picker ----------
-
-    async function openJiraProjectPicker(connId) {
-      const modal = document.getElementById('jiraProjectPickerModal');
-      if (!modal) return;
-      modal.style.display = '';
-      const list = modal.querySelector('.jira-project-picker-list');
-      list.innerHTML = '<div class="tab-loading">Loading projects…</div>';
-
-      modal.querySelector('.modal-close').onclick = closeJiraProjectPicker;
-      modal.querySelector('.modal-backdrop').onclick = closeJiraProjectPicker;
-      document.addEventListener('keydown', _jiraProjectPickerEscapeHandler);
-
-      try {
-        const res = await fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/connections/' + encodeURIComponent(connId) + '/jira/projects'
-        );
-        if (res.status === 401) { redirectToLogin(); return; }
-        if (!res.ok) {
-          list.innerHTML = '<p class="state-card-body">Could not load projects. The Jira API token may be invalid or revoked.</p>';
-          return;
-        }
-        const data = await res.json().catch(() => ({}));
-        const projects = Array.isArray(data.projects) ? data.projects : [];
-        if (projects.length === 0) {
-          list.innerHTML = '<p class="state-card-body">No projects visible to this API token.</p>';
-          return;
-        }
-        list.innerHTML = projects.map(p => `
-          <button class="channel-list-item" type="button"
-                  data-project-key="${escapeHtml(p.key)}"
-                  data-project-name="${escapeHtml(p.name)}">
-            <span class="channel-list-name">${escapeHtml(p.name)}</span>
-            <span class="channel-list-tag">${escapeHtml(p.key)}</span>
-          </button>
-        `).join('');
-        list.querySelectorAll('.channel-list-item').forEach(item => {
-          item.addEventListener('click', () => {
-            const key = item.getAttribute('data-project-key');
-            const name = item.getAttribute('data-project-name');
-            selectJiraProject(connId, key, name);
-          });
-        });
-      } catch {
-        list.innerHTML = '<p class="state-card-body">Could not load projects. Please try again.</p>';
-      }
-    }
-
-    function closeJiraProjectPicker() {
-      const modal = document.getElementById('jiraProjectPickerModal');
-      if (modal) modal.style.display = 'none';
-      document.removeEventListener('keydown', _jiraProjectPickerEscapeHandler);
-    }
-
-    function _jiraProjectPickerEscapeHandler(e) {
-      if (e.key === 'Escape') closeJiraProjectPicker();
-    }
-
-    async function selectJiraProject(connId, projectKey, projectName) {
-      const modal = document.getElementById('jiraProjectPickerModal');
-      const list = modal.querySelector('.jira-project-picker-list');
-      list.innerHTML = '<div class="tab-loading">Setting project and starting sync…</div>';
-      try {
-        const patchRes = await fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/connections/' + encodeURIComponent(connId),
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              credential_metadata: {
-                selected_project_key: projectKey,
-                selected_project_name: projectName,
-              },
-            }),
-          }
-        );
-        if (patchRes.status === 401) { redirectToLogin(); return; }
-        if (!patchRes.ok) {
-          let msg = 'Could not set project. Please try again.';
-          if (patchRes.status >= 400 && patchRes.status < 500) {
-            const data = await patchRes.json().catch(() => ({}));
-            if (data && typeof data.error === 'string') msg = data.error;
-          }
-          list.innerHTML = '<p class="state-card-body">' + escapeHtml(msg) + '</p>';
-          return;
-        }
-        // Fire-and-don't-await sync — Jira backfill can take 10-30s
-        // (depending on project size). UI shows "Syncing…" pill until
-        // next refresh.
-        fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/connections/' + encodeURIComponent(connId) + '/sync',
-          { method: 'POST' }
-        ).catch(() => { /* surfaces in sync_runs row */ });
-
-        closeJiraProjectPicker();
-        connections = null;
-        if (activeTab === 'connections') renderTabBody();
-      } catch {
-        list.innerHTML = '<p class="state-card-body">Could not set project. Please try again.</p>';
-      }
-    }
-
-    async function disconnectJira(connId) {
-      const ok = confirm('Disconnect Jira? This will remove the connection from this project.');
-      if (!ok) return;
-      try {
-        const res = await fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/connections/' + encodeURIComponent(connId),
-          { method: 'DELETE' }
-        );
-        if (res.status === 401) { redirectToLogin(); return; }
-        if (!res.ok) {
-          alert('Could not disconnect. Please try again.');
-          return;
-        }
-        connections = null;
-        if (activeTab === 'connections') renderTabBody();
-      } catch {
-        alert('Could not disconnect. Please try again.');
-      }
-    }
-
-    async function disconnectSlack(connId) {
-      const ok = confirm('Disconnect Slack? This will remove the connection from this project.');
-      if (!ok) return;
-      try {
-        const res = await fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/connections/' + encodeURIComponent(connId),
-          { method: 'DELETE' }
-        );
-        if (res.status === 401) { redirectToLogin(); return; }
-        if (!res.ok) {
-          alert('Could not disconnect. Please try again.');
-          return;
-        }
-        // Force re-fetch and re-render. Drops back to empty state.
-        connections = null;
-        if (activeTab === 'connections') renderTabBody();
-      } catch {
-        alert('Could not disconnect. Please try again.');
-      }
-    }
-
-    async function openChannelPicker(connId) {
-      const modal = document.getElementById('channelPickerModal');
-      if (!modal) return;
-      modal.style.display = '';
-      const list = modal.querySelector('.channel-picker-list');
-      list.innerHTML = '<div class="tab-loading">Loading channels…</div>';
-
-      // Wire close handlers idempotently.
-      modal.querySelector('.modal-close').onclick = closeChannelPicker;
-      modal.querySelector('.modal-backdrop').onclick = closeChannelPicker;
-      // Escape key — bind once via document so we don't re-add per open.
-      document.addEventListener('keydown', _channelPickerEscapeHandler);
-
-      try {
-        const res = await fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/connections/' + encodeURIComponent(connId) + '/slack/channels'
-        );
-        if (res.status === 401) { redirectToLogin(); return; }
-        if (!res.ok) {
-          list.innerHTML = '<p class="state-card-body">Could not load channels. The Slack app may need to be re-installed.</p>';
-          return;
-        }
-        const data = await res.json().catch(() => ({}));
-        const channels = Array.isArray(data.channels) ? data.channels : [];
-        if (channels.length === 0) {
-          list.innerHTML = '<p class="state-card-body">No channels visible to the bot. Add the bot to a channel in Slack and re-open this picker.</p>';
-          return;
-        }
-        list.innerHTML = channels.map(c => `
-          <button class="channel-list-item" type="button"
-                  data-channel-id="${escapeHtml(c.id)}"
-                  data-channel-name="${escapeHtml(c.name)}">
-            <span class="channel-list-name">#${escapeHtml(c.name)}</span>
-            ${c.is_member ? '<span class="channel-list-tag">bot in channel</span>' : ''}
-          </button>
-        `).join('');
-        list.querySelectorAll('.channel-list-item').forEach(item => {
-          item.addEventListener('click', () => {
-            const id = item.getAttribute('data-channel-id');
-            const name = item.getAttribute('data-channel-name');
-            selectChannel(connId, id, name);
-          });
-        });
-      } catch {
-        list.innerHTML = '<p class="state-card-body">Could not load channels. Please try again.</p>';
-      }
-    }
-
-    function closeChannelPicker() {
-      const modal = document.getElementById('channelPickerModal');
-      if (modal) modal.style.display = 'none';
-      document.removeEventListener('keydown', _channelPickerEscapeHandler);
-    }
-
-    function _channelPickerEscapeHandler(e) {
-      if (e.key === 'Escape') closeChannelPicker();
-    }
-
-    async function selectChannel(connId, channelId, channelName) {
-      const modal = document.getElementById('channelPickerModal');
-      const list = modal.querySelector('.channel-picker-list');
-      list.innerHTML = '<div class="tab-loading">Setting channel and starting sync…</div>';
-      try {
-        const patchRes = await fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/connections/' + encodeURIComponent(connId),
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              credential_metadata: {
-                selected_channel_id: channelId,
-                selected_channel_name: channelName,
-              },
-            }),
-          }
-        );
-        if (patchRes.status === 401) { redirectToLogin(); return; }
-        if (!patchRes.ok) {
-          let msg = 'Could not set channel. Please try again.';
-          if (patchRes.status >= 400 && patchRes.status < 500) {
-            const data = await patchRes.json().catch(() => ({}));
-            if (data && typeof data.error === 'string') msg = data.error;
-          }
-          list.innerHTML = '<p class="state-card-body">' + escapeHtml(msg) + '</p>';
-          return;
-        }
-        // Fire-and-don't-await sync — it can take several seconds for
-        // backfill. UI shows "Syncing…" pill until next refresh; admin
-        // can refresh the page to see updated state.
-        fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/connections/' + encodeURIComponent(connId) + '/sync',
-          { method: 'POST' }
-        ).catch(() => { /* surfaces in sync_runs row + Block 9 polish UI */ });
-
-        closeChannelPicker();
-        connections = null;  // force re-fetch on next render
-        if (activeTab === 'connections') renderTabBody();
-      } catch {
-        list.innerHTML = '<p class="state-card-body">Could not set channel. Please try again.</p>';
-      }
     }
 
     // ---------- Mobile drawer (decision AA) ----------
