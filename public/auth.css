@@ -2339,3 +2339,73 @@ table.users-table {
   .picker-row-info { width: 100%; order: 3; }
   .picker-row-stats { order: 4; margin-left: auto; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   Block 13.0 — v1.4 design-system foundation
+   Tokens + reusable components per BLOCK_13_DECISIONS.md and the
+   v1.4 mockup set at ~/Downloads/elinno-agent-v1.3-screens/.
+
+   Decision 5 (token naming): bare-noun tokens are the source of
+   truth for v1.4+ component CSS. Legacy --color-* tokens above
+   keep their existing values; the two namespaces coexist. Where
+   values coincide (--brand vs --color-brand), one token is the
+   value-holder and the other is left at its existing literal so
+   no v1.1/v1.2/v1.3 surface shifts visually.
+
+   Nothing in this section modifies an existing selector or token;
+   purely additive.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Brand — bare-noun source of truth (matches design-system.css). */
+  --brand: #6234fc;
+  --brand-strong: #5126d6;       /* active text on lavender */
+  --brand-tint: #f0ebff;         /* active fill / role-admin pill bg */
+  --brand-hair: #d9cdff;         /* eyebrow hair-rule, focus ring outer */
+  --brand-soft: #f7f5ff;         /* read-only chip fill, menu hover */
+  --brand-soft-border: #e9e2ff;
+
+  /* Surfaces */
+  --bg: #ffffff;
+  --bg-subtle: #fcfcfd;          /* input bg */
+  --bg-card-tint: #fcfbff;
+  --hero-bg: #1a1530;            /* the single dark surface in the light app */
+
+  /* Borders */
+  --border: #e6e6e6;             /* 0.5px hairline */
+  --border-soft: #f0f0f0;
+  --border-input: #e0e0e0;
+
+  /* Text — v1.4 palette (slightly different from legacy --color-text-* by design) */
+  --text: #121215;
+  --text-2: #5a5a5a;
+  --text-3: #9a9a9a;
+  --text-faint: #bbbbbb;
+
+  /* Status */
+  --success: #1d8a52;
+  --success-tint: #eaf7ef;
+  --amber-text: #8a6500;
+  --amber-dot: #d9a300;
+  --amber-tint: #fffdf6;
+  --amber-border: #f0e4c4;
+  --danger: #b3144b;
+
+  /* Source brand glyph chips (simplified marks, NOT trademarked logos). */
+  --jira-chip: #f4f6fb;
+  --jira-chip-border: #e3e9f5;
+  --jira-text: #1a4b8c;
+  --slack-chip: #faf5fb;
+  --slack-chip-border: #efddf0;
+  --slack-text: #5a2160;
+
+  /* Radii — v1.4 scale (legacy --radius-* stays for current screens) */
+  --r-lg: 16px;                  /* cards */
+  --r-md: 13px;                  /* inner cards, surfaces */
+  --r-sm: 9px;                   /* buttons, inputs */
+  --r-pill: 50px;
+  --r-bubble: 11px;              /* chat message bubbles */
+
+  /* Font alias — points at the existing Clash Grotesk stack. */
+  --font: var(--font-regular);
+}
