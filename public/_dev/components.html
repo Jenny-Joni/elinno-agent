@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>v1.3 Components — Elinno Agent dev gallery</title>
+<title>Components — Elinno Agent dev gallery (v1.3 + v1.4 / Block 12.2 + 13.0)</title>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
 <link rel="stylesheet" href="/auth.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
 <style>
@@ -20,6 +21,81 @@
   .gallery-intro h1 { margin: 0 0 8px; font-size: 22px; }
   .gallery-intro p { margin: 0; font-size: 13px; color: var(--color-text-body); line-height: 1.5; max-width: 640px; }
   .gallery-intro code { background: var(--color-bg-soft); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  .gallery-block-label {
+    display: inline-block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--brand, var(--color-brand));
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 50px;
+    background: var(--brand-tint, var(--color-brand-tint));
+    margin-right: 8px;
+  }
+  .gallery-block-label.v14 {
+    background: var(--brand-tint);
+    color: var(--brand-strong);
+  }
+  .swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .swatch {
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .swatch-chip {
+    height: 36px;
+    border-radius: 6px;
+    border: 0.5px solid rgba(0, 0, 0, 0.06);
+  }
+  .swatch-name { font-size: 11px; font-weight: 500; color: var(--text); font-family: 'Menlo', monospace; }
+  .swatch-value { font-size: 10px; color: var(--text-3); font-family: 'Menlo', monospace; }
+  .demo-hero-strip {
+    background: var(--hero-bg);
+    border-radius: 13px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+    position: relative;
+  }
+  .demo-hero-strip::before {
+    content: "";
+    position: absolute;
+    right: -40px; top: -40px;
+    width: 160px; height: 160px;
+    background: var(--brand);
+    border-radius: 50%;
+    opacity: 0.4;
+    filter: blur(50px);
+  }
+  .demo-hero-strip > * { position: relative; }
+  .demo-hero-strip .wordmark { color: #fff; }
+  /* Sticky-topbar demo scroll strip. */
+  .sticky-demo {
+    position: relative;
+    height: 220px;
+    overflow: auto;
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-subtle);
+  }
+  .sticky-demo .app-nav { position: sticky; top: 0; background: #fff; }
+  .sticky-demo .filler {
+    padding: 80px 16px;
+    color: var(--text-3);
+    font-size: 12px;
+    line-height: 1.6;
+  }
   .gallery-section {
     background: var(--color-bg-light);
     border: 1px solid var(--color-border);
@@ -72,9 +148,265 @@
 <div class="gallery-shell">
 
   <div class="gallery-intro">
-    <h1>v1.3 — Block 12.2 component gallery</h1>
-    <p>Internal verification surface for the 9 new components added in <code>public/auth.css</code> per PRD §7.3, plus the two existing-component splits per §7.4. Each section renders the component in isolation for eyes-on visual diff against the mockups in <code>~/Downloads/mockups_v1_3/</code>. This page is at <code>/_dev/components.html</code> on production for the duration of v1.3; removed in the v1.3.1 cleanup.</p>
+    <h1>Components gallery — v1.3 + v1.4</h1>
+    <p>Internal verification surface for the shared components in <code>public/auth.css</code>. Block 13.0 sections come first (the v1.4 design-system foundation per <code>BLOCK_13_DECISIONS.md</code> + mockups at <code>~/Downloads/elinno-agent-v1.3-screens/</code>). Block 12.2 sections (v1.3 cross-project components) follow underneath, unchanged. Eyes-on visual diff per section; this page is at <code>/_dev/components.html</code> on production for the duration of v1.4.</p>
   </div>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║ Block 13.0 — v1.4 design-system foundation                            ║
+       ║ Tokens + 6 reusable components per BLOCK_13_DECISIONS.md.             ║
+       ╚══════════════════════════════════════════════════════════════════════╝ -->
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> tokens</div>
+    <div class="gallery-section-name">Brand</div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-chip" style="background:var(--brand);"></div><div class="swatch-name">--brand</div><div class="swatch-value">#6234fc</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--brand-strong);"></div><div class="swatch-name">--brand-strong</div><div class="swatch-value">#5126d6</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--brand-tint);"></div><div class="swatch-name">--brand-tint</div><div class="swatch-value">#f0ebff</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--brand-hair);"></div><div class="swatch-name">--brand-hair</div><div class="swatch-value">#d9cdff</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--brand-soft);"></div><div class="swatch-name">--brand-soft</div><div class="swatch-value">#f7f5ff</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--brand-soft-border);"></div><div class="swatch-name">--brand-soft-border</div><div class="swatch-value">#e9e2ff</div></div>
+    </div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> tokens</div>
+    <div class="gallery-section-name">Surfaces · borders · text</div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-chip" style="background:var(--bg);"></div><div class="swatch-name">--bg</div><div class="swatch-value">#ffffff</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--bg-subtle);"></div><div class="swatch-name">--bg-subtle</div><div class="swatch-value">#fcfcfd</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--bg-card-tint);"></div><div class="swatch-name">--bg-card-tint</div><div class="swatch-value">#fcfbff</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--hero-bg);"></div><div class="swatch-name">--hero-bg</div><div class="swatch-value">#1a1530</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--border);"></div><div class="swatch-name">--border</div><div class="swatch-value">#e6e6e6</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--border-soft);"></div><div class="swatch-name">--border-soft</div><div class="swatch-value">#f0f0f0</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--text);"></div><div class="swatch-name">--text</div><div class="swatch-value">#121215</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--text-2);"></div><div class="swatch-name">--text-2</div><div class="swatch-value">#5a5a5a</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--text-3);"></div><div class="swatch-name">--text-3</div><div class="swatch-value">#9a9a9a</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--text-faint);"></div><div class="swatch-name">--text-faint</div><div class="swatch-value">#bbbbbb</div></div>
+    </div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> tokens</div>
+    <div class="gallery-section-name">Status · source-chip</div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-chip" style="background:var(--success);"></div><div class="swatch-name">--success</div><div class="swatch-value">#1d8a52</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--success-tint);"></div><div class="swatch-name">--success-tint</div><div class="swatch-value">#eaf7ef</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--amber-text);"></div><div class="swatch-name">--amber-text</div><div class="swatch-value">#8a6500</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--amber-dot);"></div><div class="swatch-name">--amber-dot</div><div class="swatch-value">#d9a300</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--amber-tint);"></div><div class="swatch-name">--amber-tint</div><div class="swatch-value">#fffdf6</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--amber-border);"></div><div class="swatch-name">--amber-border</div><div class="swatch-value">#f0e4c4</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--danger);"></div><div class="swatch-name">--danger</div><div class="swatch-value">#b3144b</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--jira-chip);"></div><div class="swatch-name">--jira-chip</div><div class="swatch-value">#f4f6fb</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--jira-text);"></div><div class="swatch-name">--jira-text</div><div class="swatch-value">#1a4b8c</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--slack-chip);"></div><div class="swatch-name">--slack-chip</div><div class="swatch-value">#faf5fb</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background:var(--slack-text);"></div><div class="swatch-name">--slack-text</div><div class="swatch-value">#5a2160</div></div>
+    </div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> component (1/6)</div>
+    <div class="gallery-section-name"><code>.eyebrow</code></div>
+    <div class="eyebrow">
+      <span class="eyebrow__label">Members</span>
+      <span class="eyebrow__rule"></span>
+    </div>
+    <div class="eyebrow">
+      <span class="eyebrow__label">Active connections</span>
+      <span class="eyebrow__rule"></span>
+    </div>
+    <div class="gallery-mockup-link">Used on every authed page as a section divider · screens 02 / 05 / 08 / 09 / 10</div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> brand mark</div>
+    <div class="gallery-section-name"><code>.brandmark</code> + <code>.wordmark</code></div>
+    <div class="gallery-row">
+      <span class="label">Light app</span>
+      <span style="display:inline-flex;align-items:center;gap:9px;">
+        <span class="brandmark"></span><span class="wordmark">Elinno&nbsp;Agent</span>
+      </span>
+    </div>
+    <div class="gallery-row">
+      <span class="label">Dark hero</span>
+      <div class="demo-hero-strip">
+        <span class="brandmark brandmark--light"></span>
+        <span class="wordmark" style="color:#fff;">Elinno&nbsp;Agent</span>
+      </div>
+    </div>
+    <div class="gallery-mockup-link">Used in login (screen-01) — login keeps existing layout, only brand mark swaps</div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> component (2/6)</div>
+    <div class="gallery-section-name"><code>.surface</code></div>
+    <div class="gallery-grid-2">
+      <div class="surface surface--padded">
+        <strong style="font-size:13px;">.surface .surface--padded</strong>
+        <div style="font-size:12px;color:var(--text-2);margin-top:6px;">White, 0.5px border, 13px radius, 18px padding.</div>
+      </div>
+      <div class="surface surface--lg surface--padded surface--tint">
+        <strong style="font-size:13px;">.surface .surface--lg .surface--tint</strong>
+        <div style="font-size:12px;color:var(--text-2);margin-top:6px;">Subtle lavender card tint + 16px radius.</div>
+      </div>
+    </div>
+    <div class="gallery-mockup-link">Bare card primitive; consumers add padding inline per use case</div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> component (3/6)</div>
+    <div class="gallery-section-name"><code>.pill</code> — role + status variants</div>
+    <div class="gallery-row">
+      <span class="label">Role</span>
+      <span class="pill pill--role-admin">Admin</span>
+      <span class="pill pill--role-member">Member</span>
+    </div>
+    <div class="gallery-row">
+      <span class="label">Status</span>
+      <span class="pill pill--status-active"><span class="pill__dot"></span>Active</span>
+      <span class="pill pill--status-amber"><span class="pill__dot"></span>Needs setup</span>
+      <span class="pill pill--status-amber"><span class="pill__dot"></span>Invited</span>
+      <span class="pill pill--status-danger"><span class="pill__dot"></span>Failed</span>
+    </div>
+    <div class="gallery-mockup-link">Used in admin (screen-10), settings (screen-09), members tables</div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> component (4/6)</div>
+    <div class="gallery-section-name"><code>.password-field</code></div>
+    <div style="max-width:380px;">
+      <div class="password-field" data-password-field>
+        <div class="password-field__label-row">
+          <label class="password-field__label" for="demo-pw">Password</label>
+          <button type="button" class="password-field__generate" data-pw-generate>Generate</button>
+        </div>
+        <div class="password-field__input-wrap">
+          <input id="demo-pw" class="password-field__input" type="password" placeholder="At least 8 characters">
+          <button type="button" class="password-field__eye" data-pw-eye aria-label="Show password">
+            <i class="ti ti-eye"></i>
+          </button>
+        </div>
+        <div class="password-field__hint">At least 8 characters.</div>
+      </div>
+    </div>
+    <div class="gallery-mockup-link">Used in admin create (screen-10), reset password (screen-13). Click Generate or the eye to test JS hooks.</div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> component (5/6)</div>
+    <div class="gallery-section-name">Confirm modal — <code>.modal.confirm</code></div>
+    <div class="gallery-row">
+      <button class="btn btn-ghost" type="button" data-open-modal="demo-modal-info" style="width:auto;">Open simple confirm</button>
+      <button class="btn btn-danger" type="button" data-open-modal="demo-modal-danger" style="width:auto;">Open type-to-confirm</button>
+    </div>
+    <div class="gallery-mockup-link">Used in delete-project, remove-member, Slack/Jira connect modal. The destructive variant type-locks the action.</div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> component (6a/6)</div>
+    <div class="gallery-section-name"><code>.inline-edit</code></div>
+    <div class="gallery-row">
+      <span class="label">Idle</span>
+      <span class="inline-edit" data-inline-edit data-value="Sprint 12 standups">
+        <span class="inline-edit__label">Sprint 12 standups</span>
+        <input class="inline-edit__input" value="Sprint 12 standups">
+        <button class="inline-edit__save" type="button" aria-label="Save"><i class="ti ti-check"></i></button>
+      </span>
+    </div>
+    <div class="gallery-mockup-link">Click the label to enter edit mode · Enter saves · Esc cancels · used in conversation rename + member-name edit</div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> component (6b/6)</div>
+    <div class="gallery-section-name">Overflow (⋯) menu — <code>.kebab-btn</code> + <code>.menu</code></div>
+    <div class="gallery-row" style="position:relative;">
+      <span class="label">Trigger</span>
+      <span data-menu-anchor style="position:relative;display:inline-block;">
+        <button class="kebab-btn" type="button" data-menu-toggle="demo-menu" aria-haspopup="menu" aria-expanded="false">
+          <i class="ti ti-dots"></i>
+        </button>
+        <div class="menu" role="menu" id="demo-menu" data-open="false" style="top:32px;right:0;">
+          <button class="menu__item" role="menuitem" type="button"><i class="ti ti-pencil"></i>Rename</button>
+          <button class="menu__item" role="menuitem" type="button"><i class="ti ti-arrow-up"></i>Make admin</button>
+          <button class="menu__item" role="menuitem" type="button" disabled><i class="ti ti-key"></i>Reset password</button>
+          <div class="menu__divider"></div>
+          <button class="menu__item menu__item--danger" role="menuitem" type="button"><i class="ti ti-trash"></i>Remove from workspace</button>
+        </div>
+      </span>
+    </div>
+    <div class="gallery-mockup-link">Used in admin row ⋯, conversation row ⋯, project-card ⋯. Mobile (≤700px) renders as bottom-sheet.</div>
+  </div>
+
+  <div class="gallery-section">
+    <div class="gallery-section-title"><span class="gallery-block-label v14">Block 13.0</span> sticky top-bar</div>
+    <div class="gallery-section-name">Lift-on-scroll · <code>/_lib/sticky-topbar.js</code></div>
+    <div class="sticky-demo">
+      <nav class="app-nav" data-sticky-topbar>
+        <div class="app-nav-inner">
+          <a class="app-brand" href="#" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;">
+            <span class="brandmark"></span><span class="wordmark">Elinno&nbsp;Agent</span>
+          </a>
+          <div class="app-nav-actions">
+            <span style="font-size:12px;color:var(--text-3);">Scroll the strip ↓</span>
+          </div>
+        </div>
+      </nav>
+      <div class="filler">
+        Scroll inside this strip to see <code>.is-lifted</code> apply.
+        <br><br>The bar gains a subtle shadow and the hairline drops away.
+        <br><br>(Note: the demo strip uses its own internal scroll, so the page itself doesn't move.)
+        <br><br>On mobile (≤700px viewport), scrolling down past the 80px threshold hides the bar; scrolling up reveals it. <code>prefers-reduced-motion</code> is respected.
+        <br><br>Filler.
+        <br><br>Filler.
+        <br><br>Filler.
+        <br><br>Filler.
+        <br><br>Filler.
+      </div>
+    </div>
+    <div class="gallery-mockup-link">Loaded via <code>&lt;script src="/_lib/sticky-topbar.js" defer&gt;&lt;/script&gt;</code> on each authed page. Auto-attaches to every <code>.app-nav</code> and <code>[data-sticky-topbar]</code> element.</div>
+  </div>
+
+  <!-- Hidden modal markup for the confirm-modal demos above. -->
+  <div class="modal confirm" id="demo-modal-info" role="dialog" aria-modal="true" aria-labelledby="demo-modal-info-title" style="display:none;">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-heading" id="demo-modal-info-title">Confirm action</h3>
+        <button class="modal-close" data-close-modal aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-modal__text">Reset password for <strong>maya@example.com</strong>? They'll need to use the new password on their next sign-in.</p>
+        <div class="confirm-modal__actions">
+          <button class="btn btn-ghost" type="button" data-close-modal style="width:auto;">Cancel</button>
+          <button class="btn btn-primary" type="button" data-close-modal style="width:auto;">Reset password</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal confirm" id="demo-modal-danger" role="dialog" aria-modal="true" aria-labelledby="demo-modal-danger-title" style="display:none;">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-heading" id="demo-modal-danger-title">Delete project</h3>
+        <button class="modal-close" data-close-modal aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-modal__text">This permanently deletes the project <strong>Rain</strong>, its connections, conversations, and synced data. Existing links to the project will break.</p>
+        <p class="confirm-modal__type-prompt">Type <strong>Rain</strong> below to confirm.</p>
+        <input class="confirm-modal__type-input" data-confirm-token="Rain" placeholder="Rain">
+        <div class="confirm-modal__actions">
+          <button class="btn btn-ghost" type="button" data-close-modal style="width:auto;">Cancel</button>
+          <button class="confirm-modal__confirm-danger" type="button" disabled data-close-modal>Delete project</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════════════════════════════════════════╗
+       ║ Block 12.2 — v1.3 cross-project components (unchanged)                ║
+       ╚══════════════════════════════════════════════════════════════════════╝ -->
 
   <!-- ============================== §7.4 splits =============================== -->
 
@@ -407,12 +739,181 @@
   </div>
 
   <div class="gallery-section" style="background:transparent;border:none;text-align:center;font-size:11px;color:var(--color-text-muted);">
-    Block 12.2 component gallery · removed in v1.3.1 cleanup ·
-    PRD <code>~/Downloads/PRD_v1_3.md</code> §7.3 + §7.4 ·
-    Mockups <code>~/Downloads/mockups_v1_3/*.html</code>
+    Components gallery · Block 13.0 (v1.4) above + Block 12.2 (v1.3) below ·
+    decisions <code>BLOCK_13_DECISIONS.md</code> ·
+    mockups <code>~/Downloads/elinno-agent-v1.3-screens/</code> · v1.3 PRD <code>PRD_v1_3.md</code> §7.3 / §7.4
   </div>
 
 </div>
+
+<!-- Sticky-top-bar progressive enhancement (Block 13.0). Auto-attaches
+     to .app-nav and [data-sticky-topbar] elements on the page. -->
+<script src="/_lib/sticky-topbar.js" defer></script>
+
+<!-- Gallery-only interaction wiring for the Block 13.0 components. Not
+     ported to production pages — each consumer screen will wire its
+     own behavior in Phases 3+. This block exists so the gallery can be
+     poked at by a human reviewer. -->
+<script>
+(function () {
+  'use strict';
+
+  /* ── Password field: eye toggle + Generate ─────────────────────── */
+  document.querySelectorAll('[data-pw-eye]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var input = btn.parentElement.querySelector('input');
+      if (!input) return;
+      var showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+      var icon = btn.querySelector('i');
+      if (icon) icon.className = showing ? 'ti ti-eye' : 'ti ti-eye-off';
+    });
+  });
+  document.querySelectorAll('[data-pw-generate]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var field = btn.closest('[data-password-field]');
+      var input = field && field.querySelector('input');
+      if (!input) return;
+      // 16-char base64url from 12 random bytes — readable, > 8 chars, no spaces.
+      var buf = new Uint8Array(12);
+      (window.crypto || window.msCrypto).getRandomValues(buf);
+      var b64 = btoa(String.fromCharCode.apply(null, buf))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      input.value = b64;
+      input.type = 'text';
+      var eye = field.querySelector('[data-pw-eye]');
+      if (eye) {
+        eye.setAttribute('aria-label', 'Hide password');
+        var icon = eye.querySelector('i');
+        if (icon) icon.className = 'ti ti-eye-off';
+      }
+    });
+  });
+
+  /* ── Inline-edit ───────────────────────────────────────────────── */
+  document.querySelectorAll('[data-inline-edit]').forEach(function (root) {
+    var label = root.querySelector('.inline-edit__label');
+    var input = root.querySelector('.inline-edit__input');
+    var save = root.querySelector('.inline-edit__save');
+    if (!label || !input || !save) return;
+
+    function enter() {
+      root.classList.add('editing');
+      input.value = label.textContent;
+      input.focus();
+      input.select();
+    }
+    function commit() {
+      label.textContent = input.value.trim() || label.textContent;
+      root.classList.remove('editing');
+    }
+    function cancel() {
+      input.value = label.textContent;
+      root.classList.remove('editing');
+    }
+
+    label.addEventListener('click', enter);
+    save.addEventListener('click', commit);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', function () {
+      // Defer so a click on the save button still fires first.
+      setTimeout(function () {
+        if (root.classList.contains('editing')) cancel();
+      }, 120);
+    });
+  });
+
+  /* ── Overflow menu (popover desktop / bottom-sheet mobile) ─────── */
+  var openMenu = null;
+  function closeOpenMenu() {
+    if (!openMenu) return;
+    openMenu.setAttribute('data-open', 'false');
+    var trigger = document.querySelector('[data-menu-toggle="' + openMenu.id + '"]');
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    openMenu = null;
+  }
+  document.querySelectorAll('[data-menu-toggle]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var id = btn.getAttribute('data-menu-toggle');
+      var menu = document.getElementById(id);
+      if (!menu) return;
+      if (openMenu === menu) { closeOpenMenu(); return; }
+      closeOpenMenu();
+      menu.setAttribute('data-open', 'true');
+      btn.setAttribute('aria-expanded', 'true');
+      openMenu = menu;
+    });
+  });
+  document.addEventListener('click', function (e) {
+    if (openMenu && !openMenu.contains(e.target)) closeOpenMenu();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && openMenu) closeOpenMenu();
+  });
+
+  /* ── Confirm modal (focus-trap, focus-restore, type-to-confirm) ── */
+  var lastFocused = null;
+
+  function openModal(id) {
+    var modal = document.getElementById(id);
+    if (!modal) return;
+    lastFocused = document.activeElement;
+    modal.style.display = 'flex';
+    // Wire type-to-confirm input → enable danger button.
+    var typeInput = modal.querySelector('.confirm-modal__type-input');
+    var dangerBtn = modal.querySelector('.confirm-modal__confirm-danger');
+    if (typeInput && dangerBtn) {
+      var token = typeInput.getAttribute('data-confirm-token') || '';
+      typeInput.value = '';
+      dangerBtn.disabled = true;
+      typeInput.oninput = function () {
+        dangerBtn.disabled = typeInput.value !== token;
+      };
+    }
+    // Focus the first focusable inside the dialog.
+    var focusable = modal.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length) focusable[0].focus();
+  }
+
+  function closeModal(modal) {
+    if (!modal) return;
+    modal.style.display = 'none';
+    if (lastFocused && lastFocused.focus) lastFocused.focus();
+    lastFocused = null;
+  }
+
+  document.querySelectorAll('[data-open-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function () { openModal(btn.getAttribute('data-open-modal')); });
+  });
+  document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function () { closeModal(btn.closest('.modal')); });
+  });
+  // Focus-trap + Escape on every open modal.
+  document.addEventListener('keydown', function (e) {
+    var open = document.querySelector('.modal[style*="display: flex"], .modal[style*="display:flex"]');
+    if (!open) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeModal(open); return; }
+    if (e.key !== 'Tab') return;
+    var focusable = Array.prototype.slice.call(open.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(function (el) { return el.offsetParent !== null; });
+    if (!focusable.length) return;
+    var first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  });
+})();
+</script>
 
 </body>
 </html>
