@@ -158,6 +158,27 @@
       font-family: monospace;
       pointer-events: none;
     }
+    /* Block 13.8f: editable slug field with availability pill. */
+    .ps-slug-wrap { position: relative; display: flex; align-items: center; gap: 8px; }
+    .ps-slug-wrap input { flex: 1; }
+    .ps-slug-status {
+      font-size: 10px;
+      padding: 3px 9px;
+      border-radius: 50px;
+      flex-shrink: 0;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .ps-slug-status.ok    { background: #e6f5ec; color: #1d7a3e; }
+    .ps-slug-status.error { background: rgba(255, 0, 131, 0.08); color: var(--color-error); }
+    .ps-slug-status.muted { background: var(--color-bg-soft); color: var(--color-text-muted); }
+    .ps-slug-warning {
+      font-size: 10px;
+      color: var(--color-warning);
+      margin-top: 4px;
+      display: none;
+    }
+    .ps-slug-warning.show { display: block; }
 
     .ps-info-grid {
       display: grid;
@@ -728,12 +749,15 @@
         +       '</div>'
         +       '<div class="ps-row">'
         +         '<div>'
-        +           '<label>Project key</label>'
-        +           '<div class="ps-row-hint">Used in URLs</div>'
+        +           '<label for="psSlug">URL slug</label>'
+        +           '<div class="ps-row-hint">elinnoagent.com/project/&lt;slug&gt;</div>'
         +         '</div>'
-        +         '<div class="ps-row-key">'
-        +           '<input type="text" value="' + escHtml(deriveKey(project.name)) + '" disabled />'
-        +           '<span class="ps-row-key-preview">elinnoagent.com/projects/<strong>' + escHtml(deriveKey(project.name)) + '</strong></span>'
+        +         '<div>'
+        +           '<div class="ps-slug-wrap">'
+        +             '<input id="psSlug" name="slug" type="text" maxlength="64" value="' + escHtml(project.slug || '') + '" pattern="[a-z][a-z0-9-]*" autocomplete="off" />'
+        +             '<span id="psSlugStatus" class="ps-slug-status muted">Saved</span>'
+        +           '</div>'
+        +           '<div id="psSlugWarning" class="ps-slug-warning">Changing the slug breaks the old /project/&lt;slug&gt; URL — bookmarks won’t resolve.</div>'
         +         '</div>'
         +       '</div>'
         +       '<div class="ps-row align-start">'
@@ -950,18 +974,116 @@
         // Identity form
         const idForm = document.getElementById('psIdentityForm');
         if (idForm) {
+          // Block 13.8f: editable slug field with debounced availability check.
+          const slugInput = document.getElementById('psSlug');
+          const slugStatus = document.getElementById('psSlugStatus');
+          const slugWarning = document.getElementById('psSlugWarning');
+          const saveBtn = document.getElementById('psIdentitySave');
+          const initialSlug = (project && project.slug) || '';
+          let slugCheckSeq = 0;
+          let slugCheckTimer = null;
+          let slugCheckResult = { available: true, reason: 'unchanged' };
+
+          function isValidSlugFormat(s) {
+            if (typeof s !== 'string' || s.length === 0 || s.length > 64) return false;
+            return /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(s);
+          }
+          function setSlugStatus(kind, text) {
+            slugStatus.className = 'ps-slug-status ' + kind;
+            slugStatus.textContent = text;
+          }
+          function syncSaveBtn() {
+            const slugVal = slugInput.value.trim();
+            const slugUnchanged = slugVal === initialSlug;
+            const slugOk = slugUnchanged || (slugCheckResult && slugCheckResult.available === true);
+            saveBtn.disabled = !slugOk;
+          }
+          function showWarningIfChanged() {
+            if (slugInput.value.trim() !== initialSlug) {
+              slugWarning.className = 'ps-slug-warning show';
+            } else {
+              slugWarning.className = 'ps-slug-warning';
+            }
+          }
+
+          async function checkSlugAvailability(candidate) {
+            const seq = ++slugCheckSeq;
+            setSlugStatus('muted', 'Checking…');
+            try {
+              const res = await fetch('/api/projects/slug-available?slug=' + encodeURIComponent(candidate));
+              if (seq !== slugCheckSeq) return;
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok && data.reason !== 'invalid_format') {
+                setSlugStatus('error', 'Check failed');
+                slugCheckResult = { available: false, reason: 'error' };
+                syncSaveBtn();
+                return;
+              }
+              slugCheckResult = data;
+              if (data.available) {
+                setSlugStatus('ok', '✓ Available');
+              } else if (data.reason === 'reserved') {
+                setSlugStatus('error', 'Reserved');
+              } else if (data.reason === 'taken') {
+                setSlugStatus('error', 'Taken');
+              } else if (data.reason === 'invalid_format') {
+                setSlugStatus('error', 'Invalid format');
+              } else {
+                setSlugStatus('error', 'Unavailable');
+              }
+              syncSaveBtn();
+            } catch {
+              if (seq !== slugCheckSeq) return;
+              setSlugStatus('error', 'Check failed');
+              slugCheckResult = { available: false, reason: 'error' };
+              syncSaveBtn();
+            }
+          }
+
+          function scheduleSlugCheck() {
+            clearTimeout(slugCheckTimer);
+            showWarningIfChanged();
+            const candidate = slugInput.value.trim();
+            if (candidate === initialSlug) {
+              setSlugStatus('muted', 'Saved');
+              slugCheckResult = { available: true, reason: 'unchanged' };
+              syncSaveBtn();
+              return;
+            }
+            if (!isValidSlugFormat(candidate)) {
+              setSlugStatus('error', 'Invalid format');
+              slugCheckResult = { available: false, reason: 'invalid_format' };
+              syncSaveBtn();
+              return;
+            }
+            slugCheckTimer = setTimeout(() => checkSlugAvailability(candidate), 300);
+          }
+          slugInput.addEventListener('input', scheduleSlugCheck);
+
           idForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             setMsg('psIdentityMsg', 'Saving…', '');
             const name = document.getElementById('psName').value.trim();
             const description = document.getElementById('psDescription').value.trim();
+            const slug = slugInput.value.trim();
             try {
-              const res = await api('PATCH', '/api/projects/' + encodeURIComponent(projectId), { name, description });
+              // Only include slug in the payload when it changed — keeps the
+              // unique-index race window narrow (we don't trigger an unnecessary
+              // UPDATE that might collide with a concurrent edit).
+              const payload = { name, description };
+              if (slug !== initialSlug) payload.slug = slug;
+              const res = await api('PATCH', '/api/projects/' + encodeURIComponent(projectId), payload);
               project = { ...project, ...res.project };
               setMsg('psIdentityMsg', 'Saved.', 'success');
               setTimeout(() => render(), 700);
             } catch (err) {
-              setMsg('psIdentityMsg', String(err && err.message || err), 'error');
+              const m = String(err && err.message || err);
+              setMsg('psIdentityMsg', m, 'error');
+              if (m === 'Slug already taken in this workspace') {
+                slugCheckResult = { available: false, reason: 'taken' };
+                setSlugStatus('error', 'Taken');
+                syncSaveBtn();
+              }
             }
           });
           document.getElementById('psIdentityDiscard').addEventListener('click', () => render());
