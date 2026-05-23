@@ -125,7 +125,15 @@ CREATE TABLE IF NOT EXISTS projects (
     -- v1.3 (Block 12.4) per-project daily user-message cap. Replaces
     -- the v1.2 hardcoded constant DAILY_MSG_CAP=100 in messages.js;
     -- the project-settings General tab editor writes here.
-    daily_message_limit INTEGER NOT NULL DEFAULT 100
+    daily_message_limit INTEGER NOT NULL DEFAULT 100,
+
+    -- v1.4 (Block 13.8) — human-readable URL slug. Workspace-unique
+    -- via the partial unique index below; format enforced at the app
+    -- layer (functions/_lib/slug.js). The /project/<slug> URL is
+    -- handled by functions/project/[[path]].js which 302-redirects
+    -- to /project.html?id=<uuid>. Migration:
+    -- db/migrations/2026-05-23-block-13-8-projects-slug.sql.
+    slug            TEXT NOT NULL
 );
 
 -- "List my active projects" — Member's main UI query.
@@ -136,6 +144,15 @@ CREATE INDEX IF NOT EXISTS projects_owner_active_idx
 -- "List all active projects" — admin overview.
 CREATE INDEX IF NOT EXISTS projects_active_idx
     ON projects (created_at DESC)
+    WHERE deleted_at IS NULL;
+
+-- v1.4 (Block 13.8) — workspace-unique slug among ACTIVE projects.
+-- Partial: soft-deleted rows are excluded so resurrecting a name
+-- doesn't fail on the placeholder ('deleted-<first8>') slug applied
+-- by the migration. Reserved-word + format validation happens at the
+-- app layer; the DB only enforces uniqueness.
+CREATE UNIQUE INDEX IF NOT EXISTS projects_owner_slug_active_idx
+    ON projects (owner_user_id, slug)
     WHERE deleted_at IS NULL;
 
 
