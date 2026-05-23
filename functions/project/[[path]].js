@@ -50,6 +50,8 @@ export async function onRequestGet({ request, env, params }) {
 
   // Workspace-scoped lookup. The partial unique index
   // projects_owner_slug_active_idx makes this an index-only seek.
+  const debug = new URL(request.url).searchParams.get('debug') === '1';
+
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,
     fetch_types: false,
@@ -63,13 +65,28 @@ export async function onRequestGet({ request, env, params }) {
          AND deleted_at IS NULL
        LIMIT 1
     `;
+    if (debug) {
+      // TEMP: diagnostic — remove before 13.8 ff-merges. Returns the
+      // workspace user id, parsed slug, and the DB lookup result so we
+      // can see why /project/<slug> isn't resolving as expected.
+      return new Response(
+        JSON.stringify({ slug, userId, rowCount: rows.length, rows }, null, 2),
+        { headers: { 'content-type': 'application/json' } }
+      );
+    }
     if (rows.length === 0) {
       return Response.redirect(new URL('/projects.html', request.url).toString(), 302);
     }
     const dest = new URL('/project.html', request.url);
     dest.searchParams.set('id', rows[0].id);
     return Response.redirect(dest.toString(), 302);
-  } catch (_err) {
+  } catch (err) {
+    if (debug) {
+      return new Response(
+        JSON.stringify({ slug, userId, error: String(err && err.message || err) }, null, 2),
+        { status: 500, headers: { 'content-type': 'application/json' } }
+      );
+    }
     // Fall back to the projects list on any DB error rather than 500;
     // the user can still navigate from there.
     return Response.redirect(new URL('/projects.html', request.url).toString(), 302);
