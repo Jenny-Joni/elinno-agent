@@ -63,6 +63,35 @@
       font-size: 11px;
       color: var(--text-3);
     }
+    .np-slug-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .np-slug-row input { flex: 1; }
+    .np-slug-status {
+      font-family: var(--font);
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: var(--r-pill);
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .np-slug-status.ok    { background: #e6f5ec; color: #1d7a3e; }
+    .np-slug-status.error { background: rgba(179,20,75,0.08); color: var(--danger); }
+    .np-slug-status.muted { background: var(--bg-subtle); color: var(--text-3); }
+    .np-slug-preview {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
+    }
+    .np-slug-preview code {
+      background: var(--bg-subtle);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-family: ui-monospace, monospace;
+      font-size: 10px;
+    }
     .np-actions {
       display: flex;
       justify-content: flex-end;
@@ -189,6 +218,15 @@
         +       '<input id="projectName" name="name" type="text" required maxlength="100" placeholder="e.g. Rain" autocomplete="off" />'
         +     '</div>'
         +     '<div class="np-field">'
+        +       '<label for="projectSlug">URL slug</label>'
+        +       '<div class="np-slug-row">'
+        +         '<input id="projectSlug" name="slug" type="text" maxlength="64" placeholder="rain" autocomplete="off" pattern="[a-z][a-z0-9-]*" />'
+        +         '<span id="slugStatus" class="np-slug-status muted">Type a name</span>'
+        +       '</div>'
+        +       '<p class="np-slug-preview"><code id="slugPreview">elinnoagent.com/project/&lt;slug&gt;</code></p>'
+        +       '<p class="np-hint">Lowercase letters, digits, and hyphens. Must start with a letter. We’ll auto-fill from the project name as you type — you can override.</p>'
+        +     '</div>'
+        +     '<div class="np-field">'
         +       '<label for="projectDesc">Description <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>'
         +       '<textarea id="projectDesc" name="description" maxlength="1000" placeholder="What is this project about?"></textarea>'
         +       '<p class="np-hint">Visible on the projects list for everyone in the workspace.</p>'
@@ -202,15 +240,123 @@
       wireForm();
     }
 
+    // Block 13.8e: mirrors functions/_lib/slug.js + the SQL backfill so
+    // client + server + migration all produce the same slug for the
+    // same input. Keep this regex shape in sync with the server.
+    function deriveSlugFromName(name) {
+      if (name == null) return '';
+      let s = String(name).toLowerCase();
+      s = s.replace(/[^a-z0-9]+/g, '-');
+      s = s.replace(/-+/g, '-');
+      s = s.replace(/^-+|-+$/g, '');
+      if (s.length === 0) return '';
+      if (!/^[a-z]/.test(s)) s = 'p-' + s;
+      if (s.length > 64) s = s.slice(0, 64).replace(/-+$/g, '');
+      return s;
+    }
+    function isValidSlugFormat(slug) {
+      if (typeof slug !== 'string' || slug.length === 0 || slug.length > 64) return false;
+      return /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(slug);
+    }
+
     function wireForm() {
       const form = $('#createForm');
       const name = $('#projectName');
+      const slug = $('#projectSlug');
+      const slugStatus = $('#slugStatus');
+      const slugPreview = $('#slugPreview');
       const desc = $('#projectDesc');
       const btn = $('#submitBtn');
       const msg = $('#formMsg');
 
-      function sync() { btn.disabled = name.value.trim().length === 0; }
-      name.addEventListener('input', sync);
+      // Block 13.8e state for slug field.
+      let slugEdited = false;          // true once the user types into the slug input
+      let slugCheckSeq = 0;            // monotonic; latest fetch wins on race
+      let slugCheckTimer = null;
+      let slugCheckResult = null;      // { available, reason } | null (idle / pending)
+
+      function setSlugStatus(kind, text) {
+        slugStatus.className = 'np-slug-status ' + kind;
+        slugStatus.textContent = text;
+      }
+      function updatePreview() {
+        const s = slug.value.trim();
+        slugPreview.textContent = s
+          ? 'elinnoagent.com/project/' + s
+          : 'elinnoagent.com/project/<slug>';
+      }
+      function syncSubmit() {
+        const hasName = name.value.trim().length > 0;
+        const hasSlug = slug.value.trim().length > 0;
+        const slugOk = slugCheckResult && slugCheckResult.available === true;
+        btn.disabled = !(hasName && hasSlug && slugOk);
+      }
+
+      async function checkSlugAvailability(candidate) {
+        const seq = ++slugCheckSeq;
+        setSlugStatus('muted', 'Checking…');
+        try {
+          const res = await fetch('/api/projects/slug-available?slug=' + encodeURIComponent(candidate));
+          if (seq !== slugCheckSeq) return;  // a newer check superseded this one
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok && data.reason !== 'invalid_format') {
+            setSlugStatus('error', 'Check failed');
+            slugCheckResult = { available: false, reason: 'error' };
+            syncSubmit();
+            return;
+          }
+          slugCheckResult = data;
+          if (data.available) {
+            setSlugStatus('ok', '✓ Available');
+          } else if (data.reason === 'reserved') {
+            setSlugStatus('error', 'Reserved word');
+          } else if (data.reason === 'taken') {
+            setSlugStatus('error', 'Already taken');
+          } else if (data.reason === 'invalid_format') {
+            setSlugStatus('error', 'Invalid format');
+          } else {
+            setSlugStatus('error', 'Unavailable');
+          }
+          syncSubmit();
+        } catch {
+          if (seq !== slugCheckSeq) return;
+          setSlugStatus('error', 'Check failed');
+          slugCheckResult = { available: false, reason: 'error' };
+          syncSubmit();
+        }
+      }
+
+      function scheduleSlugCheck() {
+        clearTimeout(slugCheckTimer);
+        slugCheckResult = null;
+        updatePreview();
+        const candidate = slug.value.trim();
+        if (candidate.length === 0) {
+          setSlugStatus('muted', 'Type a slug');
+          syncSubmit();
+          return;
+        }
+        if (!isValidSlugFormat(candidate)) {
+          setSlugStatus('error', 'Invalid format');
+          slugCheckResult = { available: false, reason: 'invalid_format' };
+          syncSubmit();
+          return;
+        }
+        slugCheckTimer = setTimeout(() => checkSlugAvailability(candidate), 300);
+      }
+
+      // Live-derive slug from name UNTIL the user edits the slug field manually.
+      name.addEventListener('input', () => {
+        if (!slugEdited) {
+          slug.value = deriveSlugFromName(name.value);
+          scheduleSlugCheck();
+        }
+        syncSubmit();
+      });
+      slug.addEventListener('input', () => {
+        slugEdited = true;
+        scheduleSlugCheck();
+      });
 
       function showErr(text) { msg.textContent = text; msg.className = 'np-msg show error'; }
       function hideErr() { msg.className = 'np-msg'; msg.textContent = ''; }
@@ -220,23 +366,37 @@
         hideErr();
         const n = name.value.trim();
         const d = desc.value.trim();
-        if (!n) return;
+        const s = slug.value.trim();
+        if (!n || !s) return;
+        if (!(slugCheckResult && slugCheckResult.available === true)) return;
         btn.disabled = true;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = 'Creating…';
         try {
+          const payload = { name: n, slug: s };
+          if (d) payload.description = d;
           const res = await fetch('/api/projects', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(d ? { name: n, description: d } : { name: n }),
+            body: JSON.stringify(payload),
           });
           if (res.status === 401) { location.replace('/'); return; }
           if (res.status === 403) { renderUnauthorized(); return; }
           const data = await res.json().catch(() => ({}));
           if (!res.ok) {
-            showErr(res.status >= 500 ? 'Something went wrong. Please try again.' : (data.error || 'Something went wrong. Please try again.'));
+            let errText = data.error || 'Something went wrong. Please try again.';
+            if (data.code === 'slug_taken') errText = 'That slug just got taken. Pick another.';
+            else if (data.code === 'slug_reserved') errText = 'That slug is reserved. Pick another.';
+            else if (data.code === 'slug_invalid_format') errText = 'Slug format is invalid.';
+            if (res.status >= 500) errText = 'Something went wrong. Please try again.';
+            showErr(errText);
             btn.disabled = false;
             btn.innerHTML = originalHtml;
+            // Re-check slug availability so the status pill reflects the race result.
+            if (data.code === 'slug_taken') {
+              slugCheckResult = { available: false, reason: 'taken' };
+              setSlugStatus('error', 'Already taken');
+            }
             return;
           }
           // Per SPEC §6: redirect to NEW project's Settings → Connections tab.
