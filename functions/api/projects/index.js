@@ -13,6 +13,7 @@
 // (workspace scope) instead of joining the dropped membership table.
 import postgres from 'postgres';
 import { error, getSessionUser, json, requireWorkspaceAdmin } from '../../_lib/auth.js';
+import { deriveSlugFromName, isReservedSlug, validateSlugFormat } from '../../_lib/slug.js';
 
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 1000;
@@ -51,9 +52,28 @@ export async function onRequestPost({ request, env }) {
     description = trimmed.length > 0 ? trimmed : null;
   }
 
-  // Cross-DB seam: D1 users.id (INTEGER) → Postgres TEXT.
-  // Pattern documented canonically in db/schema-postgres.sql header.
+  // Block 13.8d: slug acceptance + validation.
+  //   - If body.slug is a non-empty string, validate format + reserved-word;
+  //     reject with machine-readable codes on failure. INSERT uses the user's
+  //     slug; collisions hit the partial unique index and return 'slug_taken'.
+  //   - If body.slug is absent / null / empty, auto-derive from name and
+  //     auto-suffix on workspace collision (matches the SQL-backfill behavior
+  //     in 2026-05-23-block-13-8-projects-slug.sql). This keeps the
+  //     "I just want to create a project named Rain" path frictionless.
   const userIdText = String(user.id);
+  const userProvidedSlug =
+    typeof body?.slug === 'string' && body.slug.trim().length > 0;
+  let slug = null;
+  if (userProvidedSlug) {
+    slug = body.slug.trim();
+    const fmt = validateSlugFormat(slug);
+    if (!fmt.ok) {
+      return error('Slug format is invalid', 400, { code: 'slug_invalid_format' });
+    }
+    if (isReservedSlug(slug)) {
+      return error('Slug is reserved', 400, { code: 'slug_reserved' });
+    }
+  }
 
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,
@@ -61,16 +81,48 @@ export async function onRequestPost({ request, env }) {
   });
 
   try {
-    // v1.3 (Block 12.1): single INSERT. The v1.2 paired INSERT into
-    // project_members is gone — workspace-scope (projects.owner_user_id
-    // = session user's id) is the security predicate. The transaction
-    // wrapper from v1.2 is no longer needed but kept for forward
-    // compatibility if additional project-creation side effects land.
-    const [project] = await sql`
-      INSERT INTO projects (name, description, owner_user_id)
-      VALUES (${rawName}, ${description}, ${userIdText})
-      RETURNING *
-    `;
+    // Auto-derive + auto-suffix when the caller didn't provide a slug.
+    if (!userProvidedSlug) {
+      let base = deriveSlugFromName(rawName);
+      if (base === '') base = 'project';  // shouldn't happen — name is required
+      // Cap to leave room for a "-NN" suffix.
+      if (base.length > 60) base = base.slice(0, 60).replace(/-+$/g, '');
+      // Avoid colliding with the reserved-word list by prefixing 'p-'.
+      if (isReservedSlug(base)) base = 'p-' + base;
+      // Find the first free suffix in this workspace.
+      const existing = await sql`
+        SELECT slug FROM projects
+         WHERE owner_user_id = ${userIdText}
+           AND deleted_at IS NULL
+           AND (slug = ${base} OR slug LIKE ${base + '-%'})
+      `;
+      const taken = new Set(existing.map((r) => r.slug));
+      if (!taken.has(base)) {
+        slug = base;
+      } else {
+        let n = 2;
+        while (taken.has(base + '-' + n)) n++;
+        slug = base + '-' + n;
+      }
+    }
+
+    let project;
+    try {
+      [project] = await sql`
+        INSERT INTO projects (name, description, owner_user_id, slug)
+        VALUES (${rawName}, ${description}, ${userIdText}, ${slug})
+        RETURNING *
+      `;
+    } catch (insertErr) {
+      // PG 23505 = unique_violation on projects_owner_slug_active_idx.
+      // Only reachable when the caller passed an explicit slug that
+      // races against a concurrent creator; auto-derive computes a free
+      // suffix above and shouldn't hit this branch.
+      if (insertErr && insertErr.code === '23505') {
+        return error('Slug already taken in this workspace', 400, { code: 'slug_taken' });
+      }
+      throw insertErr;
+    }
 
     return json({ ok: true, project }, { status: 201 });
   } catch (_err) {
@@ -113,6 +165,7 @@ export async function onRequestGet({ request, env }) {
         p.name,
         p.description,
         p.owner_user_id,
+        p.slug,
         p.created_at,
         p.updated_at
         FROM projects p

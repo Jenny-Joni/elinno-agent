@@ -23,6 +23,7 @@ import {
   requireWorkspaceScope,
   requireWorkspaceAdmin,
 } from '../../../_lib/auth.js';
+import { isReservedSlug, validateSlugFormat } from '../../../_lib/slug.js';
 
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 1000;
@@ -54,6 +55,7 @@ export async function onRequestGet({ request, env, params }) {
         name,
         description,
         owner_user_id,
+        slug,
         created_at,
         updated_at,
         ai_monthly_cap_usd::float        AS ai_monthly_cap_usd,
@@ -138,6 +140,26 @@ export async function onRequestPatch({ request, env, params }) {
     }
   }
 
+  // Block 13.8d: slug acceptance + validation on PATCH. Only acted on when
+  // body.slug is present (so callers that only update name/description don't
+  // need to round-trip the slug). The partial unique index
+  // projects_owner_slug_active_idx enforces workspace-uniqueness; UPDATE
+  // collisions are caught below and surfaced as slug_taken.
+  if (body.slug !== undefined) {
+    if (typeof body.slug !== 'string') {
+      return error('slug must be a string', 400);
+    }
+    const trimmed = body.slug.trim();
+    const fmt = validateSlugFormat(trimmed);
+    if (!fmt.ok) {
+      return error('Slug format is invalid', 400, { code: 'slug_invalid_format' });
+    }
+    if (isReservedSlug(trimmed)) {
+      return error('Slug is reserved', 400, { code: 'slug_reserved' });
+    }
+    updates.slug = trimmed;
+  }
+
   if (Object.keys(updates).length === 0) {
     return error('Nothing to update', 400);
   }
@@ -157,16 +179,29 @@ export async function onRequestPatch({ request, env, params }) {
     const descSql = updates.description !== undefined
       ? sql`description = ${updates.description},`
       : sql``;
+    const slugSql = updates.slug !== undefined
+      ? sql`slug = ${updates.slug},`
+      : sql``;
 
-    const [project] = await sql`
-      UPDATE projects
-         SET ${nameSql} ${descSql} updated_at = NOW()
-       WHERE id          = ${params.id}
-         AND deleted_at  IS NULL
-      RETURNING id, name, description, owner_user_id, created_at, updated_at,
-                ai_monthly_cap_usd::float AS ai_monthly_cap_usd,
-                daily_message_limit
-    `;
+    let project;
+    try {
+      [project] = await sql`
+        UPDATE projects
+           SET ${nameSql} ${descSql} ${slugSql} updated_at = NOW()
+         WHERE id          = ${params.id}
+           AND deleted_at  IS NULL
+        RETURNING id, name, description, owner_user_id, slug,
+                  created_at, updated_at,
+                  ai_monthly_cap_usd::float AS ai_monthly_cap_usd,
+                  daily_message_limit
+      `;
+    } catch (updateErr) {
+      // PG 23505 = unique_violation on projects_owner_slug_active_idx.
+      if (updateErr && updateErr.code === '23505') {
+        return error('Slug already taken in this workspace', 400, { code: 'slug_taken' });
+      }
+      throw updateErr;
+    }
 
     if (!project) {
       return error('Not found', 404);
