@@ -249,8 +249,8 @@ _Section status: pending._
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
 | S14.1 | 12:42 | PASS | GET /api/db-health → 200, `{ok:true, one:1, postgres_version:"PostgreSQL 17.10 (322a063)...", hyperdrive_host:"75b67...hyperdrive.local:5432"}`. D1 + Hyperdrive→Neon both reachable. | — |
-| S14.2 |   |   |   |   |
-| S14.3 |   |   |   |   |
+| S14.2 | 13:30 | PASS | No pushes to main during this session — prod still at `bd47074` per HANDOFF closeout 2026-05-24. Branches pushed (preview deploys only): `block-14-qa-pass-v1-4` (QA docs), `qa-fix-must-change-password` (D10 fix). | — |
+| S14.3 | 13:30 | PASS (doc) | 7 externals + graceful-failure expectations documented in QA.md §14. Acknowledged in this run. | — |
 
 ## §15 Closeout
 
