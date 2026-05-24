@@ -79,7 +79,7 @@ _Section status: pending._
 | S2.3 | 12:38 | PASS-with-caveat | Created scratch user via API: id=13, email=qa+2026-05-24@elinnovation.net, display_name="QA Test", is_admin=false, role=member. 200 ok. CAVEAT (D7): UI + API both REQUIRE display_name (400 "Display name is required (1–80 chars)" if omitted). QA.md S2.3 spec was wrong — email-prefix backfill was a one-time migration for existing users in Block 13.2, NOT auto-applied to new creates. | D7 |
 | S2.4 | 12:38 | PASS | PATCH /api/admin/users/13 display_name "QA Test" → "QA Test Updated" returned 200 with updated user object; subsequent GET confirms persistence. | — |
 | S2.5 | — | DEFER | PATCH is_admin toggle needs second-profile sign-in to verify role flip is reflected in next session. The SET operation works (covered indirectly via S2.4 pattern). | — |
-| S2.6 | 12:53 | **FAIL** | PATCH /api/admin/users/13 with `{must_change_password: 1}` → **400 "Provide at least one of: display_name, is_admin, password"**. Admin PATCH endpoint doesn't accept `must_change_password` field even though D1 column exists (Block 13.2). Cannot force a user to change password from admin UI. See D10. | D10 (med) |
+| S2.6 | 12:53 / 13:50 | **FIXED + PASS** | Original (12:53): 400 "Provide at least one of: display_name, is_admin, password" → D10. FIX: commit `4c5b3ba` cherry-picked from `qa-fix-must-change-password` to main + pushed at ~13:48 IDT (Jenny's "approve push to main"). After prod redeploy (~13:50): PATCH `{must_change_password: 1}` → **200 OK**, empty-body 400 message updated to include must_change_password ✓. Cleanup PATCH `{must_change_password: 0}` → 200. | D10 (FIXED on prod) |
 | S2.7 | 12:42 | PARTIAL | POST /api/admin/users WITHOUT session cookie → `401 "Not authenticated"`. Endpoint is auth-gated ✓. Spec wanted non-admin USER → 403 specifically; need scratch user's cookie (second profile) to verify the 401-vs-403 distinction. Marked partial until second-profile run. | — |
 | S2.8 | — | PENDING | DELETE scratch user (id=13) deferred to §15 cleanup. Will run after S1.9/S1.10 reset-password tests. | — |
 | S2.9 | — | PENDING | Cleanup verification deferred to §15. | — |
@@ -249,7 +249,7 @@ _Section status: pending._
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
 | S14.1 | 12:42 | PASS | GET /api/db-health → 200, `{ok:true, one:1, postgres_version:"PostgreSQL 17.10 (322a063)...", hyperdrive_host:"75b67...hyperdrive.local:5432"}`. D1 + Hyperdrive→Neon both reachable. | — |
-| S14.2 | 13:30 | PASS | No pushes to main during this session — prod still at `bd47074` per HANDOFF closeout 2026-05-24. Branches pushed (preview deploys only): `block-14-qa-pass-v1-4` (QA docs), `qa-fix-must-change-password` (D10 fix). | — |
+| S14.2 | 13:30 / 13:50 | PASS | Initial: prod at `bd47074` (v1.4 shipping commit). Update: prod ROLLED FORWARD to `4c5b3ba` at 13:50 via D10 fix (Jenny's explicit "approve push to main"). First functional change to prod since v1.4 shipped. | — |
 | S14.3 | 13:30 | PASS (doc) | 7 externals + graceful-failure expectations documented in QA.md §14. Acknowledged in this run. | — |
 
 ## §15 Closeout
@@ -279,7 +279,7 @@ _Populated after §15._
 
 ### Fix branches awaiting per-push-to-main approval
 
-1. **`qa-fix-must-change-password`** (commit `c68725a`) — D10. Adds `must_change_password` to the admin PATCH allowlist. Non-carve-out, 10 insertions / 2 deletions to `functions/api/admin/users/[id].js`. Preview re-test pending.
+_None — D10 fix already landed on main (commit `4c5b3ba`, 2026-05-24 13:48 IDT, with Jenny's explicit approval). Prod redeployed + re-verified PASS at 13:50._
 
 ### Carve-out defects deferred to Jenny (default mode)
 
@@ -300,7 +300,7 @@ _None yet._
 | D7 | §2 | S2.3 | doc | QA.md S2.3 expectation (display_name omitted → backfilled from email prefix) is wrong for *new* user creates. Server returns `400 "Display name is required (1–80 chars)"`. Backfill only ran for existing users in the Block 13.2 D1 migration. QA.md needs an edit (not a code bug). | DOC | — |
 | D8 | §3 | S3.1 | med | `/api/workspace` returns `user_count: 1` while D1 actually has 4 users (Jenny + Oded + gmail-Jenny + scratch). Either user_count means something specific (founder? active admins?) and is undocumented, OR it's a count bug. project_count=4 matches reality. Investigate `functions/api/workspace/index.js`. | OPEN | — |
 | D9 | §12 | S12.5 | low | `/project/foo/bar/baz` returns 200 with login-page HTML instead of 404. Caused by Cloudflare Pages SPA-fallback config, NOT slug-routing dynamic function (the function correctly didn't fire). Affects any unknown deep URL on the site. UX nit. | OPEN | — |
-| D10 | §2 | S2.6 | med | Admin PATCH `/api/admin/users/[id]` rejects `must_change_password` field with `400 "Provide at least one of: display_name, is_admin, password"`. The D1 column exists (Block 13.2 migration added it + backfill) but admin endpoint doesn't accept toggling it. Can't force a password-change flow from admin UI. Likely fix: extend the PATCH allowlist in `functions/api/admin/users/[id].js`. | FIXED-preview | `qa-fix-must-change-password` (c68725a) — awaiting preview re-test + main-push approval |
+| D10 | §2 | S2.6 | med | Admin PATCH `/api/admin/users/[id]` rejected `must_change_password` field (400). Fix: extended PATCH allowlist + docstring + error message in `functions/api/admin/users/[id].js`. | **FIXED-PROD** | Branch `qa-fix-must-change-password` (`c68725a`) cherry-picked to `main` as `4c5b3ba`, pushed 13:48, deploy live ~13:50. Re-tested PASS on prod. |
 | D11 | §5 | S5.x | doc | QA.md §5 (Project members) is based on a stale assumption — per-project membership was removed in Block 12.1 (project_members table dropped). v1.4 uses workspace-only scope. All 5 §5 scenarios are N/A. Also affects S6.13 (cross-workspace vs cross-project access). QA.md should be re-authored to reflect actual v1.4 model. | DOC | — |
 | D12 | §11 | S11.x | low | `/api/dashboard` project objects don't include `slug` field — dashboard cards build URLs with `/project.html?id=<uuid>` (legacy) instead of `/project/<slug>`. Slug routing still works but users see UUID in URL from dashboard navigation. Add `slug` to dashboard project select. | OPEN | — |
 | D13 | §6 | S6.5/S6.7 | med | Block 9.5 contract: real Jira question on Rain returned "**96 open Jira tickets**" but `citations` field is `null` on the final assistant message. Tool messages exist in the conversation (audit trail intact) but no inline citation chips on the answer. Either: (a) contract is satisfied via tool messages (acceptable, but UI may not show citations), (b) citations should populate from tool calls. Verify with `SELECT COUNT(*) FROM entities WHERE source='jira' AND project_id='2fc38f6b-954d-44ca-8d1d-8d6bf947ba88' AND status != 'done'` whether 96 is correct. | OPEN | — |
