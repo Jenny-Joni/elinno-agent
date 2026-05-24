@@ -51,7 +51,7 @@ export async function onRequestDelete({ request, env, params }) {
 }
 
 // PATCH /api/admin/users/[id]
-//   body: { display_name?, is_admin?, password? }   // each field optional, at least one required
+//   body: { display_name?, is_admin?, password?, must_change_password? }   // each field optional, at least one required
 //
 // - display_name : free-text rename (1–80 chars post-trim).
 // - is_admin     : role flip. Demoting an admin while they're the only one
@@ -62,6 +62,8 @@ export async function onRequestDelete({ request, env, params }) {
 //                  path is the existing PBKDF2-100k via hashPassword — no
 //                  new primitive introduced (matches POST /api/admin/users
 //                  and reset-password.js).
+// - must_change_password : 1 forces a password-change flow on the target's
+//                  next login, 0 clears the flag. Coerced to 0/1.
 //
 // Returns the updated row (id, email, display_name, is_admin, created_at).
 export async function onRequestPatch({ request, env, params }) {
@@ -112,8 +114,14 @@ export async function onRequestPatch({ request, env, params }) {
     binds.push(hash);
   }
 
+  if (Object.prototype.hasOwnProperty.call(body, 'must_change_password')) {
+    const next = body.must_change_password ? 1 : 0;
+    sets.push(`must_change_password = ?${sets.length + 1}`);
+    binds.push(next);
+  }
+
   if (sets.length === 0) {
-    return error('Provide at least one of: display_name, is_admin, password', 400);
+    return error('Provide at least one of: display_name, is_admin, password, must_change_password', 400);
   }
 
   const now = Math.floor(Date.now() / 1000);
