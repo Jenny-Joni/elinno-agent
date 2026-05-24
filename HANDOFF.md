@@ -5308,3 +5308,63 @@ work + general posterity:
 `package-lock.json`, delete merged branches, optionally smoke-test
 the v1.4 chat surface (Rain or Joni project, send a message, verify
 non-clickable citations + ⋯ menu rename + delete + undo round-trip).
+
+## v1.4 SHIPPED — 2026-05-23 (Blocks 13.6 → 13.8 finish)
+
+**Production state**: `bd47074` on `elinnoagent.com`. v1.4 is fully
+live. Block 12.6 was the v1.3-cycle end-state at the start of the
+v1.4 build; Blocks 13.0–13.5 shipped on 2026-05-22 (prior section);
+Blocks 13.6 + 13.7a + 13.7b + 13.8 all shipped on 2026-05-23 in this
+multi-hour session.
+
+All v1.4 phases live:
+- Phase 1 → Block 13.0 (design-system foundation)
+- Phase 2 → Block 13.1 (login brand-mark + dashboard redirect)
+- Phase 3 → Block 13.2 (admin pilot)
+- Phase 4 → Blocks 13.3 + 13.4 (dashboard/projects/auth + project chat/settings)
+- Phase 5 → Block 13.5 (conversation rename/delete/undo)
+- Phase 6 → Block 13.6 (cross-project alignment)
+- Phase 7a → Block 13.7a (Connections port to project_settings.html)
+- Phase 7b → Block 13.7b (Slack OAuth retarget + project.html strip)
+- Phase 8 → Block 13.8 (slugs + slug routing)
+
+Only Phase 9 (housekeeping closeout) remains — non-blocking, see end
+of this section.
+
+### What shipped per block
+
+| Block | Commits | Production-visible change |
+|---|---|---|
+| **13.6** — cross-project alignment | `6ef2d2a` `b3dcac3` `dfff2ad` `30d2b1b` `59ee519` | `eligible-projects.js` widened from Jira-EXISTS to all workspace projects + per-project `connections[]` enrichment for source chips. `new.html` rewritten to screen-11 (single-step picker, sourceless projects disabled, source chips, Add another). `index.html` v1.4 landing reskin (no v2 Finance teaser). `chat.html` consolidated rewrite: brandmark nav + bare-noun tokens + sticky-topbar, read-only `.scopechip` Across row (drop edit-scope overlay), `.conv-row` + ⋯ menu sidebar port from Block 13.5 (rename/delete/undo via cross-project PATCH/DELETE), mobile `Across (N) ▾` popover. `CROSS_PROJECT_SYSTEM_PROMPT` rule #3 added: multi-project answers organized by `**ProjectName**` paragraph headers. authorize.js untouched (Decision 7). |
+| **13.7a** — Connections port to Settings | `bbd74be` `2a47e41` | Full Slack/Jira connect flow ported from `project.html` into `project_settings.html` (3 modals: channelPicker, jiraConnect, jiraProjectPicker; open/close/select handlers + submitJiraConnect; `?just_connected=` auto-open). v2 Monday/Drive teaser dropped. Both pages temporarily support connect during the 7a→7b window; `project.html` bounces `?just_connected=*` to `project_settings.html` so the post-OAuth landing is Settings. Carve-out: OAuth start URLs touched, callback handlers unchanged. |
+| **13.7b** — Slack callback retarget + project.html strip | `5fb5ff7` `329e416` | **CARVE-OUT**: `functions/api/connectors/slack/oauth/callback.js` retargeted from `/project.html` to `/project_settings.html` + fixed pre-existing `?project_id=` vs `?id=` param-name mismatch (Slack OAuth post-callback had been silently broken at the URL-param-name layer; redirects now correctly drive the page). `project.html` stripped of ~775 net lines of dead connect-flow code (3 modal divs, the 7a-2 bounce, renderConnections + 24 supporting helpers, hidden Connections tab button, `connections` case in renderTabBody). Chat empty-state CTA repointed from in-page tab switch to `/project_settings.html?id=…&tab=connections` link. Kept: `loadConnections`, `connections` state, `getConnectionState`, `getSuggestionList`, `SUGGESTIONS_SLACK`/`JIRA` (drive chat empty-state suggestion chips). `showConnToast` re-added as standalone helper (used by Block 10.1 refresh-and-re-ask). |
+| **13.8** — projects.slug + slug routing | `a21c6f7` `d44d15b` `296967c` `9763ce5` `5fa06d8` `784d6b0` `6fa4015` `bd47074` | **CARVE-OUT** (Postgres migration). New `db/migrations/2026-05-23-block-13-8-projects-slug.sql` — ALTER + kebab-case backfill (collision suffix, `p-` prefix fallback, `deleted-<first8>` placeholder for soft-deleted) + NOT NULL + workspace-unique partial index `projects_owner_slug_active_idx ON (owner_user_id, slug) WHERE deleted_at IS NULL`. Jenny ran on a Neon branch first (block-13-8-slug-test), confirmed Rain→`rain` / Joni→`joni` / Gems Launchpad→`gems-launchpad` / Gems Trade→`gems-trade`, then applied on prod. `db/schema-postgres.sql` updated. New `functions/_lib/slug.js` shared validator (RESERVED_SLUGS Set with 13 words from Decision 4, validateSlugFormat, deriveSlugFromName mirroring the SQL). New `GET /api/projects/slug-available?slug=<x>` → `{available, reason?}`. `functions/project/[slug].js` Cloudflare Pages dynamic route resolves workspace-scoped slug → uuid → 302 to `/project.html?id=<uuid>`. POST + PATCH `/api/projects` accept slug (auto-derive from name when missing; unique_violation → 400 slug_taken). `public/projects/new.html` live-derived slug field with debounced availability check + race guard. `public/project_settings.html` General tab editable slug with warning copy when changed. |
+
+### Block 13.8 mid-flight incidents (worth pinning)
+
+**Two incidents during Block 13.8 deserve a callout for future v1.5+ work:**
+
+**1. Schema-vs-code mismatch window.** When Jenny ran the migration on prod (`slug NOT NULL`) BEFORE the application code pushed, any new project creation would have 500'd on the NOT NULL violation. The mitigation was to force-roll-forward by ff-merging 13.8 to main fast (the rest of the verification — chrome smoke — caught the bug later but the rollback would have been the same DDL revert). Pin for future schema-carve-outs: don't let the schema get ahead of the code on prod by more than a few minutes; either ship code first then run DDL, or ship them in a single window.
+
+**2. The catch-all routing bug.** `functions/project/[[path]].js` was the original Phase 8 plan filename. The `[[catchall]]` form silently matches `/project` (zero segments), which Cloudflare Pages produces internally when it strips `.html` from `/project.html?id=X` → `/project?id=X`. The catch-all hijacked every legacy `?id=` request and 302-ed it to `/projects.html`. ALL dashboard/chat links to `/project.html?id=<uuid>` were broken on prod for ~5 minutes. Found via a temporary `?debug=1` JSON dump on the routing function (committed in `6fa4015`, removed in `bd47074`); the JSON returned `rowCount: 1` for `/project/rain?debug=1` while `/project/rain` redirected to `/projects` — that disconnect pointed at the URL parsing path, not the DB lookup. Hot-fix: renamed `[[path]].js` → `[slug].js` (single-segment dynamic route), which matches `/project/<one>` only — `/project` (zero) and `/project/foo/bar` (more) correctly fall through to static / 404. **Pin this lesson**: don't use `[[name]]` for a dynamic segment under a directory whose parent (the `.html`-stripped form) you also need to keep working. Use `[name]` for the single-segment case.
+
+### Untracked + housekeeping (Phase 9 todo)
+
+Carry-forward from the 13.0–13.5 closeout, still all open:
+
+- `package-lock.json` in working tree — untracked since 2026-05-22. From a wrangler-dev experiment that didn't pan out. Decide: commit / gitignore / delete.
+- Merged branches on origin + locally: `block-13.0-design-foundation`, `block-13.1-login-brandmark`, `block-13.2-admin-pilot`, `block-13.3-screen-reskin`, `block-13.4-project-chat`, `block-13.5-conversation-mgmt`, `block-13.6-cross-project-alignment`, `block-13.7a-connections-port`, `block-13.7b-strip-project-html-connect`, `block-13.8-projects-slug`. Safe to delete remote + local.
+- `scripts/delete-all-projects.sql` is gitignored (Block 13.0 `.gitignore` add: `scripts/*.sql`). Stale (references `project_members` dropped in Block 12.1) — update or delete.
+- Hardcoded-data audit on the new screens (cross-project, project_settings General + Connections tabs, projects/new with slug field) — look for stale fixtures, dev IDs, placeholder copy that shouldn't ship.
+
+### Pending Jenny actions (none blocking)
+
+v1.4 is live and working. Optional follow-ups:
+
+- Smoke-test on prod end-to-end:
+  - Open `/project/rain` (slug routing) → loads Rain chat.
+  - Open `/project.html?id=<rain-uuid>` (legacy URL) → still loads Rain chat.
+  - Create a new project from `/projects/new.html` with a custom slug; verify availability check + 'Start chat' gating.
+  - Edit a slug in `project_settings.html` General tab; verify warning + Save round-trip; navigate to the new `/project/<new-slug>` URL.
+  - Send a cross-project message that spans multiple projects; verify the `**ProjectName**` bold-header per-project organization in the answer.
+- Plan Phase 9 closeout in a future session: HANDOFF cleanup (this section serves as the v1.4 cap), hardcoded-data audit, merged-branch cleanup, package-lock.json decision.
