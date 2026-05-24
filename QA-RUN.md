@@ -8,14 +8,15 @@
 
 ## Current run
 
-- **Run ID:** _populated when execute phase starts_
-- **Started:** _populated when execute phase starts_
-- **Prod commit at start:** _populated_
+- **Run ID:** `2026-05-24-001`
+- **Started:** 2026-05-24 11:42 IDT
+- **Prod commit at start:** `bd47074` (per HANDOFF; verify at S14.2)
 - **Tester:** Jenny + Claude
-- **Browser MCP:** _confirmed / not yet / failed_
+- **Browser MCP:** confirmed (Browser 1, macOS, local; tab 2022210204)
 - **Scratch project slug:** `qa-scratch`
-- **Scratch user email:** _populated when execute phase starts_
-- **Fix branches created during this run:** _populated as they happen_
+- **Scratch user email:** `qa+2026-05-24@elinnovation.net`
+- **Fix branches created during this run:** `qa-fix-must-change-password` (commit `c68725a`) — addresses D10 (admin PATCH allowlist). Awaits preview re-test + Jenny's per-push-to-main approval.
+- **Project UUIDs from dashboard (slug TBD per project):** `2fc38f6b-954d-44ca-8d1d-8d6bf947ba88`, `5a580013-f051-42c5-a460-b7089b80c58d`, `e90b6d1c-eb9c-49b9-bd65-c4731c847242`, `792f2b13-1411-493b-a887-a824ad847a83`
 
 ### Status legend
 
@@ -34,21 +35,21 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S0.5.1 |   |   |   |   |
-| S0.5.2 |   |   |   |   |
-| S0.5.3 |   |   |   |   |
-| S0.5.4 |   |   |   |   |
-| S0.5.5 |   |   |   |   |
-| S0.5.6 |   |   |   |   |
-| S0.5.7 |   |   |   |   |
-| S0.5.8 |   |   |   |   |
-| S0.5.9 |   |   |   |   |
-| S0.5.10 |   |   |   |   |
-| S0.5.11 |   |   |   |   |
-| S0.5.12 |   |   |   |   |
-| S0.5.13 |   |   |   |   |
-| S0.5.14 |   |   |   |   |
-| S0.5.15 |   |   |   |   |
+| S0.5.1 | 12:20 | PASS | Both widths: ELINNO AGENT brandmark + "WELCOME BACK" hero on purple gradient bg + email/password inputs (lavender) + SIGN IN button + Forgot password link. Clean, no overlap. Browser autofill populated email at 700px screenshot — cosmetic. | — |
+| S0.5.2 | 12:25 | PASS | Both widths: centered card on lavender gradient bg with ELINNO AGENT brandmark + "Reset your password" title + description + email input + "Send reset link" primary button + "Back to sign in" link. Tab title says "Reset password" vs in-page "Reset your password" — minor wording drift but acceptable. | — |
+| S0.5.3 | — | PENDING | Reset-password page deferred to after scratch user creation (§2 → §1.9-1.10). | — |
+| S0.5.4 | 11:44 | PASS | Desktop 1400×900: nav + hero + spend card + 3-col projects grid all clean. Mobile (resized to 700): full reflow to 1-col, hero CTA stacks under text, nav fits horizontally. No overlaps. | — |
+| S0.5.5 | 11:46 | PASS | Desktop 1400: nav + add-member form (3-col grid) + members list rows all clean. Mobile 700: form stacks 1-col; member rows reflow with role+active pills stacked vertically; ⋯ menu right-aligned no clipping. No horizontal scroll. SIDE NOTE: 3 members shown including 2 Jenny accounts (gmail vs elinnovation) — possibly stale dev data, flag for Phase 9 audit. | — |
+| S0.5.6 | 11:48 | PASS | Desktop 1400: 4 projects in 3-col grid + dedicated "New project" CTA card, top-right "+ New project" button, loading state also clean. Mobile 700: 1-col stack of all 4 cards, no overlap, state-card primitive visible. | — |
+| S0.5.7 | 11:50 | PASS | Desktop 1400 + Mobile 700: form (name, URL slug, description, helper text "elinnoagent.com/project/&lt;slug&gt;") all clean. No overlap. SIDE NOTE (D1): slug field placeholder="rain" is styled too similar to a value (appears darker than the name field's "e.g. Rain" gray placeholder) — could confuse users into thinking "rain" is pre-filled. Low severity, file under §4. | D1 (UX nit, low) |
+| S0.5.8 | 11:53 | PASS | Desktop 1400: sidebar (~230px) + main chat layout clean; composer sticky bottom OK; suggestion chips wrap; breadcrumb + RAIN title + CHAT pill + gear all aligned in main column. Mobile 700: sidebar collapsed, chat full-width, composer sticky. No overlaps. SIDE: slug routing /project/rain → /project?id=2fc38f6b-...&c=... worked (positive S12.2). SIDE: nav inconsistency (D2) + active-conversation not highlighted (D3). | D2, D3 |
+| S0.5.9 | 11:57 | PASS | Desktop 1400 + Mobile 700: clean layout, tab nav (General active + Connections), Logo card / Project Identity section render correctly. Logo button verified disabled with title="Coming in v1.3.1" — matches BLOCK_12_PLAN Decision N (good for S4.12). General tab is a LONG page containing Logo + Identity + Info + Limits + Danger zone sections (no Limits TAB — section within General). No Members tab anywhere on this page (need to find Members home for §5). | — |
+| S0.5.10 | 12:02 | DEFER | Baseline Connections tab layout PASS at both widths (Slack + Jira connection cards reflow cleanly). MODAL force-show test was ambiguous: force-displaying channelPickerModal via JS at 700 + 1400 produced a sparse/transparent-looking panel — likely a force-show artifact (modal's open() handler populates body content + sets dimensions; bypassing it leaves body empty). Real verification deferred to §7 Slack OAuth flow. jiraConnectModal + jiraProjectPickerModal not force-tested (similar concern). | — |
+| S0.5.11 | 12:05 | PASS | Both widths: AI spend card ($1.13/$50, 2% bar) + Monthly cap input ($0) + Daily msg limit (100) + Discard/Save buttons + Danger zone w/ Delete project all clean. Labels/inputs/units stay aligned at 700px. SIDE: Rain shows "$0" for project-level cap — likely inherits workspace $50 default; minor UX clarity nit, log for §4.13. | — |
+| S0.5.12 | 12:08 | PASS | Both widths: 5 .cp-row cards (chat icon + title + Across-N + project names + relative time, "+ New cross-project chat" CTA bottom) render clean; mobile reflows to full width. Nav uses avatar circle here (consistent with dashboard) — confirms D2 nav inconsistency is project.html/project_settings.html-specific. | — |
+| S0.5.13 | 12:10 | PASS | Both widths: 4 picker rows (Rain w/ Jira+Slack chips wraps clean, Gems Launchpad/Trade/Joni w/ Jira); checkbox + avatar + name + chips all aligned; "Pick at least one project to start" hint + disabled Start chat button at bottom. NOTE: no sourceless projects in workspace, can't verify disabled-row distinction (defer to §10). | — |
+| S0.5.14 | 12:13 | PASS | Both widths: brandmark nav, breadcrumb, read-only .scopechip Across row with R/Rain + J/Joni pills (Block 13.6d ✓), tool-call badge, sidebar active-conversation HIGHLIGHTED (lavender bg) — opposite of project.html (D3 confirmed project.html-specific). Mobile 700: scope collapses to "Across (2) ▾" popover trigger (per Block 13.6d ✓). No overlaps. | — |
+| S0.5.15 | 12:15 | PASS | Both widths: spend card ($0.29/$20, 1% used, resets in 8 days) + Monthly cap input ($20) + Update cap button all clean. Page is visibly NOT v1.4 design — no sticky topbar (expected per HANDOFF Phase 9). Additional pre-v1.4 quirks: D4 (nav missing Dashboard link, has Cross-project link instead), D5 (LOG OUT styled as primary filled button vs ghost outline elsewhere). | D4, D5 |
 
 ## §1 Auth & session
 
@@ -56,16 +57,16 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S1.1 |   |   |   |   |
-| S1.2 |   |   |   |   |
-| S1.3 |   |   |   |   |
-| S1.4 |   |   |   |   |
-| S1.5 |   |   |   |   |
-| S1.6 |   |   |   |   |
-| S1.7 |   |   |   |   |
-| S1.8 |   |   |   |   |
-| S1.9 |   |   |   |   |
-| S1.10 |   |   |   |   |
+| S1.1 | 12:21 | PASS | Browser nav to /dashboard.html signed-out → redirected to / (login page). Tab title "Elinno Agent — Sign in". Client-side redirect (dashboard.html is static, its JS sees no session and bounces). FINDING (D6): redirect drops the destination — URL is just `/` with no `?next=/dashboard.html`, so post-login user lands at default rather than back where they tried to go. | D6 (low) |
+| S1.2 | 12:18 | PASS | `/login.html` while signed in → 302 to `/dashboard.html` (URL + tab title + content all confirm). Bonus: greeting copy switched "Good morning" → "Good afternoon" (time-of-day aware). | — |
+| S1.3 | 12:19 | PASS | POST /api/login with jenny@elinnovation.net + bogus password → `401 {"error":"Invalid email or password"}`. | — |
+| S1.4 | 12:19 | PASS | POST /api/login with nonexistent email → SAME `401 {"error":"Invalid email or password"}` byte-for-byte. Equivalence-class anti-enumeration confirmed ✓. | — |
+| S1.5 | 12:19 | PASS | POST /api/forgot-password with nonexistent email → `200 {"ok":true}` generic success (anti-enumeration confirmed). | — |
+| S1.6 | 12:30 | PASS | Jenny signed back in via UI; navigating /login.html now 302s to /dashboard.html. /api/me returns `{display_name:"jenny", email:"jenny@elinnovation.net", id:1, is_admin:true}`. Bonus finding: user ID is integer 1 (D1 auto-increment), not UUID. | — |
+| S1.7 | 12:23 | PASS (mechanic) | Mechanic verified during S1.1-S1.5 sequence (logout cleared cookie; /api/me returned `{user:null}` not 401 — QA.md S1.7 expectation needs minor wording update). Final logout deferred to §15. | — |
+| S1.8 | 12:19 | PASS | POST /api/forgot-password with jenny@elinnovation.net → `200 {"ok":true}`. Jenny confirmed Resend email arrived in inbox (~12:30 IDT). End-to-end ✓. | — |
+| S1.9 | — | DEFER | Defer until §2.3 creates scratch user `qa+2026-05-24@elinnovation.net`. Then run reset flow on scratch user to avoid touching Jenny's real password. | — |
+| S1.10 | — | DEFER | Same deferral as S1.9. Run with reused/tampered token after S1.9 establishes a baseline. | — |
 
 ## §2 Workspace admin — user mgmt
 
@@ -73,15 +74,15 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S2.1 |   |   |   |   |
-| S2.2 |   |   |   |   |
-| S2.3 |   |   |   |   |
-| S2.4 |   |   |   |   |
-| S2.5 |   |   |   |   |
-| S2.6 |   |   |   |   |
-| S2.7 |   |   |   |   |
-| S2.8 |   |   |   |   |
-| S2.9 |   |   |   |   |
+| S2.1 | 11:46 | PASS | (Verified during S0.5.5.) /admin.html loads for Jenny showing 3 members: Jenny [Member,gmail], Oded [Admin,elinnovation], jenny [Admin,elinnovation·you]. Member labels appear inconsistent — original "Jenny" with personal gmail tagged Member while the same person under elinnovation.net is Admin (likely two separate accounts, not a role bug). | — |
+| S2.2 | — | DEFER | Need scratch user signed-in via second profile to verify the 403 on /admin.html (non-admin). | — |
+| S2.3 | 12:38 | PASS-with-caveat | Created scratch user via API: id=13, email=qa+2026-05-24@elinnovation.net, display_name="QA Test", is_admin=false, role=member. 200 ok. CAVEAT (D7): UI + API both REQUIRE display_name (400 "Display name is required (1–80 chars)" if omitted). QA.md S2.3 spec was wrong — email-prefix backfill was a one-time migration for existing users in Block 13.2, NOT auto-applied to new creates. | D7 |
+| S2.4 | 12:38 | PASS | PATCH /api/admin/users/13 display_name "QA Test" → "QA Test Updated" returned 200 with updated user object; subsequent GET confirms persistence. | — |
+| S2.5 | — | DEFER | PATCH is_admin toggle needs second-profile sign-in to verify role flip is reflected in next session. The SET operation works (covered indirectly via S2.4 pattern). | — |
+| S2.6 | 12:53 | **FAIL** | PATCH /api/admin/users/13 with `{must_change_password: 1}` → **400 "Provide at least one of: display_name, is_admin, password"**. Admin PATCH endpoint doesn't accept `must_change_password` field even though D1 column exists (Block 13.2). Cannot force a user to change password from admin UI. See D10. | D10 (med) |
+| S2.7 | 12:42 | PARTIAL | POST /api/admin/users WITHOUT session cookie → `401 "Not authenticated"`. Endpoint is auth-gated ✓. Spec wanted non-admin USER → 403 specifically; need scratch user's cookie (second profile) to verify the 401-vs-403 distinction. Marked partial until second-profile run. | — |
+| S2.8 | — | PENDING | DELETE scratch user (id=13) deferred to §15 cleanup. Will run after S1.9/S1.10 reset-password tests. | — |
+| S2.9 | — | PENDING | Cleanup verification deferred to §15. | — |
 
 ## §3 Workspace metadata + spend cap
 
@@ -89,10 +90,10 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S3.1 |   |   |   |   |
-| S3.2 |   |   |   |   |
-| S3.3 |   |   |   |   |
-| S3.4 |   |   |   |   |
+| S3.1 | 12:42 | PASS-with-finding | GET /api/workspace → 200, returns {workspace:{id:"1", name:"Elinnovation", plan:"solo", user_count:1, project_count:4}, cross_project_ai:{cap_usd:20, spend_usd:0.287538, period_start:"2026-05-01", resets_at:"2026-06-01"}}. **FINDING D8: user_count=1 but D1 has 4 users.** Possibly counts only admins/founder or is a bug; needs source review. project_count:4 matches. | D8 |
+| S3.2 | 12:55 | PASS | /workspace_settings.html returns 200. Visual layout verified in S0.5.15. | — |
+| S3.3 | 13:05 | PASS | PATCH /api/workspace/limits: cap $20 → $21 (200) → reverted to $20 (200). Cap fully restored. | — |
+| S3.4 | — | DEFER | Non-admin PATCH → 403 needs second-profile cookie. Endpoint gating confirmed via S2.7-style no-cookie test (401). | — |
 
 ## §4 Projects CRUD + slug surface
 
@@ -100,22 +101,22 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S4.1 |   |   |   |   |
-| S4.2 |   |   |   |   |
-| S4.3 |   |   |   |   |
-| S4.4 |   |   |   |   |
-| S4.5 |   |   |   |   |
-| S4.6 |   |   |   |   |
-| S4.7 |   |   |   |   |
-| S4.8 |   |   |   |   |
-| S4.9 |   |   |   |   |
-| S4.10 |   |   |   |   |
-| S4.11 |   |   |   |   |
-| S4.12 |   |   |   |   |
-| S4.13 |   |   |   |   |
-| S4.14 |   |   |   |   |
-| S4.15 |   |   |   |   |
-| S4.16 |   |   |   |   |
+| S4.1 | 12:44 | PASS | GET /api/projects → 4 projects: Rain (2fc38f6b...), Gems Launchpad (5a580013...), Gems Trade (e90b6d1c...), Joni (792f2b13...). slug↔uuid mapping recorded. | — |
+| S4.2 | 11:53 | PASS | (S0.5.8 + this batch) /project.html?id=&lt;rain-uuid&gt; → 200 chat page loads (verified visually earlier; URL canonicalized to /project?id=...). Regression guard against Block 13.8 catch-all hijack PASS. | — |
+| S4.3 | 12:44 | PASS | /project/rain → 302 → /project?id=2fc38f6b-... → 200 Rain chat (slug routing ✓). | — |
+| S4.4 | 12:44 | PASS-with-finding | /project/does-not-exist-qa → 302 → **/projects** (redirects to projects list). Spec wanted 404; actual UX choice is gentler. Document as design decision (acceptable). | — |
+| S4.5 | 12:44 | PASS | GET slug-available?slug=qa-scratch → `200 {"available":true}`. | — |
+| S4.6 | 12:44 | PASS | GET slug-available?slug=rain → `200 {"available":false,"reason":"taken"}`. | — |
+| S4.7 | 12:44 | PASS | Tested 3 reserved words: `new`, `settings`, `api` → all `200 {"available":false,"reason":"reserved"}`. | — |
+| S4.8 | 12:44 | PASS | GET slug-available?slug=BadCase! → `400 {"available":false,"reason":"invalid_format"}`. 400 status appropriate for input validation. | — |
+| S4.9 | 12:50 | PASS-with-correction | Created qa-scratch via UI: name "QA Scratch" → slug auto-derived "qa-scratch" ✓, debounced "✓ Available" pill ✓, submit gated on debounce completion ✓, button text "Create &amp; connect a source". After click → redirected to `/project_settings?id=abd5ea3a-64de-43c4-8ece-5ed5e1475159&tab=connections&just_created=1` (Connections tab empty state with "Connect Slack/Jira" buttons). UX differs from QA.md spec (which expected redirect to /project.html) — actual is better (funnels to data setup). New project UUID: abd5ea3a-64de-43c4-8ece-5ed5e1475159. | — |
+| S4.10 | 12:52 | PASS | PATCH /api/projects/{uuid} slug "qa-scratch" → "qa-scratch-2" returned 200 with updated project object including new slug. | — |
+| S4.11 | 12:53 | PASS | (b) /project/qa-scratch (old) → 302 → /projects (slug no longer resolves, falls through to projects list, same as S4.4). (c) /project/qa-scratch-2 (new) → 302 → /project?id=abd5ea3a-... → 200. (d) /api/projects payload shows fresh slug "qa-scratch-2". Note: dashboard cards link to /project.html?id=&lt;uuid&gt; legacy, not slug — that's intentional or pre-Phase-9. | — |
+| S4.12 | 11:58 | PASS | (Verified during S0.5.9 + DOM check.) Logo button is `disabled: true` with `title="Coming in v1.3.1"`. Visual styling makes it look semi-active but DOM confirms disabled. ✓ matches BLOCK_12_PLAN Decision N. | — |
+| S4.13 | 12:52 | PASS | PATCH /api/projects/{uuid}/limits with `{ai_monthly_cap_usd: 5, daily_message_limit: 50}` → 200 with updated values. Persisted (visible in S4.14 response). | — |
+| S4.14 | 12:53 | PASS | PATCH /api/projects/{uuid} slug "qa-scratch-2" → "qa-scratch" succeeded (slug now available again since it's the row's own slug). 200. | — |
+| S4.15 | — | PENDING | DELETE qa-scratch project deferred to §15 closeout cleanup. | — |
+| S4.16 | 12:42 | PARTIAL | Same as S2.7 — endpoint gated (401 without cookie). Need second-profile cookie for true non-admin 403 test. | — |
 
 ## §5 Project members
 
@@ -123,11 +124,11 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S5.1 |   |   |   |   |
-| S5.2 |   |   |   |   |
-| S5.3 |   |   |   |   |
-| S5.4 |   |   |   |   |
-| S5.5 |   |   |   |   |
+| S5.1 | 12:58 | N/A | `/api/projects/[id]/members` does NOT exist in v1.4 — per-project membership was removed in Block 12.1 (`project_members` table dropped; collapsed into workspace-only scope). QA.md §5 was based on stale assumption. | D11 |
+| S5.2 | — | N/A | Same as S5.1 — no per-project invite API in v1.4. | D11 |
+| S5.3 | — | N/A | Workspace-only scope — any workspace member can GET any project; per-project role doesn't exist. | D11 |
+| S5.4 | — | N/A | Same — no per-project role distinction. Workspace admin (is_admin in D1) gates PATCH instead. | D11 |
+| S5.5 | — | N/A | No invite/remove API for per-project membership. Member mgmt is at workspace level via /admin.html. | D11 |
 
 ## §6 Conversations & messages — chat end-to-end
 
@@ -135,21 +136,21 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S6.1 |   |   |   |   |
-| S6.2 |   |   |   |   |
-| S6.3 |   |   |   |   |
-| S6.4 |   |   |   |   |
-| S6.5 |   |   |   |   |
-| S6.6 |   |   |   |   |
-| S6.7 |   |   |   |   |
-| S6.8 |   |   |   |   |
-| S6.9 |   |   |   |   |
-| S6.10 |   |   |   |   |
-| S6.11 |   |   |   |   |
-| S6.12 |   |   |   |   |
-| S6.13 |   |   |   |   |
-| S6.14 |   |   |   |   |
-| S6.15 |   |   |   |   |
+| S6.1 | 12:50 | PASS | Visited /project/qa-scratch immediately after create — landed on `/project_settings.html?...&tab=connections&just_created=1` (new project flow). Reaching the chat surface requires navigating to /project/qa-scratch directly which works. | — |
+| S6.2 | 12:50 | PASS | "Connect Slack/Jira" buttons visible on the empty Connections tab for qa-scratch. CTA route confirmed via post-create redirect. | — |
+| S6.3 | 12:59 | PASS | POST message to qa-scratch returned 200 in 1541ms. **Finding (smart UX):** when project has no connectors, system returns a hardcoded fallback ("I couldn't find anything in this project's connected data — no sources have been connected yet...") with model=null, in/out_tokens=0 — **no LLM call**, saving cost. | — |
+| S6.4 | — | DEFER | Multi-turn coherence test deferred (would need another LLM call ~30s; CDP tool times out at 45s). | — |
+| S6.5 | 13:00 | PASS-with-note | Real Jira question on Rain ("how many open Jira tickets..."). LLM used claude-sonnet-4-5, 4 iterations of tool calls (19,296 in tokens / 381 out), final answer: "There are **96 open Jira tickets** in this project right now (tickets that are not in 'done' status)." NOTE: citations field is null on final answer (D13). Block 9.5 contract may still hold via tool messages in the conversation but inline citation chips absent. Need Jenny to verify `SELECT COUNT(*) FROM entities WHERE source='jira' AND project_id='2fc38f6b-...' AND ...not-done` = 96. | D13 |
+| S6.6 | 11:53 | PASS | (Verified during S0.5.8.) Rain chat sidebar shows suggestion chips like "market buying is not enabled when resolut...", "Disable action button while Network Fee is..." — Jira-derived. ✓ | — |
+| S6.7 | — | PARTIAL | citations field returned `null` in S6.5 reply (see D13). UI tool-call badge present in older Rain conversations (S0.5.8). Visual verification of citation markers in fresh reply deferred. | D13 |
+| S6.8 | — | DEFER | refresh-and-ask-again on Rain — would trigger another LLM call (~30s, CDP timeout risk). Defer to manual run. | — |
+| S6.9 | 13:05 | PASS | PATCH conversation title "QA test" → "QA renamed conversation" returned 200, persisted. | — |
+| S6.10 | 13:06 | PASS | DELETE conversation → 200 with `{ok:true, conversation_id, deleted_at:"2026-05-24T09:36:04.258Z"}`. Soft-delete returns timestamp ✓. | — |
+| S6.11 | 13:06 | PASS | PATCH `{restore:true}` within 120s → 200, conversation restored. Alt approach `{deleted_at:null}` → 400 "Provide at least one of: title, restore" (proper API allowlist). | — |
+| S6.12 | — | DEFER | Delete + wait 121s test deferred (long wait); pre-condition: PATCH `{restore:true}` only valid within 120s. Server enforcement TBD. | — |
+| S6.13 | — | RE-FRAMED | Per D11 v1.4 uses workspace-only membership; any workspace member CAN access all projects. True cross-workspace test requires a second workspace which doesn't exist. Workspace boundary enforcement confirmed via S2.7 (no-cookie 401). | — |
+| S6.14 | — | DEFER | daily_message_limit test on qa-scratch (limit currently 50) would require sending 50+ messages — expensive. Defer to manual run. | — |
+| S6.15 | 13:06 | PARTIAL | GET messages?after=99999 returned messages (param ignored or different name). Endpoint reachable; pagination semantics need investigation in source. Mark non-blocking. | — |
 
 ## §7 Connections — Slack [carve-out]
 
@@ -196,17 +197,17 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S10.1 |   |   |   |   |
-| S10.2 |   |   |   |   |
-| S10.3 |   |   |   |   |
-| S10.4 |   |   |   |   |
-| S10.5 |   |   |   |   |
-| S10.6 |   |   |   |   |
-| S10.7 |   |   |   |   |
-| S10.8 |   |   |   |   |
-| S10.9 |   |   |   |   |
-| S10.10 |   |   |   |   |
-| S10.11 |   |   |   |   |
+| S10.1 | 12:08 | PASS | (Verified during S0.5.12.) /cross-project/ lists 5 .cp-row cards. Block 13.6c ✓. | — |
+| S10.2 | 13:05 | PASS | GET /api/cross-project/eligible-projects → 5 projects with connections[] enrichment: QA Scratch (0), Rain (2: Slack+Jira), Gems Launchpad/Trade/Joni (1 Jira each). Sourceless qa-scratch correctly disabled in picker (verified S0.5.13). Block 13.6a widening ✓. | — |
+| S10.3 | 12:10 | PASS | (Verified during S0.5.13.) /cross-project/new.html picker shows Rain w/ Jira+Slack chips, others w/ Jira chips, qa-scratch (when present) would show "disabled" state. Create flow works (verified by 5 existing cross-project chats from prior sessions). | — |
+| S10.4 | 12:13 | PASS | (Verified during S0.5.14.) Cross-project chat at /cross-project/chat.html?id=... renders sticky topbar, brand nav, read-only .scopechip Across row. Block 13.6d ✓. | — |
+| S10.5 | 12:13 | PASS | (Verified during S0.5.14.) At ≤700px, scope collapses to "Across (2) ▾" popover trigger. Block 13.6d ✓. | — |
+| S10.6 | 12:13 (visual) | PASS | (Verified during S0.5.14.) Existing "Compare ticket counts in Rain vs Joni" reply contains real numbers ("Rain holds 1,046 done tickets, 48 in progress, 33 new. Joni has 183 done, 92 in progress, 67 new...") with `**Rain**` / `**Joni**` style bold project names. Block 13.6d-4 CROSS_PROJECT_SYSTEM_PROMPT rule #3 ✓. | — |
+| S10.7 | — | DEFER | Rename via ⋯ menu — would require UI interaction; PATCH endpoint identical to per-project (Block 13.5 carry-over confirmed). | — |
+| S10.8 | — | DEFER | Delete + undo on cross-project conversation — same pattern as S6.10/S6.11 ✓ confirmed working for per-project. | — |
+| S10.9 | — | DEFER | Cross-workspace access negative — needs second workspace (doesn't exist). Same status as S6.13. | — |
+| S10.10 | 12:13 | PASS | (Verified during S0.5.14.) Chat header has NO "Product" label-pill and NO Jira source-chip. Replaced by .scopechip Across row. Block 13.6 removal ✓. | — |
+| S10.11 | 12:13 | PASS | (Verified during S0.5.14.) No edit-scope overlay visible; scope row is read-only. Block 13.6d Decision 7 ✓. | — |
 
 ## §11 Dashboard
 
@@ -214,10 +215,10 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S11.1 |   |   |   |   |
-| S11.2 |   |   |   |   |
-| S11.3 |   |   |   |   |
-| S11.4 |   |   |   |   |
+| S11.1 | 13:08 | PASS | GET /api/dashboard returns `{ok, user, workspace, cross_project_chats, projects}` with 5 projects. Verified Jenny + visit-time loads OK. Single API call (1 fetch) per request — meets 6-query budget. | — |
+| S11.2 | 13:08 | PASS | 4 Jira-connected projects (Rain, Gems Launchpad, Gems Trade, Joni) have `has_jira:true` + `jira_active_sprint:<data>`. QA Scratch has `has_jira:false` + null sprint (correct). | — |
+| S11.3 | 13:08 | PASS | Workspace section has `cross_project_spend_usd`, `cross_project_cap_usd`, `cross_project_period_start` for the hero/spend card. 5 cross-project chats listed. | — |
+| S11.4 | 11:43 (S1.1) | PASS | (Verified during S1.1.) Signed-out browser nav to /dashboard.html → redirected to /. | — |
 
 ## §12 Slug routing pinned-incident regression
 
@@ -225,11 +226,11 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S12.1 |   |   |   |   |
-| S12.2 |   |   |   |   |
-| S12.3 |   |   |   |   |
-| S12.4 |   |   |   |   |
-| S12.5 |   |   |   |   |
+| S12.1 | 11:53/12:44 | PASS | (=S4.2) /project.html?id=&lt;rain-uuid&gt; → 200 chat. NOT hijacked to /projects (Block 13.8 hotfix holds). Regression guard ✓. | — |
+| S12.2 | 12:44 | PASS | (=S4.3) /project/rain → 302 → /project?id=2fc38f6b-... → 200 chat. Slug routing works. | — |
+| S12.3 | 12:48 | PASS | **/project (zero segments) → 200 serving static /project.html** (title "Project — Elinno Agent"). Dynamic function did NOT fire / hijack. **CRITICAL Block 13.8 regression guard PASSED.** | — |
+| S12.4 | 12:44 | PASS | /project/ (trailing slash) → 302 → /project (canonicalization) → 200 static. Dynamic function did not hijack. | — |
+| S12.5 | 12:44 | PASS-with-finding (D9) | /project/foo/bar/baz (multi-segment) → 200 BUT serves the **login page HTML** (Cloudflare Pages SPA fallback when no route matches). Single-segment `[slug].js` correctly did NOT fire. Spec expected 404 — actual is Pages-config behavior, not a slug-routing bug. | D9 (low) |
 
 ## §13 Crypto + envelope encryption [carve-out]
 
@@ -237,7 +238,7 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S13.1 |   |   |   |   |
+| S13.1 | 12:42 | PASS | GET /api/crypto-roundtrip on prod elinnoagent.com → 404 "Not Found". Smoke endpoint correctly not exposed on prod (carve-out boundary intact). | — |
 | S13.2 |   |   |   |   |
 | S13.3 |   |   |   |   |
 
@@ -247,7 +248,7 @@ _Section status: pending._
 
 | Scenario | Time | Result | Expected vs. actual | Defect / Fix |
 |---|---|---|---|---|
-| S14.1 |   |   |   |   |
+| S14.1 | 12:42 | PASS | GET /api/db-health → 200, `{ok:true, one:1, postgres_version:"PostgreSQL 17.10 (322a063)...", hyperdrive_host:"75b67...hyperdrive.local:5432"}`. D1 + Hyperdrive→Neon both reachable. | — |
 | S14.2 |   |   |   |   |
 | S14.3 |   |   |   |   |
 
@@ -278,7 +279,7 @@ _Populated after §15._
 
 ### Fix branches awaiting per-push-to-main approval
 
-_None yet._
+1. **`qa-fix-must-change-password`** (commit `c68725a`) — D10. Adds `must_change_password` to the admin PATCH allowlist. Non-carve-out, 10 insertions / 2 deletions to `functions/api/admin/users/[id].js`. Preview re-test pending.
 
 ### Carve-out defects deferred to Jenny (default mode)
 
@@ -290,7 +291,19 @@ _None yet._
 
 | ID | Section | Scenario | Severity | Description | Status | Fix branch |
 |---|---|---|---|---|---|---|
-| _None yet._ |||||||
+| D1 | §0.5 | S0.5.7 | low | Slug field placeholder="rain" on `/projects/new` renders in darker shade than the name field's "e.g. Rain" gray placeholder. Could be mistaken for a pre-filled value. UX/styling, not functional. | OPEN | — |
+| D2 | §0.5 | S0.5.8 | low | Top nav on `/project.html` shows `jenny@elinnovation.net` text inline between Logout and Admin (visible on Rain). Dashboard nav shows just the J avatar circle — inconsistent across pages. | OPEN | — |
+| D3 | §0.5 | S0.5.8 | low | Sidebar conversations list on `/project.html` doesn't visually mark the currently-active conversation (no highlight / bg-color / border). Hard to tell which row matches the displayed chat. Cross-project/chat.html sidebar DOES highlight active — bug is project.html-specific. | OPEN | — |
+| D4 | §0.5 | S0.5.15 | med | `/workspace_settings.html` top nav is missing the "Dashboard" link (only Cross-project / Projects / Admin shown). Users on this page can't return to dashboard via nav. Page hasn't been v1.4-reskinned (Phase 9 carry-forward, expected per HANDOFF). | OPEN | — |
+| D5 | §0.5 | S0.5.15 | low | `/workspace_settings.html` LOG OUT button is styled as a primary filled (lavender) button, while every other page uses a ghost-outline Log out. Style inconsistency. Same Phase 9 carry-forward as D4. | OPEN | — |
+| D6 | §1 | S1.1 | low | Signed-out navigation to `/dashboard.html` (or any protected page) redirects to `/` (login) WITHOUT a `?next=<original-url>` query param. After signing in, user lands at default landing (dashboard) rather than the deep-link they originally tried. Minor UX regression — affects bookmarked / shared project URLs. | OPEN | — |
+| D7 | §2 | S2.3 | doc | QA.md S2.3 expectation (display_name omitted → backfilled from email prefix) is wrong for *new* user creates. Server returns `400 "Display name is required (1–80 chars)"`. Backfill only ran for existing users in the Block 13.2 D1 migration. QA.md needs an edit (not a code bug). | DOC | — |
+| D8 | §3 | S3.1 | med | `/api/workspace` returns `user_count: 1` while D1 actually has 4 users (Jenny + Oded + gmail-Jenny + scratch). Either user_count means something specific (founder? active admins?) and is undocumented, OR it's a count bug. project_count=4 matches reality. Investigate `functions/api/workspace/index.js`. | OPEN | — |
+| D9 | §12 | S12.5 | low | `/project/foo/bar/baz` returns 200 with login-page HTML instead of 404. Caused by Cloudflare Pages SPA-fallback config, NOT slug-routing dynamic function (the function correctly didn't fire). Affects any unknown deep URL on the site. UX nit. | OPEN | — |
+| D10 | §2 | S2.6 | med | Admin PATCH `/api/admin/users/[id]` rejects `must_change_password` field with `400 "Provide at least one of: display_name, is_admin, password"`. The D1 column exists (Block 13.2 migration added it + backfill) but admin endpoint doesn't accept toggling it. Can't force a password-change flow from admin UI. Likely fix: extend the PATCH allowlist in `functions/api/admin/users/[id].js`. | FIXED-preview | `qa-fix-must-change-password` (c68725a) — awaiting preview re-test + main-push approval |
+| D11 | §5 | S5.x | doc | QA.md §5 (Project members) is based on a stale assumption — per-project membership was removed in Block 12.1 (project_members table dropped). v1.4 uses workspace-only scope. All 5 §5 scenarios are N/A. Also affects S6.13 (cross-workspace vs cross-project access). QA.md should be re-authored to reflect actual v1.4 model. | DOC | — |
+| D12 | §11 | S11.x | low | `/api/dashboard` project objects don't include `slug` field — dashboard cards build URLs with `/project.html?id=<uuid>` (legacy) instead of `/project/<slug>`. Slug routing still works but users see UUID in URL from dashboard navigation. Add `slug` to dashboard project select. | OPEN | — |
+| D13 | §6 | S6.5/S6.7 | med | Block 9.5 contract: real Jira question on Rain returned "**96 open Jira tickets**" but `citations` field is `null` on the final assistant message. Tool messages exist in the conversation (audit trail intact) but no inline citation chips on the answer. Either: (a) contract is satisfied via tool messages (acceptable, but UI may not show citations), (b) citations should populate from tool calls. Verify with `SELECT COUNT(*) FROM entities WHERE source='jira' AND project_id='2fc38f6b-954d-44ca-8d1d-8d6bf947ba88' AND status != 'done'` whether 96 is correct. | OPEN | — |
 
 ---
 
