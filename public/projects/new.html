@@ -51,6 +51,11 @@
       font-size: 14px;
       line-height: 1.5;
     }
+    .np-field input::placeholder,
+    .np-field textarea::placeholder {
+      color: var(--text-3);
+      opacity: 1; /* Firefox lowers opacity by default; normalize */
+    }
     .np-field textarea { min-height: 90px; resize: vertical; }
     .np-field input:focus,
     .np-field textarea:focus {
