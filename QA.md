@@ -139,7 +139,7 @@ Page: `/admin.html`.
 
 - [ ] **S2.1** Jenny loads `/admin.html` → users list renders with all current users.
 - [ ] **S2.2** Scratch user (non-admin) loads `/admin.html` in second profile → 403 / redirect.
-- [ ] **S2.3** Create scratch user `qa+<YYYY-MM-DD>@elinnovation.net` with display_name omitted → 200; row appears in D1 `users`; `display_name` backfilled to email prefix.
+- [ ] **S2.3** Create scratch user `qa+<YYYY-MM-DD>@elinnovation.net` with **display_name provided** (e.g., "QA Test") → 200; row appears in D1 `users`. **Note (correction from earlier QA.md drafts):** the server REQUIRES `display_name` on create (`400 "Display name is required (1–80 chars)"` if omitted). The email-prefix backfill was a one-time migration in Block 13.2 for existing users at the time the column was added — it is NOT auto-applied to new creates.
 - [ ] **S2.4** PATCH scratch user's `display_name = "QA Test"` → 200; renders updated on next list load.
 - [ ] **S2.5** PATCH scratch user's `is_admin = 1` then back to `0` → 200; verify role toggle reflected by re-signing-in the second profile and hitting `/admin.html` (admin while flag is 1, 403 while flag is 0).
 - [ ] **S2.6** PATCH scratch user's `must_change_password = 1` → next login forces password-change flow (verify with second profile sign-in).
@@ -194,20 +194,24 @@ Writes.
 
 ---
 
-## §5 Project members (~5 scenarios) [needs-second-user]
+## §5 Project members — N/A in v1.4 (workspace-only scope)
 
-Endpoints: `GET/POST /api/projects/[id]/members`,
-`DELETE /api/projects/[id]/members/[userId]`.
-Page: `/project.html` Members tab (verify v1.4 actual home —
-might be on `/project_settings.html` Members tab).
+**Correction from earlier QA.md drafts:** v1.4 does **not** have per-project
+membership. The `project_members` table was dropped in Block 12.1; access
+is enforced at workspace scope only (any workspace member can access any
+project, and `is_admin` is a workspace-wide flag, not per-project). There
+is no `/api/projects/[id]/members` endpoint and no per-project Members tab.
 
-Prereq: re-create `qa-scratch` from S4.9 if it was deleted.
+Member management lives entirely on `/admin.html` (§2 above), which is
+workspace-level. If a future block re-introduces per-project membership,
+restore the scenarios below as a starting point.
 
-- [ ] **S5.1** Read members of `qa-scratch` → Jenny listed with role=admin (creator).
-- [ ] **S5.2** Write: invite scratch user as member → 200; appears in list with role=member.
-- [ ] **S5.3** Verify: scratch user (in second profile) can `GET /api/projects/<qa-scratch-uuid>` → 200.
-- [ ] **S5.4** Negative: scratch user `PATCH /api/projects/<qa-scratch-uuid>` (rename) → 403 (member, not admin).
-- [ ] **S5.5** Write: remove scratch user from `qa-scratch` → 204; gone from list; scratch user `GET /api/projects/<qa-scratch-uuid>` → 403 (creator-protected for Jenny).
+(Archived intent — not run in v1.4):
+- ~~S5.1 Read members of `qa-scratch` → Jenny listed as admin.~~
+- ~~S5.2 Invite scratch user as project member.~~
+- ~~S5.3 Verify member-only read access.~~
+- ~~S5.4 Negative: member PATCH → 403.~~
+- ~~S5.5 Remove member.~~
 
 ---
 
@@ -395,7 +399,7 @@ Endpoint: `GET /api/crypto-roundtrip` (preview-only; 404 in prod).
 | §2 Admin | 9 |
 | §3 Workspace | 4 |
 | §4 Projects + slug | 16 |
-| §5 Members | 5 |
+| §5 Members | N/A (v1.4 workspace-only) |
 | §6 Conversations + chat | 15 |
 | §7 Slack [carve-out] | 8 |
 | §8 Jira [carve-out] | 6 |
