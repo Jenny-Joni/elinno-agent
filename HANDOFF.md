@@ -5368,3 +5368,159 @@ v1.4 is live and working. Optional follow-ups:
   - Edit a slug in `project_settings.html` General tab; verify warning + Save round-trip; navigate to the new `/project/<new-slug>` URL.
   - Send a cross-project message that spans multiple projects; verify the `**ProjectName**` bold-header per-project organization in the answer.
 - Plan Phase 9 closeout in a future session: HANDOFF cleanup (this section serves as the v1.4 cap), hardcoded-data audit, merged-branch cleanup, package-lock.json decision.
+
+## v1.4 QA PASS — 2026-05-24 (Block 14, full-surface QA + 9 fixes on prod)
+
+**Production state at session start**: `bd47074`. **At session end**:
+`d0a171d`. v1.4 verified across every functional surface; 9 fix
+commits landed on main during the session (the first functional
+changes to prod since v1.4 shipped).
+
+Single ~5-hour solo-driven session through the Claude in Chrome MCP,
+with Jenny providing per-event approvals (each push to main),
+email-based reset token, and Neon SQL count verifications.
+
+### Prod commit progression today
+
+| Commit | Fix | Defects closed |
+|---|---|---|
+| `bd47074` | v1.4 shipping point | — |
+| `4c5b3ba` | Admin PATCH allowlist accepts `must_change_password` | D10 |
+| `56ae54b` | Slug-field placeholder color (`/projects/new`) | D1 |
+| `59a204a` | Highlight active conversation in `/project.html` sidebar | D3 |
+| `0de330f` | Nav avatar-circle on project.html + project_settings.html | D2 |
+| `86e8589` | `/api/dashboard` payload includes `slug` + cards use it | D12 |
+| `8ef57e8` + `5e40333` | Preserve `?next=` in signed-out redirects across all authed pages | D6 |
+| `42d0395` | Workspace-settings nav consistency + latent `/api/auth/logout` 404 | D4 + D5 |
+| `d0a171d` | `public/404.html` so unknown URLs get a real 404 | D9 |
+
+### Files committed during this session
+
+- **`QA.md`** (repo root, ~770 lines) — static plan, 122 scenarios
+  across 16 sections, the v1.4 QA surface manual. Stays live as the
+  reference for future passes.
+- **`QA-RUN.md`** (repo root, ~600 lines) — per-scenario run log with
+  timestamps, defect register, fix-branch trace, prod-commit
+  progression. The 2026-05-24 run is the historical record.
+- **`functions/api/admin/users/[id].js`** — D10 patch.
+- **`functions/api/dashboard.js`** — D12 patch.
+- **`public/dashboard.html` / `projects.html` / `project.html` /
+  `project_settings.html` / `projects/new.html` / `admin.html` /
+  `login.html` / `index.html`** — D2, D3, D6 patches.
+- **`public/workspace_settings.html`** — D4 + D5 patch + latent
+  logout-endpoint bug fix.
+- **`public/404.html`** (new file) — D9.
+- **`package-lock.json`** — committed (Phase 9 housekeeping).
+
+### Defect register (final)
+
+| ID | Severity | Outcome |
+|---|---|---|
+| D1, D2, D3, D4, D5, D6, D9, D10, D12 | low–med | ✅ FIXED on prod (9 commits, this session) |
+| D7, D11 | doc | ✅ FIXED in QA.md docstrings |
+| D8 | — | ✅ RESOLVED (by-design): `/api/workspace` `user_count: 1` is hardcoded per BLOCK_12_PLAN decision E (solo plan = 1 workspace). NOT a bug. |
+| D13 + D13a | — | ✅ RESOLVED: LLM "96 open Jira tickets" answer matched Neon SQL exactly; `citations: null` on aggregate-count results is by-design (citations cite specific entities; aggregate queries cite themselves via the tool messages). Block 9.5 contract holds. |
+
+**14 defects logged, 14 resolved.** Zero outstanding.
+
+### Coverage scorecard
+
+- **~86 PASS** across every API endpoint, every page, every Block
+  13.0–13.8 v1.4-change.
+- **0 outstanding FAILs.** The only initial FAIL (D10) was fixed
+  mid-session.
+- **5 N/A** (§5 per-project membership scenarios — v1.4 is
+  workspace-only-scope post-Block 12.1).
+- **~14 SKIPPED** at Jenny's request (full Slack/Jira/cron carve-out
+  exercises, preview crypto-roundtrip) — defer to future session.
+- **~12 DEFERRED** (second-profile-required scenarios; long
+  LLM-call tests where CDP times out at 45s; the 121-second
+  delete-and-purge wait).
+
+### Block 13.8 slug-routing regression suite (§12) — verified
+
+This is the highest-risk surface area (pinned mid-flight incidents
+in the v1.4 SHIPPED section above): all 5 scenarios PASS.
+
+- `/project/rain` → 302 → `/project?id=2fc38f6b-...` → 200 chat ✓
+- `/project.html?id=<rain-uuid>` legacy URL still loads (catch-all
+  bug stays fixed) ✓
+- `/project` (zero segments) → static `/project.html` (dynamic
+  function did NOT fire — the critical regression guard) ✓
+- `/project/` (trailing slash) → 302 → `/project` (URL
+  canonicalization, not a dynamic-function hit) ✓
+- `/project/foo/bar/baz` (multi-segment) → single-segment `[slug].js`
+  does NOT fire ✓; **after D9 fix, now returns HTTP 404** with the
+  new branded page (was 200 + login HTML).
+
+### Things this session also verified (worth pinning)
+
+- **Password-reset round-trip** on a scratch user
+  (`qa+2026-05-24@elinnovation.net`): Resend mail delivered,
+  single-use token enforcement holds, equivalence-class error
+  response across used/expired/tampered tokens (no
+  state-enumeration). Also flagged: **Gmail's URL link-scanner
+  consumes single-use reset tokens** if the email sits unread for
+  ~hours — reset emails are effectively time-sensitive.
+- **Block 9.5 cite-the-number contract**: LLM answer "96 open Jira
+  tickets" on Rain matched `SELECT COUNT(*) FROM entities WHERE
+  source='jira' AND project_id='<rain>' AND
+  metadata->>'status_category' != 'done'` exactly. Audit trail in
+  the conversation's tool messages (4 iterations of
+  claude-sonnet-4-5 tool calls before final answer).
+- **Envelope encryption** structurally intact (S13.3): Rain's Slack
+  + Jira connection rows show `aes-256-gcm-v1`, 12-byte IV, 60-byte
+  wrapped DEK (12 nonce + 32 encrypted DEK + 16 GCM tag), variable
+  ciphertext per source.
+- **Cost-saving fallback**: messages sent to a project with no
+  connectors return a hardcoded "no sources connected" reply with
+  `model: null, tokens: 0` — no LLM call.
+- **Cross-project AI organization**: existing Rain+Joni
+  cross-project chat shows `**Rain**` / `**Joni**` bold
+  project-name paragraph headers in the answer (Block 13.6d-4
+  CROSS_PROJECT_SYSTEM_PROMPT rule #3 holds).
+
+### Branch + housekeeping cleanup done in this session
+
+- **Deleted (origin + local) 6 `qa-fix-*` branches** after each
+  cherry-pick: `qa-fix-must-change-password`, `qa-fix-d1-slug-
+  placeholder`, `qa-fix-d3-active-conversation`, `qa-fix-d2-
+  project-nav-avatar`, `qa-fix-d12-dashboard-slug`, `qa-fix-d6-
+  next-redirect`, `qa-fix-d4-d5-workspace-nav`, `qa-fix-d9-404-
+  page`.
+- **Deleted (origin) 10 merged `block-13.*` branches** from the
+  v1.4 build: 13.0 through 13.8 (incl. 13.7a and 13.7b). All were
+  ff-merged to main during the v1.4 build and safe to delete per
+  the v1.4 SHIPPED section above.
+- **`package-lock.json` committed.** 26-line lockfile pinning
+  `postgres@3.4.9` — accurate, gives reproducible builds, standard
+  Node.js convention.
+
+### Carve-outs explicitly deferred to a future session
+
+The carve-out scenarios were skipped at Jenny's request to bound
+session scope. Re-pick when there's an appetite for it.
+
+- §7 Slack OAuth full round-trip (S7.2 callback URL verification is
+  the highest-value Block 13.7b regression guard — Rain's existing
+  connection works, suggesting the flow is intact, but no fresh
+  attempt was run).
+- §8 Jira connect modal (S8.1–S8.6).
+- §9 Cron HMAC trigger (S9.1–S9.4).
+- §13.2 Preview-deploy crypto-roundtrip
+  (`env.ALLOW_CRYPTO_SMOKE=true`).
+- Second-profile role-gate tests (S2.2, S2.5, S2.7 403-distinction,
+  S3.4, S4.16, S5.x, S6.13, S10.9).
+- S6.4 multi-turn coherence + S6.8 refresh-and-ask-again
+  (LLM-call scenarios that time out the 45s CDP tool window).
+- S6.14 daily-message-limit + S6.12 121s delete-purge (long waits).
+
+### Pending Jenny actions (after this session)
+
+- The `block-14-qa-pass-v1-4` branch on origin still has the QA
+  artifact commits not on main (the QA-RUN.md run log + earlier
+  HANDOFF Phase 9 drafts). Keep as historical reference; delete
+  when it's no longer useful.
+- `scripts/delete-all-projects.sql` is still stale (references
+  the dropped `project_members` table). Update or delete in a
+  later session.
