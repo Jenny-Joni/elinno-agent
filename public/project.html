@@ -99,10 +99,10 @@
         <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
       </a>
       <div class="app-nav-actions">
-        <span id="navUser" style="color:var(--text-3);font-size:12px;"></span>
         <a href="/dashboard.html">Dashboard</a>
         <a href="/projects.html">Projects</a>
         <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <span id="navUserAvatar" style="width:28px;height:28px;background:var(--brand);color:#fff;font-size:11px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font);font-weight:600;" title=""></span>
         <button id="logoutBtn" class="btn btn--ghost" style="padding:6px 12px;font-size:12px;">Log out</button>
       </div>
     </div>
@@ -287,7 +287,10 @@
         return false;
       }
       me = data.user;
-      document.getElementById('navUser').textContent = me.email;
+      const av = document.getElementById('navUserAvatar');
+      const initial = String((me.display_name || me.email || '?').trim()[0] || '?').toUpperCase();
+      av.textContent = initial;
+      av.title = (me.display_name || '') + (me.email ? ' · ' + me.email : '');
       if (me.is_admin) {
         document.getElementById('adminLink').style.display = '';
       }
