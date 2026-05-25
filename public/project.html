@@ -20,6 +20,14 @@
     .conv-row .conv-item {
       padding-right: 36px;
     }
+    /* D3: highlight the currently-open conversation. Matches cross-project/chat.html
+       pattern. auth.css has a .conv-item.active rule but the `active` class is on
+       the .conv-row wrapper here, so target via descendant selector. */
+    .conv-row.active .conv-item {
+      background: var(--brand-tint);
+      color: var(--brand-strong);
+      font-weight: 500;
+    }
     .conv-row .conv-title-wrap { display: inline-block; min-width: 0; max-width: 100%; }
     .conv-row .conv-rename-input {
       padding: 2px 6px;
