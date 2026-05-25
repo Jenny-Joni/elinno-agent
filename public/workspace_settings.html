@@ -273,11 +273,12 @@
     <div class="app-nav-inner">
       <a href="/dashboard.html" class="app-brand">Elinno Agent</a>
       <div class="app-nav-actions">
-        <span id="navUser" style="color:var(--color-text-body);opacity:.85;font-size:14px;"></span>
-        <a href="/cross-project/">Cross-project</a>
+        <a href="/dashboard.html">Dashboard</a>
         <a href="/projects.html">Projects</a>
+        <a href="/cross-project/">Cross-project</a>
         <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
-        <button id="logoutBtn" class="btn-nav">Log out</button>
+        <span id="navUserAvatar" style="width:28px;height:28px;background:var(--brand);color:#fff;font-size:11px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font);font-weight:600;" title=""></span>
+        <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
       </div>
     </div>
   </nav>
@@ -335,8 +336,12 @@
       if (r.status === 401) { redirectToLogin(); return null; }
       const data = await r.json().catch(() => null);
       if (!data || !data.user) { redirectToLogin(); return null; }
-      const u = document.getElementById('navUser');
-      if (u) u.textContent = data.user.email || '';
+      const av = document.getElementById('navUserAvatar');
+      if (av) {
+        const name = data.user.display_name || data.user.email || '?';
+        av.textContent = String(name.trim()[0] || '?').toUpperCase();
+        av.title = (data.user.display_name || '') + (data.user.email ? ' · ' + data.user.email : '');
+      }
       if (data.user.is_admin) {
         const a = document.getElementById('adminLink');
         if (a) a.style.display = '';
@@ -344,8 +349,9 @@
       const lo = document.getElementById('logoutBtn');
       if (lo) {
         lo.addEventListener('click', async () => {
-          try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
-          location.replace('/login.html');
+          // Endpoint is /api/logout, not /api/auth/logout (was silently 404ing).
+          try { await fetch('/api/logout', { method: 'POST' }); } catch {}
+          location.replace('/');
         });
       }
       return data.user;
