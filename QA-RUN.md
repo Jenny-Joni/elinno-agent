@@ -15,7 +15,14 @@
 - **Browser MCP:** confirmed (Browser 1, macOS, local; tab 2022210204)
 - **Scratch project slug:** `qa-scratch`
 - **Scratch user email:** `qa+2026-05-24@elinnovation.net`
-- **Fix branches created during this run:** `qa-fix-must-change-password` (commit `c68725a`) — addresses D10 (admin PATCH allowlist). Awaits preview re-test + Jenny's per-push-to-main approval.
+- **Fix branches created during this run:**
+  - `qa-fix-must-change-password` (`c68725a`) → cherry-picked to main as `4c5b3ba`, deployed ✓ — D10 FIXED on prod.
+  - `qa-fix-d1-slug-placeholder` (`050bcba`) — closes D1. Awaits main-push approval.
+  - `qa-fix-d12-dashboard-slug` (`85f582a`) — closes D12. Awaits main-push approval.
+  - `qa-fix-d6-next-redirect` (`39abf51`) — partial close of D6 (high-traffic pages: dashboard, projects, project.html, login.html, index.html; rest deferred). Awaits main-push approval.
+  - `qa-fix-d2-project-nav-avatar` (`c68a526`) — closes D2. Awaits main-push approval.
+  - `qa-fix-d3-active-conversation` (`fd6554d`) — closes D3. Awaits main-push approval.
+  - QA branch commit `966ba49` — D7 + D11 doc-only fixes inside QA.md (no main-push needed; QA.md not yet on main).
 - **Project UUIDs from dashboard (slug TBD per project):** `2fc38f6b-954d-44ca-8d1d-8d6bf947ba88`, `5a580013-f051-42c5-a460-b7089b80c58d`, `e90b6d1c-eb9c-49b9-bd65-c4731c847242`, `792f2b13-1411-493b-a887-a824ad847a83`
 
 ### Status legend
@@ -279,7 +286,16 @@ _Section status: pending._
 
 ### Fix branches awaiting per-push-to-main approval
 
-_None — D10 fix already landed on main (commit `4c5b3ba`, 2026-05-24 13:48 IDT, with Jenny's explicit approval). Prod redeployed + re-verified PASS at 13:50._
+5 fixes shipped as separate branches, each preview-deployed. Suggested approval order (lowest risk first):
+
+1. **`qa-fix-d1-slug-placeholder`** (`050bcba`) — 5 lines CSS only. Closes D1. Affects /projects/new.html slug-input placeholder color.
+2. **`qa-fix-d3-active-conversation`** (`fd6554d`) — 8 lines CSS only. Closes D3. Adds .conv-row.active highlight (matches cross-project/chat.html pattern).
+3. **`qa-fix-d2-project-nav-avatar`** (`c68a526`) — 10 insertions / 4 deletions across 2 files. Closes D2. Replaces email-span with avatar-circle on project.html + project_settings.html nav.
+4. **`qa-fix-d12-dashboard-slug`** (`85f582a`) — 5 insertions / 1 deletion across 2 files. Closes D12. Adds slug to /api/dashboard payload + uses it in card hrefs.
+5. **`qa-fix-d6-next-redirect`** (`39abf51`) — 36 insertions / 12 deletions across 5 files. Closes D6 partially (high-traffic landing pages). Adds gotoLogin() helper for auth-check redirects, login.html forwards search to /, index.html honors validated ?next= post-login. project_settings.html, projects/new.html, admin.html, cross-project/*.html DEFERRED to a future sweep.
+
+Already merged in this run:
+- **`qa-fix-must-change-password`** — cherry-picked to main as `4c5b3ba` at 13:48 IDT. D10 FIXED on prod.
 
 ### Carve-out defects deferred to Jenny (default mode)
 
@@ -291,18 +307,18 @@ _None yet._
 
 | ID | Section | Scenario | Severity | Description | Status | Fix branch |
 |---|---|---|---|---|---|---|
-| D1 | §0.5 | S0.5.7 | low | Slug field placeholder="rain" on `/projects/new` renders in darker shade than the name field's "e.g. Rain" gray placeholder. Could be mistaken for a pre-filled value. UX/styling, not functional. | OPEN | — |
-| D2 | §0.5 | S0.5.8 | low | Top nav on `/project.html` shows `jenny@elinnovation.net` text inline between Logout and Admin (visible on Rain). Dashboard nav shows just the J avatar circle — inconsistent across pages. | OPEN | — |
-| D3 | §0.5 | S0.5.8 | low | Sidebar conversations list on `/project.html` doesn't visually mark the currently-active conversation (no highlight / bg-color / border). Hard to tell which row matches the displayed chat. Cross-project/chat.html sidebar DOES highlight active — bug is project.html-specific. | OPEN | — |
+| D1 | §0.5 | S0.5.7 | low | Slug field placeholder="rain" on `/projects/new` renders in darker shade than the name field's "e.g. Rain" gray placeholder. Could be mistaken for a pre-filled value. UX/styling, not functional. | FIXED-preview | `qa-fix-d1-slug-placeholder` (050bcba) — awaits main-push |
+| D2 | §0.5 | S0.5.8 | low | Top nav on `/project.html` shows `jenny@elinnovation.net` text inline between Logout and Admin (visible on Rain). Dashboard nav shows just the J avatar circle — inconsistent across pages. | FIXED-preview | `qa-fix-d2-project-nav-avatar` (c68a526) — awaits main-push |
+| D3 | §0.5 | S0.5.8 | low | Sidebar conversations list on `/project.html` doesn't visually mark the currently-active conversation (no highlight / bg-color / border). Hard to tell which row matches the displayed chat. Cross-project/chat.html sidebar DOES highlight active — bug is project.html-specific. | FIXED-preview | `qa-fix-d3-active-conversation` (fd6554d) — awaits main-push |
 | D4 | §0.5 | S0.5.15 | med | `/workspace_settings.html` top nav is missing the "Dashboard" link (only Cross-project / Projects / Admin shown). Users on this page can't return to dashboard via nav. Page hasn't been v1.4-reskinned (Phase 9 carry-forward, expected per HANDOFF). | OPEN | — |
 | D5 | §0.5 | S0.5.15 | low | `/workspace_settings.html` LOG OUT button is styled as a primary filled (lavender) button, while every other page uses a ghost-outline Log out. Style inconsistency. Same Phase 9 carry-forward as D4. | OPEN | — |
-| D6 | §1 | S1.1 | low | Signed-out navigation to `/dashboard.html` (or any protected page) redirects to `/` (login) WITHOUT a `?next=<original-url>` query param. After signing in, user lands at default landing (dashboard) rather than the deep-link they originally tried. Minor UX regression — affects bookmarked / shared project URLs. | OPEN | — |
-| D7 | §2 | S2.3 | doc | QA.md S2.3 expectation (display_name omitted → backfilled from email prefix) is wrong for *new* user creates. Server returns `400 "Display name is required (1–80 chars)"`. Backfill only ran for existing users in the Block 13.2 D1 migration. QA.md needs an edit (not a code bug). | DOC | — |
+| D6 | §1 | S1.1 | low | Signed-out navigation to `/dashboard.html` (or any protected page) redirects to `/` (login) WITHOUT a `?next=<original-url>` query param. After signing in, user lands at default landing (dashboard) rather than the deep-link they originally tried. | FIXED-preview (partial) | `qa-fix-d6-next-redirect` (39abf51) — covers dashboard/projects/project.html/login.html/index.html. project_settings/projects-new/admin/cross-project DEFERRED to future sweep. Awaits main-push. |
+| D7 | §2 | S2.3 | doc | QA.md S2.3 expectation (display_name omitted → backfilled from email prefix) is wrong for *new* user creates. Server returns `400 "Display name is required (1–80 chars)"`. Backfill only ran for existing users in the Block 13.2 D1 migration. QA.md needs an edit (not a code bug). | **FIXED-doc** | QA branch commit `966ba49` |
 | D8 | §3 | S3.1 | med | `/api/workspace` returns `user_count: 1` while D1 actually has 4 users (Jenny + Oded + gmail-Jenny + scratch). Either user_count means something specific (founder? active admins?) and is undocumented, OR it's a count bug. project_count=4 matches reality. Investigate `functions/api/workspace/index.js`. | OPEN | — |
 | D9 | §12 | S12.5 | low | `/project/foo/bar/baz` returns 200 with login-page HTML instead of 404. Caused by Cloudflare Pages SPA-fallback config, NOT slug-routing dynamic function (the function correctly didn't fire). Affects any unknown deep URL on the site. UX nit. | OPEN | — |
 | D10 | §2 | S2.6 | med | Admin PATCH `/api/admin/users/[id]` rejected `must_change_password` field (400). Fix: extended PATCH allowlist + docstring + error message in `functions/api/admin/users/[id].js`. | **FIXED-PROD** | Branch `qa-fix-must-change-password` (`c68725a`) cherry-picked to `main` as `4c5b3ba`, pushed 13:48, deploy live ~13:50. Re-tested PASS on prod. |
-| D11 | §5 | S5.x | doc | QA.md §5 (Project members) is based on a stale assumption — per-project membership was removed in Block 12.1 (project_members table dropped). v1.4 uses workspace-only scope. All 5 §5 scenarios are N/A. Also affects S6.13 (cross-workspace vs cross-project access). QA.md should be re-authored to reflect actual v1.4 model. | DOC | — |
-| D12 | §11 | S11.x | low | `/api/dashboard` project objects don't include `slug` field — dashboard cards build URLs with `/project.html?id=<uuid>` (legacy) instead of `/project/<slug>`. Slug routing still works but users see UUID in URL from dashboard navigation. Add `slug` to dashboard project select. | OPEN | — |
+| D11 | §5 | S5.x | doc | QA.md §5 (Project members) was based on a stale assumption — per-project membership was removed in Block 12.1 (project_members table dropped). v1.4 uses workspace-only scope. All 5 §5 scenarios are N/A. | **FIXED-doc** | QA branch commit `966ba49` |
+| D12 | §11 | S11.x | low | `/api/dashboard` project objects don't include `slug` field — dashboard cards build URLs with `/project.html?id=<uuid>` (legacy) instead of `/project/<slug>`. Slug routing still works but users see UUID in URL from dashboard navigation. | FIXED-preview | `qa-fix-d12-dashboard-slug` (85f582a) — awaits main-push |
 | D13 | §6 | S6.5/S6.7 | med→low | Block 9.5 contract: LLM answered "**96 open Jira tickets**" on Rain. Verified via Neon SQL (14:05): `COUNT(*) WHERE source='jira' AND project_id='<rain>' AND metadata->>'status_category' != 'done'` = **96** ✓. Number is real, not invented. Sample metadata shape confirms `status_category` is a flat string in the JSONB metadata. RESIDUAL (D13a): `citations` field on the final assistant message is `null` even though tool calls produced the data — audit trail is in conversation's tool messages but no inline citation chips render. UI-layer concern, low severity. | RESOLVED (count) / OPEN (D13a citations field) | — |
 
 ---
