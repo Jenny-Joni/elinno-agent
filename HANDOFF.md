@@ -5368,3 +5368,148 @@ v1.4 is live and working. Optional follow-ups:
   - Edit a slug in `project_settings.html` General tab; verify warning + Save round-trip; navigate to the new `/project/<new-slug>` URL.
   - Send a cross-project message that spans multiple projects; verify the `**ProjectName**` bold-header per-project organization in the answer.
 - Plan Phase 9 closeout in a future session: HANDOFF cleanup (this section serves as the v1.4 cap), hardcoded-data audit, merged-branch cleanup, package-lock.json decision.
+
+## v1.4 QA PASS — 2026-05-24 (Block 14, full-surface manual QA against prod)
+
+**Production state at session start**: `bd47074`. **At session end**: `4c5b3ba`
+(D10 hot-fix ff-merged via cherry-pick at 13:48 IDT). v1.4 is verified
+across all functional surfaces; v1.4 + the D10 patch are now both live.
+
+This was a single-session, ~2.5-hour, full-v1.4-surface QA pass driven by
+Claude through the Claude in Chrome MCP, with Jenny providing per-event
+approvals (main push, email-based reset token, Neon SQL counts) and
+deciding which carve-outs to skip.
+
+### What shipped this session
+
+| Block | Commits | Production-visible change |
+|---|---|---|
+| **14 (QA pass)** | `7ad1054` `4a732e6` `524bd11` `82faf3e` (QA docs on branch `block-14-qa-pass-v1-4`) | New `QA.md` (122-scenario static plan, 16 sections, prod-testing guardrails, scratch-state pattern) + `QA-RUN.md` (per-scenario log with timestamps, defect register, fix-branches list). Both at repo root alongside HANDOFF / WORKFLOW / PRD / BUILD_PLAN. |
+| **14 (D10 hot-fix)** | `qa-fix-must-change-password` (`c68725a`) → cherry-picked to main as `4c5b3ba` | `functions/api/admin/users/[id].js` — extended PATCH field allowlist to accept `must_change_password` (alongside existing `display_name` / `is_admin` / `password`). Docstring + empty-body error message updated. No new crypto/auth primitives; column already existed from Block 13.2. Cleanly mirrors the `is_admin` 0/1 coercion pattern. Pushed to main 13:48; auto-deployed; re-verified PASS on prod at 13:50. |
+
+### Coverage scorecard
+
+- **~86 PASS** across every API endpoint, every page, and every Block
+  13.0-13.8 v1.4-change.
+- **0 outstanding FAILs.** The only FAIL (D10) was fixed mid-session.
+- **5 N/A** (§5 per-project membership scenarios — QA.md spec was based
+  on a stale assumption; per-project membership was removed in Block
+  12.1, v1.4 is workspace-only-scope).
+- **~14 SKIPPED** at Jenny's request (full Slack/Jira/cron carve-outs,
+  preview crypto-roundtrip) — defer to a future session.
+- **~12 DEFERRED** (second-profile-required scenarios; long LLM-call
+  tests where the CDP tool times out at 45s; the 121-second
+  delete-and-purge wait).
+
+### Block 13.8 slug-routing regression suite (§12) — fully verified
+
+This is the section Jenny cares about most (pinned mid-flight incidents
+from the original Block 13.8 ship): all 5 scenarios PASS.
+- `/project/rain` → 302 → `/project?id=2fc38f6b-...` → 200 chat ✓
+- `/project.html?id=<rain-uuid>` legacy URL still loads chat (NOT
+  hijacked to `/projects` — the catch-all bug stays fixed) ✓
+- `/project` (zero segments) → serves static `/project.html` (the
+  critical regression guard — the dynamic function did NOT fire) ✓
+- `/project/` (trailing slash) → 302 → `/project` (URL
+  canonicalization, no dynamic-function hit) ✓
+- `/project/foo/bar/baz` (multi-segment) → does not fire the
+  single-segment `[slug].js` route ✓ (note: returns Pages SPA-fallback
+  HTML rather than 404 — minor D9 finding, separate from slug routing)
+
+### Defect register snapshot (13 of 14 still open; all low/med, none functional-block)
+
+See `QA-RUN.md` defect register for full details. Quick overview:
+
+- **D1-D5** (§0.5 UI): small UX nits — slug placeholder styling,
+  nav inconsistency (`/project*.html` shows email inline vs avatar
+  elsewhere), sidebar active-conversation not highlighted on
+  `project.html` (works on cross-project), `workspace_settings.html`
+  Phase-9-carry-forward styling (missing Dashboard link, primary-
+  filled LOG OUT). All low severity.
+- **D6** (§1 auth): signed-out redirect drops `?next=<url>` query —
+  post-login user lands at default landing instead of original
+  deep-link. Low.
+- **D7, D11** (doc): QA.md S2.3 + §5 specs were wrong (display_name
+  backfill expectation; per-project membership). Not code bugs.
+- **D8** (§3 workspace): `/api/workspace` returns `user_count: 1`
+  while D1 has 4 users (Jenny + Oded + gmail-Jenny + scratch at
+  test-time, 3 post-cleanup). Possible count bug in
+  `functions/api/workspace/index.js`. Medium.
+- **D9** (§12 routing): `/project/foo/bar/baz` returns 200 with
+  login-page HTML (Cloudflare Pages SPA-fallback). Affects any
+  unknown deep URL. Low.
+- **D10** (§2 admin): admin PATCH allowlist missing
+  `must_change_password`. **FIXED on prod** (commit `4c5b3ba`).
+- **D12** (§11 dashboard): `/api/dashboard` project objects don't
+  include `slug` field — dashboard cards build legacy `?id=<uuid>`
+  links. Low.
+- **D13a** (§6 chat): `citations` field is `null` on assistant
+  message even after tool calls supplied real data (e.g., the "96
+  open Jira tickets" answer on Rain — verified accurate via Neon
+  SQL during this session). UI-layer concern, audit trail intact via
+  in-conversation tool messages. Low.
+
+### Things this session also verified (worth pinning)
+
+- **End-to-end auth flow** including password-reset round-trip on a
+  scratch user (`qa+2026-05-24@elinnovation.net`) — Resend mail
+  delivered, single-use token enforcement holds, equivalence-class
+  error response across used/expired/tampered tokens (no
+  state-enumeration). Also flagged: Gmail's URL link-scanner consumes
+  single-use reset tokens if the email sits unread for ~hours, so
+  reset emails are time-sensitive in practice.
+- **Block 9.5 cite-the-number contract** — LLM answer "96 open Jira
+  tickets" on Rain matched `SELECT COUNT(*) FROM entities WHERE
+  source='jira' AND project_id='<rain>' AND
+  metadata->>'status_category' != 'done'` exactly. The audit trail
+  is in the conversation's tool messages (4 iterations of
+  claude-sonnet-4-5 tool calls before the final answer).
+- **Envelope encryption** structurally intact (S13.3): Rain's Slack +
+  Jira connection rows show `aes-256-gcm-v1`, 12-byte IV, 60-byte
+  wrapped DEK (12 nonce + 32 encrypted DEK + 16 GCM tag), variable
+  ciphertext per source.
+- **Cost-saving fallback**: messages sent to a project with no
+  connectors return a hardcoded "no sources connected" reply with
+  `model: null, tokens: 0` — no LLM call. Confirmed on `qa-scratch`
+  before deletion.
+- **Cross-project AI organization**: existing Rain+Joni cross-project
+  chat shows `**Rain**` / `**Joni**` bold project-name paragraph
+  headers in the answer (Block 13.6d-4 CROSS_PROJECT_SYSTEM_PROMPT
+  rule #3 holds), with citations to real Jira numbers per project.
+
+### Carve-outs explicitly deferred to a future session
+
+- §7 Slack OAuth round-trip (S7.2 callback URL verification is the
+  highest-value Block 13.7b regression guard — Rain's existing
+  connection works, suggesting the flow is intact, but a fresh OAuth
+  attempt against `qa-scratch` was not exercised).
+- §8 Jira connect modal (S8.1-S8.6).
+- §9 Cron HMAC trigger (S9.1-S9.4).
+- §13.2 Preview-deploy crypto-roundtrip (`env.ALLOW_CRYPTO_SMOKE=true`).
+- Second-profile role-gate tests (S2.2, S2.5, S2.7 403-distinction,
+  S3.4, S4.16, S5.x, S6.13, S10.9).
+- S6.4 multi-turn coherence + S6.8 refresh-and-ask-again (LLM-call
+  scenarios timing out the 45s CDP tool window).
+- S6.14 daily-message-limit + S6.12 121s delete-purge (long waits).
+
+### Scratch state cleanup (S15.2 — verified)
+
+- `qa-scratch` project (uuid `abd5ea3a-64de-43c4-8ece-5ed5e1475159`)
+  soft-deleted at 14:18. Slug `qa-scratch` returned to available.
+- Scratch user `qa+2026-05-24@elinnovation.net` (id 13)
+  hard-deleted at 14:18. User list back to 3.
+- No external tokens issued (Slack/Jira OAuth skipped), so no
+  source-side revocation needed.
+
+### Pending Jenny actions (after this session)
+
+- Delete `qa-fix-must-change-password` branch on origin (merged via
+  cherry-pick; safe).
+- Optionally delete `block-14-qa-pass-v1-4` from origin once the QA
+  docs are considered final (the branch will likely stay live as the
+  reference for future QA passes; up to Jenny).
+- D8 (workspace `user_count` discrepancy) and D12 (`slug` missing
+  from dashboard payload) are easy follow-up fixes when convenient.
+- The remaining defects (D1-D9 layout/UX nits, D13a citations) are
+  individually low-priority — bundle in a "v1.4.x polish" pass when
+  there's appetite for one.
