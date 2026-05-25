@@ -453,10 +453,15 @@
       root.innerHTML = parts.join('');
     }
 
+    // D6: preserve the page user tried to reach so login can return them here.
+    function gotoLogin() {
+      location.replace('/?next=' + encodeURIComponent(location.pathname + location.search));
+    }
+
     async function boot() {
       try {
         const res = await fetch('/api/dashboard', { credentials: 'same-origin' });
-        if (res.status === 401) { location.replace('/'); return; }
+        if (res.status === 401) { gotoLogin(); return; }
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || 'Failed to load');

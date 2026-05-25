@@ -4,11 +4,15 @@
   <meta charset="UTF-8" />
   <title>Redirecting…</title>
   <meta name="robots" content="noindex" />
-  <meta http-equiv="refresh" content="0; url=/" />
   <link rel="canonical" href="/" />
+  <script>
+    // Forward ?next=<path> to / so the login form can honor it post-sign-in (D6).
+    location.replace('/' + location.search);
+  </script>
 </head>
 <body>
   <p>Redirecting to <a href="/">home</a>…</p>
-  <script>location.replace('/');</script>
 </body>
 </html>
+</content>
+</invoke>

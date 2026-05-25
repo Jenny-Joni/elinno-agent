@@ -91,11 +91,21 @@
   </footer>
 
   <script>
-    // Already signed in? Skip straight to the dashboard. (v1.4 SPEC §5.2:
-    // both roles land at /dashboard.html; admins reach /admin.html from
-    // the dashboard nav, not via a separate login redirect.)
+    // D6: honor ?next=<path> from a sign-out redirect so the user lands back
+    // where they were trying to go. Same-origin validation to prevent
+    // open-redirect: must start with "/" and NOT "//" (which would be a
+    // protocol-relative URL to another host).
+    function postLoginTarget() {
+      const next = new URLSearchParams(location.search).get('next');
+      if (next && next.startsWith('/') && !next.startsWith('//')) return next;
+      return '/dashboard.html';
+    }
+
+    // Already signed in? Skip straight to the dashboard (or honor ?next=).
+    // v1.4 SPEC §5.2: both roles land at /dashboard.html; admins reach
+    // /admin.html from the dashboard nav, not via a separate login redirect.
     fetch('/api/me').then(r => r.json()).then(d => {
-      if (d.user) location.replace('/dashboard.html');
+      if (d.user) location.replace(postLoginTarget());
     }).catch(() => {});
 
     const form = document.getElementById('loginForm');
@@ -129,7 +139,7 @@
           btn.textContent = 'Sign in';
           return;
         }
-        location.replace('/dashboard.html');
+        location.replace(postLoginTarget());
       } catch (err) {
         showMsg('Network error. Please try again.', 'error');
         btn.disabled = false;

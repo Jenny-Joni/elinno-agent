@@ -254,9 +254,14 @@
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
+    // D6: preserve the page user tried to reach so login can return them here.
+    function gotoLogin() {
+      location.replace('/?next=' + encodeURIComponent(location.pathname + location.search));
+    }
+
     // Auth gate
     fetch('/api/me').then(r => r.json()).then(d => {
-      if (!d.user) { location.replace('/'); return; }
+      if (!d.user) { gotoLogin(); return; }
       me = d.user;
       const av = $('#navUserAvatar');
       av.textContent = initial(me.display_name || me.email);
@@ -267,7 +272,7 @@
         $('#newProjectMobile').style.display = '';
       }
       loadProjects();
-    }).catch(() => location.replace('/'));
+    }).catch(() => gotoLogin());
 
     $('#logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' }).catch(() => {});
@@ -277,7 +282,7 @@
     async function loadProjects() {
       try {
         const res = await fetch('/api/projects');
-        if (res.status === 401) { location.replace('/'); return; }
+        if (res.status === 401) { gotoLogin(); return; }
         if (!res.ok) { renderError(); return; }
         const data = await res.json();
         const projects = Array.isArray(data.projects) ? data.projects : [];

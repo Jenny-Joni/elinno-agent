@@ -283,7 +283,7 @@
       if (!res.ok) return false;
       const data = await res.json().catch(() => ({}));
       if (!data || !data.user) {
-        location.replace('/');
+        redirectToLogin();
         return false;
       }
       me = data.user;
