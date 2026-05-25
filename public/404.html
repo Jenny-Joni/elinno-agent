@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Not found — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <link rel="stylesheet" href="/auth.css" />
+  <style>
+    /* D9: dedicated 404 page so unknown URLs don't fall through to the
+       Cloudflare Pages SPA-fallback and silently serve the login page. */
+    .nf-shell {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-subtle);
+      padding: 40px 20px;
+    }
+    .nf-card {
+      max-width: 460px;
+      width: 100%;
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 40px 32px;
+      text-align: center;
+    }
+    .nf-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 28px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .nf-brand .wordmark { font-size: 15px; }
+    .nf-code {
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--brand);
+      margin: 0 0 6px;
+    }
+    .nf-heading {
+      font-family: var(--font);
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--text);
+      margin: 0 0 10px;
+      letter-spacing: -0.01em;
+    }
+    .nf-sub {
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text-2);
+      line-height: 1.5;
+      margin: 0 0 24px;
+    }
+    .nf-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .nf-meta {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 0.5px solid var(--border-soft);
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
+      word-break: break-all;
+    }
+    .nf-meta code {
+      font-family: ui-monospace, monospace;
+      background: var(--bg-subtle);
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="nf-shell">
+    <div class="nf-card">
+      <a href="/" class="nf-brand">
+        <span class="brandmark"></span>
+        <span class="wordmark">Elinno&nbsp;Agent</span>
+      </a>
+      <p class="nf-code">404</p>
+      <h1 class="nf-heading">We couldn't find that page</h1>
+      <p class="nf-sub">The link may be broken, the project may have been deleted, or you may need to sign in.</p>
+      <div class="nf-actions">
+        <a id="primaryAction" href="/dashboard.html" class="btn btn--primary">
+          <i class="ti ti-arrow-left" style="margin-right:4px;"></i>Go to dashboard
+        </a>
+        <a href="/" class="btn btn--ghost">Sign in</a>
+      </div>
+      <div class="nf-meta">
+        URL: <code id="badUrl"></code>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Show the URL that 404'd so the user knows what failed.
+    (function () {
+      const el = document.getElementById('badUrl');
+      if (el) el.textContent = location.pathname + (location.search || '');
+
+      // If the user is signed out, the "Go to dashboard" link will bounce
+      // them back to login — preserve a ?next= so they return here-ish on
+      // sign-in. (Matches the D6 pattern.) Done as a probe-and-rewrite so
+      // we don't hold up the render on a network call.
+      fetch('/api/me').then(r => r.json()).then(d => {
+        if (!d.user) {
+          const primary = document.getElementById('primaryAction');
+          if (primary) {
+            primary.href = '/?next=' + encodeURIComponent(location.pathname + (location.search || ''));
+            primary.innerHTML = '<i class="ti ti-arrow-right" style="margin-right:4px;"></i>Sign in';
+            // Hide the secondary "Sign in" button — it's redundant when
+            // signed-out (both buttons would go to the same place).
+            const ghost = document.querySelector('.nf-actions .btn--ghost');
+            if (ghost) ghost.style.display = 'none';
+          }
+        }
+      }).catch(() => {});
+    })();
+  </script>
+
+</body>
+</html>
+</content>
+</invoke>
