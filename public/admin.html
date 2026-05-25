@@ -362,16 +362,21 @@
       return users.reduce((n, u) => n + (u.is_admin ? 1 : 0), 0);
     }
 
+    // D6: preserve the page user tried to reach so login can return them here.
+    function gotoLogin() {
+      location.replace('/?next=' + encodeURIComponent(location.pathname + location.search));
+    }
+
     // ── auth gate ─────────────────────────────────────────────────────
     fetch('/api/me').then(r => r.json()).then(d => {
-      if (!d.user) { location.replace('/'); return; }
+      if (!d.user) { gotoLogin(); return; }
       if (!d.user.is_admin) { location.replace('/dashboard.html'); return; }
       me = d.user;
       const av = $('#navUserAvatar');
       av.textContent = initial(me.display_name || me.email);
       av.title = me.display_name ? me.display_name + ' · ' + me.email : me.email;
       loadUsers();
-    }).catch(() => location.replace('/'));
+    }).catch(() => gotoLogin());
 
     $('#logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' }).catch(() => {});

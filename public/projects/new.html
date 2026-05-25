@@ -184,8 +184,13 @@
     }
     function initial(s) { return (String(s || '?').trim()[0] || '?').toUpperCase(); }
 
+    // D6: preserve the page user tried to reach so login can return them here.
+    function gotoLogin() {
+      location.replace('/?next=' + encodeURIComponent(location.pathname + location.search));
+    }
+
     fetch('/api/me').then(r => r.json()).then(d => {
-      if (!d.user) { location.replace('/'); return; }
+      if (!d.user) { gotoLogin(); return; }
       me = d.user;
       const av = $('#navUserAvatar');
       av.textContent = initial(me.display_name || me.email);
@@ -196,7 +201,7 @@
       } else {
         renderUnauthorized();
       }
-    }).catch(() => location.replace('/'));
+    }).catch(() => gotoLogin());
 
     $('#logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' }).catch(() => {});
@@ -385,7 +390,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           });
-          if (res.status === 401) { location.replace('/'); return; }
+          if (res.status === 401) { gotoLogin(); return; }
           if (res.status === 403) { renderUnauthorized(); return; }
           const data = await res.json().catch(() => ({}));
           if (!res.ok) {
