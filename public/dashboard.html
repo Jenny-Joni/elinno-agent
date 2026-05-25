@@ -413,8 +413,10 @@
         ? jiraChip()
         : '<span class="srcchip srcchip--none">No sources yet</span>';
       const updated = p.updated_at ? esc(fmtRelative(p.updated_at)) : '';
+      // Prefer slug routing; fall back to legacy ?id= for safety if slug is somehow missing.
+      const cardHref = p.slug ? '/project/' + esc(p.slug) : '/project.html?id=' + esc(p.id);
       return ''
-        + '<a class="pcard" href="/project.html?id=' + esc(p.id) + '">'
+        + '<a class="pcard" href="' + cardHref + '">'
         +   '<div class="pcard__head">'
         +     '<div class="pcard__avatar">' + esc(initial(p.name)) + '</div>'
         +     '<div style="flex:1;min-width:0;">'

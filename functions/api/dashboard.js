@@ -71,6 +71,7 @@ export async function onRequestGet({ request, env }) {
     const projects = await sql`
       SELECT id::text AS id,
              name,
+             slug,
              description,
              owner_user_id,
              created_at,
@@ -262,6 +263,7 @@ export async function onRequestGet({ request, env }) {
       return {
         id: p.id,
         name: p.name,
+        slug: p.slug,
         description: p.description,
         owner_user_id: p.owner_user_id,
         created_at: p.created_at,
