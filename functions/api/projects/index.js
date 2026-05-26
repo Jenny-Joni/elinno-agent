@@ -166,6 +166,7 @@ export async function onRequestGet({ request, env }) {
         p.description,
         p.owner_user_id,
         p.slug,
+        p.logo_r2_key,
         p.created_at,
         p.updated_at
         FROM projects p
@@ -176,7 +177,16 @@ export async function onRequestGet({ request, env }) {
 
     return json({
       ok: true,
-      projects: projects.map((p) => ({ ...p, role })),
+      // Block 15.1 — augment each row with the public CDN URL for the
+      // logo, computed from logo_r2_key. NULL key → null URL → callers
+      // fall back to the initial-letter placeholder.
+      projects: projects.map((p) => ({
+        ...p,
+        role,
+        logo_url: p.logo_r2_key
+          ? `https://logos.elinnoagent.com/${p.logo_r2_key}`
+          : null,
+      })),
     });
   } catch (_err) {
     return error('Internal error', 500);

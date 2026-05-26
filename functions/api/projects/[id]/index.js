@@ -56,6 +56,7 @@ export async function onRequestGet({ request, env, params }) {
         description,
         owner_user_id,
         slug,
+        logo_r2_key,
         created_at,
         updated_at,
         ai_monthly_cap_usd::float        AS ai_monthly_cap_usd,
@@ -78,7 +79,14 @@ export async function onRequestGet({ request, env, params }) {
       return error('Not found', 404);
     }
 
-    return json({ ok: true, project: { ...project, role } });
+    // Block 15.1 — public CDN URL for the project logo, computed from
+    // logo_r2_key. The URL is not stored in the DB so we can change
+    // the delivery domain later without a backfill.
+    const logo_url = project.logo_r2_key
+      ? `https://logos.elinnoagent.com/${project.logo_r2_key}`
+      : null;
+
+    return json({ ok: true, project: { ...project, role, logo_url } });
   } catch (_err) {
     return error('Internal error', 500);
   } finally {
