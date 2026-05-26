@@ -28,7 +28,12 @@
       color: var(--brand-strong);
       font-weight: 500;
     }
-    .conv-row .conv-title-wrap { display: inline-block; min-width: 0; max-width: 100%; }
+    .conv-row .conv-title-wrap { display: block; min-width: 0; max-width: 100%; }
+    /* Span is inline by default — text-overflow:ellipsis (set in auth.css)
+       only activates on a block-level element. Matches the working pattern
+       in cross-project/chat.html. Without this, the nowrap title overflows
+       horizontally past the sidebar boundary into the chat column. */
+    .conv-row .conv-title { display: block; }
     .conv-row .conv-rename-input {
       padding: 2px 6px;
       border: 1px solid var(--brand);
