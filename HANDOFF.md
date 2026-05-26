@@ -5524,3 +5524,141 @@ session scope. Re-pick when there's an appetite for it.
 - `scripts/delete-all-projects.sql` is still stale (references
   the dropped `project_members` table). Update or delete in a
   later session.
+
+## Bug-fix slot — 2026-05-26 (conv-title overflow + Block 15.1)
+
+Single solo-driven session through the Claude in Chrome MCP. Two
+landed deliverables on top of `d0a171d` (v1.4 QA pass closeout):
+
+**Production commit progression**
+
+| Commit | Change |
+|---|---|
+| `d0a171d` | (session start) |
+| `796016d` | fix(project): conv-title overflow no longer bleeds past sidebar |
+| `26f5d94` | docs(block-15): plan for project logo upload |
+| `c916c9d` → `c9c0904` | block-15.1 implementation (4 commits, see below) |
+
+### Bug fix — conv-title overflow (`796016d`)
+
+`public/project.html` line 31. The `.conv-row .conv-title-wrap`
+was `display: inline-block` (shrink-wraps to nowrap text width)
++ the inner `<span class="conv-title">` lacked an explicit
+`display`, so `text-overflow: ellipsis` (set in auth.css) was a
+no-op on the inline span. Result: long titles bled past the
+sidebar boundary into the chat column, visually overlapping the
+assistant message avatars (EA circles).
+
+Fix matches the working pattern from `public/cross-project/chat.html`:
+both elements → `display: block`. CSS-only, single file.
+
+Verified on prod via the Chrome MCP: `scrollWidth > clientWidth`
+on `.conv-title` (truncation active), titleRight < sidebarRight
+(title stays inside sidebar).
+
+### Block 15.1 SHIPPED — project logo upload (closes Block 12 decision N)
+
+The deferred-since-Block-12 logo upload feature now ships. Files:
+
+- **`BLOCK_15_PLAN.md`** (new) — block plan: 15.1 ships upload +
+  persist + settings-page UI; 15.2 (display surfaces — dashboard
+  cards, scope chips, citation chips, project page header) is its
+  own planning slot.
+- **`wrangler.toml`** — `[[r2_buckets]] binding="LOGOS"` →
+  `elinno-agent-logos`. Shared by Production + Preview.
+- **`functions/api/r2-health.js`** (new) — public smoke endpoint
+  mirroring `db-health.js`. Confirms `ctx.env.LOGOS` is bound and
+  the deploy can `list()` the bucket. Removable in a closeout.
+- **`db/migrations/2026-05-26-block-15-projects-logo.sql`** +
+  `db/schema-postgres.sql` — `ALTER TABLE projects ADD COLUMN IF
+  NOT EXISTS logo_r2_key TEXT`. NULL = no logo (= placeholder
+  rendering, no behavior change).
+- **`functions/api/projects/[id]/logo.js`** (new) — POST + DELETE.
+  Auth chain mirrors PATCH/DELETE on `/api/projects/:id`
+  (`requireWorkspaceScope` then `requireWorkspaceAdmin`). Server-
+  side validation: MIME (PNG/JPEG only) + size (≤ 1 MiB). R2 key
+  format: `<project-id>/<8-hex>.<ext>` — random suffix busts CF
+  edge cache on re-upload. POST returns
+  `{ ok, logo_r2_key, logo_url }`. DELETE returns 204. Both writes
+  do best-effort R2 cleanup of the previous object after the DB
+  commits (orphan-safe ordering: keep old key live until new key
+  is persisted).
+- **`functions/api/projects/[id]/index.js`** + **`functions/api/projects/index.js`** —
+  GET responses now include `logo_url`, computed from `logo_r2_key`
+  at the API layer (no DB column for the URL — lets us swap the
+  delivery domain later without a backfill).
+- **`public/project_settings.html`** — disabled "Upload logo"
+  button (Block 12 decision N placeholder) replaced with real
+  upload + replace + remove UI. Two states driven by
+  `project.logo_url`: "no logo" (initial-letter placeholder +
+  Upload button) vs "has logo" (`<img>` + Replace + Remove
+  buttons). Client-side validation mirrors server. Inline status
+  via `#psLogoMsg` using the existing `.ps-action-msg` pattern.
+
+### R2 setup (Cloudflare dashboard, by Jenny)
+
+Pre-code prereqs done in the Cloudflare dashboard before any
+repo change landed:
+
+- R2 bucket `elinno-agent-logos` (Automatic location, Standard
+  class).
+- Custom domain `logos.elinnoagent.com` connected to the bucket
+  (CNAME auto-created, status Active).
+- CORS policy: `AllowedOrigins: [https://elinnoagent.com,
+  https://*.elinno-agent.pages.dev]`, `AllowedMethods: [GET]`.
+- Smoke test passed via `curl -I` (HTTP/2 200, content-type
+  image/png).
+
+### Schema migration (Neon SQL Editor, by Jenny)
+
+Pasted `ALTER TABLE projects ADD COLUMN IF NOT EXISTS logo_r2_key
+TEXT;` into the elinno_agent_db SQL Editor. Confirmed with
+`SELECT column_name, data_type, is_nullable FROM
+information_schema.columns WHERE table_name='projects' AND
+column_name='logo_r2_key';` → `logo_r2_key | text | YES`.
+
+### Verification — all three flows end-to-end on preview
+
+Driven through the Chrome MCP on the
+`block-15-1-logo-upload.elinno-agent.pages.dev` preview deploy:
+
+| Flow | API status | DB | R2 | UI |
+|---|---|---|---|---|
+| Upload (first) | POST 200 | logo_r2_key set | new object | `<img>` rendered |
+| Replace | POST 200 | logo_r2_key updated | new object + old cleaned (cache-bust 404 confirms) | `<img>` rendered with new src |
+| Remove | DELETE 204 | logo_r2_key NULL | object deleted (cache-bust 404 confirms) | "R" placeholder + working Upload button |
+
+GET `/api/projects` list endpoint also returns the new
+`logo_url` field on every project row — ready for the 15.2
+display-surface block (dashboard cards, scope chips, citation
+chips, project page header).
+
+### Security carve-outs handled
+
+Per CLAUDE.md, two carve-outs in default mode (not auto):
+
+- **Schema migration.** Drafted by Claude in
+  `db/migrations/2026-05-26-block-15-projects-logo.sql`; ran by
+  Jenny in the Neon SQL Editor. No remote DDL by Claude.
+- **Project-scoping enforcement on a new write surface.** The
+  endpoint reuses the proven auth pattern from PATCH/DELETE on
+  the same resource (`requireWorkspaceScope` →
+  `requireWorkspaceAdmin`). No new helpers, no new role concept.
+  Endpoint code shown to Jenny in chat for review before commit.
+
+### Block 15.2 — deferred to a follow-up planning slot
+
+The four display surfaces that still render placeholder logos
+(per the original `BLOCK_12_PLAN` section 2.1 list — "Appears on
+the dashboard, in cross-project chat scope chips, and on
+citation chips"):
+
+- `public/dashboard.html` — project cards.
+- `public/cross-project/chat.html` — scope chips in the chat
+  header and the across-(N) popover.
+- Citation chips — multiple call sites in `public/project.html`
+  and `public/cross-project/chat.html`.
+- `public/project.html` — project page header avatar.
+
+All four already receive `project.logo_url` (or its absence) from
+the existing GET endpoints — 15.2 is pure-frontend.
