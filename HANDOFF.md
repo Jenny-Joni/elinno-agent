@@ -5646,19 +5646,63 @@ Per CLAUDE.md, two carve-outs in default mode (not auto):
   `requireWorkspaceAdmin`). No new helpers, no new role concept.
   Endpoint code shown to Jenny in chat for review before commit.
 
-### Block 15.2 — deferred to a follow-up planning slot
+### Block 15.2 SHIPPED — display surfaces (same-session follow-on)
 
-The four display surfaces that still render placeholder logos
-(per the original `BLOCK_12_PLAN` section 2.1 list — "Appears on
-the dashboard, in cross-project chat scope chips, and on
-citation chips"):
+Jenny tested 15.1 by uploading a logo to Rain on prod, then noticed
+that `/projects.html`, `/dashboard.html`, and the cross-project
+chat header still rendered the initial-letter placeholder. That's
+the planned 15.2; we shipped it in the same session.
 
-- `public/dashboard.html` — project cards.
-- `public/cross-project/chat.html` — scope chips in the chat
-  header and the across-(N) popover.
-- Citation chips — multiple call sites in `public/project.html`
-  and `public/cross-project/chat.html`.
-- `public/project.html` — project page header avatar.
+Files (5 frontend + 2 API):
 
-All four already receive `project.logo_url` (or its absence) from
-the existing GET endpoints — 15.2 is pure-frontend.
+- **`functions/api/dashboard.js`** — SELECT projects.logo_r2_key,
+  response project rows include logo_url. `/api/projects` and
+  `/api/projects/:id` already supplied it from 15.1.
+- **`functions/api/cross-project/eligible-projects.js`** — same.
+- **`public/projects.html`** — `pcard__avatar` div branches on
+  `p.logo_url`; `<img>` when present.
+- **`public/dashboard.html`** — same `pcard__avatar` branch.
+- **`public/cross-project/new.html`** — `xp-ptile` span branch.
+- **`public/cross-project/chat.html`** — two callsites:
+  `scopechip__icon` header chip + `xc-across-pop__row` mobile
+  popover row. Shared `scopeIconHtml` helper.
+- **`public/cross-project/chat.html`** (one-fix follow-up commit) —
+  `scopeProjects()` was projecting each id → `{id, name}`,
+  dropping `logo_url`. Added it back. Same-branch follow-on
+  caught during preview verification.
+
+CSS pattern across all surfaces is `img.<existing-avatar-class>
+{ object-fit: cover; }` — non-square uploads render in the rounded
+box without distortion.
+
+Two surfaces I'd planned for that turned out not to need wiring:
+
+- **`public/project.html` chat-page header** — the project header
+  has no avatar element, just breadcrumb + h2 project name. The
+  earlier HANDOFF mention was wrong.
+- **Citation chips** — `.citation-chip-prefix` is a small text
+  pill with the project name, not an avatar.
+
+### Verification (block-15-2-logo-display-surf preview)
+
+| Surface | Result |
+|---|---|
+| `/projects.html` card | logo renders |
+| `/dashboard.html` card | logo renders |
+| `/cross-project/new.html` picker tile | logo renders |
+| `/cross-project/chat.html` scope chips | logo renders |
+
+API verification: `/api/projects`, `/api/dashboard`,
+`/api/cross-project/eligible-projects` all return `logo_url:
+"https://logos.elinnoagent.com/<key>"` for Rain and `null` for
+the other 3 (Gems Launchpad, Gems Trade, Joni — no logos
+uploaded). Frontend correctly branches.
+
+### One-fix rule
+
+The scope-chip placeholder regression caught during preview
+verification was fixed via a single follow-on commit on the same
+branch (`scopeProjects()` data projection). Per CLAUDE.md, this is
+the one allowed fix attempt in auto mode; if it had failed the
+preview re-verify, the branch would have dropped to default mode
+for further investigation rather than a second auto-mode fix.
