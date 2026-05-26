@@ -528,6 +528,13 @@
       // so the URL bar shows the human-readable path.
       // Fallback: if slug is somehow missing, fall through to the
       // legacy pathname to preserve a working URL.
+      //
+      // ?c=<conv-uuid> is intentionally NOT preserved in the URL bar
+      // (user request 2026-05-26). The sidebar is the canonical
+      // "which conversation is open" control; on refresh we default
+      // to most-recent (the existing fallback at boot). Legacy
+      // /project/<slug>?c=<uuid> URLs still work if pasted — the
+      // initial load reads ?c= once before applyState strips it.
       const u = new URL(location.href);
       if (project && project.slug) {
         u.pathname = '/project/' + project.slug;
@@ -536,8 +543,7 @@
         u.pathname = '/project.html';
         u.searchParams.set('id', project.id);
       }
-      if (activeConvId) u.searchParams.set('c', activeConvId);
-      else u.searchParams.delete('c');
+      u.searchParams.delete('c');
       if (activeTab !== 'chat') u.searchParams.set('tab', activeTab);
       else u.searchParams.delete('tab');
       history.replaceState(null, '', u.toString());
