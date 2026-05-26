@@ -133,7 +133,15 @@ CREATE TABLE IF NOT EXISTS projects (
     -- handled by functions/project/[[path]].js which 302-redirects
     -- to /project.html?id=<uuid>. Migration:
     -- db/migrations/2026-05-23-block-13-8-projects-slug.sql.
-    slug            TEXT NOT NULL
+    slug            TEXT NOT NULL,
+
+    -- Block 15.1 — R2 object key for the project logo, or NULL for
+    -- "no logo uploaded → render the initial-letter placeholder."
+    -- Key format: <project-id>/<8-char-random>.<png|jpg>. Public URL
+    -- is https://logos.elinnoagent.com/<logo_r2_key>, computed at the
+    -- API layer. Migration:
+    -- db/migrations/2026-05-26-block-15-projects-logo.sql.
+    logo_r2_key     TEXT
 );
 
 -- "List my active projects" — Member's main UI query.

@@ -1,0 +1,32 @@
+-- Block 15.1 — project logo upload (Neon Postgres).
+--
+-- Adds a single nullable column to projects. NULL = no logo uploaded
+-- yet (= renderer falls back to the initial-letter placeholder, same
+-- behavior as today). Set to the R2 object key when a logo is uploaded
+-- via POST /api/projects/:id/logo; cleared on DELETE /api/projects/:id/logo.
+--
+-- Key format (set by functions/api/projects/[id]/logo.js):
+--   <project-id>/<8-char-random>.<ext>
+--   e.g. 2fc38f6b-954d-44ca-8d1d-8d6bf947ba88/a1b2c3d4.png
+-- The random suffix busts the CF edge cache on re-upload; the project-id
+-- prefix gives R2's dashboard "View prefixes as folders" view a natural
+-- grouping per project.
+--
+-- The constructed public URL is:
+--   https://logos.elinnoagent.com/<logo_r2_key>
+-- That URL is computed at the API layer (GET /api/projects/:id), not
+-- stored in the DB — keeps the column tight and lets us change the
+-- delivery domain later without a backfill.
+--
+-- No index needed: logo_r2_key is per-row metadata, never queried by.
+-- No backfill needed: NULL is the desired default.
+-- No constraint needed: keys are app-generated and validated server-
+-- side before INSERT/UPDATE (length-bounded by the random-suffix
+-- format; no untrusted-input write path).
+--
+-- Per BLOCK_15_PLAN section 2.3. Security carve-out: schema migration
+-- runs in default mode (Jenny pastes into Neon SQL Editor; Claude
+-- doesn't run remote DB DDL).
+
+ALTER TABLE projects
+    ADD COLUMN IF NOT EXISTS logo_r2_key TEXT;
