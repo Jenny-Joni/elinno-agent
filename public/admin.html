@@ -460,13 +460,16 @@
       const removeDisabled = onlyAdmin ? 'disabled title="Promote another member first — a workspace needs at least one admin."' : '';
       const menuId = 'menu-' + u.id;
 
-      const nameHtml = isSelf
-        ? `<span class="members-row__name">${escapeHtml(u.display_name || u.email)} <span class="self-tag">· you</span></span>`
-        : `<span class="inline-edit" data-inline-edit data-id="${u.id}">
+      // Admin can rename their own display name (same inline-edit widget
+      // as every other row). The "· you" tag follows the widget so it's
+      // visible in both label and edit modes; the API
+      // (PATCH /api/admin/users/:id) has no self-block, only DELETE does.
+      const selfTag = isSelf ? ' <span class="self-tag">· you</span>' : '';
+      const nameHtml = `<span class="inline-edit" data-inline-edit data-id="${u.id}">
              <span class="inline-edit__label members-row__name">${escapeHtml(u.display_name || u.email)}</span>
              <input class="inline-edit__input" value="${escapeHtml(u.display_name || '')}" maxlength="80">
              <button class="inline-edit__save" type="button" aria-label="Save"><i class="ti ti-check"></i></button>
-           </span>`;
+           </span>${selfTag}`;
 
       return `
         <div class="members-row" data-row="${u.id}">
@@ -484,7 +487,7 @@
               <i class="ti ti-dots"></i>
             </button>
             <div class="menu" role="menu" id="${menuId}" data-open="false" style="top:32px;right:0;">
-              <button class="menu__item" role="menuitem" type="button" data-action="rename" data-id="${u.id}"${isSelf ? ' disabled' : ''}><i class="ti ti-pencil"></i>Edit name</button>
+              <button class="menu__item" role="menuitem" type="button" data-action="rename" data-id="${u.id}"><i class="ti ti-pencil"></i>Edit name</button>
               <button class="menu__item" role="menuitem" type="button" data-action="role-toggle" data-id="${u.id}" ${roleToggleDisabled}>${roleToggleLabel}</button>
               <button class="menu__item" role="menuitem" type="button" data-action="reset-password" data-id="${u.id}"><i class="ti ti-key"></i>Reset password</button>
               <div class="menu__divider"></div>
@@ -582,7 +585,18 @@
       const next = (root.querySelector('.inline-edit__input').value || '').trim();
       if (!next) { cancelRename(root); return; }
       root.classList.remove('editing');
-      await patchUser(id, { display_name: next });
+      const updated = await patchUser(id, { display_name: next });
+      // If the rename targeted the signed-in admin, keep the `me` global +
+      // nav avatar in sync (without a full page reload). patchUser already
+      // re-renders the row list via loadUsers().
+      if (updated && me && id === me.id) {
+        me.display_name = updated.display_name || '';
+        const av = $('#navUserAvatar');
+        if (av) {
+          av.textContent = initial(me.display_name || me.email);
+          av.title = me.display_name ? me.display_name + ' · ' + me.email : me.email;
+        }
+      }
     }
     function cancelRename(root) {
       if (!root) return;
