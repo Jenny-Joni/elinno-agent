@@ -704,7 +704,13 @@ table.users-table {
   overflow: hidden;
   display: grid;
   grid-template-columns: 260px 1fr;
-  min-height: 640px;
+  /* Lock the shell to (viewport − nav − app-main top+bottom padding) so
+     long conversations scroll inside .chat-messages instead of the whole
+     page. .app-main is 100vh-70px nav + 70px top/bottom padding, so the
+     available height for the shell is 100vh − 210px. min-height keeps
+     the layout usable on short viewports (page-level scroll falls back). */
+  height: calc(100vh - 210px);
+  min-height: 480px;
   position: relative;
 }
 
@@ -716,6 +722,14 @@ table.users-table {
   flex-direction: column;
   gap: 4px;
   min-height: 0;
+}
+/* Independent scroll for the conversations list (sibling to the
+   "Conversations" header). Without this, a long list overflows the
+   now-height-locked .project-shell and the bottom rows are clipped. */
+#convList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .project-sidebar-header {
   display: flex;
@@ -796,6 +810,9 @@ table.users-table {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* min-height: 0 lets #tabBody (and its flex:1 children) shrink below
+     content size so .chat-messages can be the only scrollable surface. */
+  min-height: 0;
 }
 .project-main-header {
   padding: 24px 32px 20px;
