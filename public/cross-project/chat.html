@@ -675,10 +675,16 @@
     // ---------- scope helpers ----------
     function scopeProjects() {
       const ids = Array.isArray(conv.project_ids) ? conv.project_ids : [];
-      return ids.map(id => ({
-        id,
-        name: (projectsById.get(id) || {}).name || 'Project',
-      }));
+      return ids.map(id => {
+        const p = projectsById.get(id) || {};
+        return {
+          id,
+          name: p.name || 'Project',
+          // Block 15.2: forward logo_url so scope chips can render the
+          // uploaded logo instead of the initial-letter placeholder.
+          logo_url: p.logo_url || null,
+        };
+      });
     }
     function scopeNames() {
       return scopeProjects().map(p => p.name);
