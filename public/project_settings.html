@@ -739,8 +739,13 @@
 
     // ---------- header + tabs ----------
     function renderHead() {
+      // Prefer slug routing (Block 13.8); fall back to ?id= if a project
+      // is somehow missing a slug. Matches dashboard.html / projects.html.
+      const backHref = project && project.slug
+        ? '/project/' + escHtml(project.slug)
+        : '/project.html?id=' + escHtml(projectId);
       return ''
-        + '<a href="/project.html?id=' + escHtml(projectId) + '" class="ps-back-link"><i class="ti ti-arrow-left"></i> Back to ' + escHtml(project.name) + ' chat</a>'
+        + '<a href="' + backHref + '" class="ps-back-link"><i class="ti ti-arrow-left"></i> Back to ' + escHtml(project.name) + ' chat</a>'
         + '<div class="ps-head">'
         +   '<div>'
         +     '<p class="ps-head-eyebrow">Project · ' + escHtml(project.name) + '</p>'

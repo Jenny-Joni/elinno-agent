@@ -301,8 +301,11 @@
       const avatarHtml = p.logo_url
         ? '<img class="pcard__avatar" src="' + esc(p.logo_url) + '" alt="' + esc(p.name) + '">'
         : '<div class="pcard__avatar">' + esc(initial(p.name)) + '</div>';
+      // Prefer slug routing (Block 13.8); fall back to ?id= if a project
+      // is somehow missing a slug. Matches the pattern in dashboard.html.
+      const cardHref = p.slug ? '/project/' + esc(p.slug) : '/project.html?id=' + esc(p.id);
       return ''
-        + '<a class="pcard" href="/project.html?id=' + esc(p.id) + '">'
+        + '<a class="pcard" href="' + cardHref + '">'
         +   '<div class="pcard__head">'
         +     avatarHtml
         +     '<div style="flex:1;min-width:0;">'

@@ -520,10 +520,22 @@
       activeConvId = conversationId;
       activeTab = VALID_TABS[tab] ? tab : 'chat';
 
-      // URL bar reflects reality. Always include ?id and ?c (when conv exists);
-      // omit ?tab when 'chat' (the implicit default) for cleaner shareable URLs.
+      // URL bar reflects reality. Prefer the slug pathname
+      // (/project/<slug>) introduced in Block 13.8. The legacy
+      // ?id=<uuid> form is the redirect-target served by
+      // functions/project/[[path]].js — landing on it is normal
+      // (we got 302'd here), but we rewrite back to the slug form
+      // so the URL bar shows the human-readable path.
+      // Fallback: if slug is somehow missing, fall through to the
+      // legacy pathname to preserve a working URL.
       const u = new URL(location.href);
-      u.searchParams.set('id', project.id);
+      if (project && project.slug) {
+        u.pathname = '/project/' + project.slug;
+        u.searchParams.delete('id');
+      } else {
+        u.pathname = '/project.html';
+        u.searchParams.set('id', project.id);
+      }
       if (activeConvId) u.searchParams.set('c', activeConvId);
       else u.searchParams.delete('c');
       if (activeTab !== 'chat') u.searchParams.set('tab', activeTab);
