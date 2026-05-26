@@ -299,6 +299,46 @@
       cursor: not-allowed;
       border: 1px solid var(--color-border);
     }
+    /* Block 15.1: img variant of the avatar (replaces the initial-letter
+       div when a logo is uploaded). object-fit: cover so non-square
+       uploads still render in the 84×84 circle without distortion. */
+    .ps-logo-avatar-img {
+      object-fit: cover;
+      display: block;
+      background: var(--color-bg-soft);
+    }
+    .ps-logo-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .ps-logo-remove-btn {
+      background: transparent;
+      color: var(--color-text-muted);
+      border: 1px solid var(--color-border);
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .ps-logo-remove-btn:hover {
+      color: var(--color-error, #c0392b);
+      border-color: var(--color-error, #c0392b);
+    }
+    .ps-logo-remove-btn:disabled,
+    .ps-logo-upload-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
 
     /* Limits spend block */
     .ps-limits-spend {
@@ -723,20 +763,39 @@
       const pctLabel = pct >= 100 ? 'cap reached'
         : (pct >= 80 ? pct + '% — approaching cap' : pct + '% used');
 
+      // Block 15.1 — project logo upload. project.logo_url is computed
+      // server-side from logo_r2_key (NULL → null URL → placeholder
+      // state); we just branch on truthiness here.
+      const hasLogo = !!project.logo_url;
+      const avatarHtml = hasLogo
+        ? '<img class="ps-logo-avatar ps-logo-avatar-img" src="' + escHtml(project.logo_url) + '" alt="' + escHtml(project.name) + ' logo">'
+        : '<div class="ps-logo-avatar">' + escHtml((project.name || '?').trim()[0] || '?').toUpperCase() + '</div>';
+      const metaLabel = hasLogo ? 'Uploaded' : 'Placeholder';
+      const bodyTitle = hasLogo ? 'Logo uploaded' : 'No logo uploaded';
+      const bodySub = hasLogo
+        ? 'PNG or JPG, square, max 1 MB. Replace any time.'
+        : 'Using the initial-letter placeholder until you upload one.';
+      const buttonsHtml = hasLogo
+        ? '<button class="ps-logo-upload-btn" id="psLogoReplaceBtn" type="button"><i class="ti ti-upload"></i> Replace logo</button>'
+          + '<button class="ps-logo-remove-btn" id="psLogoRemoveBtn" type="button"><i class="ti ti-trash"></i> Remove</button>'
+        : '<button class="ps-logo-upload-btn" id="psLogoUploadBtn" type="button"><i class="ti ti-upload"></i> Upload logo</button>';
+
       return ''
-        // Logo (deferred — disabled upload per BLOCK_12_PLAN decision N) -----
+        // Logo (Block 15.1: deferred-from-Block-12-decision-N upload now live)
         + '<section class="ps-section">'
         +   '<h2>Project <strong>logo</strong></h2>'
         +   '<p class="ps-section-sub">Appears on the dashboard, in cross-project chat scope chips, and on citation chips. PNG or JPG, square, max 1 MB.</p>'
         +   '<div class="ps-card ps-logo">'
         +     '<div>'
-        +       '<div class="ps-logo-avatar">' + escHtml((project.name || '?').trim()[0] || '?').toUpperCase() + '</div>'
-        +       '<p class="ps-logo-meta-label">Placeholder</p>'
+        +       avatarHtml
+        +       '<p class="ps-logo-meta-label">' + metaLabel + '</p>'
         +     '</div>'
         +     '<div>'
-        +       '<p class="ps-logo-body-title">No logo uploaded</p>'
-        +       '<p class="ps-logo-body-sub">Using the initial-letter placeholder until you upload one.</p>'
-        +       '<button class="ps-logo-upload-btn" disabled title="Coming in v1.3.1"><i class="ti ti-upload"></i> Upload logo</button>'
+        +       '<p class="ps-logo-body-title">' + bodyTitle + '</p>'
+        +       '<p class="ps-logo-body-sub">' + bodySub + '</p>'
+        +       '<div class="ps-logo-actions">' + buttonsHtml + '</div>'
+        +       '<input type="file" id="psLogoFile" accept="image/png,image/jpeg" hidden>'
+        +       '<span id="psLogoMsg" class="ps-action-msg"></span>'
         +     '</div>'
         +   '</div>'
         + '</section>'
@@ -962,6 +1021,89 @@
       el.className = 'ps-action-msg' + (kind ? ' ' + kind : '');
     }
 
+    // Block 15.1: logo upload handlers ----------------------------------
+    // The server-side validation in functions/api/projects/[id]/logo.js
+    // is authoritative; the client checks here just give a fast UX
+    // (no round-trip on obvious-fail cases).
+    const LOGO_MAX_BYTES = 1024 * 1024;
+    const LOGO_ALLOWED_MIME = ['image/png', 'image/jpeg'];
+
+    async function onLogoFileChosen(e) {
+      const file = e.target.files && e.target.files[0];
+      // Reset the input so picking the same file again re-fires change.
+      e.target.value = '';
+      if (!file) return;
+
+      if (!LOGO_ALLOWED_MIME.includes(file.type)) {
+        setMsg('psLogoMsg', 'Please choose a PNG or JPG.', 'error');
+        return;
+      }
+      if (file.size > LOGO_MAX_BYTES) {
+        setMsg('psLogoMsg', 'File is too large (max 1 MB).', 'error');
+        return;
+      }
+
+      const uploadBtn = document.getElementById('psLogoUploadBtn');
+      const replaceBtn = document.getElementById('psLogoReplaceBtn');
+      const removeBtn = document.getElementById('psLogoRemoveBtn');
+      if (uploadBtn) uploadBtn.disabled = true;
+      if (replaceBtn) replaceBtn.disabled = true;
+      if (removeBtn) removeBtn.disabled = true;
+      setMsg('psLogoMsg', 'Uploading…', '');
+
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) + '/logo',
+          { method: 'POST', credentials: 'same-origin', body: form }
+        );
+        if (res.status === 401) { redirectToLogin(); return; }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setMsg('psLogoMsg', data.error || ('Upload failed (HTTP ' + res.status + ')'), 'error');
+          return;
+        }
+        // Mutate local state with the new logo_url + key, then re-render.
+        project.logo_url = data.logo_url;
+        project.logo_r2_key = data.logo_r2_key;
+        render();
+        setMsg('psLogoMsg', 'Logo updated.', '');
+      } catch (err) {
+        setMsg('psLogoMsg', err.message || 'Upload failed', 'error');
+      }
+    }
+
+    async function onLogoRemoveClick() {
+      if (!window.confirm('Remove the project logo? The placeholder will be used until you upload a new one.')) {
+        return;
+      }
+      const replaceBtn = document.getElementById('psLogoReplaceBtn');
+      const removeBtn = document.getElementById('psLogoRemoveBtn');
+      if (replaceBtn) replaceBtn.disabled = true;
+      if (removeBtn) removeBtn.disabled = true;
+      setMsg('psLogoMsg', 'Removing…', '');
+
+      try {
+        const res = await fetch(
+          '/api/projects/' + encodeURIComponent(projectId) + '/logo',
+          { method: 'DELETE', credentials: 'same-origin' }
+        );
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (!res.ok && res.status !== 204) {
+          const data = await res.json().catch(() => ({}));
+          setMsg('psLogoMsg', data.error || ('Remove failed (HTTP ' + res.status + ')'), 'error');
+          return;
+        }
+        project.logo_url = null;
+        project.logo_r2_key = null;
+        render();
+        setMsg('psLogoMsg', 'Logo removed.', '');
+      } catch (err) {
+        setMsg('psLogoMsg', err.message || 'Remove failed', 'error');
+      }
+    }
+
     function bindHandlers() {
       // Tab switching
       document.querySelectorAll('.ps-tab').forEach(b => {
@@ -975,6 +1117,21 @@
       });
 
       if (activeTab === 'general') {
+        // Block 15.1: logo upload / replace / remove ---------------------
+        // The button IDs are mutually exclusive per render:
+        //   - psLogoUploadBtn exists when no logo (first upload)
+        //   - psLogoReplaceBtn + psLogoRemoveBtn exist when a logo is set
+        // Both upload paths share the same file input + handler.
+        const fileInput = document.getElementById('psLogoFile');
+        const uploadBtn = document.getElementById('psLogoUploadBtn');
+        const replaceBtn = document.getElementById('psLogoReplaceBtn');
+        const removeBtn = document.getElementById('psLogoRemoveBtn');
+        const triggerPicker = () => fileInput && fileInput.click();
+        if (uploadBtn) uploadBtn.addEventListener('click', triggerPicker);
+        if (replaceBtn) replaceBtn.addEventListener('click', triggerPicker);
+        if (fileInput) fileInput.addEventListener('change', onLogoFileChosen);
+        if (removeBtn) removeBtn.addEventListener('click', onLogoRemoveClick);
+
         // Identity form
         const idForm = document.getElementById('psIdentityForm');
         if (idForm) {
