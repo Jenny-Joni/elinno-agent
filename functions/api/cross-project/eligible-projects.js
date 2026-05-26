@@ -35,7 +35,8 @@ export async function onRequestGet({ request, env }) {
              p.description,
              p.created_at,
              p.updated_at,
-             p.owner_user_id
+             p.owner_user_id,
+             p.logo_r2_key
         FROM projects p
        WHERE p.owner_user_id = ${userId}
          AND p.deleted_at IS NULL
@@ -155,6 +156,12 @@ export async function onRequestGet({ request, env }) {
       }
       return {
         ...p,
+        // Block 15.2 — public CDN URL for the project logo, computed
+        // from logo_r2_key (NULL → null URL → frontend renders the
+        // initial-letter placeholder).
+        logo_url: p.logo_r2_key
+          ? `https://logos.elinnoagent.com/${p.logo_r2_key}`
+          : null,
         connections: connectionsByProject.get(p.id) || [],
         jira_active_sprint: activeSprint,
       };

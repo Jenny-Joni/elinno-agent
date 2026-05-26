@@ -230,6 +230,9 @@
       font-weight: 600;
       flex-shrink: 0;
     }
+    /* Block 15.2: img variant of the scope-chip icon. object-fit:cover
+       keeps non-square uploads from distorting in the rounded box. */
+    img.scopechip__icon { object-fit: cover; }
 
     /* Mobile Across (N) ▾ button + popover */
     .xc-across-mobile { display: none; }
@@ -954,11 +957,16 @@
     // ---------- scope row ----------
     function acrossRowHtml() {
       const scope = scopeProjects();
+      // Block 15.2: uploaded logo or initial-letter for each scope chip
+      // + the popover row that lists the same projects on mobile.
+      const scopeIconHtml = (p) => p.logo_url
+        ? '<img class="scopechip__icon" src="' + esc(p.logo_url) + '" alt="' + esc(p.name) + '">'
+        : '<span class="scopechip__icon">' + esc(initialOf(p.name)) + '</span>';
       const chips = scope.map(p => (
-        '<span class="scopechip"><span class="scopechip__icon">' + esc(initialOf(p.name)) + '</span>' + esc(p.name) + '</span>'
+        '<span class="scopechip">' + scopeIconHtml(p) + esc(p.name) + '</span>'
       )).join('');
       const popoverRows = scope.map(p => (
-        '<div class="xc-across-pop__row"><span class="scopechip__icon">' + esc(initialOf(p.name)) + '</span>' + esc(p.name) + '</div>'
+        '<div class="xc-across-pop__row">' + scopeIconHtml(p) + esc(p.name) + '</div>'
       )).join('');
       const convTitle = conv && conv.title ? conv.title : 'Cross-project chat';
       return ''

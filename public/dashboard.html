@@ -195,6 +195,9 @@
       font-size: 13px;
       flex-shrink: 0;
     }
+    /* Block 15.2: img variant. object-fit:cover keeps non-square
+       uploads from distorting in the rounded box. */
+    img.pcard__avatar { object-fit: cover; }
     .pcard__name {
       font-family: var(--font);
       font-weight: 500;
@@ -415,10 +418,14 @@
       const updated = p.updated_at ? esc(fmtRelative(p.updated_at)) : '';
       // Prefer slug routing; fall back to legacy ?id= for safety if slug is somehow missing.
       const cardHref = p.slug ? '/project/' + esc(p.slug) : '/project.html?id=' + esc(p.id);
+      // Block 15.2: render uploaded logo when present, else initial-letter.
+      const avatarHtml = p.logo_url
+        ? '<img class="pcard__avatar" src="' + esc(p.logo_url) + '" alt="' + esc(p.name) + '">'
+        : '<div class="pcard__avatar">' + esc(initial(p.name)) + '</div>';
       return ''
         + '<a class="pcard" href="' + cardHref + '">'
         +   '<div class="pcard__head">'
-        +     '<div class="pcard__avatar">' + esc(initial(p.name)) + '</div>'
+        +     avatarHtml
         +     '<div style="flex:1;min-width:0;">'
         +       '<div class="pcard__name">' + esc(p.name) + '</div>'
         +       (updated ? '<div class="pcard__updated">Updated ' + updated + '</div>' : '')

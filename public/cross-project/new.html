@@ -121,6 +121,9 @@
       background: #f0f0f0;
       color: var(--text-faint);
     }
+    /* Block 15.2: img variant of the tile. object-fit:cover keeps
+       non-square uploads from distorting in the rounded box. */
+    img.xp-ptile { object-fit: cover; }
     .xp-body { flex: 1; min-width: 0; }
     .xp-name {
       font-family: var(--font);
@@ -306,7 +309,10 @@
         + (available ? '' : ' xp-row--disabled')
         + (isSel ? ' xp-row--selected' : '');
       const check = '<span class="xp-check">' + (isSel ? '<i class="ti ti-check"></i>' : '') + '</span>';
-      const tile = '<span class="xp-ptile">' + esc(initial(p.name)) + '</span>';
+      // Block 15.2: uploaded logo or initial-letter fallback.
+      const tile = p.logo_url
+        ? '<img class="xp-ptile" src="' + esc(p.logo_url) + '" alt="' + esc(p.name) + '">'
+        : '<span class="xp-ptile">' + esc(initial(p.name)) + '</span>';
       let trailing;
       if (available) {
         const chips = p.connections.map(c => srcchipHtml(c.source)).join('');

@@ -74,6 +74,7 @@ export async function onRequestGet({ request, env }) {
              slug,
              description,
              owner_user_id,
+             logo_r2_key,
              created_at,
              updated_at
         FROM projects
@@ -266,6 +267,13 @@ export async function onRequestGet({ request, env }) {
         slug: p.slug,
         description: p.description,
         owner_user_id: p.owner_user_id,
+        logo_r2_key: p.logo_r2_key,
+        // Block 15.2 — public CDN URL for the project logo, computed
+        // from logo_r2_key (NULL → null URL → frontend renders the
+        // initial-letter placeholder).
+        logo_url: p.logo_r2_key
+          ? `https://logos.elinnoagent.com/${p.logo_r2_key}`
+          : null,
         created_at: p.created_at,
         updated_at: p.updated_at,
         has_jira: hasJira,
