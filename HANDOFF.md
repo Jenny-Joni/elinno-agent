@@ -5706,3 +5706,52 @@ branch (`scopeProjects()` data projection). Per CLAUDE.md, this is
 the one allowed fix attempt in auto mode; if it had failed the
 preview re-verify, the branch would have dropped to default mode
 for further investigation rather than a second auto-mode fix.
+
+### Follow-on bug fixes (same 2026-05-26 session, after 15.2)
+
+Eight more small fixes landed after Block 15.2 verification, each
+ff-merged to main individually with per-push approval. Production
+commit progression continued:
+
+| Commit | Fix |
+|---|---|
+| `a6f83e8` | CSS comment ate `.xp-shell` + `.xc-shell`: ".btn--*/.card" had a literal `*/` that prematurely closed the comment, silently dropping the next rule. Cross-project picker + chat lost their `max-width: 760/1100px` + `margin: 0 auto`, rendering edge-to-edge. Rewrote both comments without `*/`, added a NOTE warning future edits. |
+| `8655e87` | Admin self-rename: the Members row for the signed-in admin had no inline-edit widget + kebab "Edit name" was hard-disabled with `isSelf`. PATCH /api/admin/users/:id was already permissive (only DELETE has self-block). Removed the frontend gate; commitRename also refreshes the `me` global + nav avatar in place. |
+| `80e57ca` | Cross-project nav avatar letter not visible: `#navUserAvatar` spans on the three cross-project pages had inline width/height/bg/color/font but no `display:inline-flex; align-items:center; justify-content:center;` — letter rendered top-left, clipped by the 50% border-radius. Matched the working pattern from projects.html/dashboard.html. |
+| `409b901` | Use /project/<slug> URL after page load: `applyState` was always rewriting URL to `/project.html?id=<uuid>`. Now prefers `/project/<slug>`, drops `?id=`. Falls back to legacy if slug missing. Also updated projects.html card href + project_settings.html "Back to chat" link to prefer slug. |
+| `8802d4b` | Drop `?c=<conv-uuid>` from URL bar: the active-conversation ID was ever-present in the URL (looked like a UTM tag). Now stripped from URL bar via `searchParams.delete('c')`. Refresh defaults to most-recent conversation; the sidebar is the canonical control. Legacy `?c=` URLs still work for sharing — initial load reads it once before applyState strips it. |
+| `f4d5b3a` | Project chat scrolls in-place: `.project-shell` had `min-height: 640px` but no upper bound, so long chat histories grew the page-level scroll. Changed to `height: calc(100vh - 210px); min-height: 480px` (210px = 70 nav + 70+70 .app-main padding). Added `min-height: 0` to `.project-main` + `overflow-y: auto` on `#convList` so the sidebar list scrolls independently. |
+| `a0520be` | Cross-project chat scrolls in-place: same shape, `.xc-grid` had `min-height: calc(100vh - 130px)` → `height: calc(100vh - 130px); min-height: 480px`. The inner flex chain (.xc-sidebar + .xc-main + .xc-body with `overflow-y: auto`) was already correctly scoped — only the grid's height ceiling was missing. |
+| `51ee89c` | Cache-bust auth.css across 14 pages: discovered during the chat-scroll fix verify that CF Pages serves /auth.css with `cache-control: public, max-age=14400, must-revalidate`. Browsers hold the cached copy for up to 4 hours; every CSS change is invisible to existing users until then. Appended `?v=2026-05-26-1` to every `<link rel="stylesheet" href="/auth.css">`. **Bump the `v=` string on every future auth.css change** (a future block could automate this with a build-time fingerprint). |
+
+### Session-end production state
+
+`d0a171d` (start) → `51ee89c` (end). 18 commits total — Block 15 in
+full (plan + 15.1 + 15.2, eight commits) plus ten standalone fix
+commits.
+
+### Operational notes for future sessions
+
+- **auth.css cache-bust**: every change to `public/auth.css`
+  requires bumping the `?v=` query string on all 14 `<link>`
+  references. Search-replace pattern:
+  `?v=2026-05-26-1` → `?v=2026-05-27-1` (or `?v=2026-05-26-2`
+  same-day). A future block can promote this to a real fingerprint
+  (rename to `auth.<hash>.css`).
+- **CSS comment trap**: never write the substring `*/` inside a
+  CSS comment (e.g., `.btn--*/.card`). It prematurely closes the
+  comment and silently drops the next rule. NOTE comments in both
+  cross-project files now warn about this.
+- **Cloudflare Pages branch alias truncation**: branch names get
+  truncated to 28 characters when forming `<branch>.elinno-agent.pages.dev`
+  preview URLs. Names like `fix-css-comment-premature-close` (31)
+  served at `fix-css-comment-premature-cl` (28); `block-15-2-logo-display-surfaces` (32)
+  served at `block-15-2-logo-display-surf` (28). Keep branch names
+  ≤28 chars to make the preview URL discoverable.
+- **Slug routing for /project**: `/project/<slug>` 302-redirects
+  to `/project?id=<uuid>`. The page reads `?id=` on initial load,
+  then `applyState` rewrites the URL bar back to `/project/<slug>`.
+  `/project_settings` is NOT yet slug-routed — still uses `?id=`.
+- **Stale local branches**: ~50 `claude/*` and old `block-*` refs
+  remain in the local repo. Untouched this session; defer cleanup
+  to a future maintenance pass.
