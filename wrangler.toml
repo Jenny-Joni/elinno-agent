@@ -86,3 +86,13 @@ database_id = "b526badb-b6d0-490f-a72f-3f61d64016b7"
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "78af00bbf464468cb902e35099aa0dfe"
+
+# Block 15.1 — R2 bucket for project logo uploads. Public-read via the
+# logos.elinnoagent.com custom domain (CNAME → bucket, set up in the
+# Cloudflare dashboard 2026-05-26 — Cloudflare dashboard config, not
+# managed here). Worker uses ctx.env.LOGOS for PUT/DELETE; reads go
+# direct browser → CDN → R2 by URL, not through any Worker.
+# Per BLOCK_15_PLAN section 2.2. Shared by Production + Preview envs.
+[[r2_buckets]]
+binding = "LOGOS"
+bucket_name = "elinno-agent-logos"
