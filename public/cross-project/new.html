@@ -10,8 +10,13 @@
   <link rel="stylesheet" href="/auth.css" />
   <style>
     /* Cross-project picker per v1.4 mockup screen-11. v1.4 components
-       (.brandmark/.wordmark/.eyebrow/.btn--*/.card) live in auth.css;
-       this <style> only positions them + defines picker-local rules. */
+       (.brandmark / .wordmark / .eyebrow / .btn-- variants / .card)
+       live in auth.css; this <style> only positions them + defines
+       picker-local rules.
+       NOTE: do NOT write the substring "* /" (no space) inside a CSS
+       comment — it prematurely terminates the comment and the next
+       rule below (.xp-shell) silently drops. That was the bug fixed
+       2026-05-26. */
     .xp-shell { max-width: 760px; margin: 0 auto; padding: 30px 30px 60px; }
     .xp-crumb {
       font-family: var(--font);

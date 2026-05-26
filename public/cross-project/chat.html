@@ -10,16 +10,22 @@
   <link rel="stylesheet" href="/auth.css" />
   <style>
     /* Cross-project chat per v1.4 mockup screen-12. v1.4 components
-       (.brandmark/.wordmark/.app-nav/.btn--*/.conv-item/.menu) live
-       in auth.css; this <style> only positions them + defines the
-       chat-local rules: sidebar grid, scope row, scopechips, mobile
-       Across (N) ▾ popover, conv-row kebab menu (per-row, Block 13.5
-       pattern from project.html), conv toast.
+       (.brandmark / .wordmark / .app-nav / .btn-- variants /
+       .conv-item / .menu) live in auth.css; this <style> only
+       positions them + defines the chat-local rules: sidebar grid,
+       scope row, scopechips, mobile Across (N) ▾ popover, conv-row
+       kebab menu (per-row, Block 13.5 pattern from project.html),
+       conv toast.
 
        Block 13.6 (v1.4 Phase 6) consolidates 13.6d-1 (nav + tokens +
        sticky-topbar), 13.6d-2 (read-only Across row, drop edit-scope
        overlay), 13.6d-3 (.conv-row sidebar port), 13.6d-5 (mobile
-       Across popover). */
+       Across popover).
+
+       NOTE: do NOT write the substring "* /" (no space) inside a CSS
+       comment — it prematurely terminates the comment and the next
+       rule below silently drops. Same root cause as the
+       .xp-shell bug fixed 2026-05-26 on /cross-project/new.html. */
 
     .xc-shell {
       max-width: 1100px;
