@@ -480,7 +480,9 @@
       + (projects.length > MAX_AVATARS
           ? '<div class="cpcombo-card__more">+' + (projects.length - MAX_AVATARS) + '</div>'
           : '');
-      const href = '/cross-project/index.html?ids=' + esc(group.ids.join(','));
+      // Direct-to-chat (skip the filtered row-list view). chat.html
+       // reads ?ids= and auto-selects the most recent chat in the combo.
+      const href = '/cross-project/chat.html?ids=' + esc(group.ids.join(','));
       return ''
         + '<a class="cpcombo-card" href="' + href + '">'
         +   '<div class="cpcombo-card__avatars">' + avatarHtml + '</div>'

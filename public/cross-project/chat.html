@@ -600,8 +600,34 @@
       const sp = new URLSearchParams(location.search);
       return sp.get('id') || '';
     }
+    // ?ids=<sorted-uuids> — combo filter mode. When present, the sidebar
+    // is filtered to chats matching the project set, and (if no ?id= is
+    // set) the most recent chat in the combo is auto-selected. Per Jenny
+    // 2026-05-27: skip the row-list intermediate, drill straight to chat.
+    function getFilterIds() {
+      try {
+        const ids = new URLSearchParams(location.search).get('ids');
+        if (!ids) return null;
+        const list = ids.split(',').map(s => s.trim()).filter(Boolean).sort();
+        return list.length ? list : null;
+      } catch { return null; }
+    }
+    function chatUrl(convId, optsIds) {
+      const u = new URL('/cross-project/chat.html', location.origin);
+      if (convId) u.searchParams.set('id', convId);
+      const ids = optsIds === undefined ? getFilterIds() : optsIds;
+      if (ids && ids.length) u.searchParams.set('ids', ids.join(','));
+      return u.pathname + u.search;
+    }
+    function matchesCombo(chat, filterIds) {
+      if (!filterIds) return true;
+      const ids = (Array.isArray(chat.project_ids) ? chat.project_ids : []).slice().sort();
+      if (ids.length !== filterIds.length) return false;
+      for (let i = 0; i < ids.length; i++) if (ids[i] !== filterIds[i]) return false;
+      return true;
+    }
     function redirectToLogin() {
-      location.replace('/login.html?next=' + encodeURIComponent('/cross-project/chat.html?id=' + encodeURIComponent(getConvId())));
+      location.replace('/login.html?next=' + encodeURIComponent(chatUrl(getConvId())));
     }
 
     // ---------- state ----------
@@ -769,7 +795,7 @@
           if (e.target.closest('.conv-menu-trigger')) return;
           const id = el.dataset.convId;
           if (id && (!conv || id !== conv.id)) {
-            location.assign('/cross-project/chat.html?id=' + encodeURIComponent(id));
+            location.assign(chatUrl(id));
           }
         });
         el.addEventListener('keydown', (e) => {
@@ -777,7 +803,7 @@
             e.preventDefault();
             const id = el.dataset.convId;
             if (id && (!conv || id !== conv.id)) {
-              location.assign('/cross-project/chat.html?id=' + encodeURIComponent(id));
+              location.assign(chatUrl(id));
             }
           }
         });
@@ -909,7 +935,7 @@
 
       if (wasActive) {
         if (fallback) {
-          location.assign('/cross-project/chat.html?id=' + encodeURIComponent(fallback.id));
+          location.assign(chatUrl(fallback.id));
           return;
         } else {
           location.assign('/cross-project/');
@@ -1321,13 +1347,41 @@
 
     // ---------- boot ----------
     (async function boot() {
-      const id = getConvId();
+      const filterIds = getFilterIds();
+      let id = getConvId();
+
+      // Combo-only mode (?ids= without ?id=): load the conv list first,
+      // find the most-recent chat in the combo, replace the URL with
+      // /cross-project/chat.html?id=<that>&ids=<combo> and continue boot
+      // as if we'd arrived with ?id= directly. If the combo has zero
+      // chats, fall back to /cross-project/new.html with the projects
+      // pre-selected via ?ids=.
+      if (!id && filterIds) {
+        try {
+          me = await loadMe();
+          if (!me) { redirectToLogin(); return; }
+          const convList = await loadConvList();
+          const match = (convList || []).find(c => matchesCombo(c, filterIds));
+          if (match) {
+            location.replace(chatUrl(match.id, filterIds));
+            return;
+          }
+          // No chats in this combo — drop to /cross-project/ so the user
+          // sees the combo grid (and "+ New cross-project chat" tile).
+          location.replace('/cross-project/');
+          return;
+        } catch {
+          document.getElementById('xcRoot').innerHTML = '<div class="xc-error">Couldn’t resolve this combination. <a href="/cross-project/">Back to cross-project chats</a></div>';
+          return;
+        }
+      }
+
       if (!id) {
         document.getElementById('xcRoot').innerHTML = '<div class="xc-error">No conversation id in URL. <a href="/cross-project/">Back to cross-project chats</a></div>';
         return;
       }
       try {
-        me = await loadMe();
+        if (!me) me = await loadMe();
         if (!me) { redirectToLogin(); return; }
         wireNav(me);
         const [pmap, c, msgs, ws, convList] = await Promise.all([
@@ -1339,7 +1393,9 @@
         ]);
         projectsById = pmap;
         workspaceSpend = ws;
-        conversations = convList || [];
+        // Filter sidebar by ?ids= combo when present so the user only
+        // sees chats in the active project combination.
+        conversations = (convList || []).filter(c => matchesCombo(c, filterIds));
         if (!c) {
           document.getElementById('xcRoot').innerHTML = '<div class="xc-error">Chat not found or you don’t have access. <a href="/cross-project/">Back to cross-project chats</a></div>';
           return;

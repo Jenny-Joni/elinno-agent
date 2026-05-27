@@ -575,7 +575,10 @@
       + (projects.length > MAX_AVATARS
           ? '<div class="cpcombo-card__more">+' + (projects.length - MAX_AVATARS) + '</div>'
           : '');
-      const href = '/cross-project/index.html?ids=' + esc(group.ids.join(','));
+      // Click goes straight to the chat page with sidebar filtered to
+       // this combo (chat.html auto-selects the most recent chat in the
+       // combo). Skips the intermediate row-list view per Jenny 2026-05-27.
+      const href = '/cross-project/chat.html?ids=' + esc(group.ids.join(','));
       return ''
         + '<a class="cpcombo-card" href="' + href + '">'
         +   '<div class="cpcombo-card__avatars">' + avatarHtml + '</div>'
