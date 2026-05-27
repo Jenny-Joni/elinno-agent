@@ -319,18 +319,19 @@
       align-items: flex-end;
       gap: 10px;
     }
-    .chat-input {
+    .chat-input,
+    .chat-input:focus {
       flex: 1;
-      background: transparent;
-      border: none;
+      background: transparent !important;
+      border: none !important;
       padding: 6px 0;
       min-height: 22px;
       max-height: 180px;
       font-size: 13px;
       line-height: 1.45;
       color: var(--text);
+      outline: none;
     }
-    .chat-input:focus { background: transparent; border: none; outline: none; }
     .chat-send-btn {
       background: var(--brand);
       color: #fff;
@@ -345,9 +346,17 @@
       font-size: 14px;
       text-transform: none;
       letter-spacing: 0;
-      height: 32px;  /* override auth.css height:48px */
     }
-    .chat-send-btn:disabled { opacity: 0.45; }
+    /* Match cross-project's .xc-composer__send:disabled — gray bg, not
+       brand-purple-dimmed. The auth.css base has .chat-send-btn:disabled
+       { opacity: 0.5 } which combined with var(--brand) bg looked too
+       purple next to cross-project. */
+    .chat-send-btn:disabled {
+      background: var(--text-3);
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .chat-send-btn:hover:not(:disabled) { filter: brightness(1.1); }
     .chat-composer-footer {
       display: flex;
       justify-content: space-between;
