@@ -215,6 +215,44 @@
       font-size: 11px;
       color: var(--text-3);
     }
+    /* Dashed "+ New cross-project chat" tile that sits at the end of
+       the combo grid. Mirrors .pcard-create from the projects grid. */
+    .cpcombo-create {
+      background: transparent;
+      border: 1.5px dashed var(--brand-soft-border);
+      border-radius: var(--r-md);
+      padding: 18px;
+      text-decoration: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 8px;
+      transition: background var(--t-fast), border-color var(--t-fast);
+      min-height: 120px;
+    }
+    .cpcombo-create:hover {
+      background: var(--brand-soft);
+      border-color: var(--brand);
+    }
+    .cpcombo-create__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--r-sm);
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .cpcombo-create__label {
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--brand);
+    }
 
     /* Projects grid. Admin: 3-up + "+ New project" card. Member: 2-up, no create. */
     .projects-section { margin-top: 8px; }
@@ -500,19 +538,25 @@
     }
 
     function renderCrossProjectChatsSection(conversations, projectsById) {
-      if (!conversations || conversations.length === 0) return '';
-      const groups = groupConversationsByCombo(conversations);
-      if (groups.length === 0) return '';
+      const groups = (conversations && conversations.length)
+        ? groupConversationsByCombo(conversations)
+        : [];
       const shown = groups.slice(0, MAX_CP_COMBOS);
-      const overflow = groups.length > MAX_CP_COMBOS;
       const cards = shown.map(g => crossProjectComboCardHtml(g, projectsById)).join('');
+      // "+ New cross-project chat" tile always closes the grid, even
+      // when zero combos exist (acts as the empty-state CTA in that case).
+      const createCard = ''
+        + '<a class="cpcombo-create" href="/cross-project/new.html">'
+        +   '<div class="cpcombo-create__icon"><i class="ti ti-plus"></i></div>'
+        +   '<span class="cpcombo-create__label">New cross-project chat</span>'
+        + '</a>';
       return ''
         + '<div class="cpchats-section">'
         +   '<div class="eyebrow"><span class="eyebrow__label">Cross-project chats</span><span class="eyebrow__rule"></span></div>'
         +   '<div class="cpchats-section-head"><span></span>'
-        +     (overflow ? '<a href="/cross-project/index.html">View all →</a>' : '')
+        +     '<a href="/cross-project/index.html">View all →</a>'
         +   '</div>'
-        +   '<div class="cpcombo-grid">' + cards + '</div>'
+        +   '<div class="cpcombo-grid">' + cards + createCard + '</div>'
         + '</div>';
     }
 
