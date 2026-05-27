@@ -181,6 +181,88 @@ export async function sendCostCapEmail(env, projectName, capUsd, usedUsd, kind, 
   return { ok: sent > 0, sent, failed };
 }
 
+/**
+ * Send a welcome email to a newly-created workspace member.
+ * Triggered from POST /api/admin/users after a successful insert.
+ * The admin sets the initial password in the admin form; this email
+ * delivers it to the new member along with the login URL.
+ *
+ * @param {object} env  - Pages Functions env (RESEND_API_KEY, MAIL_FROM, SITE_URL)
+ * @param {string} toEmail
+ * @param {string} displayName
+ * @param {string} password  - the plaintext password the admin typed
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export async function sendWelcomeEmail(env, toEmail, displayName, password) {
+  if (!env.RESEND_API_KEY) {
+    console.error('RESEND_API_KEY missing — cannot send welcome email');
+    return { ok: false, error: 'email_not_configured' };
+  }
+
+  const from = env.MAIL_FROM || 'Elinno Agent <noreply@elinnoagent.com>';
+  const siteUrl = env.SITE_URL || 'https://elinnoagent.com';
+  const subject = 'Welcome to Elinno Agent';
+  const greetName = (displayName || '').trim() || 'there';
+
+  const text = [
+    `Hi ${greetName},`,
+    '',
+    'An account has been created for you on Elinno Agent. You can sign in with:',
+    '',
+    `Email:    ${toEmail}`,
+    `Password: ${password}`,
+    '',
+    `Sign in: ${siteUrl}`,
+    '',
+    'We recommend changing this password the first time you sign in.',
+    '',
+    '— Elinno Agent',
+  ].join('\n');
+
+  const html = `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f7f7f7;font-family:'Space Grotesk',system-ui,sans-serif;color:#000;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f7;padding:40px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:15px;border:1px solid #e0e0e0;padding:40px;max-width:90%;">
+        <tr><td>
+          <p style="margin:0 0 16px;color:#6234fc;font-size:14px;font-weight:500;letter-spacing:1.08px;text-transform:uppercase;">Elinno Agent</p>
+          <h1 style="margin:0 0 24px;color:#000;font-size:28px;line-height:110%;text-transform:uppercase;font-weight:500;">Welcome aboard</h1>
+          <p style="margin:0 0 24px;color:#4f4f4f;font-size:16px;line-height:140%;">Hi ${escapeHtml(greetName)}, an account has been created for you. Use the credentials below to sign in.</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:#f7f7f7;border-radius:8px;padding:16px 20px;">
+            <tr><td style="padding:4px 0;color:#888;font-size:13px;">Email</td><td style="padding:4px 0 4px 16px;color:#000;font-size:14px;font-family:'SFMono-Regular',Menlo,Consolas,monospace;">${escapeHtml(toEmail)}</td></tr>
+            <tr><td style="padding:4px 0;color:#888;font-size:13px;">Password</td><td style="padding:4px 0 4px 16px;color:#000;font-size:14px;font-family:'SFMono-Regular',Menlo,Consolas,monospace;">${escapeHtml(password)}</td></tr>
+          </table>
+          <p style="margin:0 0 32px;">
+            <a href="${escapeHtml(siteUrl)}" style="display:inline-block;background:#6234fc;color:#fff;text-decoration:none;padding:16px 28px;border-radius:8px;font-size:14px;font-weight:500;text-transform:uppercase;">Sign in</a>
+          </p>
+          <p style="margin:0;color:#888;font-size:14px;line-height:140%;">We recommend changing this password the first time you sign in.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  try {
+    const res = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from, to: [toEmail], subject, text, html }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error('Resend welcome error', res.status, body);
+      return { ok: false, error: 'send_failed' };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error('Resend welcome network error', err);
+    return { ok: false, error: 'network_error' };
+  }
+}
+
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')

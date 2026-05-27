@@ -7,6 +7,7 @@ import {
   isValidPassword,
   json,
 } from '../../_lib/auth.js';
+import { sendWelcomeEmail } from '../../_lib/email.js';
 
 async function requireAdmin(request, env) {
   const user = await getSessionUser(request, env.DB);
@@ -85,6 +86,12 @@ export async function onRequestPost({ request, env }) {
     .bind(email, hash, isAdmin, displayName, now)
     .run();
 
+  // Welcome email with the admin-set credentials + login link. Failures
+  // are logged inside email.js; we surface the result on the response so
+  // the admin UI can warn if delivery didn't go out, but a send failure
+  // does NOT roll back the user create.
+  const mail = await sendWelcomeEmail(env, email, displayName, password);
+
   return json({
     ok: true,
     user: {
@@ -94,5 +101,6 @@ export async function onRequestPost({ request, env }) {
       is_admin: !!isAdmin,
       created_at: now,
     },
+    email_sent: mail.ok,
   });
 }
