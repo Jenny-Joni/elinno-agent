@@ -61,13 +61,16 @@ export async function onRequestGet({ request, env, params }) {
   let activeChatId = null;
   try {
     // Resolve every slug to a uuid in one query, workspace-scoped.
-    // If any slug doesn't resolve (typo, deleted project, wrong
-    // workspace) we soft-fail back to /cross-project/.
+    // Uses the codebase's `IN ${sql(arr)}` pattern (see
+    // functions/_lib/ai/authorize.js comment) — `= ANY(${arr})` trips
+    // postgres-js's CSV-serialization of JS arrays. If any slug doesn't
+    // resolve (typo, deleted project, wrong workspace) we soft-fail
+    // back to /cross-project/.
     const rows = await sql`
       SELECT id::text AS id, slug
         FROM projects
        WHERE owner_user_id = ${userId}
-         AND slug          = ANY(${slugs})
+         AND slug          IN ${sql(slugs)}
          AND deleted_at IS NULL
     `;
     if (rows.length !== slugs.length) {

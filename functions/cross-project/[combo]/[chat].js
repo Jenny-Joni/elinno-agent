@@ -42,11 +42,13 @@ export async function onRequestGet({ request, env, params }) {
 
   let projectIds = null;
   try {
+    // `IN ${sql(arr)}` is the codebase pattern (see [combo].js header
+    // comment + _lib/ai/authorize.js); = ANY(${arr}) trips postgres-js.
     const rows = await sql`
       SELECT id::text AS id, slug
         FROM projects
        WHERE owner_user_id = ${userId}
-         AND slug          = ANY(${slugs})
+         AND slug          IN ${sql(slugs)}
          AND deleted_at IS NULL
     `;
     if (rows.length !== slugs.length) {
