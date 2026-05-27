@@ -85,12 +85,14 @@ export async function onRequestGet({ request, env }) {
   });
 
   try {
-    // Postgres: project count + cross-project spend MTD.
+    // 2026-05-27 (shared-workspace-visibility): project count is the
+    // shared workspace's count, not per-user. Cross-project spend MTD
+    // is similarly summed across all users' cross-project conversations
+    // so the cap-check matches messages.js post-flight semantics.
     const [projectCountRow] = await sql`
       SELECT COUNT(*)::int AS n
         FROM projects
-       WHERE owner_user_id = ${userIdText}
-         AND deleted_at    IS NULL
+       WHERE deleted_at    IS NULL
     `;
     const [spendRow] = await sql`
       SELECT COALESCE(SUM(m.cost_usd), 0)::float AS spend_usd
@@ -99,7 +101,6 @@ export async function onRequestGet({ request, env }) {
        WHERE m.project_id  IS NULL
          AND m.created_at  >= ${periodStartIso}::timestamptz
          AND m.deleted_at  IS NULL
-         AND c.user_id     = ${userIdText}
          AND c.deleted_at  IS NULL
     `;
 

@@ -96,16 +96,19 @@ export async function authorizeProjectSet(sql, workspaceUserId, projectIds) {
     return { ok: false, code: 'cross_project_empty_set' };
   }
 
-  // (4) Workspace-scope lookup. One indexed query.
-  // Uses the codebase's established `IN ${sql(arr)}` pattern (vs
-  // `= ANY(${arr}::uuid[])` which trips postgres-js array-CSV
-  // serialization — see messages.js:236 comment + dashboard.js
-  // 12.3 fix-up).
+  // (4) Workspace-liveness lookup. One indexed query.
+  // 2026-05-27 (shared-workspace-visibility): per-user owner predicate
+  // dropped — any authenticated caller can reference any live project.
+  // The `code: 'project_not_in_workspace'` envelope name is preserved
+  // for the agent self-correction contract; in this model it means
+  // "project doesn't exist or is soft-deleted."
+  // Uses the codebase's `IN ${sql(arr)}` pattern (vs `= ANY(${arr}::uuid[])`
+  // which trips postgres-js array-CSV serialization — see messages.js
+  // comment + dashboard.js 12.3 fix-up).
   const rows = await sql`
     SELECT id::text AS project_id
       FROM projects
-     WHERE owner_user_id = ${workspaceUserId}
-       AND id IN ${sql(deduped)}
+     WHERE id IN ${sql(deduped)}
        AND deleted_at IS NULL
   `;
 

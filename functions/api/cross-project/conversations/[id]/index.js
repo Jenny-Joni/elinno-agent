@@ -36,7 +36,11 @@ function parseProjectIds(v) {
   return [];
 }
 
-async function loadOwned(sql, convId, userId) {
+// 2026-05-27 (shared-workspace-visibility): cross-project chats are
+// shared across all authenticated users in the workspace. The legacy
+// `userId` parameter is kept for callsite stability and stays in the
+// row payload (it's the creator), but is no longer used as a filter.
+async function loadOwned(sql, convId, _userId) {
   const [row] = await sql`
     SELECT id::text         AS id,
            project_id,
@@ -49,7 +53,6 @@ async function loadOwned(sql, convId, userId) {
            updated_at
       FROM conversations
      WHERE id           = ${convId}
-       AND user_id      = ${userId}
        AND project_ids IS NOT NULL
        AND deleted_at   IS NULL
      LIMIT 1
@@ -123,14 +126,15 @@ export async function onRequestPatch({ request, env, params }) {
     fetch_types: false,
   });
   try {
-    // Workspace ownership check first — 404 on cross-tenant attempts so
-    // we never leak existence to a non-owner. For restore, allow
-    // soft-deleted rows; for rename/re-scope, restrict to live rows.
+    // 2026-05-27 (shared-workspace-visibility): existence check no longer
+    // filters by user_id — any authenticated user can rename/re-scope/
+    // restore any cross-project chat in the workspace. For restore,
+    // allow soft-deleted rows; for rename/re-scope, restrict to live.
     const owned = hasRestore
       ? await sql`
           SELECT id::text AS id, user_id, deleted_at
             FROM conversations
-           WHERE id = ${params.id} AND user_id = ${userId}
+           WHERE id = ${params.id}
            LIMIT 1
         `.then(rows => rows[0])
       : await loadOwned(sql, params.id, userId);
@@ -161,7 +165,7 @@ export async function onRequestPatch({ request, env, params }) {
                title       = ${nextTitle},
                deleted_at  = NULL,
                updated_at  = NOW()
-         WHERE id = ${params.id} AND user_id = ${userId}
+         WHERE id = ${params.id}
         RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
       `;
     } else if (hasProjectIds && hasTitle) {
@@ -170,7 +174,7 @@ export async function onRequestPatch({ request, env, params }) {
            SET project_ids = ${projectIdsLiteral}::uuid[],
                title       = ${nextTitle},
                updated_at  = NOW()
-         WHERE id = ${params.id} AND user_id = ${userId}
+         WHERE id = ${params.id}
         RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
       `;
     } else if (hasProjectIds && hasRestore) {
@@ -179,7 +183,7 @@ export async function onRequestPatch({ request, env, params }) {
            SET project_ids = ${projectIdsLiteral}::uuid[],
                deleted_at  = NULL,
                updated_at  = NOW()
-         WHERE id = ${params.id} AND user_id = ${userId}
+         WHERE id = ${params.id}
         RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
       `;
     } else if (hasTitle && hasRestore) {
@@ -188,7 +192,7 @@ export async function onRequestPatch({ request, env, params }) {
            SET title       = ${nextTitle},
                deleted_at  = NULL,
                updated_at  = NOW()
-         WHERE id = ${params.id} AND user_id = ${userId}
+         WHERE id = ${params.id}
         RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
       `;
     } else if (hasProjectIds) {
@@ -196,7 +200,7 @@ export async function onRequestPatch({ request, env, params }) {
         UPDATE conversations
            SET project_ids = ${projectIdsLiteral}::uuid[],
                updated_at  = NOW()
-         WHERE id = ${params.id} AND user_id = ${userId}
+         WHERE id = ${params.id}
         RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
       `;
     } else if (hasTitle) {
@@ -204,7 +208,7 @@ export async function onRequestPatch({ request, env, params }) {
         UPDATE conversations
            SET title       = ${nextTitle},
                updated_at  = NOW()
-         WHERE id = ${params.id} AND user_id = ${userId}
+         WHERE id = ${params.id}
         RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
       `;
     } else {
@@ -213,7 +217,7 @@ export async function onRequestPatch({ request, env, params }) {
         UPDATE conversations
            SET deleted_at = NULL,
                updated_at = NOW()
-         WHERE id = ${params.id} AND user_id = ${userId}
+         WHERE id = ${params.id}
         RETURNING id::text AS id, project_id, project_ids, label, user_id, title, last_message_at, created_at, updated_at
       `;
     }
@@ -245,7 +249,6 @@ export async function onRequestDelete({ request, env, params }) {
          SET deleted_at = NOW(),
              updated_at = NOW()
        WHERE id           = ${params.id}
-         AND user_id      = ${userId}
          AND project_ids IS NOT NULL
          AND deleted_at   IS NULL
       RETURNING id

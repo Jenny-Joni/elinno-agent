@@ -60,17 +60,16 @@ export async function onRequestGet({ request, env, params }) {
   let projectIds = null;
   let activeChatId = null;
   try {
-    // Resolve every slug to a uuid in one query, workspace-scoped.
+    // Resolve every slug to a uuid in one query.
+    // 2026-05-27 (shared-workspace-visibility): slug lookup is global —
+    // any authenticated user can resolve any combo. If any slug doesn't
+    // resolve (typo, deleted project) we soft-fail back to /cross-project/.
     // Uses the codebase's `IN ${sql(arr)}` pattern (see
-    // functions/_lib/ai/authorize.js comment) — `= ANY(${arr})` trips
-    // postgres-js's CSV-serialization of JS arrays. If any slug doesn't
-    // resolve (typo, deleted project, wrong workspace) we soft-fail
-    // back to /cross-project/.
+    // functions/_lib/ai/authorize.js) — `= ANY(${arr})` trips postgres-js.
     const rows = await sql`
       SELECT id::text AS id, slug
         FROM projects
-       WHERE owner_user_id = ${userId}
-         AND slug          IN ${sql(slugs)}
+       WHERE slug          IN ${sql(slugs)}
          AND deleted_at IS NULL
     `;
     if (rows.length !== slugs.length) {
@@ -79,18 +78,17 @@ export async function onRequestGet({ request, env, params }) {
     projectIds = rows.map(r => r.id).sort();
 
     // Find the most recent conversation whose project_ids exactly
-    // matches the combo (same set, same length). project_ids is stored
-    // as uuid[]; we do set-equality via @>/<@ + length check so order
-    // in the stored array doesn't matter. Array literal built manually
-    // because postgres-js's `${jsArr}` serializes as CSV which fails
-    // to parse as uuid[] (see functions/api/cross-project/conversations.js
-    // for the same pattern).
+    // matches the combo (same set, same length). 2026-05-27: chats are
+    // shared across the workspace, so we no longer filter by user_id.
+    // project_ids is uuid[]; set-equality via @>/<@ + length check so
+    // order in the stored array doesn't matter. Array literal built
+    // manually because postgres-js's `${jsArr}` serializes as CSV which
+    // fails to parse as uuid[].
     const projectIdsLiteral = '{' + projectIds.join(',') + '}';
     const convs = await sql`
       SELECT id::text AS id
         FROM conversations
-       WHERE user_id    = ${userId}
-         AND deleted_at IS NULL
+       WHERE deleted_at IS NULL
          AND project_ids IS NOT NULL
          AND array_length(project_ids, 1) = ${projectIds.length}
          AND project_ids @> ${projectIdsLiteral}::uuid[]

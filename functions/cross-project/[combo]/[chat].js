@@ -42,13 +42,13 @@ export async function onRequestGet({ request, env, params }) {
 
   let projectIds = null;
   try {
-    // `IN ${sql(arr)}` is the codebase pattern (see [combo].js header
-    // comment + _lib/ai/authorize.js); = ANY(${arr}) trips postgres-js.
+    // 2026-05-27 (shared-workspace-visibility): slug + chat lookups are
+    // global. `IN ${sql(arr)}` is the codebase pattern (see [combo].js
+    // header + _lib/ai/authorize.js); = ANY(${arr}) trips postgres-js.
     const rows = await sql`
       SELECT id::text AS id, slug
         FROM projects
-       WHERE owner_user_id = ${userId}
-         AND slug          IN ${sql(slugs)}
+       WHERE slug          IN ${sql(slugs)}
          AND deleted_at IS NULL
     `;
     if (rows.length !== slugs.length) {
@@ -56,15 +56,14 @@ export async function onRequestGet({ request, env, params }) {
     }
     projectIds = rows.map(r => r.id).sort();
 
-    // Verify the chat exists, belongs to this user, and its project_ids
-    // exactly matches the combo. uuid[] set-equality via @>/<@ + length
-    // (see [combo].js for the same pattern + the postgres-js gotcha note).
+    // Verify the chat exists (shared across the workspace) and its
+    // project_ids exactly matches the combo. uuid[] set-equality via
+    // @>/<@ + length (see [combo].js for the postgres-js gotcha note).
     const projectIdsLiteral = '{' + projectIds.join(',') + '}';
     const convs = await sql`
       SELECT id::text AS id
         FROM conversations
        WHERE id         = ${chat}::uuid
-         AND user_id    = ${userId}
          AND deleted_at IS NULL
          AND project_ids IS NOT NULL
          AND array_length(project_ids, 1) = ${projectIds.length}

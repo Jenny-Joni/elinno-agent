@@ -38,7 +38,6 @@ function parseProjectIds(v) {
 export async function onRequestGet({ request, env }) {
   const user = await getSessionUser(request, env.DB);
   if (!user) return error('Not authenticated', 401);
-  const userIdText = String(user.id);
 
   // D1: workspace cap + spend period start. v1.3 (Block 12.1) added
   // these three columns. cross_project_ai_spend_period_start may be
@@ -65,9 +64,8 @@ export async function onRequestGet({ request, env }) {
   });
 
   try {
-    // 1. List workspace projects (v1.3: workspace = owner_user_id).
-    //    Index path: projects_owner_active_idx on (owner_user_id)
-    //    WHERE deleted_at IS NULL.
+    // 2026-05-27 (shared-workspace-visibility): list all live projects in
+    // the shared workspace. Originally per-owner (v1.3 Block 12.1).
     const projects = await sql`
       SELECT id::text AS id,
              name,
@@ -78,8 +76,7 @@ export async function onRequestGet({ request, env }) {
              created_at,
              updated_at
         FROM projects
-       WHERE owner_user_id = ${userIdText}
-         AND deleted_at IS NULL
+       WHERE deleted_at IS NULL
        ORDER BY updated_at DESC, id DESC
     `;
 
@@ -186,9 +183,8 @@ export async function onRequestGet({ request, env }) {
       }
     }
 
-    // 5. Cross-project conversations owned by this user. In 12.3 this
-    //    is expected to return [] (the cross-project endpoint lands in
-    //    12.5a). The dashboard renders an empty-state CTA when empty.
+    // 5. Cross-project conversations (shared across the workspace per
+    //    2026-05-27 shared-workspace-visibility — originally per-user).
     const crossProjectChats = await sql`
       SELECT id::text                AS id,
              label,
@@ -197,19 +193,15 @@ export async function onRequestGet({ request, env }) {
              last_message_at,
              created_at
         FROM conversations
-       WHERE user_id = ${userIdText}
-         AND project_ids IS NOT NULL
+       WHERE project_ids IS NOT NULL
          AND deleted_at IS NULL
        ORDER BY last_message_at DESC NULLS LAST, created_at DESC
        LIMIT 10
     `;
 
     // 6. Cross-project spend MTD. Cross-project messages have
-    //    project_id IS NULL (BLOCK_12_PLAN decision F). Scope to this
-    //    workspace user's conversations (the cap is per-user). In 12.3
-    //    this should always return 0 since no cross-project messages
-    //    exist yet; the cap-charging helper that writes them lands in
-    //    12.5a.
+    //    project_id IS NULL (BLOCK_12_PLAN decision F). Summed across
+    //    the shared workspace (2026-05-27 shared-workspace-visibility).
     const spendRow = await sql`
       SELECT COALESCE(SUM(cost_usd), 0)::float AS spend_usd
         FROM messages m
@@ -217,7 +209,6 @@ export async function onRequestGet({ request, env }) {
        WHERE m.project_id IS NULL
          AND m.created_at >= ${periodStartIso}::timestamptz
          AND m.deleted_at IS NULL
-         AND c.user_id = ${userIdText}
          AND c.deleted_at IS NULL
     `;
     const crossProjectSpend = Number(spendRow[0]?.spend_usd ?? 0);

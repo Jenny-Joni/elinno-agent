@@ -2,33 +2,33 @@
 // =========================================================================
 // SECURITY-CARVE-OUT: do not edit in auto mode
 //
-// The sole sanctioned entry point for the workspace handle in v1.3.
-// Every callsite that needs to identify "which workspace is this user
-// in" goes through this helper — no inline `getSessionUser().id`
-// substitutions anywhere else. When v2.0 introduces real workspaces
-// (PRD v1.3 §6 cut #12), this is the one file that changes; everything
-// else (auth gates, authorize step, cap-charging, route handlers)
-// continues to work without edits.
+// Workspace-handle helper. Originally (BLOCK_12_PLAN decision U) this
+// was the sole entry point for "which workspace is the current user in",
+// where workspace = session user id (one user, one workspace).
 //
-// Per BLOCK_12_PLAN.md decision U.
+// 2026-05-27 (shared-workspace-visibility): the workspace boundary is
+// now a single shared workspace across all authenticated users. This
+// helper still returns String(user.id), but callers must NOT use the
+// return value as a filter predicate on `projects.owner_user_id` or
+// `conversations.user_id` — those columns are now interpreted as the
+// row's CREATOR record, not the visibility scope.
+//
+// Surviving uses:
+//   - `getAdminEmailsForProject` (cost-cap notifications) — looks up the
+//     creator's email via projects.owner_user_id.
+//   - INSERT trails (e.g., conversations.user_id on POST cross-project)
+//     so the creator is recorded.
+//
+// When v2.0 introduces real workspaces (PRD v1.3 §6 cut #12), this is
+// the one file that changes to resolve a real workspaces.id from
+// membership.
 // =========================================================================
 
 import { getSessionUser } from './auth.js';
 
 /**
- * Resolve the workspace handle for the current session, or null if
- * not authenticated.
- *
- * v1.3 model: workspace_id = session user's id. One user, one
- * workspace. Returned as a string for consistent comparison against
- * Postgres TEXT columns (e.g., projects.owner_user_id is TEXT per
- * the cross-DB seam — D1 users.id is INTEGER, but every Postgres
- * cross-reference uses String(user.id)).
- *
- * v2.0 model (future): this helper resolves a real workspaces.id
- * after looking up the user's active workspace membership. Every
- * existing caller continues to work because the return type
- * (string | null) is preserved.
+ * Resolve the current session user's id (as TEXT, for Postgres
+ * comparison) or null if not authenticated.
  *
  * @param {Request} request - Pages Function request (cookies live here)
  * @param {object} env - Pages Function env (env.DB)

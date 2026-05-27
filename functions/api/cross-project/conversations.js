@@ -118,7 +118,10 @@ export async function onRequestPost({ request, env }) {
   }
 }
 
-// GET — list this workspace user's cross-project conversations.
+// GET — list cross-project conversations across the shared workspace.
+// 2026-05-27 (shared-workspace-visibility): originally per-user
+// (c.user_id = sessionUser); now lists every cross-project chat in the
+// workspace. user_id stays on the row as the creator record.
 export async function onRequestGet({ request, env }) {
   const userId = await getWorkspaceUserId(request, env);
   if (!userId) return error('Not authenticated', 401);
@@ -142,8 +145,7 @@ export async function onRequestGet({ request, env }) {
    LEFT JOIN messages m
           ON m.conversation_id = c.id
          AND m.deleted_at IS NULL
-       WHERE c.user_id     = ${userId}
-         AND c.project_ids IS NOT NULL
+       WHERE c.project_ids IS NOT NULL
          AND c.deleted_at  IS NULL
        GROUP BY c.id
        ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC

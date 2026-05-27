@@ -89,11 +89,10 @@ export async function onRequestPost({ request, env }) {
       if (base.length > 60) base = base.slice(0, 60).replace(/-+$/g, '');
       // Avoid colliding with the reserved-word list by prefixing 'p-'.
       if (isReservedSlug(base)) base = 'p-' + base;
-      // Find the first free suffix in this workspace.
+      // Find the first free suffix in the (shared) workspace.
       const existing = await sql`
         SELECT slug FROM projects
-         WHERE owner_user_id = ${userIdText}
-           AND deleted_at IS NULL
+         WHERE deleted_at IS NULL
            AND (slug = ${base} OR slug LIKE ${base + '-%'})
       `;
       const taken = new Set(existing.map((r) => r.slug));
@@ -140,24 +139,17 @@ export async function onRequestGet({ request, env }) {
   const user = await getSessionUser(request, env.DB);
   if (!user) return error('Not authenticated', 401);
 
-  // Cross-DB seam: D1 users.id (INTEGER) → Postgres TEXT.
-  // Pattern documented canonically in db/schema-postgres.sql header.
-  const userIdText = String(user.id);
-
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,
     fetch_types: false,
   });
 
   try {
-    // v1.3 (Block 12.1, decision I): list projects in the session user's
-    // workspace. The v1.2 JOIN project_members is gone — workspace scope
-    // is the single predicate. Index path:
-    // projects_owner_active_idx ON (owner_user_id) WHERE deleted_at IS NULL.
-    // Tiebreaker on p.id keeps ordering stable when two projects share
-    // an updated_at (e.g., both freshly created). `role` is derived from
-    // D1 user.is_admin (workspace-admin is the only role concept in v1.3)
-    // to preserve the v1.2 response shape for the projects-list UI.
+    // 2026-05-27 (shared-workspace-visibility): list all live projects
+    // in the shared workspace. Originally filtered by owner_user_id
+    // (v1.3 Block 12.1 decision I); that predicate is gone. `role` is
+    // derived from D1 user.is_admin to preserve the v1.2 response shape
+    // for the projects-list UI.
     const role = user.is_admin ? 'admin' : 'member';
     const projects = await sql`
       SELECT
@@ -170,8 +162,7 @@ export async function onRequestGet({ request, env }) {
         p.created_at,
         p.updated_at
         FROM projects p
-       WHERE p.owner_user_id = ${userIdText}
-         AND p.deleted_at IS NULL
+       WHERE p.deleted_at IS NULL
        ORDER BY p.updated_at DESC, p.id DESC
     `;
 

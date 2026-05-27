@@ -25,10 +25,11 @@ export async function onRequestGet({ request, env }) {
   });
 
   try {
-    // All workspace projects (not soft-deleted). Block 13.6 dropped the
-    // Jira-only EXISTS filter so sourceless + Slack-only projects also
-    // appear in the picker — sourceless ones render as disabled rows
-    // per screen-11, Slack-only ones render with a slack source-chip.
+    // All shared-workspace projects (not soft-deleted). 2026-05-27
+    // (shared-workspace-visibility): dropped the per-user owner filter
+    // so every authenticated user sees the same project list. Block 13.6
+    // earlier dropped a Jira-only EXISTS filter; sourceless + Slack-only
+    // projects render in the picker too.
     const projects = await sql`
       SELECT p.id::text       AS id,
              p.name,
@@ -39,8 +40,7 @@ export async function onRequestGet({ request, env }) {
              p.owner_user_id,
              p.logo_r2_key
         FROM projects p
-       WHERE p.owner_user_id = ${userId}
-         AND p.deleted_at IS NULL
+       WHERE p.deleted_at IS NULL
        ORDER BY p.updated_at DESC, p.id DESC
     `;
 

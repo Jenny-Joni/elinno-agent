@@ -9,10 +9,11 @@
 //   400 { available: false, reason: 'invalid_format' }
 //   401 (no session) — handled by getWorkspaceUserId returning null
 //
-// Workspace-scoped: a slug is "taken" only if another ACTIVE project in
-// the same workspace (owner_user_id) has it. Soft-deleted projects don't
-// participate in uniqueness (matches the partial unique index in the
-// 2026-05-23-block-13-8 migration).
+// 2026-05-27 (shared-workspace-visibility): slug uniqueness is now
+// global within the shared workspace — a slug is "taken" if any ACTIVE
+// project anywhere has it. Soft-deleted projects don't participate
+// (matches the schema migration that swapped the partial unique index
+// from (owner_user_id, slug) to (slug) WHERE deleted_at IS NULL).
 
 import postgres from 'postgres';
 import { error, json } from '../../_lib/auth.js';
@@ -40,7 +41,8 @@ export async function onRequestGet({ request, env }) {
     return json({ available: false, reason: 'reserved' });
   }
 
-  // Workspace-scoped DB check.
+  // Shared-workspace DB check (no owner predicate; slug uniqueness is
+  // global within active projects per the 2026-05-27 schema migration).
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,
     fetch_types: false,
@@ -49,8 +51,7 @@ export async function onRequestGet({ request, env }) {
     const rows = await sql`
       SELECT 1
         FROM projects
-       WHERE owner_user_id = ${userId}
-         AND slug          = ${slug}
+       WHERE slug          = ${slug}
          AND deleted_at IS NULL
        LIMIT 1
     `;

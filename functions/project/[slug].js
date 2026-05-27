@@ -61,11 +61,13 @@ export async function onRequestGet({ request, env, params }) {
   });
   let projectId = null;
   try {
+    // 2026-05-27 (shared-workspace-visibility): slug lookup is global
+    // across the shared workspace (slug uniqueness is workspace-wide
+    // per the matching schema migration).
     const rows = await sql`
       SELECT id::text AS id
         FROM projects
-       WHERE owner_user_id = ${userId}
-         AND slug          = ${slug}
+       WHERE slug          = ${slug}
          AND deleted_at IS NULL
        LIMIT 1
     `;

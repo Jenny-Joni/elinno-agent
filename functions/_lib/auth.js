@@ -1,15 +1,23 @@
 // functions/_lib/auth.js
 // Shared helpers for the Elinno Agent auth system.
 // Uses Web Crypto APIs (D1-side: sessions, password hashing) and the
-// `postgres` client (Postgres-side: workspace-scope check against
-// `projects.owner_user_id`). Both bindings — env.DB (D1) and env.HYPERDRIVE
-// (Hyperdrive → Neon) — are declared in wrangler.toml.
+// `postgres` client (Postgres-side: project liveness check). Both
+// bindings — env.DB (D1) and env.HYPERDRIVE (Hyperdrive → Neon) — are
+// declared in wrangler.toml.
 //
 // v1.3 (Block 12.1): per-project membership collapsed. `requireProjectRole`
-// is replaced by `requireWorkspaceScope` (workspace = projects.owner_user_id
-// = session user's id, per BLOCK_12_PLAN.md decision E + I). The
-// `requireWorkspaceAdmin` gate (D1 users.is_admin = 1) is unchanged and
-// continues to gate edit operations.
+// is replaced by `requireWorkspaceScope`, which originally enforced
+// workspace = projects.owner_user_id = session user's id (BLOCK_12_PLAN
+// decision E + I).
+//
+// 2026-05-27 (shared-workspace-visibility): the workspace boundary is now
+// a single shared workspace — any authenticated user can see/use any
+// non-deleted project. `requireWorkspaceScope` no longer filters by
+// owner_user_id; it only checks the project exists and isn't soft-deleted.
+// `requireWorkspaceAdmin` (D1 users.is_admin = 1) is unchanged and
+// continues to gate edit/create/delete operations. `owner_user_id` is
+// preserved as the project's CREATOR record (used by
+// `getAdminEmailsForProject` for cost-cap notifications).
 
 import postgres from 'postgres';
 
@@ -216,32 +224,18 @@ export async function requireWorkspaceAdmin(request, env) {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Verify the session user's workspace contains this project. v1.3
- * replaces the v1.1/v1.2 `requireProjectRole`; the workspace boundary
- * (projects.owner_user_id = session user's id) is the single security
- * predicate. Per BLOCK_12_PLAN.md decision I + §3.6.
+ * Verify the requested project exists and is not soft-deleted. v1.3
+ * replaced v1.1/v1.2 `requireProjectRole` with a workspace-scope check
+ * (projects.owner_user_id = session user's id).
+ *
+ * 2026-05-27 (shared-workspace-visibility): the per-user workspace
+ * predicate is gone. Any authenticated user can reach any live project.
+ * The check is now: session valid + projectId is a UUID + project row
+ * exists + project not soft-deleted.
  *
  * Returns `{ error: Response }` on failure for early-return, or
- * `{ user }` on success. No `role` is returned — workspace-admin is
- * a sibling gate (`requireWorkspaceAdmin` below) layered on top by
- * routes that perform edit operations.
- *
- * Authorization layers, in order:
- *   1. Session valid (D1)                                → otherwise 401
- *   2. projectId is a syntactically valid UUID           → otherwise 400
- *   3. Project belongs to the session user's workspace
- *      AND project is not soft-deleted                   → otherwise 403
- *
- * Failure case 3a (project doesn't exist), 3b (project exists but
- * belongs to a different workspace), and 3c (project soft-deleted)
- * all collapse to one 403 so the API never leaks which projects
- * exist or whose workspace they're in. PRD v1.3 §3.6 reaffirms
- * cross-tenant leakage as a top threat.
- *
- * Cross-DB seam: D1 users.id is INTEGER, Postgres projects.owner_user_id
- * is TEXT with no FK (db/schema-postgres.sql header). The workspace
- * handle is resolved via `getWorkspaceUserId` from workspace.js, which
- * coerces with String(user.id) at the boundary (decision U).
+ * `{ user }` on success. Edit/create/delete operations layer
+ * `requireWorkspaceAdmin` (D1 users.is_admin = 1) on top.
  *
  * @param {Request} request - Pages Function request (cookies live here)
  * @param {object} env - Pages Function env (env.DB + env.HYPERDRIVE)
@@ -256,7 +250,6 @@ export async function requireWorkspaceScope(request, env, projectId) {
     return { error: error('Invalid project id', 400) };
   }
 
-  const workspaceUserId = String(user.id);
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,
     fetch_types: false,
@@ -267,13 +260,12 @@ export async function requireWorkspaceScope(request, env, projectId) {
       SELECT 1
         FROM projects
        WHERE id            = ${projectId}
-         AND owner_user_id = ${workspaceUserId}
          AND deleted_at    IS NULL
        LIMIT 1
     `;
 
     if (rows.length === 0) {
-      return { error: error('Forbidden', 403) };
+      return { error: error('Not found', 404) };
     }
 
     return { user };
