@@ -618,11 +618,15 @@
         return list.length ? list : null;
       } catch { return null; }
     }
-    // Build a slug-form chat URL: /cross-project/<sorted-slugs>+joined/<chat-id>
-    // (or /<combo> if no chat id supplied). Falls back to the legacy
-    // /cross-project/chat.html?id=&ids= shape when slugs aren't
-    // available yet (projectsById still loading).
-    function chatUrl(convId, optsIds) {
+    // Build a slug-form combo URL: /cross-project/<sorted-slugs>+joined.
+    // 2026-05-27 (shared-workspace-visibility follow-up): convId is no
+    // longer included in the URL path — sidebar is the canonical "which
+    // chat is open" control, mirroring the single-project pattern in
+    // project.html applyState(). The convId parameter is accepted for
+    // call-site stability but ignored. Falls back to the legacy
+    // /cross-project/chat.html?ids= shape when slugs aren't available
+    // yet (projectsById still loading at first paint).
+    function chatUrl(_convId, optsIds) {
       const ids = optsIds === undefined ? getFilterIds() : optsIds;
       if (ids && ids.length && projectsById && projectsById.size) {
         const slugs = ids
@@ -630,14 +634,11 @@
           .filter(Boolean)
           .sort();
         if (slugs.length === ids.length) {
-          let path = '/cross-project/' + slugs.join('+');
-          if (convId) path += '/' + convId;
-          return path;
+          return '/cross-project/' + slugs.join('+');
         }
       }
       // Legacy / pre-projectsById fallback.
       const u = new URL('/cross-project/chat.html', location.origin);
-      if (convId) u.searchParams.set('id', convId);
       if (ids && ids.length) u.searchParams.set('ids', ids.join(','));
       return u.pathname + u.search;
     }
@@ -808,6 +809,22 @@
         + '</aside>';
     }
 
+    // 2026-05-27 (shared-workspace-visibility follow-up):
+    // SPA-style chat switch — loads the requested conv + messages and
+    // re-renders without a page reload. Mirrors single-project chat
+    // (project.html applyState). Used by sidebar clicks/keydown and
+    // by the delete fallback. The URL stays /cross-project/<combo> —
+    // see chatUrl() comment for the design.
+    async function switchToConv(id) {
+      if (!id || (conv && id === conv.id)) return;
+      const [c, msgs] = await Promise.all([loadConv(id), loadMessages(id)]);
+      if (!c) return;
+      conv = c;
+      messages = msgs || [];
+      inFlight = false;
+      render();
+    }
+
     function wireSidebar() {
       const list = document.getElementById('xcConvList');
       if (!list) return;
@@ -817,7 +834,7 @@
           if (e.target.closest('.conv-menu-trigger')) return;
           const id = el.dataset.convId;
           if (id && (!conv || id !== conv.id)) {
-            location.assign(chatUrl(id));
+            switchToConv(id);
           }
         });
         el.addEventListener('keydown', (e) => {
@@ -825,7 +842,7 @@
             e.preventDefault();
             const id = el.dataset.convId;
             if (id && (!conv || id !== conv.id)) {
-              location.assign(chatUrl(id));
+              switchToConv(id);
             }
           }
         });
@@ -1026,9 +1043,11 @@
 
       if (wasActive) {
         if (fallback) {
-          location.assign(chatUrl(fallback.id));
+          // SPA swap — keep the URL on /cross-project/<combo>.
+          await switchToConv(fallback.id);
           return;
         } else {
+          // No remaining chats in this combo — bounce out.
           location.assign('/cross-project/');
           return;
         }
@@ -1506,6 +1525,24 @@
         conv = c;
         messages = msgs;
         render();
+        // 2026-05-27 (shared-workspace-visibility follow-up):
+        // Canonicalize the URL — strip the conv-uuid from the path so
+        // /cross-project/<combo>/<uuid> becomes /cross-project/<combo>.
+        // Matches the single-project chat pattern (project.html
+        // applyState() strips ?c=<uuid>). Legacy URLs keep working
+        // because the [combo]/[chat].js server function still resolves
+        // them; we just rewrite after the page boots.
+        try {
+          const canonical = chatUrl(null);
+          if (canonical && canonical !== location.pathname + location.search) {
+            // Only rewrite when chatUrl produced a real slug path (not
+            // the chat.html?ids= fallback), to avoid downgrading a good
+            // URL on early-boot races.
+            if (canonical.startsWith('/cross-project/') && !canonical.includes('chat.html')) {
+              history.replaceState(null, '', canonical);
+            }
+          }
+        } catch {}
       } catch {
         document.getElementById('xcRoot').innerHTML = '<div class="xc-error">Couldn’t load this chat. Refresh to try again.</div>';
       }
