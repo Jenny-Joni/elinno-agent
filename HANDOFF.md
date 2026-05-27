@@ -5894,3 +5894,79 @@ public/
 └── projects/new.html                           # post-create redirect prefers slug
 ```
 
+
+## Continuation session — 2026-05-27 (admin spend card + welcome email)
+
+### Production state at session end
+
+`main` at `4ad883b`, working tree clean, in sync with `origin/main`. Two
+production-promoted deployments this session: webhook-built `bb5d319c`
+(for `283619b`) and wrangler-built `38d7e089` aliased on the preview branch
+(the merged welcome-email code is what landed on prod when Jenny pushed
+`4ad883b` to main).
+
+### What shipped
+
+| Commit | Summary |
+|---|---|
+| `283619b` | `feat(admin): move cross-project AI spend card from dashboard to admin page` — removed `renderSpendCard` + inline CSS from `public/dashboard.html`; reproduced spend card on `public/admin.html`, sourced from `/api/workspace` (`cross_project_ai.{spend_usd, cap_usd}`) |
+| `4ad883b` | `feat(admin): send welcome email with credentials on user create` — added `sendWelcomeEmail()` to `functions/_lib/email.js` (mirrors password-reset/cost-cap layout); POST `/api/admin/users` now awaits the send and returns `email_sent: boolean`; admin form surfaces success/failure copy |
+
+### Welcome-email payload
+
+Recipient gets a Resend HTML+text email: subject "Welcome to Elinno Agent",
+heading "Welcome aboard", a mono-styled credentials block (email + plaintext
+password), a brand-purple "Sign in" button to `env.SITE_URL`, and a
+"recommend changing this password" footer line.
+
+### Deploy-pipeline issues — newer data points
+
+1. **`fatal error in commit_refs` now hits branch pushes too.** Previous
+   HANDOFF noted it on main; this session it rejected both `admin-spend-card`
+   and `admin-welcome-email` branch pushes (the latter took three tries).
+   Retry continues to work; no functional fix.
+2. **GH→CF Pages webhook silently dropped the `admin-welcome-email` branch
+   push.** Preview URL `admin-welcome-email.elinno-agent.pages.dev` returned
+   "Deployment Not Found" after the branch landed on origin. Workaround:
+   `npx wrangler pages deploy public --project-name=elinno-agent --branch=admin-welcome-email --commit-dirty=true`
+   (the same escape hatch used in the prior session for main). Deployment
+   alias came up immediately.
+3. **`git push origin main` worked first try this session** (commit `4ad883b`)
+   and CF auto-built deployment `bb5d319c` → prod alias. So the pipeline
+   isn't uniformly broken — appears intermittent across both pathways.
+
+### RESEND_API_KEY not bound to Preview environment
+
+Preview-side welcome-email testing returned `email_sent: false` for every
+submit. `npx wrangler pages deployment tail --project-name=elinno-agent --environment=preview`
+showed `(error) RESEND_API_KEY missing — cannot send welcome email`.
+Root cause: the Resend secret is set on **Production** only in
+Pages → Settings → Variables and Secrets. Preview deploys (including
+wrangler-deployed ones) don't inherit it.
+
+Implication: every email path in `functions/_lib/email.js`
+(password-reset, cost-cap, welcome) is untestable end-to-end from a preview
+deploy until the secret is also bound to Preview. Not blocking — prod
+testing covered today's verification — but worth fixing before the next
+email-touching feature.
+
+### Test rows in prod D1 from preview testing
+
+Preview shares prod bindings (top-level wrangler.toml, no `[env.preview]`
+override), so the preview-side admin form writes to prod D1. These rows
+landed during today's diagnostic loop and remain:
+
+- `Welcome Test` / `jennyshane.js+welcome1@gmail.com`
+- `Welcome Test 3` / `jennyshane.js+welcome3@gmail.com`
+- `Jenny Welcome Test` / (manual create by Jenny)
+- `Jenny Test` / `jennyshane.js@gmail.com` (the create that successfully
+  sent the welcome email on prod — keep or remove per preference)
+
+All are member-role with admin-set passwords. Remove via admin UI
+⋯ → Remove from workspace, or via DELETE `/api/admin/users/<id>`.
+
+### Stale local branches
+
+Add to the maintenance-pass list: `admin-spend-card`, `admin-welcome-email`
+(both merged to main, safe to delete).
+
