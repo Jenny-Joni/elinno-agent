@@ -2,7 +2,7 @@
 
 > Drop this into a fresh Claude Code session so the assistant can pick up where the last session left off. This file is the single source of truth for "where are we and what's next." Update it after each working session.
 
-**Last updated:** 2026-05-04 (Block 3 closeout)
+**Last updated:** 2026-05-28 (shared-workspace + UI alignment closeout)
 **Current product version:** v1.1 (the MVP being built now)
 **Owner / sole developer:** Jenny ([jenny@elinnovation.net](mailto:jenny@elinnovation.net))
 **AI tooling:** Claude Code (switched from Cursor + Claude.ai mid-Block-2-Session-3, 2026-05-03)
@@ -5969,4 +5969,192 @@ All are member-role with admin-set passwords. Remove via admin UI
 
 Add to the maintenance-pass list: `admin-spend-card`, `admin-welcome-email`
 (both merged to main, safe to delete).
+
+---
+
+## Session closeout — 2026-05-27 → 2026-05-28 (shared-workspace + UI alignment)
+
+### Production state at session end
+
+`main` at `a71b88c`, working tree clean, in sync with `origin/main`. Prod
+running `a71b88c` (verified via wrangler pages deployment list — production
+deployment `df1503bc` source `a71b88c`). Schema migration ran on Neon prod
+mid-session (slug uniqueness index swap, see "What shipped" item 1 below).
+Single branch worked: `shared-workspace-visibility`, grew to 15 commits,
+ff-merged into main in pieces with per-push approvals.
+
+### TL;DR architectural shift
+
+v1.3's "one user = one workspace" boundary (BLOCK_12_PLAN decision I + U)
+is **superseded**: PROJECTS are now a single shared workspace — every
+authenticated user sees every non-deleted project. CONVERSATIONS remain
+per-user (each user has their own chat history, including cross-project
+combos). Edit/create/delete operations still gated by `requireWorkspaceAdmin`
+(D1 users.is_admin = 1) — only admins can create projects, change settings,
+or connect data sources. This was a deliberate revisit of the decision —
+not a future v2.0 multi-workspace rebuild. See the seam docs in
+`functions/_lib/workspace.js` and `functions/_lib/auth.js` for the
+canonical statement.
+
+### What shipped — 15 commits, all on `origin/main`
+
+| Commit | Summary |
+|---|---|
+| `e2f7584` | `feat(workspace): all users see all projects + cross-project chats` — initial broad pass. Dropped `owner_user_id` filter from project visibility queries (requireWorkspaceScope, list/get/slug endpoints, AI authorize step). Also dropped `user_id` filter from cross-project conversation endpoints. |
+| `52e1811` | `fix(workspace): keep cross-project chats per-user` — Jenny course-corrected after the initial pass: cross-project chats should stay per-user (each user has unique combinations). Restored `user_id` filters in cross-project conversation reads + writes, dashboard chat list, workspace spend, route resolvers. Net architecture: shared PROJECTS, per-user CHATS. |
+| `2217363` | `feat(project): hide settings entry points from non-admins` — gear icon + "Open Connections" empty-state CTA in `public/project.html` wrapped in `me.is_admin` conditional. Members see "Ask a workspace admin to connect Slack or Jira" instead. UX-level only; mutating endpoints already required admin. |
+| `95119fa` | `feat(nav): hide Dashboard + Projects top-nav links from non-admins` — added `data-admin-only` attribute to 20 nav links across 10 pages + `public/nav-gate.js` that fetches `/api/me` on load and hides them for members. |
+| `2c35e19` | `feat(cross-project): sidebar + creates new chat in same combo` — clicking the sidebar "+" in cross-project chat now POSTs `/api/cross-project/conversations` with the current chat's project_ids and redirects, instead of bouncing through the picker. |
+| `dfe1d9e` | `fix(cross-project): SPA-style new-chat creation (no page reload)` — the previous commit used `location.assign` and felt like a refresh. Replaced with in-memory state swap + `history.replaceState` (mirror of project.html's `applyState`). |
+| `2b5d327` | `fix(cross-project): URL stays at /cross-project/<combo>, no chat uuid` — `chatUrl()` no longer includes conv id. Added `switchToConv(id)` for SPA-style chat switching from sidebar clicks. Boot canonicalizes legacy `/cross-project/<combo>/<uuid>` URLs to the combo-only form. Mirrors `project.html`'s URL pattern. |
+| `f7e5d0e` | `feat(nav): remove Dashboard + Projects from top nav for all users` — superseded the gating: those links are redundant for admins too (brand wordmark covers Dashboard, dashboard's "View all →" covers Projects). Deleted the 20 link elements + the `nav-gate.js` file + the 10 `<script>` tags. |
+| `0ed5c90` | `feat(project): align single-project chat UI to cross-project` — round-1 of the project-chat alignment. Removed the giant `GEMS LAUNCHPAD` heading + Chat tab pill. Breadcrumb-only header. Added "FROM <project chip>" strip (mirror of cross-project's ACROSS row). Replaced "NEW CONVERSATION / TRY ASKING…" pill grid with centered icon + "Ask <project>" + suggestion cards (mirror of `.xc-empty`). Page-local CSS, no `auth.css` touch. |
+| `a9ce457` | `feat(project): full layout alignment with cross-project chat` — round-2. Override `.project-shell` from "one big card with vertical divider" to "two rounded cards in a grid with gap" (mirror of `.xc-grid` + `.xc-sidebar` + `.xc-main`). Composer becomes a slim transparent input in a rounded grey row + 32×32 paper-plane icon button + footer with cap info + "↵ to send". JS: stopped overwriting the icon button's textContent on send. |
+| `590d646` | `fix(project): no page scroll, chat aligned with cross-project viewport` — round-3. `.project-shell` height calc assumed cross-project's outer wrapper math; single-project lives inside `.app-main` with 70/70 padding. Override `.app-main { padding: 18px 0 30px }` page-local so the viewport math matches. |
+| `cd2aba5` | `fix(project): constrain chat width to match cross-project` — round-4. Single-project was inheriting `.custom-container`'s `max-width: 1230px` while cross-project's `.xc-shell` is `1100px`. Override page-local. |
+| `303ead8` | `fix(project): match cross-project send button + input colors exactly` — round-5. Send button disabled state now flips bg to `var(--text-3)` (gray) instead of opacity-dimmed brand. Composer input bg forced transparent with `!important` to win over auth.css's `:focus { background: rgba(0,0,0,0.05) }`. |
+| `31adf1d` | `fix(project): match cross-project page background (--bg-subtle)` — round-6. Cross-project sets `<main style="background:var(--bg-subtle)">` inline (`#fcfcfd`); single-project was inheriting `.app-main`'s default `var(--color-bg-soft)` (`#f7f7f7`). Page-local override. |
+| `a71b88c` | `fix(project): quiet boot loader, smooth transition (no card flash)` — round-7. Replaced the big "Loading project…" state-card overlay with a quiet `<div class="chat-boot-loading">Loading chat…</div>` (mirror of `.xc-loading`). Pre-rendered in HTML body so first paint after click has no blank flash. |
+
+### Schema migration that ran on Neon prod (mid-session)
+
+Jenny ran this in the Neon SQL editor when the first preview verified:
+
+```sql
+SELECT slug, COUNT(*) FROM projects
+ WHERE deleted_at IS NULL GROUP BY slug HAVING COUNT(*) > 1;
+-- returned 0 rows ✓
+
+DROP INDEX IF EXISTS projects_owner_slug_active_idx;
+CREATE UNIQUE INDEX projects_slug_active_idx
+    ON projects (slug) WHERE deleted_at IS NULL;
+```
+
+Slug uniqueness is now workspace-global (matches the new shared model).
+
+### Locked-in patterns introduced this session
+
+- **Shared workspace seam**: the canonical statement of "PROJECTS are shared,
+  CHATS are per-user" lives in the header docs of
+  `functions/_lib/workspace.js` and `functions/_lib/auth.js`. Any future
+  read query that filters by `projects.owner_user_id` is wrong; any future
+  read query that filters by `conversations.user_id` is correct.
+  `owner_user_id` and `conversations.user_id` are still INSERT'd to track
+  the creator (used by `getAdminEmailsForProject` for cost-cap emails and
+  by the route resolvers for per-user combo isolation).
+- **UI alignment seam**: project-chat layout is now overridden in the
+  page-local `<style>` block in `public/project.html` to match the
+  cross-project chat patterns (`.xc-*` classes in
+  `public/cross-project/chat.html`). The auth.css base rules
+  (`.project-shell`, `.project-sidebar`, `.chat-composer-row`, etc.) are
+  left in place; only the project page overrides them. If you ever extract
+  the chat shell into a shared component, you can drop the overrides
+  entirely and use the cross-project `.xc-*` styles as the source of truth.
+- **`data-admin-only` attribute pattern**: introduced in `95119fa`,
+  removed in `f7e5d0e` after the broader "kill the redundant nav links"
+  decision. Worth re-introducing later if there are admin-only nav items.
+  The `nav-gate.js` shape is in git history if it's needed again.
+- **SPA-style new conversation**: cross-project chat now mirrors
+  project.html's `onNewConv()` pattern: POST → unshift into in-memory
+  list → swap active → `history.replaceState` → re-render. Don't use
+  `location.assign` for new-conv creation in either chat type.
+- **URL canonicalization on legacy paste**: `/cross-project/<combo>/<uuid>`
+  URLs still resolve server-side but the frontend `history.replaceState`'s
+  them to `/cross-project/<combo>` on boot. Same pattern is worth
+  considering for any other "specific resource id in URL" routes that
+  should be canonical-form on display.
+
+### Open follow-ups (next session candidates)
+
+1. **AI bug-list tool failure** (deferred mid-session). User reported the AI
+   saying "I encountered a connection issue / network error" when asked
+   for the bug list in an active sprint, but the prior `get_jira_sprint_summary`
+   in the same turn succeeded (3 open / 5 total cited). Two paths:
+   - Tail prod (`npx wrangler pages deployment tail <prod-deployment-id> --project-name=elinno-agent --format=json | grep tool_execution_failed`) while reproducing. If a `tool_execution_failed` log fires, the real exception is the bug. If nothing logs, the LLM is hallucinating a network excuse on an empty result.
+   - Likely fix if hallucination: add a rule to the system prompt in
+     [functions/_lib/ai/loop.js:287](functions/_lib/ai/loop.js) — "if a
+     tool returns an empty array, say so explicitly; never claim the tool
+     failed when it succeeded with empty data."
+   - Suspect tool: [`runQueryJiraIssues` at functions/_lib/ai/tools.js:531](functions/_lib/ai/tools.js).
+2. **Per-project chat sharing** (scope question deferred this session).
+   When Jenny said "all users see all projects + cross-project chats are
+   shared", I left **per-project chats per-user** (each member has their
+   own conversation history within a shared project). Worth deciding —
+   if the intent is collaborative chat-as-record, per-project chats should
+   also be shared. ~6 callsites in `functions/api/projects/[id]/conversations/`
+   would need the same `user_id` filter drop treatment as cross-project.
+3. **Workspace metrics drift** (cosmetic). `functions/api/workspace.js` still
+   hardcodes `user_count: 1`. With shared workspace, this should be the
+   actual count from `SELECT COUNT(*) FROM users` in D1. Surfaces in the
+   workspace-settings page if Jenny reads that endpoint.
+4. **`RESEND_API_KEY` Preview binding** — still only bound to Production
+   (per the prior session's HANDOFF). Email paths in
+   `functions/_lib/email.js` (welcome / password reset / cost cap)
+   untestable end-to-end from preview deploys. Fix before the next email
+   feature.
+5. **`fatal error in commit_refs` + `GH→CF webhook drop`** — still
+   intermittent. This session: both pathways generally worked, but the
+   patterns from the prior session's HANDOFF held — branch pushes
+   occasionally rejected (retry succeeded), and at one point the wrangler
+   fallback wasn't needed because the webhook actually fired. Worth
+   investigating the GitHub Apps webhook delivery log if Jenny has time.
+
+### Test rows in prod D1 (carried over from prior session)
+
+Same as the prior session's closeout — `Welcome Test`, `Welcome Test 3`,
+`Jenny Welcome Test`, `Jenny Test` (jennyshane.js@gmail.com). The last one
+was used heavily this session to verify the shared-workspace visibility
+(she could see all of Jenny's projects). Keep or remove per preference;
+removing won't break anything documented above.
+
+### Stale local branches
+
+Add to the maintenance-pass list: `shared-workspace-visibility` (merged to
+main, safe to delete). Plus the long list already accumulated in prior
+session closeouts.
+
+### File-shape summary (changes this session)
+
+```
+functions/
+├── _lib/
+│   ├── auth.js                                      # shared-workspace doc + requireWorkspaceScope predicate change
+│   ├── workspace.js                                 # doc-only: clarify projects shared, chats per-user
+│   └── ai/authorize.js                              # drop owner_user_id filter (projects shared)
+├── api/
+│   ├── projects/
+│   │   ├── index.js                                 # GET list drops owner predicate; POST auto-suffix uses global slug scan
+│   │   └── slug-available.js                        # drops owner predicate
+│   ├── workspace.js                                 # project count → workspace-wide
+│   ├── dashboard.js                                 # projects list → workspace-wide; chats list stays per-user
+│   ├── cross-project/
+│   │   ├── eligible-projects.js                     # drops owner predicate
+│   │   └── conversations/[id]/messages.js           # drops owner predicate in projects re-fetch (chats still per-user)
+├── project/[slug].js                                # slug lookup is workspace-global
+├── project_settings/[slug].js + [slug]/[tab].js     # same
+├── cross-project/
+│   ├── [combo].js + [combo]/[chat].js               # slug lookup global; conv lookup stays per-user
+
+public/
+├── project.html                                     # 7 rounds of UI alignment (header, FROM chip, empty state,
+│                                                    # layout, composer, viewport, width, colors, quiet loader)
+├── projects.html + admin.html + workspace_settings.html + projects/new.html
+│                                                    # nav links removed
+├── cross-project/
+│   ├── chat.html                                    # sidebar + creates new chat in combo (SPA); URL canonicalizes;
+│   │                                                # nav links removed
+│   ├── index.html + new.html                        # nav links removed
+└── nav-gate.js                                      # DELETED (replaced by full link removal)
+```
+
+### Operational notes
+
+- **CSS/HTML cache-bust**: this session deliberately avoided touching
+  `public/auth.css` — every UI-alignment override lives in page-local
+  `<style>` blocks in `public/project.html`. The 14-page `?v=` bump
+  remains untouched. If a future session legitimately needs an `auth.css`
+  change, the cache-bust dance from the prior session's HANDOFF still
+  applies.
+- **Wrangler manual-deploy escape hatch**: still proven, but didn't fire
+  this session. The webhook held up on every push.
 
