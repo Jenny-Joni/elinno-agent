@@ -363,6 +363,16 @@
       cursor: not-allowed;
     }
     .chat-send-btn:hover:not(:disabled) { filter: brightness(1.1); }
+
+    /* Quiet boot loader — mirror of .xc-loading in cross-project chat.
+       Replaces the loud .state-card "Loading project…" overlay. */
+    .chat-boot-loading {
+      padding: 60px 0;
+      text-align: center;
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text-3);
+    }
     .chat-composer-footer {
       display: flex;
       justify-content: space-between;
@@ -392,7 +402,12 @@
   <main class="app-main">
     <div class="custom-container">
       <div id="shellRoot">
-        <!-- JS renders one of: loading state-card / boot-error state-card / project shell -->
+        <!-- Server-painted quiet loader so the first frame after click
+             isn't a blank shellRoot. JS replaces this once boot resolves
+             (renderLoadingShell on retry, renderShell on success, etc).
+             Mirrors cross-project chat's <div class="xc-loading"> body
+             pre-render. -->
+        <div class="chat-boot-loading" aria-busy="true">Loading chat…</div>
       </div>
     </div>
   </main>
@@ -589,18 +604,15 @@
     });
 
     // ---------- Boot states ----------
+    // 2026-05-28 (round-7 UI alignment): the big "Loading project…"
+    // state-card overlay was jarring on click — full-card icon +
+    // heading flashed for the duration of the boot fetches. Mirror
+    // cross-project's quieter pattern (.xc-loading): a small muted
+    // "Loading chat…" line in place, no card chrome. The CSS for
+    // .chat-boot-loading lives in the page-local style block.
     function renderLoadingShell() {
-      document.getElementById('shellRoot').innerHTML = `
-        <div class="state-card" aria-busy="true">
-          <div class="state-card-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="9"/>
-              <path d="M12 7v5l3 2"/>
-            </svg>
-          </div>
-          <h2 class="state-card-heading">Loading project…</h2>
-        </div>
-      `;
+      document.getElementById('shellRoot').innerHTML =
+        '<div class="chat-boot-loading" aria-busy="true">Loading chat…</div>';
     }
 
     function renderBootError() {
