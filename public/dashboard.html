@@ -129,10 +129,10 @@
       margin-bottom: 8px;
     }
 
-    /* Cross-project chats section (renders above projects when the user
-       has at least one cross-project chat). Visual rhythm mirrors
-       .projects-section. .cp-row styles ported from /cross-project/index.html
-       so the rows look identical to the dedicated list page. */
+    /* Cross-project chats section. Chats are grouped by the SET of
+       projects they span (sorted project_ids signature) and each
+       unique combination renders as one card. Card → filtered
+       /cross-project/index.html?ids=<sorted-uuids>. */
     .cpchats-section { margin-top: 8px; margin-bottom: 28px; }
     .cpchats-section-head {
       display: flex;
@@ -147,59 +147,73 @@
       text-decoration: none;
       font-weight: 500;
     }
-    .cp-list { display: flex; flex-direction: column; gap: 10px; }
-    .cp-row {
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      border: 0.5px solid var(--border);
+    .cpcombo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .cpcombo-card {
       background: var(--bg);
+      border: 0.5px solid var(--border);
       border-radius: var(--r-md);
+      padding: 18px;
       text-decoration: none;
       color: inherit;
+      display: block;
+      transition: background var(--t-fast), border-color var(--t-fast);
     }
-    .cp-row:hover {
-      background: var(--brand-soft);
+    .cpcombo-card:hover {
+      background: var(--brand-tint);
       border-color: var(--brand-soft-border);
     }
-    .cp-row__icon {
+    .cpcombo-card__avatars {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    /* Each avatar slot (img OR initial-letter div OR +N overflow chip)
+       is the same 32px square with a tight 2px ring matching the card
+       background so overlapping reads as a stack. */
+    .cpcombo-card__avatars > * {
       width: 32px;
       height: 32px;
       border-radius: var(--r-sm);
+      border: 2px solid var(--bg);
       background: var(--brand-tint);
       color: var(--brand);
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
-      font-size: 16px;
-    }
-    .cp-row__body { flex: 1; min-width: 0; }
-    .cp-row__title {
       font-family: var(--font);
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 500;
-      color: var(--text);
-      line-height: 1.2;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .cp-row__scope {
-      font-family: var(--font);
-      font-size: 11px;
-      color: var(--text-3);
-      margin-top: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .cp-row__meta {
-      font-family: var(--font);
-      font-size: 11px;
-      color: var(--text-3);
       flex-shrink: 0;
+      object-fit: cover;
+      box-sizing: border-box;
+    }
+    .cpcombo-card__avatars > * + * { margin-left: -10px; }
+    .cpcombo-card:hover .cpcombo-card__avatars > * { border-color: var(--brand-tint); }
+    .cpcombo-card__more {
+      font-size: 11px !important;
+      color: var(--text-3) !important;
+      background: var(--bg-soft) !important;
+    }
+    .cpcombo-card__title {
+      font-family: var(--font);
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.3;
+      margin-bottom: 4px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .cpcombo-card__meta {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
     }
 
     /* Projects grid. Admin: 3-up + "+ New project" card. Member: 2-up, no create. */
@@ -458,43 +472,71 @@
         + '</div>';
     }
 
-    // Cross-project chats list. Renders above the projects grid when the
-    // user has at least one cross-project chat. Caps shown at MAX_CP_CHATS;
-    // overflow links to the dedicated /cross-project/index.html list.
-    const MAX_CP_CHATS = 4;
+    // Cross-project chats grouped by the SET of projects they span.
+    // Multiple chats covering the same combination (e.g., "Joni × Rain")
+    // collapse into a single card; click opens the filtered list page.
+    // Caps shown combinations at MAX_CP_COMBOS; overflow → "View all →".
+    const MAX_CP_COMBOS = 4;
+
+    function groupConversationsByCombo(conversations) {
+      const groups = new Map(); // key: sorted ids joined by comma
+      for (const chat of conversations) {
+        const ids = (Array.isArray(chat.project_ids) ? chat.project_ids : []).slice().sort();
+        if (ids.length === 0) continue; // skip orphan / no-project chats
+        const key = ids.join(',');
+        if (!groups.has(key)) groups.set(key, { ids, chats: [], lastAt: null });
+        const g = groups.get(key);
+        g.chats.push(chat);
+        const lastAt = chat.last_message_at || chat.updated_at || chat.created_at;
+        if (lastAt && (!g.lastAt || lastAt > g.lastAt)) g.lastAt = lastAt;
+      }
+      // Newest-activity-first ordering.
+      return Array.from(groups.values()).sort((a, b) => {
+        if (a.lastAt && b.lastAt) return a.lastAt < b.lastAt ? 1 : -1;
+        if (a.lastAt) return -1;
+        if (b.lastAt) return 1;
+        return 0;
+      });
+    }
+
     function renderCrossProjectChatsSection(conversations, projectsById) {
       if (!conversations || conversations.length === 0) return '';
-      const shown = conversations.slice(0, MAX_CP_CHATS);
-      const overflow = conversations.length > MAX_CP_CHATS;
-      const rows = shown.map(c => crossProjectRowHtml(c, projectsById)).join('');
+      const groups = groupConversationsByCombo(conversations);
+      if (groups.length === 0) return '';
+      const shown = groups.slice(0, MAX_CP_COMBOS);
+      const overflow = groups.length > MAX_CP_COMBOS;
+      const cards = shown.map(g => crossProjectComboCardHtml(g, projectsById)).join('');
       return ''
         + '<div class="cpchats-section">'
         +   '<div class="eyebrow"><span class="eyebrow__label">Cross-project chats</span><span class="eyebrow__rule"></span></div>'
         +   '<div class="cpchats-section-head"><span></span>'
         +     (overflow ? '<a href="/cross-project/index.html">View all →</a>' : '')
         +   '</div>'
-        +   '<div class="cp-list">' + rows + '</div>'
+        +   '<div class="cpcombo-grid">' + cards + '</div>'
         + '</div>';
     }
 
-    function crossProjectRowHtml(chat, projectsById) {
-      const projectIds = Array.isArray(chat.project_ids) ? chat.project_ids : [];
-      const names = projectIds
-        .map(id => (projectsById.get(id) || {}).name || 'Project')
-        .join(', ');
-      const lastAt = chat.last_message_at || chat.updated_at || chat.created_at;
-      const title = chat.title || 'Cross-project chat';
-      const scope = projectIds.length === 0
-        ? 'No projects'
-        : 'Across ' + projectIds.length + ' · ' + names;
+    function crossProjectComboCardHtml(group, projectsById) {
+      const projects = group.ids.map(id => projectsById.get(id) || { id, name: 'Project', logo_url: null });
+      const title = projects.map(p => p.name).join(' × ');
+      const chatCount = group.chats.length;
+      const chatLabel = chatCount === 1 ? '1 chat' : (chatCount + ' chats');
+      const meta = chatLabel + (group.lastAt ? ' · ' + fmtRelative(group.lastAt) : '');
+      const MAX_AVATARS = 3;
+      const avatarHtml = projects.slice(0, MAX_AVATARS).map(p =>
+        p.logo_url
+          ? '<img src="' + esc(p.logo_url) + '" alt="' + esc(p.name) + '">'
+          : '<div>' + esc(initial(p.name)) + '</div>'
+      ).join('')
+      + (projects.length > MAX_AVATARS
+          ? '<div class="cpcombo-card__more">+' + (projects.length - MAX_AVATARS) + '</div>'
+          : '');
+      const href = '/cross-project/index.html?ids=' + esc(group.ids.join(','));
       return ''
-        + '<a class="cp-row" href="/cross-project/chat.html?id=' + esc(chat.id) + '">'
-        +   '<div class="cp-row__icon"><i class="ti ti-messages"></i></div>'
-        +   '<div class="cp-row__body">'
-        +     '<div class="cp-row__title">' + esc(title) + '</div>'
-        +     '<div class="cp-row__scope">' + esc(scope) + '</div>'
-        +   '</div>'
-        +   '<div class="cp-row__meta">' + esc(fmtRelative(lastAt) || '') + '</div>'
+        + '<a class="cpcombo-card" href="' + href + '">'
+        +   '<div class="cpcombo-card__avatars">' + avatarHtml + '</div>'
+        +   '<div class="cpcombo-card__title">' + esc(title) + '</div>'
+        +   '<div class="cpcombo-card__meta">' + esc(meta) + '</div>'
         + '</a>';
     }
 

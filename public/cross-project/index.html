@@ -42,6 +42,31 @@
       line-height: 1.5;
     }
 
+    /* Filter banner shown when arriving from the dashboard combo card
+       (?ids=<sorted-uuids>). Click "clear" to drop the filter. */
+    .cp-filter-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      background: var(--brand-tint);
+      border: 0.5px solid var(--brand-soft-border);
+      border-radius: var(--r-md);
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text-2);
+    }
+    .cp-filter-banner__label strong { color: var(--text); font-weight: 500; }
+    .cp-filter-banner__clear {
+      color: var(--brand);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+
     .cp-list { display: flex; flex-direction: column; gap: 10px; }
     .cp-row {
       padding: 14px 16px;
@@ -279,10 +304,49 @@
         + '</a>';
     }
 
+    // ?ids=<sorted-uuids> filter: when the user clicks a combo card on
+    // the dashboard, this page is opened with the combo's project_ids
+    // pre-applied as a filter. Empty / missing param = no filter.
+    function getFilterIds() {
+      try {
+        const ids = new URLSearchParams(location.search).get('ids');
+        if (!ids) return null;
+        const list = ids.split(',').map(s => s.trim()).filter(Boolean).sort();
+        return list.length ? list : null;
+      } catch { return null; }
+    }
+
+    function filterByIds(conversations, filterIds) {
+      if (!filterIds) return conversations;
+      return conversations.filter(c => {
+        const ids = (Array.isArray(c.project_ids) ? c.project_ids : []).slice().sort();
+        if (ids.length !== filterIds.length) return false;
+        for (let i = 0; i < ids.length; i++) if (ids[i] !== filterIds[i]) return false;
+        return true;
+      });
+    }
+
+    function filterBannerHtml(filterIds, projectsById) {
+      if (!filterIds) return '';
+      const names = filterIds
+        .map(id => (projectsById.get(id) || {}).name || 'Project')
+        .join(' × ');
+      return ''
+        + '<div class="cp-filter-banner">'
+        +   '<div class="cp-filter-banner__label">Filtered by combination: <strong>' + esc(names) + '</strong></div>'
+        +   '<a class="cp-filter-banner__clear" href="/cross-project/index.html">Clear filter →</a>'
+        + '</div>';
+    }
+
     function render(conversations, projectsById) {
-      const list = conversations.length === 0
-        ? '<div class="cp-empty">No cross-project chats yet — start one below.</div>'
-        : '<div class="cp-list">' + conversations.map(c => rowHtml(c, projectsById)).join('') + '</div>';
+      const filterIds = getFilterIds();
+      const visible = filterByIds(conversations, filterIds);
+      const emptyMsg = filterIds
+        ? 'No chats match this project combination.'
+        : 'No cross-project chats yet — start one below.';
+      const list = visible.length === 0
+        ? '<div class="cp-empty">' + emptyMsg + '</div>'
+        : '<div class="cp-list">' + visible.map(c => rowHtml(c, projectsById)).join('') + '</div>';
       document.getElementById('cpRoot').innerHTML = ''
         + '<div class="cp-crumb"><a href="/dashboard.html">Dashboard</a> / Cross-project chats</div>'
         + '<div class="cp-head-row">'
@@ -292,6 +356,7 @@
         +     '<p class="cp-sub">Each chat reads across a fixed set of projects you pick at the start. Begin a new chat to ask across a different set.</p>'
         +   '</div>'
         + '</div>'
+        + filterBannerHtml(filterIds, projectsById)
         + list
         + '<a href="/cross-project/new.html" class="cp-new-cta"><i class="ti ti-plus"></i> New cross-project chat</a>';
     }
