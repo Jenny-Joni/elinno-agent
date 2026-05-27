@@ -833,15 +833,16 @@
 
       // 2026-05-27 (shared-workspace-visibility follow-up):
       // Sidebar "+" creates a new conversation in the SAME combo as the
-      // current chat (instead of going to the picker). The anchor's
-      // href stays /cross-project/new.html for graceful no-JS fallback.
+      // current chat. Smooth SPA-style swap — no page reload — matching
+      // the single-project chat "new conversation" pattern in
+      // project.html onNewConv(). The anchor's href stays
+      // /cross-project/new.html for graceful no-JS fallback and for
+      // Cmd/Ctrl/middle-click power-user escape (open picker in new tab).
       // Available to all authenticated users (POST /api/cross-project/
       // conversations requires auth, not admin).
       const newBtn = document.getElementById('xcSidebarNewBtn');
       if (newBtn) {
         newBtn.addEventListener('click', async (e) => {
-          // Only intercept primary click — let Cmd/Ctrl/middle-click
-          // open the picker in a new tab as a power-user escape hatch.
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
           if (!conv || !Array.isArray(conv.project_ids) || conv.project_ids.length < 2) return;
           e.preventDefault();
@@ -849,12 +850,13 @@
           newBtn.dataset.busy = '1';
           newBtn.style.opacity = '0.5';
           newBtn.style.pointerEvents = 'none';
+          const comboIds = conv.project_ids.slice();
           try {
             const res = await fetch('/api/cross-project/conversations', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'same-origin',
-              body: JSON.stringify({ label: 'product', project_ids: conv.project_ids }),
+              body: JSON.stringify({ label: 'product', project_ids: comboIds }),
             });
             if (res.status === 401) { redirectToLogin(); return; }
             if (!res.ok) {
@@ -864,14 +866,32 @@
               return;
             }
             const data = await res.json().catch(() => null);
-            const newId = data && data.conversation && data.conversation.id;
-            if (newId) {
-              location.assign(chatUrl(newId, conv.project_ids));
-            } else {
+            const newConv = data && data.conversation;
+            if (!newConv || !newConv.id) {
               newBtn.dataset.busy = '';
               newBtn.style.opacity = '';
               newBtn.style.pointerEvents = '';
+              return;
             }
+            // SPA-style swap: insert at top of in-memory list, swap
+            // active conv, clear messages + inFlight, push URL,
+            // re-render. Matches project.html onNewConv() → applyState
+            // shape.
+            conversations.unshift(newConv);
+            conv = newConv;
+            messages = [];
+            inFlight = false;
+            // replaceState (not pushState) so the browser back button
+            // returns to where the user was BEFORE opening the previous
+            // chat, instead of getting stuck in a popstate loop between
+            // chats (the existing chat-switch sidebar uses location.assign
+            // which does full nav; popstate isn't wired anywhere here).
+            const newUrl = chatUrl(newConv.id, comboIds);
+            try { history.replaceState({ convId: newConv.id }, '', newUrl); } catch {}
+            render();
+            // Focus the composer so the user can start typing right away.
+            const input = document.getElementById('xcInput');
+            if (input) input.focus();
           } catch {
             newBtn.dataset.busy = '';
             newBtn.style.opacity = '';
