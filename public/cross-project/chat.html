@@ -596,26 +596,47 @@
       if (names.length === 2) return names[0] + ' and ' + names[1];
       return names.slice(0, -1).join(', ') + ', and ' + names[names.length - 1];
     }
+    // Active chat id: prefer the <meta> tag (injected by the slug route
+    // functions/cross-project/[combo].js or [combo]/[chat].js), fall
+    // back to ?id= (legacy URL form).
     function getConvId() {
+      const meta = document.querySelector('meta[name="x-active-chat-id"]')?.getAttribute('content');
+      if (meta) return meta;
       const sp = new URLSearchParams(location.search);
       return sp.get('id') || '';
     }
-    // ?ids=<sorted-uuids> — combo filter mode. When present, the sidebar
-    // is filtered to chats matching the project set, and (if no ?id= is
-    // set) the most recent chat in the combo is auto-selected. Per Jenny
-    // 2026-05-27: skip the row-list intermediate, drill straight to chat.
+    // Combo filter: prefer <meta name="x-combo-ids"> (slug route), fall
+    // back to ?ids= (legacy). Returns a sorted array of project uuids
+    // or null when no combo filter is active.
     function getFilterIds() {
       try {
-        const ids = new URLSearchParams(location.search).get('ids');
-        if (!ids) return null;
-        const list = ids.split(',').map(s => s.trim()).filter(Boolean).sort();
+        const fromMeta = document.querySelector('meta[name="x-combo-ids"]')?.getAttribute('content');
+        const raw = fromMeta || new URLSearchParams(location.search).get('ids');
+        if (!raw) return null;
+        const list = raw.split(',').map(s => s.trim()).filter(Boolean).sort();
         return list.length ? list : null;
       } catch { return null; }
     }
+    // Build a slug-form chat URL: /cross-project/<sorted-slugs>+joined/<chat-id>
+    // (or /<combo> if no chat id supplied). Falls back to the legacy
+    // /cross-project/chat.html?id=&ids= shape when slugs aren't
+    // available yet (projectsById still loading).
     function chatUrl(convId, optsIds) {
+      const ids = optsIds === undefined ? getFilterIds() : optsIds;
+      if (ids && ids.length && projectsById && projectsById.size) {
+        const slugs = ids
+          .map(id => (projectsById.get(id) || {}).slug)
+          .filter(Boolean)
+          .sort();
+        if (slugs.length === ids.length) {
+          let path = '/cross-project/' + slugs.join('+');
+          if (convId) path += '/' + convId;
+          return path;
+        }
+      }
+      // Legacy / pre-projectsById fallback.
       const u = new URL('/cross-project/chat.html', location.origin);
       if (convId) u.searchParams.set('id', convId);
-      const ids = optsIds === undefined ? getFilterIds() : optsIds;
       if (ids && ids.length) u.searchParams.set('ids', ids.join(','));
       return u.pathname + u.search;
     }
@@ -1350,17 +1371,21 @@
       const filterIds = getFilterIds();
       let id = getConvId();
 
-      // Combo-only mode (?ids= without ?id=): load the conv list first,
-      // find the most-recent chat in the combo, replace the URL with
-      // /cross-project/chat.html?id=<that>&ids=<combo> and continue boot
-      // as if we'd arrived with ?id= directly. If the combo has zero
-      // chats, fall back to /cross-project/new.html with the projects
-      // pre-selected via ?ids=.
+      // Combo-only mode WITHOUT meta tags (legacy ?ids= URL — no slug
+      // route ran server-side). Load projects + conv list in parallel,
+      // pick the most-recent chat in the combo, replace the URL with the
+      // slug-form path so subsequent loads go through the function.
+      // Slug-form URLs reach this page with x-active-chat-id meta
+      // already set, so they skip this branch entirely.
       if (!id && filterIds) {
         try {
           me = await loadMe();
           if (!me) { redirectToLogin(); return; }
-          const convList = await loadConvList();
+          const [pmap, convList] = await Promise.all([
+            loadProjects(),
+            loadConvList(),
+          ]);
+          projectsById = pmap;
           const match = (convList || []).find(c => matchesCombo(c, filterIds));
           if (match) {
             location.replace(chatUrl(match.id, filterIds));
