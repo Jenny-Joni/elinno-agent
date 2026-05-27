@@ -498,10 +498,13 @@
                 <!-- Block 13.7b: Connections tab button removed; the Connections UI lives on /project_settings.html. -->
                 <!-- The Members tab button is kept (hidden) for legacy URL tab=members compatibility. -->
 
-                <!-- Settings demoted from tab to header gear button (SPEC §8). -->
-                <a class="project-tab" id="projectSettingsLink" href="${project && project.slug ? '/project_settings/' + project.slug : '/project_settings.html?id=' + projectId}" title="Project settings" style="text-decoration:none;color:var(--text-3);margin-left:auto;padding:8px 10px;" aria-label="Project settings">
-                  <i class="ti ti-settings" style="font-size:18px;line-height:1;"></i>
-                </a>
+                <!-- Settings demoted from tab to header gear button (SPEC §8).
+                     2026-05-27 (shared-workspace-visibility follow-up):
+                     gear is admin-only — non-admins (members) can't
+                     mutate settings/connections, so they don't see the
+                     entry point. me.is_admin comes from the /api/me
+                     fetch in loadMe() (line ~299). -->
+                ${me && me.is_admin ? '<a class="project-tab" id="projectSettingsLink" href="' + (project && project.slug ? '/project_settings/' + project.slug : '/project_settings.html?id=' + projectId) + '" title="Project settings" style="text-decoration:none;color:var(--text-3);margin-left:auto;padding:8px 10px;" aria-label="Project settings"><i class="ti ti-settings" style="font-size:18px;line-height:1;"></i></a>' : ''}
               </div>
             </div>
             <div id="tabBody"></div>
@@ -905,10 +908,21 @@
         // Block 13.7b: CTA now navigates to /project_settings.html (the new
         // connections home). Was a same-page tab switch via
         // data-suggestions-link="connections" — the legacy tab is removed.
+        // 2026-05-27 (shared-workspace-visibility follow-up): only
+        // admins see the "Open Connections" action — members get a
+        // contact-an-admin hint since they can't connect sources.
+        if (me && me.is_admin) {
+          return `
+            <div class="chat-suggestions-empty">
+              <div class="chat-suggestions-empty-title">Connect Slack or Jira to start asking questions</div>
+              <a class="chat-suggestions-empty-link" href="${project && project.slug ? '/project_settings/' + project.slug + '/connections' : '/project_settings.html?id=' + encodeURIComponent(projectId) + '&amp;tab=connections'}">Open Connections</a>
+            </div>
+          `;
+        }
         return `
           <div class="chat-suggestions-empty">
-            <div class="chat-suggestions-empty-title">Connect Slack or Jira to start asking questions</div>
-            <a class="chat-suggestions-empty-link" href="${project && project.slug ? '/project_settings/' + project.slug + '/connections' : '/project_settings.html?id=' + encodeURIComponent(projectId) + '&amp;tab=connections'}">Open Connections</a>
+            <div class="chat-suggestions-empty-title">No data sources are connected to this project yet</div>
+            <div class="chat-suggestions-empty-link" style="cursor:default;opacity:0.7;">Ask a workspace admin to connect Slack or Jira.</div>
           </div>
         `;
       }
