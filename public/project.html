@@ -188,7 +188,12 @@
 
     // Read URL params once at module init; resolved/overwritten during boot.
     const initialParams = new URLSearchParams(location.search);
-    const projectId = initialParams.get('id');
+    // Prefer <meta name="x-project-id"> when present — the slug route
+    // (functions/project/[slug].js) injects it so the page can boot
+    // without ?id= in the URL bar (kills the URL flicker on slug load).
+    // Legacy /project.html?id=<uuid> still works via the ?id= fallback.
+    const projectId = (document.querySelector('meta[name="x-project-id"]')?.getAttribute('content'))
+      || initialParams.get('id');
     let initialConvId = initialParams.get('c');
     const initialTabRaw = initialParams.get('tab');
     // Block 13.7b: the 7a-2 ?just_connected= bounce to project_settings.html

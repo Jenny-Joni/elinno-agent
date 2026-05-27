@@ -693,7 +693,13 @@
     }
 
     // ---------- state ----------
-    let projectId = getQueryParam('id') || '';
+    // Prefer <meta name="x-project-id"> when present — the slug route
+    // (functions/project_settings/[slug].js) injects it so the page can
+    // boot without ?id= in the URL bar (kills the URL flicker on slug
+    // load). Legacy /project_settings.html?id=<uuid> still works via
+    // the ?id= fallback, which syncUrlBar then rewrites to slug form.
+    let projectId = (document.querySelector('meta[name="x-project-id"]')?.getAttribute('content'))
+      || getQueryParam('id') || '';
     let activeTab = getQueryParam('tab') === 'connections' ? 'connections' : 'general';
     let project = null;
     let connections = null;
