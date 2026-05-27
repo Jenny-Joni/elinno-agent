@@ -455,8 +455,9 @@
       const parts = [];
       parts.push(renderGreeting(data.user, data.projects));
       parts.push(renderHero());
-      if (isAdmin && data.workspace) parts.push(renderSpendCard(data.workspace));
       parts.push(renderProjectsSection(data.projects, isAdmin));
+      // Spend card moved below projects (was above) per Jenny 2026-05-27.
+      if (isAdmin && data.workspace) parts.push(renderSpendCard(data.workspace));
       root.innerHTML = parts.join('');
     }
 
