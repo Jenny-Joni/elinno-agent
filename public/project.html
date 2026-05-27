@@ -224,6 +224,15 @@
     .app-main {
       padding: 18px 0 30px;
     }
+    /* Match cross-project chat's outer width: .xc-shell is max-width:
+       1100px with padding: 18px 20px 30px. Override .custom-container
+       (default max-width: 1230px) so the single-project shell sits in
+       the same visible-width column as cross-project, not full-bleed.
+       Round-4 fix. */
+    .custom-container {
+      max-width: 1100px;
+      padding: 0 20px;
+    }
     .project-shell {
       background: transparent;
       border: none;
