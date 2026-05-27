@@ -471,7 +471,7 @@
       const chatCount = group.chats.length;
       const chatLabel = chatCount === 1 ? '1 chat' : (chatCount + ' chats');
       const meta = chatLabel + (group.lastAt ? ' · ' + fmtRelative(group.lastAt) : '');
-      const MAX_AVATARS = 3;
+      const MAX_AVATARS = 10;
       const avatarHtml = projects.slice(0, MAX_AVATARS).map(p =>
         p.logo_url
           ? '<img src="' + esc(p.logo_url) + '" alt="' + esc(p.name) + '">'
