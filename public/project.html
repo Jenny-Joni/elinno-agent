@@ -223,6 +223,12 @@
        page scrolls. Round-3 fix. */
     .app-main {
       padding: 18px 0 30px;
+      /* Cross-project chat sets <main style="background:var(--bg-subtle)">
+         inline (= #fcfcfd, near-white). The default .app-main from
+         auth.css uses var(--color-bg-soft) (= #f7f7f7, grayer). That's
+         the last visible color delta between the two screens — match
+         it here so the page bg is identical. */
+      background: var(--bg-subtle);
     }
     /* Match cross-project chat's outer width: .xc-shell is max-width:
        1100px with padding: 18px 20px 30px. Override .custom-container
