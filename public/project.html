@@ -494,7 +494,7 @@
                 <!-- The Members tab button is kept (hidden) for legacy URL tab=members compatibility. -->
 
                 <!-- Settings demoted from tab to header gear button (SPEC §8). -->
-                <a class="project-tab" id="projectSettingsLink" href="/project_settings.html?id=${projectId}" title="Project settings" style="text-decoration:none;color:var(--text-3);margin-left:auto;padding:8px 10px;" aria-label="Project settings">
+                <a class="project-tab" id="projectSettingsLink" href="${project && project.slug ? '/project_settings/' + project.slug : '/project_settings.html?id=' + projectId}" title="Project settings" style="text-decoration:none;color:var(--text-3);margin-left:auto;padding:8px 10px;" aria-label="Project settings">
                   <i class="ti ti-settings" style="font-size:18px;line-height:1;"></i>
                 </a>
               </div>
@@ -903,7 +903,7 @@
         return `
           <div class="chat-suggestions-empty">
             <div class="chat-suggestions-empty-title">Connect Slack or Jira to start asking questions</div>
-            <a class="chat-suggestions-empty-link" href="/project_settings.html?id=${encodeURIComponent(projectId)}&amp;tab=connections">Open Connections</a>
+            <a class="chat-suggestions-empty-link" href="${project && project.slug ? '/project_settings/' + project.slug + '?tab=connections' : '/project_settings.html?id=' + encodeURIComponent(projectId) + '&amp;tab=connections'}">Open Connections</a>
           </div>
         `;
       }

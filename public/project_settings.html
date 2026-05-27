@@ -1114,9 +1114,7 @@
       document.querySelectorAll('.ps-tab').forEach(b => {
         b.addEventListener('click', () => {
           activeTab = b.dataset.tab;
-          const url = new URL(location.href);
-          url.searchParams.set('tab', activeTab);
-          history.replaceState({}, '', url.toString());
+          syncUrlBar();
           render();
         });
       });
@@ -1659,9 +1657,30 @@
       location.replace('/');
     });
 
+    // Rewrite URL bar to /project_settings/<slug>?tab=... so the address
+    // bar mirrors the slug routing introduced for /project (Block 13.8).
+    // Falls back to /project_settings.html?id=<uuid> if the project somehow
+    // has no slug. ?just_connected= is left as-is by callers (the OAuth
+    // bounce expects to read it once, then strips it itself).
+    function syncUrlBar() {
+      if (!project) return;
+      const u = new URL(location.href);
+      if (project.slug) {
+        u.pathname = '/project_settings/' + project.slug;
+        u.searchParams.delete('id');
+      } else {
+        u.pathname = '/project_settings.html';
+        u.searchParams.set('id', project.id || projectId);
+      }
+      if (activeTab && activeTab !== 'general') u.searchParams.set('tab', activeTab);
+      else u.searchParams.delete('tab');
+      history.replaceState(null, '', u.toString());
+    }
+
     (async function boot() {
       try {
         await loadAll();
+        syncUrlBar();
         render();
       } catch (err) {
         document.getElementById('psRoot').innerHTML = ''
