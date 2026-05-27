@@ -5755,3 +5755,142 @@ commits.
 - **Stale local branches**: ~50 `claude/*` and old `block-*` refs
   remain in the local repo. Untouched this session; defer cleanup
   to a future maintenance pass.
+
+
+## UX session — 2026-05-27 (combo cards + slug URLs + deploy-pipeline workaround)
+
+### Production state at session end
+
+`main` at `ff6e98c`, working tree clean, in sync with `origin/main`.
+Production serves the same content via a wrangler-CLI deployment
+(CF Pages hash `ad19b6f1`) — see "Deploy-pipeline issues" below.
+
+### What shipped
+
+Twelve commits on `main`, all landed on prod:
+
+| Commit | Summary |
+|---|---|
+| `61b1365` | `feat(project_settings): slug routing for /project_settings/<slug>` — adds the function + page rewrites the URL bar |
+| `b330f55` | `fix(project, project_settings): kill URL flicker on slug load` — function uses `env.ASSETS.fetch` + HTMLRewriter `<meta name="x-project-id">` so URL stays slug-form the whole time |
+| `7c53014` | `fix(project_settings): move tab from query to path` — `/project_settings/<slug>/<tab>` instead of `?tab=connections`; new `[slug]/[tab].js` route |
+| `69fb0f2` | `fix(dashboard): move cross-project spend card below projects` |
+| `59e35a0` | `fix(dashboard): add top margin to spend card` (32px) |
+| `b13f327` | `feat(dashboard): cross-project chats list above projects` |
+| `66c3c88` | `feat(dashboard): group cross-project chats by combo as cards` — sorted-project-ids signature grouping |
+| `2c0cdd6` | `fix(dashboard): remove "Ask across all your projects" hero card` |
+| `fd0d75b` | `feat(dashboard): always show "View all" + add "New chat" tile` |
+| `1efa112` | `feat(cross-project/index): combo card view by default` — `?ids=` drill-down preserved |
+| `a535e71` | `feat(cross-project): combo cards drill straight into chat` (skips row-list intermediate) |
+| `21d6c94` | `feat(cross-project): slug-based URLs replace ?id=&ids=` — `/cross-project/<combo-slug>[/<chat-id>]`; combo slug = sorted project slugs joined by `+` |
+| `02bb3c5` | `fix(cross-project slug routes): uuid[] not jsonb for project_ids` — original JSONB query raised at runtime, caught, redirected; bug never shipped |
+| `067ff8e` | `fix(cross-project slug routes): use IN ${sql(arr)} for slug lookup` — `= ANY(${jsArr})` trips postgres-js CSV serialization; established pattern in `_lib/ai/authorize.js` |
+| `c75c008` | `fix(cross-project): sidebar always filtered to active chat's combo` (derives from `conv.project_ids` when URL has no `?ids=` / meta) |
+| `c9ce80c` | `fix(cross-project): reuse existing chat for same combo` — new.html picker checks for existing combo before POSTing |
+| `ae7c793` + `ff6e98c` | `fix(combo cards): show up to 10 project avatars` (committed via GitHub web UI — see deploy-pipeline note) |
+
+### Locked-in architectural patterns introduced this session
+
+- **Slug routing with no flicker**: `functions/<page>/[slug].js` does
+  workspace-scoped DB lookup, then `env.ASSETS.fetch(...)` + HTMLRewriter
+  injects `<meta name="x-<key>-id" content="<uuid>">` so the page boots
+  with the resolved id without any 302-bounce visible in the URL bar.
+  `cache-control: private, no-store` because the meta carries a
+  workspace-scoped uuid.
+- **Page JS reads meta first, falls back to `?id=`/`?ids=` legacy**:
+  every page that can be reached via either the slug route or a legacy
+  query-param URL has this dual-source pattern. New code should follow it.
+- **Reserved-segment passthrough**: `functions/cross-project/[combo].js`
+  matches `/cross-project/<one-segment>` which also catches
+  `/cross-project/chat`, `/cross-project/new` (CF Pages strips `.html`).
+  Guard against this with a `RESERVED_SEGMENTS` set and
+  `return env.ASSETS.fetch(request)` to fall through to static.
+- **Cross-project combo slug**: sorted project slugs joined by `+`
+  (e.g., `joni+rain`, `gems-launchpad+gems-trade`). `+` is unambiguous
+  because slugs match `[a-z][a-z0-9-]*` (no `+`). 2-segment form
+  `/cross-project/<combo>/<chat-id>` is the canonical "specific chat"
+  URL; sidebar nav rewrites the URL to it via `chatUrl()`.
+- **uuid[] set-equality in SQL**: array-of-uuid columns compared with
+  ```sql
+  array_length(col, 1) = $n
+  AND col @> '{a,b,...}'::uuid[]
+  AND col <@ '{a,b,...}'::uuid[]
+  ```
+  Build the literal manually because `${jsArr}` CSV-serializes in
+  postgres-js. Same gotcha already documented in
+  `functions/api/cross-project/conversations.js` and
+  `functions/_lib/ai/authorize.js`.
+- **Listing-API arrays use `IN ${sql(arr)}`**: not `= ANY(${arr})`.
+  Established convention; see `_lib/ai/authorize.js` for canonical
+  reference.
+
+### Deploy-pipeline issues (two unresolved — investigate next session)
+
+1. **`git push origin main` returns `fatal error in commit_refs`** (remote-side).
+   Started mid-session for a still-unknown reason. Hit it on both the
+   `combo-show-10-avatars` branch and on direct main pushes from Jenny's
+   terminal. Settings → Branches and Settings → Rules are both empty
+   (no protection rules, no rulesets). GitHub status was green.
+   Workaround used this session: committed via the GitHub web UI
+   (commits `ae7c793` + `ff6e98c`).
+
+2. **GitHub → Cloudflare Pages webhook silently drops commits.** The two
+   web-UI commits ended up on `origin/main` but never appeared in the CF
+   Pages "All deployments" list. Production stayed pinned to `c9ce80c`
+   even after "Retry deployment" (which re-built the same hash).
+   Workaround that shipped prod: `npx wrangler pages deploy public
+   --project-name=elinno-agent --branch=main --commit-dirty=true`
+   from Jenny's terminal — built `ad19b6f1.elinno-agent.pages.dev`
+   and promoted it to the production alias.
+
+   Settings → Builds & deployments looks healthy: repo connected,
+   automatic deployments enabled, production branch `main`, watch
+   paths `*`. Worth checking the GitHub Apps installation page next
+   session and looking at recent webhook deliveries for the elinno-agent
+   repo (Settings → Webhooks → recent deliveries).
+
+### Operational notes
+
+- **Wrangler manual-deploy is now a proven escape hatch**. Same command
+  for any future "webhook dropped my commit" repeat:
+  `npx wrangler pages deploy public --project-name=elinno-agent --branch=main --commit-dirty=true`
+  Does NOT push to git; just uploads `public/` + functions straight to
+  CF Pages prod. Doesn't bump the deployment commit hash to match git
+  (it shows up with the hash of the upload bundle, e.g. `ad19b6f1`).
+- **Deploy-hook fallback** (not set up this session): Settings → Deploy
+  hooks → `+` lets you create a `curl -X POST <url>` trigger that
+  forces a build of `main`. Worth adding next session as a third
+  redundant path.
+- **CSS/HTML cache-bust**: this session didn't touch `auth.css`, so no
+  `?v=` bump was needed. Per the 2026-05-26 closeout, any future
+  `public/auth.css` change still requires updating the query string on
+  all 14 `<link rel="stylesheet">` references.
+- **Stale local branches accumulated again**: `block-15-3-ps-slug-routing`,
+  `kill-project-url-flicker`, `project-settings-tab-path`,
+  `dash-spend-below-projects`, `spend-card-top-margin`,
+  `dash-cross-project-list`, `dash-cp-combo-cards`, `combo-show-10-avatars`.
+  All merged into `main`; safe to delete in a future maintenance pass.
+
+### File-shape summary
+
+```
+functions/
+├── project/[slug].js                          # 13.8 baseline + Block 15.3 ASSETS.fetch + meta inject
+├── project_settings/[slug].js                  # NEW — slug → 302-equivalent (ASSETS.fetch + meta)
+├── project_settings/[slug]/[tab].js            # NEW — same plus x-active-tab meta
+├── cross-project/[combo].js                    # NEW — combo slug → most-recent chat in combo
+├── cross-project/[combo]/[chat].js             # NEW — combo + specific chat-uuid validation
+└── api/cross-project/eligible-projects.js      # SELECT now includes p.slug
+
+public/
+├── dashboard.html                              # combo-card section above projects, hero removed
+├── cross-project/
+│   ├── index.html                              # combo-card view by default; ?ids= → filtered row list
+│   ├── chat.html                               # reads x-active-chat-id / x-combo-ids meta; chatUrl()
+│   │                                            # builds slug paths; sidebar derives filter from conv
+│   └── new.html                                # post-create redirect uses slug URL; combo-reuse check
+├── project.html                                # gear link + empty-state CTA use slug paths
+├── project_settings.html                       # syncUrlBar puts tab in path; reads x-project-id meta
+└── projects/new.html                           # post-create redirect prefers slug
+```
+
