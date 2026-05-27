@@ -470,7 +470,18 @@
         render();
         return;
       }
-      location.replace('/cross-project/chat.html?id=' + encodeURIComponent(data.conversation.id));
+      // Slug-form redirect: /cross-project/<slug1>+<slug2>/<chat-id>.
+      // Falls back to legacy /cross-project/chat.html?id= if any
+      // selected project lacks a slug (shouldn't happen — eligible-
+      // projects API returns slug — but guard for safety).
+      const selectedSlugs = Array.from(selected)
+        .map(id => (eligible.find(p => p.id === id) || {}).slug)
+        .filter(Boolean)
+        .sort();
+      const redirectUrl = selectedSlugs.length === selected.size
+        ? '/cross-project/' + selectedSlugs.join('+') + '/' + encodeURIComponent(data.conversation.id)
+        : '/cross-project/chat.html?id=' + encodeURIComponent(data.conversation.id);
+      location.replace(redirectUrl);
     }
 
     function wireNav(user) {

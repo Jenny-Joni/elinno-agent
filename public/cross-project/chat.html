@@ -1418,9 +1418,17 @@
         ]);
         projectsById = pmap;
         workspaceSpend = ws;
-        // Filter sidebar by ?ids= combo when present so the user only
-        // sees chats in the active project combination.
-        conversations = (convList || []).filter(c => matchesCombo(c, filterIds));
+        // Filter sidebar by the active conv's combo so the user always
+        // sees only chats matching the project set they're currently in.
+        // When the URL supplied a ?ids=/x-combo-ids filter, prefer that
+        // (slug-route consistency); otherwise derive from c.project_ids
+        // so legacy /cross-project/chat.html?id=<id> entry points (e.g.
+        // new.html's post-create redirect) still filter the sidebar.
+        const sidebarFilter = filterIds
+          || (c && Array.isArray(c.project_ids) && c.project_ids.length
+                ? c.project_ids.slice().sort()
+                : null);
+        conversations = (convList || []).filter(x => matchesCombo(x, sidebarFilter));
         if (!c) {
           document.getElementById('xcRoot').innerHTML = '<div class="xc-error">Chat not found or you don’t have access. <a href="/cross-project/">Back to cross-project chats</a></div>';
           return;

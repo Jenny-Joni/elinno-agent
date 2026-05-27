@@ -33,6 +33,7 @@ export async function onRequestGet({ request, env }) {
       SELECT p.id::text       AS id,
              p.name,
              p.description,
+             p.slug,
              p.created_at,
              p.updated_at,
              p.owner_user_id,
