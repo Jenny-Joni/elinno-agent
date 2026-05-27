@@ -908,7 +908,7 @@
         return `
           <div class="chat-suggestions-empty">
             <div class="chat-suggestions-empty-title">Connect Slack or Jira to start asking questions</div>
-            <a class="chat-suggestions-empty-link" href="${project && project.slug ? '/project_settings/' + project.slug + '?tab=connections' : '/project_settings.html?id=' + encodeURIComponent(projectId) + '&amp;tab=connections'}">Open Connections</a>
+            <a class="chat-suggestions-empty-link" href="${project && project.slug ? '/project_settings/' + project.slug + '/connections' : '/project_settings.html?id=' + encodeURIComponent(projectId) + '&amp;tab=connections'}">Open Connections</a>
           </div>
         `;
       }

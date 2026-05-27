@@ -700,7 +700,15 @@
     // the ?id= fallback, which syncUrlBar then rewrites to slug form.
     let projectId = (document.querySelector('meta[name="x-project-id"]')?.getAttribute('content'))
       || getQueryParam('id') || '';
-    let activeTab = getQueryParam('tab') === 'connections' ? 'connections' : 'general';
+    // Active tab resolution priority:
+    //   1. <meta name="x-active-tab"> — injected by functions/project_settings/[slug]/[tab].js
+    //   2. ?tab= query param — legacy URL form (rewritten away on first paint)
+    //   3. 'general' — default
+    let activeTab = (() => {
+      const fromMeta = document.querySelector('meta[name="x-active-tab"]')?.getAttribute('content');
+      if (fromMeta === 'connections' || fromMeta === 'general') return fromMeta;
+      return getQueryParam('tab') === 'connections' ? 'connections' : 'general';
+    })();
     let project = null;
     let connections = null;
     let me = null;
@@ -1663,23 +1671,31 @@
       location.replace('/');
     });
 
-    // Rewrite URL bar to /project_settings/<slug>?tab=... so the address
-    // bar mirrors the slug routing introduced for /project (Block 13.8).
-    // Falls back to /project_settings.html?id=<uuid> if the project somehow
-    // has no slug. ?just_connected= is left as-is by callers (the OAuth
-    // bounce expects to read it once, then strips it itself).
+    // Rewrite URL bar to /project_settings/<slug>[/<tab>] so neither
+    // ?id= nor ?tab= ever sit in the address bar (both look like
+    // tracking params). General tab keeps the slug-only path; other
+    // tabs add /<tab> as a path segment.
+    //
+    // ?just_connected= is left as-is — it's a one-shot OAuth-return
+    // signal that the rest of the page reads and then strips itself.
     function syncUrlBar() {
       if (!project) return;
       const u = new URL(location.href);
       if (project.slug) {
-        u.pathname = '/project_settings/' + project.slug;
+        u.pathname = activeTab && activeTab !== 'general'
+          ? '/project_settings/' + project.slug + '/' + activeTab
+          : '/project_settings/' + project.slug;
         u.searchParams.delete('id');
       } else {
         u.pathname = '/project_settings.html';
         u.searchParams.set('id', project.id || projectId);
+        if (activeTab && activeTab !== 'general') u.searchParams.set('tab', activeTab);
+        else u.searchParams.delete('tab');
       }
-      if (activeTab && activeTab !== 'general') u.searchParams.set('tab', activeTab);
-      else u.searchParams.delete('tab');
+      // Always strip ?tab= when we're on the slug path (it lives in the
+      // path now). Also handles the legacy /project_settings.html?id=&tab=
+      // arrival case where the rewrite drops both ?id= and ?tab=.
+      if (project.slug) u.searchParams.delete('tab');
       history.replaceState(null, '', u.toString());
     }
 
