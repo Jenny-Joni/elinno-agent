@@ -76,14 +76,11 @@ export async function onRequestGet({ request, env, params }) {
   });
 
   try {
-    // 2026-05-27 (shared-workspace-visibility): cross-project chats are
-    // shared — drop the user_id filter so any authenticated user can
-    // load any chat's history. user_id is preserved as the creator
-    // record on the row.
     const [conv] = await sql`
       SELECT id::text AS id, project_ids, label, user_id, title
         FROM conversations
        WHERE id           = ${params.id}
+         AND user_id      = ${userId}
          AND project_ids IS NOT NULL
          AND deleted_at   IS NULL
        LIMIT 1
@@ -140,24 +137,20 @@ export async function onRequestPost({ request, env, params }) {
   });
 
   try {
-    // 2026-05-27 (shared-workspace-visibility): cross-project chats are
-    // shared — any authenticated user can post in any chat. user_id stays
-    // on the conversation row as the creator record.
+    // Load + ownership check.
     const [conv] = await sql`
       SELECT id::text AS id, project_ids, label, user_id, title
         FROM conversations
        WHERE id           = ${params.id}
+         AND user_id      = ${userId}
          AND project_ids IS NOT NULL
          AND deleted_at   IS NULL
        LIMIT 1
     `;
     if (!conv) return error('Not found', 404);
 
-    // Pre-flight cap check. Summed across the shared workspace (originally
-    // per-user via c.user_id). Each user still has their own cap value in
-    // D1 (cross_project_ai_monthly_cap_usd); their cap applies to the
-    // shared spend pool. With shared cross-project chats this is the
-    // cleanest semantics — flagged in HANDOFF.
+    // Pre-flight cap check. SUM cost_usd from this user's cross-project
+    // messages since period_start.
     const [spendRow] = await sql`
       SELECT COALESCE(SUM(m.cost_usd), 0)::float AS spend_usd
         FROM messages m
@@ -165,6 +158,7 @@ export async function onRequestPost({ request, env, params }) {
        WHERE m.project_id  IS NULL
          AND m.created_at  >= ${periodStartIso}::timestamptz
          AND m.deleted_at  IS NULL
+         AND c.user_id     = ${userId}
          AND c.deleted_at  IS NULL
     `;
     const currentSpend = Number(spendRow.spend_usd) || 0;

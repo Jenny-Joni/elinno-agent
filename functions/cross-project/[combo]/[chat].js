@@ -56,14 +56,16 @@ export async function onRequestGet({ request, env, params }) {
     }
     projectIds = rows.map(r => r.id).sort();
 
-    // Verify the chat exists (shared across the workspace) and its
-    // project_ids exactly matches the combo. uuid[] set-equality via
-    // @>/<@ + length (see [combo].js for the postgres-js gotcha note).
+    // Verify the chat exists, belongs to this user, and its project_ids
+    // exactly matches the combo. 2026-05-27 (shared-workspace-visibility):
+    // projects shared, chats per-creator. uuid[] set-equality via @>/<@
+    // + length (see [combo].js for the postgres-js gotcha note).
     const projectIdsLiteral = '{' + projectIds.join(',') + '}';
     const convs = await sql`
       SELECT id::text AS id
         FROM conversations
        WHERE id         = ${chat}::uuid
+         AND user_id    = ${userId}
          AND deleted_at IS NULL
          AND project_ids IS NOT NULL
          AND array_length(project_ids, 1) = ${projectIds.length}

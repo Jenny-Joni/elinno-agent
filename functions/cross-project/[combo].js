@@ -78,17 +78,19 @@ export async function onRequestGet({ request, env, params }) {
     projectIds = rows.map(r => r.id).sort();
 
     // Find the most recent conversation whose project_ids exactly
-    // matches the combo (same set, same length). 2026-05-27: chats are
-    // shared across the workspace, so we no longer filter by user_id.
-    // project_ids is uuid[]; set-equality via @>/<@ + length check so
-    // order in the stored array doesn't matter. Array literal built
-    // manually because postgres-js's `${jsArr}` serializes as CSV which
-    // fails to parse as uuid[].
+    // matches the combo (same set, same length) AND belongs to this
+    // user. 2026-05-27 (shared-workspace-visibility): projects are
+    // shared but chats remain per-creator — each user has their own
+    // combinations and history. project_ids is uuid[]; set-equality
+    // via @>/<@ + length check so order in the stored array doesn't
+    // matter. Array literal built manually because postgres-js's
+    // `${jsArr}` serializes as CSV which fails to parse as uuid[].
     const projectIdsLiteral = '{' + projectIds.join(',') + '}';
     const convs = await sql`
       SELECT id::text AS id
         FROM conversations
-       WHERE deleted_at IS NULL
+       WHERE user_id    = ${userId}
+         AND deleted_at IS NULL
          AND project_ids IS NOT NULL
          AND array_length(project_ids, 1) = ${projectIds.length}
          AND project_ids @> ${projectIdsLiteral}::uuid[]

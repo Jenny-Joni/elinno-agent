@@ -86,9 +86,8 @@ export async function onRequestGet({ request, env }) {
 
   try {
     // 2026-05-27 (shared-workspace-visibility): project count is the
-    // shared workspace's count, not per-user. Cross-project spend MTD
-    // is similarly summed across all users' cross-project conversations
-    // so the cap-check matches messages.js post-flight semantics.
+    // shared workspace's count, not per-user. Cross-project spend stays
+    // per-user (chats remain per-creator, each user has their own cap).
     const [projectCountRow] = await sql`
       SELECT COUNT(*)::int AS n
         FROM projects
@@ -101,6 +100,7 @@ export async function onRequestGet({ request, env }) {
        WHERE m.project_id  IS NULL
          AND m.created_at  >= ${periodStartIso}::timestamptz
          AND m.deleted_at  IS NULL
+         AND c.user_id     = ${userIdText}
          AND c.deleted_at  IS NULL
     `;
 

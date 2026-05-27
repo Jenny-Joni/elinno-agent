@@ -38,6 +38,7 @@ function parseProjectIds(v) {
 export async function onRequestGet({ request, env }) {
   const user = await getSessionUser(request, env.DB);
   if (!user) return error('Not authenticated', 401);
+  const userIdText = String(user.id);
 
   // D1: workspace cap + spend period start. v1.3 (Block 12.1) added
   // these three columns. cross_project_ai_spend_period_start may be
@@ -183,8 +184,9 @@ export async function onRequestGet({ request, env }) {
       }
     }
 
-    // 5. Cross-project conversations (shared across the workspace per
-    //    2026-05-27 shared-workspace-visibility — originally per-user).
+    // 5. Cross-project conversations owned by this user. In 12.3 this
+    //    is expected to return [] (the cross-project endpoint lands in
+    //    12.5a). The dashboard renders an empty-state CTA when empty.
     const crossProjectChats = await sql`
       SELECT id::text                AS id,
              label,
@@ -193,15 +195,16 @@ export async function onRequestGet({ request, env }) {
              last_message_at,
              created_at
         FROM conversations
-       WHERE project_ids IS NOT NULL
+       WHERE user_id = ${userIdText}
+         AND project_ids IS NOT NULL
          AND deleted_at IS NULL
        ORDER BY last_message_at DESC NULLS LAST, created_at DESC
        LIMIT 10
     `;
 
     // 6. Cross-project spend MTD. Cross-project messages have
-    //    project_id IS NULL (BLOCK_12_PLAN decision F). Summed across
-    //    the shared workspace (2026-05-27 shared-workspace-visibility).
+    //    project_id IS NULL (BLOCK_12_PLAN decision F). Scope to this
+    //    workspace user's conversations (the cap is per-user).
     const spendRow = await sql`
       SELECT COALESCE(SUM(cost_usd), 0)::float AS spend_usd
         FROM messages m
@@ -209,6 +212,7 @@ export async function onRequestGet({ request, env }) {
        WHERE m.project_id IS NULL
          AND m.created_at >= ${periodStartIso}::timestamptz
          AND m.deleted_at IS NULL
+         AND c.user_id = ${userIdText}
          AND c.deleted_at IS NULL
     `;
     const crossProjectSpend = Number(spendRow[0]?.spend_usd ?? 0);

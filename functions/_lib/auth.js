@@ -10,14 +10,19 @@
 // workspace = projects.owner_user_id = session user's id (BLOCK_12_PLAN
 // decision E + I).
 //
-// 2026-05-27 (shared-workspace-visibility): the workspace boundary is now
-// a single shared workspace — any authenticated user can see/use any
+// 2026-05-27 (shared-workspace-visibility): PROJECT visibility is now a
+// single shared workspace — any authenticated user can see/use any
 // non-deleted project. `requireWorkspaceScope` no longer filters by
 // owner_user_id; it only checks the project exists and isn't soft-deleted.
 // `requireWorkspaceAdmin` (D1 users.is_admin = 1) is unchanged and
 // continues to gate edit/create/delete operations. `owner_user_id` is
 // preserved as the project's CREATOR record (used by
 // `getAdminEmailsForProject` for cost-cap notifications).
+//
+// CONVERSATIONS remain per-user — `conversations.user_id` continues to
+// scope cross-project and per-project chat history per creator. See
+// functions/_lib/workspace.js for the canonical "current user" id
+// used by those filters.
 
 import postgres from 'postgres';
 
