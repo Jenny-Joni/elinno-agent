@@ -802,7 +802,7 @@
         + '<aside class="xc-sidebar">'
         +   '<div class="xc-sidebar__head">'
         +     '<span class="xc-sidebar__label">Cross-project chats</span>'
-        +     '<a class="xc-sidebar__new" href="/cross-project/new.html" title="New cross-project chat" aria-label="New cross-project chat">+</a>'
+        +     '<a class="xc-sidebar__new" id="xcSidebarNewBtn" href="/cross-project/new.html" title="New chat in this combo" aria-label="New chat in this combo">+</a>'
         +   '</div>'
         +   '<div class="xc-conv-list" id="xcConvList">' + items + '</div>'
         + '</aside>';
@@ -830,6 +830,55 @@
           }
         });
       });
+
+      // 2026-05-27 (shared-workspace-visibility follow-up):
+      // Sidebar "+" creates a new conversation in the SAME combo as the
+      // current chat (instead of going to the picker). The anchor's
+      // href stays /cross-project/new.html for graceful no-JS fallback.
+      // Available to all authenticated users (POST /api/cross-project/
+      // conversations requires auth, not admin).
+      const newBtn = document.getElementById('xcSidebarNewBtn');
+      if (newBtn) {
+        newBtn.addEventListener('click', async (e) => {
+          // Only intercept primary click — let Cmd/Ctrl/middle-click
+          // open the picker in a new tab as a power-user escape hatch.
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+          if (!conv || !Array.isArray(conv.project_ids) || conv.project_ids.length < 2) return;
+          e.preventDefault();
+          if (newBtn.dataset.busy === '1') return;
+          newBtn.dataset.busy = '1';
+          newBtn.style.opacity = '0.5';
+          newBtn.style.pointerEvents = 'none';
+          try {
+            const res = await fetch('/api/cross-project/conversations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify({ label: 'product', project_ids: conv.project_ids }),
+            });
+            if (res.status === 401) { redirectToLogin(); return; }
+            if (!res.ok) {
+              newBtn.dataset.busy = '';
+              newBtn.style.opacity = '';
+              newBtn.style.pointerEvents = '';
+              return;
+            }
+            const data = await res.json().catch(() => null);
+            const newId = data && data.conversation && data.conversation.id;
+            if (newId) {
+              location.assign(chatUrl(newId, conv.project_ids));
+            } else {
+              newBtn.dataset.busy = '';
+              newBtn.style.opacity = '';
+              newBtn.style.pointerEvents = '';
+            }
+          } catch {
+            newBtn.dataset.busy = '';
+            newBtn.style.opacity = '';
+            newBtn.style.pointerEvents = '';
+          }
+        });
+      }
     }
 
     // Conv menu open/close (one at a time).
