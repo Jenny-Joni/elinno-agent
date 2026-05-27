@@ -433,6 +433,48 @@
       submitting = true;
       errorMsg = '';
       render();
+
+      // Build the slug-form redirect path. Reused by both the
+      // "existing chat" and the "newly-created chat" branches below.
+      const selectedIds = Array.from(selected);
+      const selectedSlugs = selectedIds
+        .map(id => (eligible.find(p => p.id === id) || {}).slug)
+        .filter(Boolean)
+        .sort();
+      const haveAllSlugs = selectedSlugs.length === selectedIds.length;
+      function redirectTo(convId) {
+        const url = haveAllSlugs
+          ? '/cross-project/' + selectedSlugs.join('+') + '/' + encodeURIComponent(convId)
+          : '/cross-project/chat.html?id=' + encodeURIComponent(convId);
+        location.replace(url);
+      }
+
+      // One chat per combo (Jenny 2026-05-27): before creating a new
+      // conversation, check if one already exists for the exact same
+      // project set and open it instead. Avoids duplicate chats stacking
+      // up in the sidebar for the same combo.
+      try {
+        const listRes = await fetch('/api/cross-project/conversations');
+        if (listRes.status === 401) { redirectToLogin(); return; }
+        if (listRes.ok) {
+          const listData = await listRes.json().catch(() => null);
+          const conversations = (listData && Array.isArray(listData.conversations)) ? listData.conversations : [];
+          const sortedSelected = selectedIds.slice().sort();
+          const existing = conversations.find(c => {
+            const ids = (Array.isArray(c.project_ids) ? c.project_ids : []).slice().sort();
+            if (ids.length !== sortedSelected.length) return false;
+            for (let i = 0; i < ids.length; i++) if (ids[i] !== sortedSelected[i]) return false;
+            return true;
+          });
+          if (existing && existing.id) {
+            redirectTo(existing.id);
+            return;
+          }
+        }
+      } catch {
+        // Best-effort lookup; fall through to create-new if it fails.
+      }
+
       let res;
       try {
         res = await fetch('/api/cross-project/conversations', {
@@ -440,7 +482,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             label: 'product',
-            project_ids: Array.from(selected),
+            project_ids: selectedIds,
           }),
         });
       } catch {
@@ -470,18 +512,7 @@
         render();
         return;
       }
-      // Slug-form redirect: /cross-project/<slug1>+<slug2>/<chat-id>.
-      // Falls back to legacy /cross-project/chat.html?id= if any
-      // selected project lacks a slug (shouldn't happen — eligible-
-      // projects API returns slug — but guard for safety).
-      const selectedSlugs = Array.from(selected)
-        .map(id => (eligible.find(p => p.id === id) || {}).slug)
-        .filter(Boolean)
-        .sort();
-      const redirectUrl = selectedSlugs.length === selected.size
-        ? '/cross-project/' + selectedSlugs.join('+') + '/' + encodeURIComponent(data.conversation.id)
-        : '/cross-project/chat.html?id=' + encodeURIComponent(data.conversation.id);
-      location.replace(redirectUrl);
+      redirectTo(data.conversation.id);
     }
 
     function wireNav(user) {
