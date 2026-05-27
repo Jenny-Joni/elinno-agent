@@ -94,6 +94,119 @@
       background: rgba(255, 255, 255, 0.2);
     }
     .conv-toast-warn { background: var(--danger); }
+
+    /* 2026-05-27 (shared-workspace-visibility follow-up):
+       Single-project chat UI aligned to cross-project (mockup screen-12).
+       Drops the giant project-name H2 — breadcrumb is the header. Adds
+       the FROM chip row (mirror of cross-project's ACROSS) and the
+       centered empty state. CSS lives page-local to avoid touching
+       auth.css (which would require the 14-page cache-bust dance per
+       HANDOFF). Class names use a .pj- / .chat-empty- prefix; the
+       legacy .chat-suggestions-* rules in auth.css are now unused but
+       left in place. */
+
+    /* FROM chip row — mirror of .xc-across in cross-project/chat.html */
+    .pj-from {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex-wrap: wrap;
+      padding: 12px 0 14px;
+      border-bottom: 0.5px solid var(--border-soft);
+      margin-bottom: 12px;
+    }
+    .pj-from__label {
+      font-family: var(--font);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-3);
+      font-weight: 600;
+    }
+    .pj-scopechip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px 4px 4px;
+      border-radius: var(--r-pill);
+      background: var(--brand-soft);
+      border: 0.5px solid var(--brand-soft-border);
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .pj-scopechip__icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    img.pj-scopechip__icon { object-fit: cover; }
+
+    /* Centered empty state — mirror of .xc-empty in cross-project/chat.html */
+    .chat-empty {
+      margin: 40px auto;
+      max-width: 460px;
+      text-align: center;
+    }
+    .chat-empty__icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 14px;
+      font-size: 22px;
+    }
+    .chat-empty__title {
+      font-family: var(--font);
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text);
+      margin: 0 0 8px;
+    }
+    .chat-empty__title strong { font-weight: 600; }
+    .chat-empty__sub {
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text-2);
+      margin: 0 0 18px;
+      line-height: 1.5;
+    }
+    .chat-empty__suggestions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      text-align: left;
+    }
+    .chat-empty__suggestion {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 13px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text);
+      text-align: left;
+      text-decoration: none;
+    }
+    .chat-empty__suggestion:hover { background: var(--brand-soft); border-color: var(--brand-soft-border); }
+    .chat-empty__suggestion-icon { color: var(--brand); flex-shrink: 0; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -479,11 +592,18 @@
                   <div class="project-breadcrumb">
                     <a href="/projects.html">Projects</a> / <span>${projName}</span>
                   </div>
-                  <h2 class="project-name-h">${projName}</h2>
+                  <!-- 2026-05-27: giant <h2 class="project-name-h"> removed
+                       per UI alignment with cross-project chat. Project
+                       name now lives in the breadcrumb + the FROM chip
+                       row inside .chat-area. -->
                 </div>
               </div>
               <div class="project-tabs" id="tabStrip">
-                <button class="project-tab" type="button" data-tab="chat">Chat</button>
+                <!-- 2026-05-27: Chat tab button hidden — chat is the only
+                     mode now (Members + Connections collapsed in prior
+                     blocks). The data-tab="chat" handler stays alive so
+                     applyState's tab routing keeps working. -->
+                <button class="project-tab" type="button" data-tab="chat" hidden style="display:none;">Chat</button>
                 <!-- v1.4 (Block 13.4): tab strip collapsed to Chat-only per SPEC §8.
                      Members tab stays hidden (collapsed in v1.3 Block 12.1).
                      Connections tab hidden — sequencing-critical: kept in the DOM
@@ -822,11 +942,31 @@
       else renderChat(body);
     }
 
+    // 2026-05-27 (shared-workspace-visibility follow-up):
+    // FROM chip row — mirrors the ACROSS row in cross-project chat.
+    // Now that the giant project-name heading is gone, this strip
+    // reinforces "you are chatting with <project>". Logo if uploaded,
+    // initial letter otherwise (same fallback as the dashboard cards).
+    function projectFromRowHtml() {
+      if (!project) return '';
+      const name = project.name || '';
+      const initial = String(name.trim()[0] || '?').toUpperCase();
+      const iconHtml = project.logo_url
+        ? '<img class="pj-scopechip__icon" src="' + escapeHtml(project.logo_url) + '" alt="">'
+        : '<span class="pj-scopechip__icon">' + escapeHtml(initial) + '</span>';
+      return ''
+        + '<div class="pj-from">'
+        +   '<span class="pj-from__label">From</span>'
+        +   '<span class="pj-scopechip">' + iconHtml + escapeHtml(name) + '</span>'
+        + '</div>';
+    }
+
     function renderChat(body) {
       const conv = conversations.find(c => c.id === activeConvId);
       const title = conv ? (conv.title || '') : '';
       body.innerHTML = `
         <div class="chat-area">
+          ${projectFromRowHtml()}
           <div class="chat-conv-title" id="chatConvTitle"></div>
           <div class="chat-messages" id="chatMessages"></div>
           <div class="chat-composer">
@@ -898,44 +1038,77 @@
       return [];
     }
 
-    // Block 9.3 decisions H + K: build the empty-state HTML. 'none' renders
-    // the "Connect Slack or Jira" state card with a tab-switch link; the
-    // other three render the source-gated suggestion grid.
-    function renderSuggestionsHtml(state) {
-      if (state === 'none') {
-        // Block 13.7b: CTA now navigates to /project_settings.html (the new
-        // connections home). Was a same-page tab switch via
-        // data-suggestions-link="connections" — the legacy tab is removed.
-        // 2026-05-27 (shared-workspace-visibility follow-up): only
-        // admins see the "Open Connections" action — members get a
-        // contact-an-admin hint since they can't connect sources.
-        if (me && me.is_admin) {
-          return `
-            <div class="chat-suggestions-empty">
-              <div class="chat-suggestions-empty-title">Connect Slack or Jira to start asking questions</div>
-              <a class="chat-suggestions-empty-link" href="${project && project.slug ? '/project_settings/' + project.slug + '/connections' : '/project_settings.html?id=' + encodeURIComponent(projectId) + '&amp;tab=connections'}">Open Connections</a>
-            </div>
-          `;
-        }
-        return `
-          <div class="chat-suggestions-empty">
-            <div class="chat-suggestions-empty-title">No data sources are connected to this project yet</div>
-            <div class="chat-suggestions-empty-link" style="cursor:default;opacity:0.7;">Ask a workspace admin to connect Slack or Jira.</div>
-          </div>
-        `;
+    // 2026-05-27 (shared-workspace-visibility follow-up): empty state
+    // aligned to cross-project chat (mockup screen-12). Centered icon
+    // + "Ask <project>" title + sub-paragraph + suggestion cards
+    // (mirror of .xc-empty). Source-gating logic is preserved:
+    //   - 'none' (no Slack/Jira connections): admins get the "Open
+    //     Connections" CTA card, members get a contact-an-admin hint
+    //     (no actionable card).
+    //   - 'slack' / 'jira' / 'both': suggestion list from
+    //     getSuggestionList(), rendered as cards.
+    // Hardcoded icon for each suggestion: keep it simple — the same
+    // ti-message-question for every chip. Avoids a per-string lookup
+    // and reads as "ask this" consistently.
+    function suggestionCardHtml(text, icon, href) {
+      const safe = escapeHtml(text);
+      const ic = icon || 'ti-message-question';
+      if (href) {
+        return ''
+          + '<a class="chat-empty__suggestion" href="' + escapeHtml(href) + '">'
+          +   '<i class="ti ' + ic + ' chat-empty__suggestion-icon"></i>'
+          +   '<span>' + safe + '</span>'
+          + '</a>';
       }
+      return ''
+        + '<button class="chat-empty__suggestion chat-suggestion" type="button" data-suggestion="' + safe + '">'
+        +   '<i class="ti ' + ic + ' chat-empty__suggestion-icon"></i>'
+        +   '<span>' + safe + '</span>'
+        + '</button>';
+    }
+
+    function renderSuggestionsHtml(state) {
+      const projectName = project && project.name ? project.name : 'this project';
+      const titleHtml = '<h2 class="chat-empty__title">Ask <strong>' + escapeHtml(projectName) + '</strong></h2>';
+      const iconHtml = '<div class="chat-empty__icon"><i class="ti ti-messages"></i></div>';
+
+      if (state === 'none') {
+        const subText = (me && me.is_admin)
+          ? "Connect Slack or Jira to start asking questions about this project's data."
+          : "No data sources are connected to this project yet. Ask a workspace admin to connect Slack or Jira.";
+        const cardsHtml = (me && me.is_admin)
+          ? '<div class="chat-empty__suggestions">'
+              + suggestionCardHtml('Open Connections', 'ti-plug',
+                  project && project.slug
+                    ? '/project_settings/' + project.slug + '/connections'
+                    : '/project_settings.html?id=' + encodeURIComponent(projectId) + '&tab=connections')
+            + '</div>'
+          : '';
+        return ''
+          + '<div class="chat-empty">'
+          +   iconHtml
+          +   titleHtml
+          +   '<p class="chat-empty__sub">' + escapeHtml(subText) + '</p>'
+          +   cardsHtml
+          + '</div>';
+      }
+
       const items = getSuggestionList(state);
-      if (items.length === 0) return '';
-      const chips = items.map(q => {
-        const safe = escapeHtml(q);
-        return `<button class="chat-suggestion" type="button" data-suggestion="${safe}">${safe}</button>`;
-      }).join('');
-      return `
-        <div class="chat-suggestions">
-          <div class="chat-suggestions-label">Try asking…</div>
-          <div class="chat-suggestions-grid">${chips}</div>
-        </div>
-      `;
+      if (items.length === 0) {
+        return ''
+          + '<div class="chat-empty">'
+          +   iconHtml
+          +   titleHtml
+          + '</div>';
+      }
+      const cards = items.map(q => suggestionCardHtml(q)).join('');
+      return ''
+        + '<div class="chat-empty">'
+        +   iconHtml
+        +   titleHtml
+        +   '<p class="chat-empty__sub">The agent reads this project’s connected data and cites every answer.</p>'
+        +   '<div class="chat-empty__suggestions">' + cards + '</div>'
+        + '</div>';
     }
 
     // Block 9.3 decision I: chip click fills #chatInput, focuses it, dispatches
