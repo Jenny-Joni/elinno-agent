@@ -162,6 +162,39 @@
     /* Reset-password modal body — uses the .password-field component. */
     .reset-pw-modal-body { padding: 18px 22px 22px; }
 
+    /* Cross-project AI spend card (admin-only; rendered after /api/workspace
+       resolves). Moved from /dashboard 2026-05-27. */
+    .spend-card {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 18px 22px;
+      margin: 0 0 24px;
+    }
+    .spend-card__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+    .spend-card__title {
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .spend-card__pct {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
+    }
+    .spend-card__amount {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text-2);
+      margin-bottom: 8px;
+    }
+
     @media (max-width: 700px) {
       .admin-shell { padding: 18px 14px 64px; }
       .admin-heading { font-size: 26px; }
@@ -204,6 +237,9 @@
       </div>
       <h1 class="admin-heading">Members</h1>
       <p class="admin-sub">Add a colleague to your workspace with a name, email, role, and password. New members are active immediately and can sign in right away.</p>
+
+      <!-- Cross-project AI spend (rendered after /api/workspace resolves). -->
+      <div id="spendCardSlot"></div>
 
       <!-- Create form -->
       <section class="admin-card" aria-labelledby="addMemberTitle">
@@ -376,7 +412,41 @@
       av.textContent = initial(me.display_name || me.email);
       av.title = me.display_name ? me.display_name + ' · ' + me.email : me.email;
       loadUsers();
+      loadSpend();
     }).catch(() => gotoLogin());
+
+    // ── cross-project AI spend (admin-only summary card) ──────────────
+    function fmtUsd(n) {
+      return '$' + (Number(n) || 0).toFixed(2);
+    }
+    async function loadSpend() {
+      const slot = $('#spendCardSlot');
+      if (!slot) return;
+      try {
+        const res = await fetch('/api/workspace');
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        const cp = data && data.cross_project_ai;
+        if (!cp) return;
+        const spend = Number(cp.spend_usd) || 0;
+        const cap = Number(cp.cap_usd) || 0;
+        const pct = cap > 0 ? Math.min(100, (spend / cap) * 100) : 0;
+        const variant = pct >= 100 ? 'exceeded' : pct >= 80 ? 'warning' : 'healthy';
+        slot.innerHTML =
+            '<div class="spend-card">'
+          +   '<div class="spend-card__head">'
+          +     '<span class="spend-card__title">Cross-project AI spend</span>'
+          +     '<span class="spend-card__pct">' + Math.round(pct) + '%</span>'
+          +   '</div>'
+          +   '<div class="spend-card__amount">' + fmtUsd(spend) + ' of ' + fmtUsd(cap) + ' this month</div>'
+          +   '<div class="spend-bar ' + variant + ' slim">'
+          +     '<div class="spend-bar-track">'
+          +       '<div class="spend-bar-fill" style="width:' + pct + '%;"></div>'
+          +     '</div>'
+          +   '</div>'
+          + '</div>';
+      } catch (_err) { /* silent — card just doesn't render */ }
+    }
 
     $('#logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' }).catch(() => {});

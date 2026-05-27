@@ -95,40 +95,6 @@
     }
     .xp-hero__cta:hover { background: #f0f0f0; }
 
-    /* Admin spend meter (visible only when data.user.is_admin === true). */
-    .spend-card {
-      background: var(--bg);
-      border: 0.5px solid var(--border);
-      border-radius: var(--r-md);
-      padding: 18px 22px;
-      /* margin-top adds breathing room from the projects grid above
-         (Jenny 2026-05-27 — card was moved below projects and sat too close). */
-      margin: 32px 0 28px;
-    }
-    .spend-card__head {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      margin-bottom: 10px;
-    }
-    .spend-card__title {
-      font-family: var(--font);
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text);
-    }
-    .spend-card__pct {
-      font-family: var(--font);
-      font-size: 11px;
-      color: var(--text-3);
-    }
-    .spend-card__amount {
-      font-family: var(--font);
-      font-size: 12px;
-      color: var(--text-2);
-      margin-bottom: 8px;
-    }
-
     /* Cross-project chats section. Chats are grouped by the SET of
        projects they span (sorted project_ids signature) and each
        unique combination renders as one card. Card → filtered
@@ -592,26 +558,6 @@
         + '</a>';
     }
 
-    function renderSpendCard(workspace) {
-      const spend = Number(workspace.cross_project_spend_usd) || 0;
-      const cap = Number(workspace.cross_project_cap_usd) || 0;
-      const pct = cap > 0 ? Math.min(100, (spend / cap) * 100) : 0;
-      const variant = pct >= 100 ? 'exceeded' : pct >= 80 ? 'warning' : 'healthy';
-      return ''
-        + '<div class="spend-card">'
-        +   '<div class="spend-card__head">'
-        +     '<span class="spend-card__title">Cross-project AI spend</span>'
-        +     '<span class="spend-card__pct">' + Math.round(pct) + '%</span>'
-        +   '</div>'
-        +   '<div class="spend-card__amount">' + fmtUsd(spend) + ' of ' + fmtUsd(cap) + ' this month</div>'
-        +   '<div class="spend-bar ' + variant + ' slim">'
-        +     '<div class="spend-bar-track">'
-        +       '<div class="spend-bar-fill" style="width:' + pct + '%;"></div>'
-        +     '</div>'
-        +   '</div>'
-        + '</div>';
-    }
-
     function jiraChip() {
       return '<span class="srcchip srcchip--jira">'
         + '<img src="/icons/jira.svg" width="10" height="10" alt="Jira">'
@@ -671,8 +617,6 @@
       const projectsById = new Map((data.projects || []).map(p => [p.id, p]));
       parts.push(renderCrossProjectChatsSection(data.conversations || [], projectsById));
       parts.push(renderProjectsSection(data.projects, isAdmin));
-      // Spend card moved below projects (was above) per Jenny 2026-05-27.
-      if (isAdmin && data.workspace) parts.push(renderSpendCard(data.workspace));
       root.innerHTML = parts.join('');
     }
 
