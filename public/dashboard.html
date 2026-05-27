@@ -129,6 +129,79 @@
       margin-bottom: 8px;
     }
 
+    /* Cross-project chats section (renders above projects when the user
+       has at least one cross-project chat). Visual rhythm mirrors
+       .projects-section. .cp-row styles ported from /cross-project/index.html
+       so the rows look identical to the dedicated list page. */
+    .cpchats-section { margin-top: 8px; margin-bottom: 28px; }
+    .cpchats-section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 14px;
+    }
+    .cpchats-section-head a {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--brand);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .cp-list { display: flex; flex-direction: column; gap: 10px; }
+    .cp-row {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 0.5px solid var(--border);
+      background: var(--bg);
+      border-radius: var(--r-md);
+      text-decoration: none;
+      color: inherit;
+    }
+    .cp-row:hover {
+      background: var(--brand-soft);
+      border-color: var(--brand-soft-border);
+    }
+    .cp-row__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--r-sm);
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 16px;
+    }
+    .cp-row__body { flex: 1; min-width: 0; }
+    .cp-row__title {
+      font-family: var(--font);
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cp-row__scope {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cp-row__meta {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
+      flex-shrink: 0;
+    }
+
     /* Projects grid. Admin: 3-up + "+ New project" card. Member: 2-up, no create. */
     .projects-section { margin-top: 8px; }
     .projects-section-head {
@@ -385,6 +458,46 @@
         + '</div>';
     }
 
+    // Cross-project chats list. Renders above the projects grid when the
+    // user has at least one cross-project chat. Caps shown at MAX_CP_CHATS;
+    // overflow links to the dedicated /cross-project/index.html list.
+    const MAX_CP_CHATS = 4;
+    function renderCrossProjectChatsSection(conversations, projectsById) {
+      if (!conversations || conversations.length === 0) return '';
+      const shown = conversations.slice(0, MAX_CP_CHATS);
+      const overflow = conversations.length > MAX_CP_CHATS;
+      const rows = shown.map(c => crossProjectRowHtml(c, projectsById)).join('');
+      return ''
+        + '<div class="cpchats-section">'
+        +   '<div class="eyebrow"><span class="eyebrow__label">Cross-project chats</span><span class="eyebrow__rule"></span></div>'
+        +   '<div class="cpchats-section-head"><span></span>'
+        +     (overflow ? '<a href="/cross-project/index.html">View all →</a>' : '')
+        +   '</div>'
+        +   '<div class="cp-list">' + rows + '</div>'
+        + '</div>';
+    }
+
+    function crossProjectRowHtml(chat, projectsById) {
+      const projectIds = Array.isArray(chat.project_ids) ? chat.project_ids : [];
+      const names = projectIds
+        .map(id => (projectsById.get(id) || {}).name || 'Project')
+        .join(', ');
+      const lastAt = chat.last_message_at || chat.updated_at || chat.created_at;
+      const title = chat.title || 'Cross-project chat';
+      const scope = projectIds.length === 0
+        ? 'No projects'
+        : 'Across ' + projectIds.length + ' · ' + names;
+      return ''
+        + '<a class="cp-row" href="/cross-project/chat.html?id=' + esc(chat.id) + '">'
+        +   '<div class="cp-row__icon"><i class="ti ti-messages"></i></div>'
+        +   '<div class="cp-row__body">'
+        +     '<div class="cp-row__title">' + esc(title) + '</div>'
+        +     '<div class="cp-row__scope">' + esc(scope) + '</div>'
+        +   '</div>'
+        +   '<div class="cp-row__meta">' + esc(fmtRelative(lastAt) || '') + '</div>'
+        + '</a>';
+    }
+
     function renderSpendCard(workspace) {
       const spend = Number(workspace.cross_project_spend_usd) || 0;
       const cap = Number(workspace.cross_project_cap_usd) || 0;
@@ -457,6 +570,10 @@
       const parts = [];
       parts.push(renderGreeting(data.user, data.projects));
       parts.push(renderHero());
+      // Cross-project chats list (above projects). Section omitted entirely
+      // when the user has no cross-project chats yet.
+      const projectsById = new Map((data.projects || []).map(p => [p.id, p]));
+      parts.push(renderCrossProjectChatsSection(data.conversations || [], projectsById));
       parts.push(renderProjectsSection(data.projects, isAdmin));
       // Spend card moved below projects (was above) per Jenny 2026-05-27.
       if (isAdmin && data.workspace) parts.push(renderSpendCard(data.workspace));
@@ -470,11 +587,26 @@
 
     async function boot() {
       try {
-        const res = await fetch('/api/dashboard', { credentials: 'same-origin' });
-        if (res.status === 401) { gotoLogin(); return; }
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
+        // Fetch dashboard + cross-project conversations in parallel.
+        // Conversations failure is non-fatal — dashboard still renders
+        // (the cp-chats section just stays empty / hidden).
+        const [dashRes, convRes] = await Promise.all([
+          fetch('/api/dashboard', { credentials: 'same-origin' }),
+          fetch('/api/cross-project/conversations', { credentials: 'same-origin' }).catch(() => null),
+        ]);
+        if (dashRes.status === 401) { gotoLogin(); return; }
+        if (!dashRes.ok) throw new Error('HTTP ' + dashRes.status);
+        const data = await dashRes.json();
         if (!data.ok) throw new Error(data.error || 'Failed to load');
+        // Merge conversations into the data payload for render().
+        let conversations = [];
+        if (convRes && convRes.ok) {
+          const convData = await convRes.json().catch(() => null);
+          if (convData && Array.isArray(convData.conversations)) {
+            conversations = convData.conversations;
+          }
+        }
+        data.conversations = conversations;
         const av = $('#navUserAvatar');
         av.textContent = initial(data.user.display_name || data.user.email);
         av.title = (data.user.display_name || '') + (data.user.email ? ' · ' + data.user.email : '');
