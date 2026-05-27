@@ -611,7 +611,9 @@
       const isAdmin = !!(data.user && data.user.is_admin);
       const parts = [];
       parts.push(renderGreeting(data.user, data.projects));
-      parts.push(renderHero());
+      // Hero card ("Ask across all your projects at once") removed
+      // per Jenny 2026-05-27. renderHero() is still defined in case
+      // it returns, but is no longer rendered.
       // Cross-project chats list (above projects). Section omitted entirely
       // when the user has no cross-project chats yet.
       const projectsById = new Map((data.projects || []).map(p => [p.id, p]));
