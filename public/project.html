@@ -215,6 +215,15 @@
        pattern (mirror of .xc-grid / .xc-sidebar / .xc-main). All
        overrides live page-local; the auth.css base rules are kept
        so other consumers of these classes (if any) are unaffected. */
+    /* The page's outer .app-main wrapper from auth.css has padding: 70px 0
+       (used on the dashboard, etc). Cross-project chat instead wraps in
+       .xc-shell with padding: 18px 20px 30px. Override .app-main here
+       so the single-project chat uses the same viewport math — otherwise
+       the shell ends up ~90px too tall for the available space and the
+       page scrolls. Round-3 fix. */
+    .app-main {
+      padding: 18px 0 30px;
+    }
     .project-shell {
       background: transparent;
       border: none;
@@ -223,6 +232,7 @@
       grid-template-columns: 220px 1fr;
       gap: 18px;
       height: calc(100vh - 130px);
+      min-height: 480px;
       padding: 0;
     }
     .project-sidebar {
