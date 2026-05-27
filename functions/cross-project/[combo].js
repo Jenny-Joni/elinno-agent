@@ -77,19 +77,21 @@ export async function onRequestGet({ request, env, params }) {
 
     // Find the most recent conversation whose project_ids exactly
     // matches the combo (same set, same length). project_ids is stored
-    // as JSONB; we compare against a sorted JSONB array to make the
-    // match order-independent. LIMIT 1 by recency.
-    const targetJson = JSON.stringify(projectIds);
+    // as uuid[]; we do set-equality via @>/<@ + length check so order
+    // in the stored array doesn't matter. Array literal built manually
+    // because postgres-js's `${jsArr}` serializes as CSV which fails
+    // to parse as uuid[] (see functions/api/cross-project/conversations.js
+    // for the same pattern).
+    const projectIdsLiteral = '{' + projectIds.join(',') + '}';
     const convs = await sql`
       SELECT id::text AS id
         FROM conversations
        WHERE user_id    = ${userId}
          AND deleted_at IS NULL
          AND project_ids IS NOT NULL
-         AND (
-           SELECT jsonb_agg(elem ORDER BY elem)
-             FROM jsonb_array_elements_text(project_ids) elem
-         ) = ${targetJson}::jsonb
+         AND array_length(project_ids, 1) = ${projectIds.length}
+         AND project_ids @> ${projectIdsLiteral}::uuid[]
+         AND project_ids <@ ${projectIdsLiteral}::uuid[]
        ORDER BY last_message_at DESC NULLS LAST, created_at DESC
        LIMIT 1
     `;

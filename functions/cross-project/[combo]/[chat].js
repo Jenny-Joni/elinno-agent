@@ -55,9 +55,9 @@ export async function onRequestGet({ request, env, params }) {
     projectIds = rows.map(r => r.id).sort();
 
     // Verify the chat exists, belongs to this user, and its project_ids
-    // exactly matches the combo. If it doesn't match, fall back to the
-    // combo's most recent chat (sibling [combo].js route).
-    const targetJson = JSON.stringify(projectIds);
+    // exactly matches the combo. uuid[] set-equality via @>/<@ + length
+    // (see [combo].js for the same pattern + the postgres-js gotcha note).
+    const projectIdsLiteral = '{' + projectIds.join(',') + '}';
     const convs = await sql`
       SELECT id::text AS id
         FROM conversations
@@ -65,10 +65,9 @@ export async function onRequestGet({ request, env, params }) {
          AND user_id    = ${userId}
          AND deleted_at IS NULL
          AND project_ids IS NOT NULL
-         AND (
-           SELECT jsonb_agg(elem ORDER BY elem)
-             FROM jsonb_array_elements_text(project_ids) elem
-         ) = ${targetJson}::jsonb
+         AND array_length(project_ids, 1) = ${projectIds.length}
+         AND project_ids @> ${projectIdsLiteral}::uuid[]
+         AND project_ids <@ ${projectIdsLiteral}::uuid[]
        LIMIT 1
     `;
     if (convs.length === 0) {
