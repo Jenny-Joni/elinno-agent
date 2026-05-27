@@ -67,6 +67,111 @@
       flex-shrink: 0;
     }
 
+    /* Combo card grid (default view). Same component as the dashboard's
+       cross-project section; click a card to drill down into the chats
+       inside that combination via ?ids=. */
+    .cpcombo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .cpcombo-card {
+      background: var(--bg);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r-md);
+      padding: 18px;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      transition: background var(--t-fast), border-color var(--t-fast);
+    }
+    .cpcombo-card:hover {
+      background: var(--brand-tint);
+      border-color: var(--brand-soft-border);
+    }
+    .cpcombo-card__avatars {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .cpcombo-card__avatars > * {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--r-sm);
+      border: 2px solid var(--bg);
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 500;
+      flex-shrink: 0;
+      object-fit: cover;
+      box-sizing: border-box;
+    }
+    .cpcombo-card__avatars > * + * { margin-left: -10px; }
+    .cpcombo-card:hover .cpcombo-card__avatars > * { border-color: var(--brand-tint); }
+    .cpcombo-card__more {
+      font-size: 11px !important;
+      color: var(--text-3) !important;
+      background: var(--bg-soft) !important;
+    }
+    .cpcombo-card__title {
+      font-family: var(--font);
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.3;
+      margin-bottom: 4px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .cpcombo-card__meta {
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--text-3);
+    }
+    .cpcombo-create {
+      background: transparent;
+      border: 1.5px dashed var(--brand-soft-border);
+      border-radius: var(--r-md);
+      padding: 18px;
+      text-decoration: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 8px;
+      transition: background var(--t-fast), border-color var(--t-fast);
+      min-height: 120px;
+    }
+    .cpcombo-create:hover {
+      background: var(--brand-soft);
+      border-color: var(--brand);
+    }
+    .cpcombo-create__icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--r-sm);
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .cpcombo-create__label {
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--brand);
+    }
+
     .cp-list { display: flex; flex-direction: column; gap: 10px; }
     .cp-row {
       padding: 14px 16px;
@@ -338,15 +443,86 @@
         + '</div>';
     }
 
+    // Group conversations by the SET of projects they span (same shape
+     // as the dashboard's combo-card grouping).
+    function groupConversationsByCombo(conversations) {
+      const groups = new Map();
+      for (const chat of conversations) {
+        const ids = (Array.isArray(chat.project_ids) ? chat.project_ids : []).slice().sort();
+        if (ids.length === 0) continue;
+        const key = ids.join(',');
+        if (!groups.has(key)) groups.set(key, { ids, chats: [], lastAt: null });
+        const g = groups.get(key);
+        g.chats.push(chat);
+        const lastAt = chat.last_message_at || chat.updated_at || chat.created_at;
+        if (lastAt && (!g.lastAt || lastAt > g.lastAt)) g.lastAt = lastAt;
+      }
+      return Array.from(groups.values()).sort((a, b) => {
+        if (a.lastAt && b.lastAt) return a.lastAt < b.lastAt ? 1 : -1;
+        if (a.lastAt) return -1;
+        if (b.lastAt) return 1;
+        return 0;
+      });
+    }
+
+    function comboCardHtml(group, projectsById) {
+      const projects = group.ids.map(id => projectsById.get(id) || { id, name: 'Project', logo_url: null });
+      const title = projects.map(p => p.name).join(' × ');
+      const chatCount = group.chats.length;
+      const chatLabel = chatCount === 1 ? '1 chat' : (chatCount + ' chats');
+      const meta = chatLabel + (group.lastAt ? ' · ' + fmtRelative(group.lastAt) : '');
+      const MAX_AVATARS = 3;
+      const avatarHtml = projects.slice(0, MAX_AVATARS).map(p =>
+        p.logo_url
+          ? '<img src="' + esc(p.logo_url) + '" alt="' + esc(p.name) + '">'
+          : '<div>' + esc(initial(p.name)) + '</div>'
+      ).join('')
+      + (projects.length > MAX_AVATARS
+          ? '<div class="cpcombo-card__more">+' + (projects.length - MAX_AVATARS) + '</div>'
+          : '');
+      const href = '/cross-project/index.html?ids=' + esc(group.ids.join(','));
+      return ''
+        + '<a class="cpcombo-card" href="' + href + '">'
+        +   '<div class="cpcombo-card__avatars">' + avatarHtml + '</div>'
+        +   '<div class="cpcombo-card__title">' + esc(title) + '</div>'
+        +   '<div class="cpcombo-card__meta">' + esc(meta) + '</div>'
+        + '</a>';
+    }
+
+    function comboGridHtml(conversations, projectsById) {
+      const groups = groupConversationsByCombo(conversations);
+      const cards = groups.map(g => comboCardHtml(g, projectsById)).join('');
+      const createTile = ''
+        + '<a class="cpcombo-create" href="/cross-project/new.html">'
+        +   '<div class="cpcombo-create__icon"><i class="ti ti-plus"></i></div>'
+        +   '<span class="cpcombo-create__label">New cross-project chat</span>'
+        + '</a>';
+      return '<div class="cpcombo-grid">' + cards + createTile + '</div>';
+    }
+
     function render(conversations, projectsById) {
       const filterIds = getFilterIds();
       const visible = filterByIds(conversations, filterIds);
-      const emptyMsg = filterIds
-        ? 'No chats match this project combination.'
-        : 'No cross-project chats yet — start one below.';
-      const list = visible.length === 0
-        ? '<div class="cp-empty">' + emptyMsg + '</div>'
-        : '<div class="cp-list">' + visible.map(c => rowHtml(c, projectsById)).join('') + '</div>';
+
+      // Two view modes:
+      //   - Filtered (?ids=): row list of every chat in the combo + clear-filter banner.
+      //   - Default: combo cards grouped by project set (drill-down lands you in filtered mode).
+      let body;
+      if (filterIds) {
+        const emptyMsg = 'No chats match this project combination.';
+        const list = visible.length === 0
+          ? '<div class="cp-empty">' + emptyMsg + '</div>'
+          : '<div class="cp-list">' + visible.map(c => rowHtml(c, projectsById)).join('') + '</div>';
+        body = filterBannerHtml(filterIds, projectsById)
+          + list
+          + '<a href="/cross-project/new.html" class="cp-new-cta"><i class="ti ti-plus"></i> New cross-project chat</a>';
+      } else {
+        // The "+ New cross-project chat" tile lives inside the grid (it is
+        // the empty state too — when zero combos exist, the grid still
+        // shows just the create tile).
+        body = comboGridHtml(conversations, projectsById);
+      }
+
       document.getElementById('cpRoot').innerHTML = ''
         + '<div class="cp-crumb"><a href="/dashboard.html">Dashboard</a> / Cross-project chats</div>'
         + '<div class="cp-head-row">'
@@ -356,9 +532,7 @@
         +     '<p class="cp-sub">Each chat reads across a fixed set of projects you pick at the start. Begin a new chat to ask across a different set.</p>'
         +   '</div>'
         + '</div>'
-        + filterBannerHtml(filterIds, projectsById)
-        + list
-        + '<a href="/cross-project/new.html" class="cp-new-cta"><i class="ti ti-plus"></i> New cross-project chat</a>';
+        + body;
     }
 
     function renderError() {
