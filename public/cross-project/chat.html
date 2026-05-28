@@ -1176,8 +1176,17 @@
       });
     }
     function renderCitationRail(citations) {
+      // Dedupe visually-identical chips: one source can be cited by several
+      // tool calls in a turn (and duplicate source records can share a
+      // name), rendering the same chip 2–3×. Key on project + title so
+      // same-named sprints in different projects stay separate; one chip per
+      // distinct source. PRD principle 2 still holds.
+      const seenChipKeys = new Set();
       const chips = citations.map(c => {
         const titleBase = c.title || c.author || (c.source ? c.source[0].toUpperCase() + c.source.slice(1) : 'Source');
+        const chipKey = (c.project_name || '') + '|' + titleBase;
+        if (seenChipKeys.has(chipKey)) return '';
+        seenChipKeys.add(chipKey);
         const safeBase = esc(titleBase);
         const projectName = c.project_name || '';
         const prefixHtml = projectName

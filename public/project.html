@@ -1595,9 +1595,18 @@
     }
 
     function renderCitationRailHtml(citations, messageId) {
+      // Dedupe visually-identical chips: one source can be cited by several
+      // tool calls in a single turn (and duplicate source records can share
+      // a display name), which rendered the same chip 2–3×. Collapse by the
+      // rendered label so each distinct source shows once; the citation
+      // contract (PRD principle 2) still holds.
+      const seenChipKeys = new Set();
       const chips = citations.map(c => {
         const baseLabel = c.title || c.author || (c.source ? c.source[0].toUpperCase() + c.source.slice(1) : 'Source');
         const fresh = fmtCitationFreshness(c);
+        const chipKey = baseLabel + '|' + fresh.suffix;
+        if (seenChipKeys.has(chipKey)) return '';
+        seenChipKeys.add(chipKey);
         const safeBase = escapeHtml(baseLabel);
         const safeSuffix = escapeHtml(fresh.suffix);
         const staleClass = fresh.stale ? ' chat-citation-stale' : '';
