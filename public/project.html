@@ -496,6 +496,22 @@
       return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
+    // Minimal, XSS-safe inline markdown for assistant answers. The model
+    // emits **bold** labels/headers (the cross-project prompt even mandates
+    // them), so rendering raw asterisks looked broken. Escape FIRST, then
+    // apply a tiny allowlist of inline transforms on the already-escaped
+    // string, so untrusted tool-result text (Slack/Jira) can never inject
+    // markup. Only asterisk-bold and backtick-code are handled — underscores
+    // are left alone so identifiers like status_category aren't italicised,
+    // and block markdown is unneeded because .chat-msg-content preserves
+    // newlines via white-space: pre-wrap.
+    function renderMessageContent(s) {
+      let html = escapeHtml(s == null ? '' : String(s));
+      html = html.replace(/`([^`\n]+?)`/g, '<code>$1</code>');
+      html = html.replace(/\*\*([^\n]+?)\*\*/g, '<strong>$1</strong>');
+      return html;
+    }
+
     // Decision AB: sibling to projects.html's fmtRelative — drops the "Updated " prefix.
     // Used by sidebar conv-meta and chat-msg-meta. Returns '' on parse failure so callers
     // can gracefully omit; "now"/"yesterday" come from Intl.RelativeTimeFormat numeric:'auto'.
@@ -1520,7 +1536,7 @@
           <div class="chat-msg-avatar">${escapeHtml(avatar)}</div>
           <div class="chat-msg-body">
             <div class="chat-msg-meta">${escapeHtml(meta)}</div>
-            <div class="chat-msg-content">${escapeHtml(m.content || '')}</div>
+            <div class="chat-msg-content">${renderMessageContent(m.content || '')}</div>
             ${toolTraceHtml}
             ${citations.length > 0 ? renderCitationRailHtml(citations, m.id) : ''}
           </div>

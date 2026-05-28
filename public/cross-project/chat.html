@@ -569,6 +569,19 @@
       return String(s == null ? '' : s).replace(/[&<>"']/g,
         c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
+    // Minimal, XSS-safe inline markdown for assistant answers. Escape FIRST,
+    // then apply a tiny allowlist (asterisk-bold + backtick-code) on the
+    // already-escaped string so untrusted tool-result text can't inject
+    // markup. The cross-project prompt mandates **bold** project-name
+    // headers (rule #3), so this is what makes those render. Underscores are
+    // left alone so identifiers aren't italicised; newlines render via
+    // .chat-msg-content's white-space: pre-wrap.
+    function renderMessageContent(s) {
+      let html = esc(s == null ? '' : String(s));
+      html = html.replace(/`([^`\n]+?)`/g, '<code>$1</code>');
+      html = html.replace(/\*\*([^\n]+?)\*\*/g, '<strong>$1</strong>');
+      return html;
+    }
     function fmtUsd(n) {
       const num = Number(n) || 0;
       return '$' + num.toFixed(2);
@@ -1220,7 +1233,7 @@
         +   '<div class="chat-msg-avatar">' + esc(avatar) + '</div>'
         +   '<div class="chat-msg-body">'
         +     '<div class="chat-msg-meta">' + esc(meta) + '</div>'
-        +     '<div class="chat-msg-content">' + esc(m.content || '') + '</div>'
+        +     '<div class="chat-msg-content">' + renderMessageContent(m.content || '') + '</div>'
         +     renderToolTrace(toolCalls)
         +     (citations.length > 0 ? renderCitationRail(citations) : '')
         +   '</div>'
