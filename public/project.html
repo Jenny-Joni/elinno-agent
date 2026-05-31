@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Project — Elinno Agent</title>
   <meta name="robots" content="noindex" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -383,6 +383,34 @@
       color: var(--text-3);
     }
     .chat-composer-footer__hint { color: var(--text-faint); }
+
+    /* ─── Mobile pass 2026-05-31 ─────────────────────────────────────
+       The intentional desktop alignment above re-declares .project-shell
+       (220px 1fr) and .project-sidebar page-locally; being later in source
+       order than auth.css, those defeat the shared @media(700) collapse +
+       drawer. Re-apply the mobile shell/drawer here so single-project chat
+       stacks and the sidebar becomes the off-canvas drawer (markup + JS for
+       .drawer-open / .drawer-toggle already exist on this page; .drawer-toggle
+       is shown by the shared auth.css mobile rule). */
+    @media (max-width: 700px) {
+      .project-shell {
+        grid-template-columns: 1fr;
+        gap: 0;
+        height: calc(100vh - 130px);
+        min-height: 480px;
+      }
+      .project-sidebar {
+        position: absolute;
+        top: 0; bottom: 0; left: 0;
+        width: 280px; max-width: 85%;
+        z-index: 3;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease-out;
+        border-radius: var(--r-md);
+      }
+      .project-shell.drawer-open .project-sidebar { transform: translateX(0); }
+      .project-main { min-height: 0; }
+    }
   </style>
 </head>
 <body>
