@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Project settings — Elinno Agent</title>
   <meta name="robots" content="noindex" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -11,9 +11,9 @@
   <style>
     /* Project-settings page layout. Components from 12.2 (auth.css). */
     .ps-shell {
-      background: var(--color-bg-light);
-      border: 1px solid var(--color-border);
-      border-radius: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
       padding: 24px;
       margin: 18px 0;
     }
@@ -22,14 +22,14 @@
       align-items: center;
       justify-content: space-between;
       padding-bottom: 18px;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--border);
       margin-bottom: 22px;
     }
     .ps-head-eyebrow {
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.14em;
-      color: var(--color-brand);
+      color: var(--brand);
       font-weight: 500;
       margin: 0 0 6px;
     }
@@ -45,13 +45,13 @@
     .ps-tabs {
       display: flex;
       gap: 4px;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid var(--border);
       margin-bottom: 28px;
     }
     .ps-tab {
       padding: 10px 16px;
       font-size: 13px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       font-weight: 500;
       border-bottom: 2px solid transparent;
       margin-bottom: -1px;
@@ -63,7 +63,7 @@
       border-top: none;
       font-family: inherit;
     }
-    .ps-tab.active { color: var(--color-brand); border-bottom-color: var(--color-brand); }
+    .ps-tab.active { color: var(--brand); border-bottom-color: var(--brand); }
 
     .ps-section { margin-bottom: 32px; }
     .ps-section h2 {
@@ -74,18 +74,18 @@
       margin: 0 0 6px;
     }
     .ps-section h2 strong { font-weight: 700; }
-    .ps-section h2.danger { color: var(--color-danger); }
+    .ps-section h2.danger { color: var(--danger); }
     .ps-section-sub {
       font-size: 12px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       line-height: 1.45;
       margin: 0 0 20px;
     }
-    .ps-section-sub strong { color: var(--color-text-dark); }
+    .ps-section-sub strong { color: var(--text); }
 
     .ps-card {
-      background: var(--color-bg-soft);
-      border-radius: 12px;
+      background: var(--bg-subtle);
+      border-radius: var(--r-md);
       padding: 22px;
     }
     .ps-card + .ps-card { margin-top: 14px; }
@@ -109,23 +109,23 @@
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: var(--color-text-body);
+      color: var(--text-2);
     }
     .ps-row .ps-row-hint {
       font-size: 10px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       margin-top: 2px;
     }
     .ps-row input[type="text"],
     .ps-row input[type="number"],
     .ps-row textarea {
       padding: 11px 14px;
-      background: var(--color-bg-light);
-      border: 1px solid var(--color-border);
-      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
       font-family: inherit;
       font-size: 14px;
-      color: var(--color-text-dark);
+      color: var(--text);
       width: 100%;
     }
     .ps-row textarea {
@@ -136,14 +136,14 @@
     }
     .ps-row input[disabled],
     .ps-row textarea[disabled] {
-      background: var(--color-border);
-      color: var(--color-text-muted);
+      background: var(--border);
+      color: var(--text-3);
       cursor: not-allowed;
     }
     .ps-row input:focus,
     .ps-row textarea:focus {
       outline: none;
-      border-color: var(--color-brand);
+      border-color: var(--brand);
     }
 
     .ps-row-key {
@@ -155,7 +155,7 @@
       top: 50%;
       transform: translateY(-50%);
       font-size: 10px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       font-family: monospace;
       pointer-events: none;
     }
@@ -165,17 +165,17 @@
     .ps-slug-status {
       font-size: 10px;
       padding: 3px 9px;
-      border-radius: 50px;
+      border-radius: var(--r-pill);
       flex-shrink: 0;
       white-space: nowrap;
       font-weight: 500;
     }
     .ps-slug-status.ok    { background: #e6f5ec; color: #1d7a3e; }
-    .ps-slug-status.error { background: rgba(255, 0, 131, 0.08); color: var(--color-error); }
-    .ps-slug-status.muted { background: var(--color-bg-soft); color: var(--color-text-muted); }
+    .ps-slug-status.error { background: rgba(255, 0, 131, 0.08); color: var(--danger); }
+    .ps-slug-status.muted { background: var(--bg-subtle); color: var(--text-3); }
     .ps-slug-warning {
       font-size: 10px;
-      color: var(--color-warning);
+      color: var(--amber-text);
       margin-top: 4px;
       display: none;
     }
@@ -191,18 +191,18 @@
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       font-weight: 500;
       margin: 0 0 5px;
     }
     .ps-info-cell-value {
       font-size: 13px;
-      color: var(--color-text-dark);
+      color: var(--text);
     }
     .ps-info-cell-value.mono {
       font-family: monospace;
       font-size: 11px;
-      color: var(--color-text-body);
+      color: var(--text-2);
     }
 
     .ps-actions {
@@ -217,28 +217,28 @@
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      border-radius: 8px;
+      border-radius: var(--r-sm);
     }
     .ps-actions .btn-secondary {
       background: transparent;
-      color: var(--color-text-dark);
-      border: 1px solid var(--color-border);
+      color: var(--text);
+      border: 1px solid var(--border);
     }
     .ps-actions .btn-primary {
-      background: var(--color-brand);
-      color: var(--color-text-inverse);
+      background: var(--brand);
+      color: #fff;
       border: none;
       width: auto;
     }
     .ps-actions .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
     .ps-action-msg {
       font-size: 11px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       align-self: center;
       margin-right: 8px;
     }
-    .ps-action-msg.success { color: var(--color-success); }
-    .ps-action-msg.error { color: var(--color-error); }
+    .ps-action-msg.success { color: var(--success); }
+    .ps-action-msg.error { color: var(--danger); }
 
     /* Logo placeholder section */
     .ps-logo {
@@ -251,8 +251,8 @@
       width: 84px;
       height: 84px;
       border-radius: 50%;
-      background: var(--color-brand-tint);
-      color: var(--color-brand);
+      background: var(--brand-tint);
+      color: var(--brand);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -261,7 +261,7 @@
     }
     .ps-logo-meta-label {
       font-size: 10px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       text-transform: uppercase;
       letter-spacing: 0.1em;
       font-weight: 500;
@@ -275,15 +275,15 @@
     }
     .ps-logo-body-sub {
       font-size: 11px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       margin: 0 0 14px;
     }
     .ps-logo-upload-btn {
-      background: var(--color-brand);
-      color: var(--color-text-inverse);
+      background: var(--brand);
+      color: #fff;
       border: none;
       padding: 9px 14px;
-      border-radius: 8px;
+      border-radius: var(--r-sm);
       font-family: inherit;
       font-size: 11px;
       font-weight: 500;
@@ -295,10 +295,10 @@
       cursor: pointer;
     }
     .ps-logo-upload-btn:disabled {
-      background: var(--color-bg-soft);
-      color: var(--color-text-muted);
+      background: var(--bg-subtle);
+      color: var(--text-3);
       cursor: not-allowed;
-      border: 1px solid var(--color-border);
+      border: 1px solid var(--border);
     }
     /* Block 15.1: img variant of the avatar (replaces the initial-letter
        div when a logo is uploaded). object-fit: cover so non-square
@@ -306,7 +306,7 @@
     .ps-logo-avatar-img {
       object-fit: cover;
       display: block;
-      background: var(--color-bg-soft);
+      background: var(--bg-subtle);
     }
     .ps-logo-actions {
       display: flex;
@@ -317,10 +317,10 @@
     }
     .ps-logo-remove-btn {
       background: transparent;
-      color: var(--color-text-muted);
-      border: 1px solid var(--color-border);
+      color: var(--text-3);
+      border: 1px solid var(--border);
       padding: 9px 14px;
-      border-radius: 8px;
+      border-radius: var(--r-sm);
       font-family: inherit;
       font-size: 11px;
       font-weight: 500;
@@ -332,8 +332,8 @@
       cursor: pointer;
     }
     .ps-logo-remove-btn:hover {
-      color: var(--color-error, #c0392b);
-      border-color: var(--color-error, #c0392b);
+      color: var(--danger);
+      border-color: var(--danger);
     }
     .ps-logo-remove-btn:disabled,
     .ps-logo-upload-btn:disabled {
@@ -353,15 +353,15 @@
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: var(--color-text-body);
+      color: var(--text-2);
     }
     .ps-limits-spend-status {
       font-size: 10px;
       font-weight: 500;
     }
-    .ps-limits-spend-status.healthy { color: var(--color-success); }
-    .ps-limits-spend-status.warning { color: var(--color-warning); }
-    .ps-limits-spend-status.exceeded { color: var(--color-danger); }
+    .ps-limits-spend-status.healthy { color: var(--success); }
+    .ps-limits-spend-status.warning { color: var(--amber-text); }
+    .ps-limits-spend-status.exceeded { color: var(--danger); }
     .ps-limits-spend-amount {
       display: flex;
       align-items: baseline;
@@ -374,7 +374,7 @@
     }
     .ps-limits-spend-amount .of {
       font-size: 12px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
     }
     .ps-currency-input {
       position: relative;
@@ -387,7 +387,7 @@
       position: absolute;
       left: 14px;
       font-size: 14px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       font-weight: 500;
       pointer-events: none;
     }
@@ -396,9 +396,9 @@
     /* Connections tab */
     .ps-conn-list { display: flex; flex-direction: column; gap: 10px; }
     .ps-conn-card {
-      background: var(--color-bg-light);
-      border: 1px solid var(--color-border);
-      border-radius: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
       padding: 18px;
     }
     .ps-conn-head {
@@ -410,8 +410,8 @@
     .ps-conn-icon {
       width: 44px;
       height: 44px;
-      border-radius: 10px;
-      background: var(--color-bg-soft);
+      border-radius: var(--r-md);
+      background: var(--bg-subtle);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -428,11 +428,11 @@
     }
     .ps-conn-sub {
       font-size: 11px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
     }
     .ps-conn-disconnect {
       background: transparent;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       border: none;
       padding: 6px 10px;
       cursor: pointer;
@@ -449,14 +449,14 @@
       grid-template-columns: 1fr 1fr 1fr;
       gap: 14px;
       padding-top: 14px;
-      border-top: 1px solid var(--color-border);
+      border-top: 1px solid var(--border);
     }
     @media (max-width: 700px) { .ps-conn-meta { grid-template-columns: 1fr; gap: 8px; } }
     .ps-conn-meta-label {
       font-size: 9px;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       font-weight: 500;
       margin: 0 0 4px;
     }
@@ -464,7 +464,7 @@
     .ps-conn-sync-btn,
     .ps-conn-setup-btn {
       background: transparent;
-      color: var(--color-brand);
+      color: var(--brand);
       border: 1px solid rgba(98, 52, 252, 0.3);
       padding: 6px 12px;
       border-radius: 6px;
@@ -478,9 +478,9 @@
       justify-self: flex-end;
     }
     .ps-conn-setup-btn {
-      background: var(--color-brand);
-      color: var(--color-text-inverse);
-      border-color: var(--color-brand);
+      background: var(--brand);
+      color: #fff;
+      border-color: var(--brand);
     }
 
     /* Empty state in Connections tab (no connections yet). Uses
@@ -504,9 +504,9 @@
     .ps-error {
       background: rgba(255, 0, 131, 0.08);
       border: 1px solid rgba(255, 0, 131, 0.3);
-      border-radius: 12px;
+      border-radius: var(--r-md);
       padding: 18px;
-      color: var(--color-error);
+      color: var(--danger);
       font-size: 13px;
       text-align: center;
       margin: 20px 0;
@@ -514,7 +514,7 @@
     .ps-loading {
       padding: 60px 0;
       text-align: center;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       font-size: 13px;
     }
 
@@ -523,11 +523,16 @@
       align-items: center;
       gap: 6px;
       font-size: 11px;
-      color: var(--color-text-muted);
+      color: var(--text-3);
       text-decoration: none;
       margin-bottom: 8px;
     }
-    .ps-back-link:hover { color: var(--color-brand); }
+    .ps-back-link:hover { color: var(--brand); }
+    /* Mobile pass 2026-05-31: stack label/value + info grids at <=700px */
+    @media (max-width: 700px) {
+      .ps-row { grid-template-columns: 1fr; gap: 4px; }
+    }
+
   </style>
 </head>
 <body>
@@ -892,14 +897,14 @@
         +           '<div class="ps-currency-input">'
         +             '<input id="psCap" name="ai_monthly_cap_usd" type="number" min="1" step="1" value="' + Math.round(cap) + '" />'
         +           '</div>'
-        +           '<span style="font-size:11px;color:var(--color-text-muted);">USD / month</span>'
+        +           '<span style="font-size:11px;color:var(--text-3);">USD / month</span>'
         +         '</div>'
         +       '</div>'
         +       '<div class="ps-row">'
         +         '<label for="psMsg">Daily message limit</label>'
         +         '<div style="display:flex;align-items:center;gap:10px;">'
         +           '<input id="psMsg" name="daily_message_limit" type="number" min="1" step="1" value="' + Number(project.daily_message_limit || 100) + '" style="width:160px;" />'
-        +           '<span style="font-size:11px;color:var(--color-text-muted);">messages / day</span>'
+        +           '<span style="font-size:11px;color:var(--text-3);">messages / day</span>'
         +         '</div>'
         +       '</div>'
         +     '</div>'
@@ -918,9 +923,9 @@
         +   '<div class="ps-card danger" style="display:flex;justify-content:space-between;align-items:center;gap:24px;">'
         +     '<div>'
         +       '<div style="font-size:13px;font-weight:600;margin-bottom:4px;">Delete this project</div>'
-        +       '<div style="font-size:11px;color:var(--color-text-body);line-height:1.5;">' + escHtml(project.name) + ' will be soft-deleted. Connections stop syncing, chats become read-only. Data is retained for 30 days, then permanently removed.</div>'
+        +       '<div style="font-size:11px;color:var(--text-2);line-height:1.5;">' + escHtml(project.name) + ' will be soft-deleted. Connections stop syncing, chats become read-only. Data is retained for 30 days, then permanently removed.</div>'
         +     '</div>'
-        +     '<button class="btn-danger" id="psDeleteBtn" style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;padding:10px 18px;background:var(--color-danger);color:var(--color-text-inverse);border:none;cursor:pointer;border-radius:8px;white-space:nowrap;">Delete project</button>'
+        +     '<button class="btn-danger" id="psDeleteBtn" style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;padding:10px 18px;background:var(--danger);color:#fff;border:none;cursor:pointer;border-radius: var(--r-sm);white-space:nowrap;">Delete project</button>'
         +   '</div>'
         + '</section>';
     }
@@ -938,7 +943,7 @@
           +   '<h2>Connect <strong>a data source</strong></h2>'
           +   '<p class="ps-section-sub">Start indexing ' + escHtml(project.name) + ' by connecting Slack or Jira. The agent reads from these — nothing is written back.</p>'
           +   '<div class="ps-card" style="text-align:center;">'
-          +     '<div style="margin-bottom:18px;color:var(--color-text-muted);font-size:13px;">No tools connected yet.</div>'
+          +     '<div style="margin-bottom:18px;color:var(--text-3);font-size:13px;">No tools connected yet.</div>'
           +     '<div class="ps-conn-empty-actions">'
           +       '<button class="btn btn-primary" id="connectSlackBtn">Connect Slack</button>'
           +       '<button class="btn btn-primary" id="connectJiraBtn">Connect Jira</button>'
@@ -959,8 +964,8 @@
           ? (conn.external_account_id || '') + ' · ' + (conn.selected_channel_name ? '#' + conn.selected_channel_name + ' · ' : '') + (needsSetup ? 'channel not picked' : 'connected')
           : (conn.external_account_id || '') + ' · ' + (conn.selected_project_name ? conn.selected_project_name + ' · ' : '') + (needsSetup ? 'project not picked' : 'connected');
         const pillHtml = needsSetup
-          ? '<span class="status-pill" style="background:var(--color-warning-bg);color:var(--color-warning);"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-warning);margin-right:4px;display:inline-block;"></span>Needs setup</span>'
-          : '<span class="status-pill live"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-success);margin-right:4px;display:inline-block;"></span>Connected</span>';
+          ? '<span class="status-pill" style="background:var(--amber-tint);color:var(--amber-text);"><span style="width:5px;height:5px;border-radius:50%;background:var(--amber-text);margin-right:4px;display:inline-block;"></span>Needs setup</span>'
+          : '<span class="status-pill live"><span style="width:5px;height:5px;border-radius:50%;background:var(--success);margin-right:4px;display:inline-block;"></span>Connected</span>';
         const setupBtnHtml = needsSetup
           ? '<button class="ps-conn-setup-btn" data-action="' + (isSlack ? 'pick-channel' : 'pick-project') + '" data-conn-id="' + escHtml(conn.id) + '"><i class="ti ti-settings"></i> ' + (isSlack ? 'Pick channel' : 'Pick project') + '</button>'
           : '<button class="ps-conn-sync-btn" data-action="sync" data-conn-id="' + escHtml(conn.id) + '"><i class="ti ti-refresh"></i> Sync now</button>';
