@@ -2424,6 +2424,8 @@ table.users-table {
   --amber-tint: #fffdf6;
   --amber-border: #f0e4c4;
   --danger: #b3144b;
+  --danger-tint: rgba(179, 20, 75, 0.04);   /* danger container bg (promoted from legacy --color-danger-bg) */
+  --danger-border: rgba(179, 20, 75, 0.20); /* danger container border (promoted from legacy --color-danger-border) */
 
   /* Source brand glyph chips (simplified marks, NOT trademarked logos). */
   --jira-chip: #f4f6fb;
