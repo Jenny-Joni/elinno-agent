@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>New project — Elinno Agent</title>
   <meta name="robots" content="noindex" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -138,6 +138,10 @@
       .np-shell { padding: 18px 14px 64px; }
       .np-actions { flex-direction: column-reverse; gap: 8px; }
       .np-actions .btn { width: 100%; }
+      /* 16px controls kill iOS focus-zoom; overrides the page's 14px which
+         out-specifies the shared auth.css mobile rule. */
+      .np-field input,
+      .np-field textarea { font-size: 16px; }
     }
   </style>
 </head>
