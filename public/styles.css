@@ -514,3 +514,12 @@ a, button, div, h1, h2, h3, h4, h5, h6, p, span, ul {
   .hero-field input { padding: 14px 14px; }
   .hero-btn { padding: 16px 0; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   MOBILE HARDENING — added 2026-05-31 (mobile + consistency pass)
+   Login-hero page. body already sets overflow-x:hidden above; the hero
+   button is already ≥44px. Only the input zoom-on-focus fix is needed.
+   ════════════════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  .hero-field input { font-size: 16px; } /* stop iOS focus auto-zoom (<16px) */
+}

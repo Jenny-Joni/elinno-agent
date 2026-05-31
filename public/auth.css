@@ -38,11 +38,16 @@
   --glass-nav: rgba(0, 0, 0, 0.3);
   --glass-blur-nav: blur(3.5px);
 
-  /* Type — fall back to Space Grotesk if Clash isn't loaded */
-  --font-light: 'clight', 'Space Grotesk', system-ui, sans-serif;
-  --font-regular: 'cregular', 'Space Grotesk', system-ui, sans-serif;
-  --font-medium: 'cmedium', 'Space Grotesk', system-ui, sans-serif;
-  --font-semibold: 'csemibold', 'Space Grotesk', system-ui, sans-serif;
+  /* Type — fall back to Space Grotesk if Clash isn't loaded.
+     NOTE (2026-05-31): family names were previously 'clight'/'cregular'/
+     'cmedium'/'csemibold' — a typo, with no matching @font-face anywhere in
+     the repo, so the app silently fell back to Space Grotesk. Pointed at the
+     real loaded family 'Clash Grotesk' (matches styles.css). Weight is applied
+     per-rule via font-weight, so all four aliases share one family. */
+  --font-light: 'Clash Grotesk', 'Space Grotesk', system-ui, sans-serif;
+  --font-regular: 'Clash Grotesk', 'Space Grotesk', system-ui, sans-serif;
+  --font-medium: 'Clash Grotesk', 'Space Grotesk', system-ui, sans-serif;
+  --font-semibold: 'Clash Grotesk', 'Space Grotesk', system-ui, sans-serif;
 
   /* Layout */
   --container-max: 1230px;
@@ -57,6 +62,17 @@
   --t-card: 0.7s;
 }
 
+/* ---------- Canonical breakpoints (convention, not tokens) ----------
+   CSS media queries can't read custom properties, so these can't be real
+   var()s — treat the list below as the source of truth and reuse these
+   exact values rather than inventing new ones per page:
+     700px  — primary layout boundary (matches sticky-topbar.js mobileMQ);
+              two-column shells collapse, app nav switches to mobile.
+     480px  — auth-card / fine card adjustments.
+     360px  — tested minimum width (no horizontal scroll at or above this).
+   Mobile-first: author base styles for ~360px, layer up with min-width.
+   -------------------------------------------------------------------- */
+
 /* ---------- Reset / base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -69,6 +85,7 @@ body {
   background: var(--color-bg-light);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden; /* no-horizontal-scroll backstop; real fixes target the sources */
 }
 a { color: var(--color-brand); text-decoration: none; transition: opacity var(--t-form); }
 a:hover { opacity: 0.8; }
@@ -1143,7 +1160,7 @@ table.users-table {
 }
 .tool-trace-name {
   font-family: var(--font-mono, monospace);
-  color: var(--color-text);
+  color: var(--text);
 }
 .tool-trace-result.ok {
   color: var(--color-success, #2e7d32);
@@ -1728,7 +1745,7 @@ table.users-table {
   padding: 16px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: var(--color-surface);
+  background: var(--bg);
 }
 
 .connection-info {
@@ -1801,7 +1818,7 @@ table.users-table {
 
 .modal-content {
   position: relative;
-  background: var(--color-surface);
+  background: var(--bg);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   width: min(520px, 90vw);
@@ -1835,7 +1852,7 @@ table.users-table {
   padding: 4px 8px;
   color: var(--color-text-muted);
 }
-.modal-close:hover { color: var(--color-text); }
+.modal-close:hover { color: var(--text); }
 
 .modal-body {
   padding: 16px 20px;
@@ -1861,7 +1878,7 @@ table.users-table {
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  color: var(--color-text);
+  color: var(--text);
 }
 .channel-list-item:hover {
   background: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
@@ -3068,4 +3085,45 @@ table.users-table {
 .modal.confirm.confirm--danger .confirm-modal__actions {
   justify-content: flex-end;
   padding-top: 4px;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MOBILE HARDENING — added 2026-05-31 (mobile + consistency pass)
+   Cross-cutting rules that every authed/auth page inherits. Page-local
+   layout stacking lives in each page's own @media (max-width:700px).
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Prevent iOS Safari from auto-zooming when a control is focused: any
+   form control under 16px triggers it. 16px on mobile only — desktop
+   keeps its smaller per-component sizing. Pairs with the viewport
+   maximum-scale lock (which iOS ignores, so this is the real fix there). */
+@media (max-width: 700px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Minimum 44×44 tap targets on touch viewports. min-height/width only
+   grows controls that are smaller; it never shrinks a larger one, and
+   inline padding overrides on individual buttons still apply on top. */
+@media (max-width: 700px) {
+  .btn,
+  .btn--primary,
+  .btn--ghost,
+  .btn--danger,
+  .btn-primary,
+  .btn-ghost,
+  .btn-danger {
+    min-height: 44px;
+  }
+  .modal-close,
+  .new-conv-btn,
+  .chat-send-btn,
+  .project-tab,
+  [data-pw-eye] {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
