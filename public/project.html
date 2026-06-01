@@ -501,10 +501,17 @@
     // tab switches must not re-trigger.
     let justConnectedHandled = false;
 
+    // Block 16 — Sprint View tab state. `sprintData` caches the last
+    // /api/projects/:id/sprint response so client-side grouping + filter
+    // changes re-render from memory (no refetch). `svUi` holds the
+    // grouping mode + per-facet filter Sets; rebuilt on each fresh fetch.
+    let sprintData = null;
+    let svUi = null;
+
     // Block 13.7b: dropped `connections` from VALID_TABS — the Connections
     // tab UI now lives on /project_settings.html. `members` is left for
     // legacy URL compatibility; its render path is unused in v1.4.
-    const VALID_TABS = { chat: 1, members: 1 };
+    const VALID_TABS = { chat: 1, members: 1, sprint: 1 };
 
     // Read URL params once at module init; resolved/overwritten during boot.
     const initialParams = new URLSearchParams(location.search);
@@ -523,6 +530,9 @@
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
+    // Attribute-safe escape. escapeHtml already encodes " and ', so an
+    // alias is sufficient — kept distinct so call sites read intentionally.
+    const escapeAttr = escapeHtml;
 
     // Minimal, XSS-safe inline markdown for assistant answers. The model
     // emits **bold** labels/headers (the cross-project prompt even mandates
@@ -782,7 +792,16 @@
 
         // Step 6 (decision V): resolve activeTab and route through applyState
         // so the URL bar reflects reality from the moment the page is interactive.
-        activeTab = (initialTabRaw && VALID_TABS[initialTabRaw]) ? initialTabRaw : 'chat';
+        // Block 16 (decision C): default to Sprint View whenever Jira is
+        // connected and the URL didn't pin an explicit ?tab. With no active
+        // sprint the tab still renders its own empty state (no pre-fetch here —
+        // the decision is on connection state alone). Otherwise default to chat.
+        if (initialTabRaw && VALID_TABS[initialTabRaw]) {
+          activeTab = initialTabRaw;
+        } else {
+          const _cs0 = getConnectionState();
+          activeTab = (_cs0 === 'jira' || _cs0 === 'both') ? 'sprint' : 'chat';
+        }
 
         renderShell();
         applyState({ conversationId: activeConvId, tab: activeTab });
@@ -794,6 +813,11 @@
     // ---------- Shell (static chrome — rendered once after boot succeeds) ----------
     function renderShell() {
       const projName = escapeHtml(project.name || 'Untitled project');
+      // Block 16: the Sprint View / Chat segmented control only appears when
+      // Jira is connected (decision C). Computed once here — connections are
+      // already loaded by boot() before renderShell() runs.
+      const _cs = getConnectionState();
+      const jiraOn = (_cs === 'jira' || _cs === 'both');
       document.getElementById('shellRoot').innerHTML = `
         <div class="project-shell" id="shell">
           <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
@@ -838,6 +862,15 @@
                 <!-- Block 13.7b: Connections tab button removed; the Connections UI lives on /project_settings.html. -->
                 <!-- The Members tab button is kept (hidden) for legacy URL tab=members compatibility. -->
 
+                <!-- Block 16: Sprint View / Chat segmented switcher. Visible only
+                     when Jira is connected. Its buttons carry data-tab and route
+                     through the same onTabClick → applyState path as the hidden
+                     legacy tabs (onTabClick matches .seg-btn too). -->
+                <div class="seg" id="segControl"${jiraOn ? '' : ' hidden'}>
+                  <button class="seg-btn" type="button" data-tab="sprint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg><span>Sprint View</span></button>
+                  <button class="seg-btn" type="button" data-tab="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 9 9 0 0 1-4-.9L3 21l1.9-5.5a8.38 8.38 0 0 1-.9-4 8.5 8.5 0 0 1 17 0z"/></svg><span>Chat</span></button>
+                </div>
+
                 <!-- Settings demoted from tab to header gear button (SPEC §8).
                      2026-05-27 (shared-workspace-visibility follow-up):
                      gear is admin-only — non-admins (members) can't
@@ -859,6 +892,17 @@
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && drawerOpen) closeDrawer();
       });
+
+      // Block 16: scroll-shadow under the pinned header when the Sprint View
+      // panel scrolls. #tabBody is the scroll surface only in sprint mode
+      // (chat scrolls inside .chat-messages), so this is a no-op for chat.
+      const tabBodyEl = document.getElementById('tabBody');
+      const headerEl = document.querySelector('.project-main-header');
+      if (tabBodyEl && headerEl) {
+        tabBodyEl.addEventListener('scroll', () => {
+          headerEl.classList.toggle('scrolled', tabBodyEl.scrollTop > 4);
+        }, { passive: true });
+      }
     }
 
     // ---------- Single state-update function (decision V) ----------
@@ -898,6 +942,11 @@
 
       renderSidebar();
       renderTabStrip();
+      // Block 16: Sprint View is full-width — collapse the conversations
+      // sidebar and let the panel scroll inside #tabBody (chat keeps its own
+      // internal scroll, so this class only applies in sprint mode).
+      const shellEl = document.getElementById('shell');
+      if (shellEl) shellEl.classList.toggle('sprint-mode', activeTab === 'sprint');
       renderTabBody();
     }
 
@@ -1144,10 +1193,16 @@
       document.querySelectorAll('#tabStrip .project-tab').forEach(tab => {
         tab.classList.toggle('active', tab.dataset.tab === activeTab);
       });
+      // Block 16: mirror active state onto the segmented control.
+      document.querySelectorAll('#tabStrip .seg-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === activeTab);
+      });
     }
 
     function onTabClick(e) {
-      const tab = e.target.closest('.project-tab');
+      // Block 16: .seg-btn (Sprint View / Chat switcher) routes through the
+      // same path as the legacy .project-tab buttons.
+      const tab = e.target.closest('.project-tab, .seg-btn');
       if (!tab) return;
       applyState({ conversationId: activeConvId, tab: tab.dataset.tab });
     }
@@ -1160,6 +1215,7 @@
     function renderTabBody() {
       const body = document.getElementById('tabBody');
       if (activeTab === 'chat') renderChat(body);
+      else if (activeTab === 'sprint') renderSprint(body);
       else if (activeTab === 'members') renderMembers(body);
       else renderChat(body);
     }
@@ -1972,6 +2028,469 @@
 
     // ---------- Members tab (sub-task 2.6) ----------
     //
+    // ============================================================
+    // Block 16 — Sprint View (read-only Jira sprint dashboard)
+    // Reads GET /api/projects/:id/sprint (?sprint_id passthrough). The
+    // endpoint bypasses the agent loop entirely; this renderer only shapes
+    // the JSON into the mockup's dashboard. Grouping (Status/Assignee/Type/
+    // None) and Status/Assignee/Type filters operate client-side on the
+    // returned issues[] — no refetch (the list is the uncapped ≤500 read).
+    // ============================================================
+    const SV_IC_TASK  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/></svg>';
+    const SV_IC_BUG   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="7" width="8" height="13" rx="4"/><path d="M8 11H4M8 15H3M8 19H5M16 11h4M16 15h5M16 19h3M9.5 7 8 4M14.5 7 16 4"/></svg>';
+    const SV_IC_STORY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>';
+    const SV_IC_GEN   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/></svg>';
+    const SV_IC_CAL   = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
+    const SV_IC_REFRESH = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>';
+    const SV_CHECK    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-11"/></svg>';
+    const SV_UNASSIGNED = '__UNASSIGNED__';
+
+    // status_category → presentation. `default` (unknown) is surfaced as a
+    // muted "Other" rather than dropped (Block 16 decision: don't hide it).
+    function svCat(cat) {
+      switch (cat) {
+        case 'indeterminate': return { color: '#6234fc', spill: 'sp-ind', group: 'ind',  label: 'In Progress' };
+        case 'done':          return { color: '#1d8a52', spill: 'sp-don', group: 'done', label: 'Done' };
+        case 'new':           return { color: '#8b93a7', spill: 'sp-new', group: 'new',  label: 'To Do' };
+        default:              return { color: '#c2c7d0', spill: 'sp-new', group: 'new',  label: 'Other' };
+      }
+    }
+    function svType(type) {
+      const t = String(type || '').toLowerCase();
+      if (t === 'task')  return { cls: 'task',  icon: SV_IC_TASK };
+      if (t === 'bug')   return { cls: 'bug',   icon: SV_IC_BUG };
+      if (t === 'story') return { cls: 'story', icon: SV_IC_STORY };
+      return { cls: '', icon: SV_IC_GEN };
+    }
+    function svInitials(name) {
+      if (!name) return '—';
+      const parts = String(name).trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return '—';
+      if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    function svFmtDate(v, withYear) {
+      if (!v) return '';
+      const d = new Date(v);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString('en-US', withYear
+        ? { month: 'short', day: 'numeric', year: 'numeric' }
+        : { month: 'short', day: 'numeric' });
+    }
+    function svFmtRange(s, e) {
+      if (s && e) return svFmtDate(s, false) + ' – ' + svFmtDate(e, true);
+      if (s || e) return svFmtDate(s || e, true);
+      return '';
+    }
+
+    async function renderSprint(body) {
+      // Loading placeholder (keeps the FROM chip stable across the fetch).
+      body.innerHTML = projectFromRowHtml()
+        + '<div class="sv"><div class="sv-empty"><p class="sv-empty-text">Loading sprint…</p></div></div>';
+
+      const spOverride = new URLSearchParams(location.search).get('sprint_id');
+      const url = '/api/projects/' + encodeURIComponent(projectId) + '/sprint'
+        + (spOverride ? ('?sprint_id=' + encodeURIComponent(spOverride)) : '');
+
+      let data;
+      try {
+        const res = await fetch(url);
+        if (res.status === 401) { redirectToLogin(); return; }
+        if (res.status === 403) { location.replace('/projects.html'); return; }
+        if (!res.ok) { renderSprintError(body); return; }
+        data = await res.json();
+      } catch {
+        renderSprintError(body);
+        return;
+      }
+      // Tab may have changed while the fetch was in flight — don't clobber.
+      if (activeTab !== 'sprint') return;
+
+      sprintData = data;
+      if (!data || data.active === false) {
+        renderSprintEmpty(body, data && data.as_of);
+        return;
+      }
+
+      // Fresh UI state for this sprint payload.
+      const statusList = (data.board_status || []).map(b => b.status);
+      const asgList = (data.workload || []).map(w => w.assignee || SV_UNASSIGNED);
+      const typeList = [];
+      (data.issues || []).forEach(it => { if (!typeList.includes(it.issue_type)) typeList.push(it.issue_type); });
+      svUi = {
+        groupBy: 'status',
+        statuses: new Set(statusList),
+        assignees: new Set(asgList),
+        types: new Set(typeList),
+        statusOrder: statusList,
+        asgOrder: asgList,
+        typeOrder: typeList,
+        _open: null,
+      };
+
+      body.innerHTML = projectFromRowHtml() + svDashboardHtml(data);
+
+      // Delegated interactions on the issues card (survives inner re-renders).
+      const card = document.getElementById('svIssuesCard');
+      if (card) card.addEventListener('click', svOnCardClick);
+      svWireDoc();
+    }
+
+    function renderSprintEmpty(body, asOf) {
+      const foot = asOf
+        ? '<div class="sv-foot">' + SV_IC_REFRESH + ' Synced from Jira · as of ' + escapeHtml(fmtRelativeShort(asOf) || 'unknown') + '</div>'
+        : '';
+      body.innerHTML = projectFromRowHtml()
+        + '<div class="sv"><div class="sv-empty">'
+        +   '<div class="sv-empty-ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>'
+        +   '<h2 class="sv-empty-title">No active sprint</h2>'
+        +   '<p class="sv-empty-text">This project’s Jira board doesn’t have an active sprint right now. When your team starts one, its progress, breakdown, and issues will show up here.</p>'
+        +   foot
+        + '</div></div>';
+    }
+
+    function renderSprintError(body) {
+      body.innerHTML = projectFromRowHtml()
+        + '<div class="sv"><div class="sv-empty">'
+        +   '<h2 class="sv-empty-title">Couldn’t load the sprint</h2>'
+        +   '<p class="sv-empty-text sv-error">Something went wrong fetching this sprint. Reload the page to try again.</p>'
+        + '</div></div>';
+    }
+
+    // ---- Dashboard sections (pure string builders) ----
+    function svDashboardHtml(d) {
+      const sp = d.sprint || {};
+      const pr = sp.progress || {};
+      const overdue = !!pr.overdue;
+
+      // Header pills + days tile.
+      let pills = '<span class="sv-pill"><span class="sv-dot"></span>Active</span>';
+      if (overdue) pills += '<span class="sv-pill sv-pill--over"><span class="sv-dot"></span>Overdue</span>';
+
+      const daysNum = overdue ? pr.days_overdue : pr.days_left;
+      const daysLbl = overdue ? 'days overdue' : 'days left';
+      const daysTile = '<div class="sv-daysleft' + (overdue ? ' sv-daysleft--over' : '') + '">'
+        + '<div class="sv-daysleft-num">' + escapeHtml(daysNum == null ? '—' : String(daysNum)) + '</div>'
+        + '<div class="sv-daysleft-lbl">' + daysLbl + '</div></div>';
+
+      const range = svFmtRange(sp.start_date, sp.end_date);
+      let meta = range ? '<span>' + SV_IC_CAL + escapeHtml(range) + '</span>' : '';
+      if (sp.goal) meta += (meta ? '<span class="sv-sep">·</span>' : '') + '<span class="sv-goal">' + escapeHtml(sp.goal) + '</span>';
+
+      // Progress bar.
+      let fillW = 0, progLbl = '', overCls = '';
+      if (pr.total_days == null) {
+        progLbl = 'Sprint dates unavailable';
+      } else if (overdue) {
+        fillW = 100; overCls = '--over';
+        const dw = pr.days_overdue === 1 ? 'day' : 'days';
+        progLbl = 'Ended ' + escapeHtml(svFmtDate(sp.end_date, false)) + ' · ran ' + escapeHtml(String(pr.days_overdue)) + ' ' + dw + ' over';
+      } else {
+        fillW = Math.max(0, Math.min(100, Number(pr.pct_elapsed) || 0));
+        progLbl = 'Day ' + escapeHtml(String(pr.elapsed_days)) + ' of ' + escapeHtml(String(pr.total_days)) + ' · ' + fillW + '% of the sprint elapsed';
+      }
+      const progress = '<div class="sv-progress">'
+        + '<div class="sv-progress-track"><div class="sv-progress-fill' + (overCls ? ' sv-progress-fill--over' : '') + '" style="width:' + fillW + '%"></div></div>'
+        + '<div class="sv-progress-lbl' + (overCls ? ' sv-progress-lbl--over' : '') + '">' + progLbl + '</div></div>';
+
+      // Summary stat cards.
+      const st = d.stats || {};
+      const stats = '<div class="sv-stats">'
+        + svStatCard('total', 'Total', st.total) + svStatCard('task', 'Tasks', st.tasks)
+        + svStatCard('bug', 'Bugs', st.bugs) + svStatCard('story', 'Stories', st.stories)
+        + '</div>';
+
+      return '<div class="sv">'
+        + '<div class="sv-head"><div>'
+        +   '<div class="sv-titlerow"><h2 class="sv-title">' + escapeHtml(sp.name || 'Sprint') + '</h2>' + pills + '</div>'
+        +   (meta ? '<div class="sv-meta">' + meta + '</div>' : '')
+        + '</div>' + daysTile + '</div>'
+        + progress
+        + stats
+        + svCategoryCardHtml(d)
+        + svBoardCardHtml(d)
+        + svWorkloadCardHtml(d)
+        + svIssuesCardShell(d)
+        + svFootHtml(d.as_of);
+    }
+
+    function svStatCard(kind, label, n) {
+      const icons = {
+        total: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>',
+        task: SV_IC_TASK, bug: SV_IC_BUG, story: SV_IC_STORY,
+      };
+      return '<div class="sv-stat"><span class="sv-stat-ic sv-stat-ic--' + kind + '">' + icons[kind] + '</span>'
+        + '<div class="sv-stat-num">' + escapeHtml(String(n == null ? 0 : n)) + '</div>'
+        + '<div class="sv-stat-lbl">' + escapeHtml(label) + '</div></div>';
+    }
+
+    function svCategoryCardHtml(d) {
+      const cats = d.categories || {};
+      const order = ['new', 'indeterminate', 'done', 'unknown'];
+      const present = order.filter(c => (Number(cats[c]) || 0) > 0);
+      if (!present.length) return '';
+      let segs = '', keys = '';
+      present.forEach(c => {
+        const n = Number(cats[c]) || 0, m = svCat(c);
+        segs += '<div class="sv-catseg" style="flex:' + n + ';background:' + m.color + '">' + n + '</div>';
+        keys += '<span><span class="sv-sw" style="background:' + m.color + '"></span> ' + escapeHtml(m.label) + ' · ' + n + '</span>';
+      });
+      return '<div class="sv-card"><div class="sv-card-head">'
+        + '<h3 class="sv-card-title">Status category</h3>'
+        + '<span class="sv-card-sub">Grouped by Jira’s fixed status categories</span></div>'
+        + '<div class="sv-catbar">' + segs + '</div>'
+        + '<div class="sv-catkey">' + keys + '</div></div>';
+    }
+
+    function svBoardCardHtml(d) {
+      const rows = d.board_status || [];
+      if (!rows.length) return '';
+      const max = Math.max(1, ...rows.map(r => Number(r.count) || 0));
+      const cols = rows.map(r => {
+        const n = Number(r.count) || 0, pts = Number(r.points) || 0;
+        const h = Math.max(4, Math.round((n / max) * 100));
+        const color = svCat(r.status_category).color;
+        return '<div class="sv-col"><div class="sv-bar-val">' + n + '</div>'
+          + '<div class="sv-bartrack"><div class="sv-bar" style="height:' + h + '%;background:' + color + '"></div></div>'
+          + '<div class="sv-bar-lbl">' + escapeHtml(r.status || '') + '</div>'
+          + '<div class="sv-bar-sub">' + pts + ' pts</div></div>';
+      }).join('');
+      return '<div class="sv-card"><div class="sv-card-head">'
+        + '<h3 class="sv-card-title">Issues by board status</h3>'
+        + '<span class="sv-card-sub">Your team’s workflow columns · colors match the categories above</span></div>'
+        + '<div class="sv-chart">' + cols + '</div></div>';
+    }
+
+    function svWorkloadCardHtml(d) {
+      const rows = d.workload || [];
+      if (!rows.length) return '';
+      const max = Math.max(1, ...rows.map(r => Number(r.total) || 0));
+      const html = rows.map(r => {
+        const total = Number(r.total) || 0;
+        const isUn = !r.assignee;
+        const name = isUn ? 'Unassigned' : r.assignee;
+        const counts = r.counts || {};
+        let segs = '';
+        [['new', '#8b93a7'], ['indeterminate', '#6234fc'], ['done', '#1d8a52'], ['unknown', '#c2c7d0']].forEach(([k, color]) => {
+          const n = Number(counts[k]) || 0;
+          if (n > 0) segs += '<div class="sv-wl-seg" style="flex:' + n + ';background:' + color + '">' + n + '</div>';
+        });
+        const fillW = Math.max(0, Math.min(100, Math.round((total / max) * 100)));
+        return '<div class="sv-wl-row">'
+          + '<div class="sv-wl-name"><span class="sv-wl-av' + (isUn ? ' un' : '') + '">' + escapeHtml(svInitials(r.assignee)) + '</span>' + escapeHtml(name) + '</div>'
+          + '<div class="sv-wl-track"><div class="sv-wl-fill" style="width:' + fillW + '%">' + segs + '</div></div>'
+          + '<div class="sv-wl-num"><b>' + total + '</b></div></div>';
+      }).join('');
+      return '<div class="sv-card"><div class="sv-card-head"><h3 class="sv-card-title">Assignee workload</h3>'
+        + '<span class="sv-card-sub">Total issues per assignee</span></div>'
+        + '<div class="sv-wl">' + html + '</div></div>';
+    }
+
+    function svFootHtml(asOf) {
+      return '<div class="sv-foot">' + SV_IC_REFRESH + ' Synced from Jira · as of '
+        + escapeHtml(fmtRelativeShort(asOf) || 'unknown') + '</div>';
+    }
+
+    // Issues card: outer shell with a stable #svIssuesCard whose inner content
+    // (filters + list) is re-rendered on every group/filter change.
+    function svIssuesCardShell(d) {
+      return '<div class="sv-card" id="svIssuesCard">' + svIssuesCardInner() + '</div>';
+    }
+
+    function svIssuesCardInner() {
+      const d = sprintData;
+      const total = (d.issues || []).length;
+      const head = '<div class="sv-card-head"><h3 class="sv-card-title">Issues</h3>'
+        + '<span class="sv-card-sub">' + total + ' in this sprint</span></div>';
+      const filtered = svFilteredIssues();
+      return head + svFiltersHtml() + svListHtml(filtered);
+    }
+
+    function svFilteredIssues() {
+      const d = sprintData;
+      return (d.issues || []).filter(it => {
+        const asg = it.assignee_display_name || SV_UNASSIGNED;
+        return svUi.statuses.has(it.status)
+          && svUi.assignees.has(asg)
+          && svUi.types.has(it.issue_type);
+      });
+    }
+
+    function svFiltersHtml() {
+      const labels = { status: 'Status', assignee: 'Assignee', type: 'Type', none: 'None' };
+      const groupChip = '<span class="sv-filterwrap" data-menu="group">'
+        + '<span class="sv-chip is-group">Group: ' + labels[svUi.groupBy] + ' ▾</span>'
+        + '<div class="sv-menu"><div class="sv-menu-label">Group by</div>'
+        + ['status', 'assignee', 'type', 'none'].map(g =>
+            '<div class="sv-menu-item' + (svUi.groupBy === g ? ' sel' : '') + '" data-menu="group" data-value="' + g + '">'
+            + labels[g] + (svUi.groupBy === g ? '<span class="sv-mcheck">' + SV_CHECK + '</span>' : '') + '</div>'
+          ).join('')
+        + '</div></span>';
+
+      const statusMenu = '<span class="sv-filterwrap" data-menu="status">'
+        + '<span class="sv-chip">Status ▾</span>'
+        + '<div class="sv-menu"><div class="sv-menu-label">Filter by status</div>'
+        + svUi.statusOrder.map(s => {
+            const on = svUi.statuses.has(s);
+            const cat = (sprintData.board_status.find(b => b.status === s) || {}).status_category;
+            return '<div class="sv-menu-item" data-menu="status" data-value="' + escapeAttr(s) + '">'
+              + '<span class="sv-cb' + (on ? ' on' : '') + '">' + (on ? SV_CHECK : '') + '</span> '
+              + '<span class="sv-sdot" style="background:' + svCat(cat).color + '"></span> ' + escapeHtml(s) + '</div>';
+          }).join('')
+        + '</div></span>';
+
+      const asgMenu = '<span class="sv-filterwrap" data-menu="assignee">'
+        + '<span class="sv-chip">Assignee ▾</span>'
+        + '<div class="sv-menu"><div class="sv-menu-label">Filter by assignee</div>'
+        + svUi.asgOrder.map(a => {
+            const on = svUi.assignees.has(a);
+            const label = a === SV_UNASSIGNED ? 'Unassigned' : a;
+            return '<div class="sv-menu-item" data-menu="assignee" data-value="' + escapeAttr(a) + '">'
+              + '<span class="sv-cb' + (on ? ' on' : '') + '">' + (on ? SV_CHECK : '') + '</span> ' + escapeHtml(label) + '</div>';
+          }).join('')
+        + '</div></span>';
+
+      const typeMenu = '<span class="sv-filterwrap" data-menu="type">'
+        + '<span class="sv-chip">Type ▾</span>'
+        + '<div class="sv-menu"><div class="sv-menu-label">Filter by type</div>'
+        + svUi.typeOrder.map(t => {
+            const on = svUi.types.has(t), m = svType(t);
+            return '<div class="sv-menu-item" data-menu="type" data-value="' + escapeAttr(t) + '">'
+              + '<span class="sv-cb' + (on ? ' on' : '') + '">' + (on ? SV_CHECK : '') + '</span> '
+              + '<span class="sv-type-ic sv-type-ic--' + m.cls + '">' + m.icon + '</span> ' + escapeHtml(t) + '</div>';
+          }).join('')
+        + '</div></span>';
+
+      return '<div class="sv-filters">' + groupChip + statusMenu + asgMenu + typeMenu + '</div>';
+    }
+
+    // Row-cell builders.
+    function svItemCell(it) {
+      const m = svType(it.issue_type);
+      return '<td><span class="sv-item"><span class="sv-type-ic sv-type-ic--' + m.cls + '" title="' + escapeAttr(it.issue_type || '') + '">'
+        + m.icon + '</span><span class="sv-key">' + escapeHtml(it.issue_key || '') + '</span></span></td>';
+    }
+    function svTitleCell(it) { return '<td class="sv-it-title">' + escapeHtml(it.title || '') + '</td>'; }
+    function svAsgCell(it) {
+      const asg = it.assignee_display_name;
+      return '<td' + (asg ? '' : ' class="sv-muted"') + '>' + escapeHtml(asg || 'Unassigned') + '</td>';
+    }
+    function svStatusCell(it) {
+      const m = svCat(it.status_category);
+      return '<td><span class="sv-spill ' + m.spill + '"><span class="d"></span>' + escapeHtml(it.status || '') + '</span></td>';
+    }
+
+    function svListHtml(items) {
+      if (!items.length) {
+        return '<div class="sv-empty" style="padding:40px 20px"><p class="sv-empty-text">No issues match these filters.</p></div>';
+      }
+      if (svUi.groupBy === 'none') {
+        const rows = items.map(it => '<tr>' + svItemCell(it) + svTitleCell(it) + svStatusCell(it) + svAsgCell(it) + '</tr>').join('');
+        return '<table class="sv-tbl"><thead><tr><th>Item</th><th>Title</th><th>Status</th><th>Assignee</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      }
+      if (svUi.groupBy === 'assignee') return svGroupedHtml(items, 'assignee');
+      if (svUi.groupBy === 'type') return svGroupedHtml(items, 'type');
+      return svGroupedHtml(items, 'status');
+    }
+
+    function svGroupedHtml(items, mode) {
+      // Build ordered group keys + bucket the filtered issues.
+      const buckets = new Map();
+      const keyOf = (it) => mode === 'status' ? it.status
+        : mode === 'assignee' ? (it.assignee_display_name || SV_UNASSIGNED)
+        : it.issue_type;
+      items.forEach(it => {
+        const k = keyOf(it);
+        if (!buckets.has(k)) buckets.set(k, []);
+        buckets.get(k).push(it);
+      });
+      let order = mode === 'status' ? svUi.statusOrder
+        : mode === 'assignee' ? svUi.asgOrder
+        : svUi.typeOrder;
+      order = order.filter(k => buckets.has(k));
+
+      const groups = order.map(k => {
+        const list = buckets.get(k);
+        const rows = list.map(it => {
+          const third = mode === 'status' ? svAsgCell(it) : svStatusCell(it);
+          return '<tr>' + svItemCell(it) + svTitleCell(it) + third + '</tr>';
+        }).join('');
+        let cls = 'sv-group', head;
+        if (mode === 'status') {
+          const cat = (sprintData.board_status.find(b => b.status === k) || {}).status_category
+            || (list[0] && list[0].status_category);
+          const m = svCat(cat);
+          cls += ' sv-group--' + m.group;
+          head = '<span class="sv-spill ' + m.spill + '"><span class="d"></span>' + escapeHtml(k) + '</span>';
+        } else if (mode === 'type') {
+          const m = svType(k);
+          cls += m.cls ? ' sv-group--' + m.cls : '';
+          head = '<span class="sv-type-ic sv-type-ic--' + m.cls + '" title="' + escapeAttr(k || '') + '">' + m.icon + '</span>'
+            + '<span class="sv-asg-name">' + escapeHtml(k || 'Unknown') + '</span>';
+        } else { // assignee
+          const isUn = k === SV_UNASSIGNED;
+          const label = isUn ? 'Unassigned' : k;
+          head = '<span class="sv-wl-av' + (isUn ? ' un' : '') + '">' + escapeHtml(svInitials(isUn ? null : k)) + '</span>'
+            + '<span class="sv-asg-name">' + escapeHtml(label) + '</span>';
+        }
+        return '<div class="' + cls + '"><div class="sv-group-head">' + head
+          + '<span class="sv-group-n">' + list.length + '</span></div>'
+          + '<table class="sv-tbl"><tbody>' + rows + '</tbody></table></div>';
+      }).join('');
+      return '<div class="sv-groups">' + groups + '</div>';
+    }
+
+    // ---- Issues card interactions (delegated; survive inner re-render) ----
+    function svRerenderIssuesCard() {
+      const card = document.getElementById('svIssuesCard');
+      if (!card) return;
+      card.innerHTML = svIssuesCardInner();
+      if (svUi._open) {
+        const w = card.querySelector('.sv-filterwrap[data-menu="' + svUi._open + '"]');
+        if (w) w.classList.add('open');
+      }
+    }
+    function svOnCardClick(e) {
+      const item = e.target.closest('.sv-menu-item');
+      if (item) {
+        e.stopPropagation();
+        const menu = item.getAttribute('data-menu');
+        const val = item.getAttribute('data-value');
+        if (menu === 'group') {
+          svUi.groupBy = val;
+          svUi._open = null;
+        } else {
+          const set = menu === 'status' ? svUi.statuses : menu === 'assignee' ? svUi.assignees : svUi.types;
+          if (set.has(val)) set.delete(val); else set.add(val);
+          svUi._open = menu; // keep the menu open for multi-toggle
+        }
+        svRerenderIssuesCard();
+        return;
+      }
+      const chip = e.target.closest('.sv-chip');
+      if (chip) {
+        e.stopPropagation();
+        const wrap = chip.closest('.sv-filterwrap');
+        const key = wrap.getAttribute('data-menu');
+        const wasOpen = wrap.classList.contains('open');
+        document.querySelectorAll('.sv-filterwrap.open').forEach(w => w.classList.remove('open'));
+        if (wasOpen) { wrap.classList.remove('open'); svUi._open = null; }
+        else { wrap.classList.add('open'); svUi._open = key; }
+        return;
+      }
+      if (e.target.closest('.sv-menu')) e.stopPropagation(); // clicks on labels: swallow
+    }
+    let svDocWired = false;
+    function svWireDoc() {
+      if (svDocWired) return;
+      svDocWired = true;
+      document.addEventListener('click', function (e) {
+        if (e.target.closest('.sv-filterwrap')) return;
+        document.querySelectorAll('.sv-filterwrap.open').forEach(w => w.classList.remove('open'));
+        if (svUi) svUi._open = null;
+      });
+    }
+
     // Admins see the invite row + members list with Remove buttons (creator's
     // Remove disabled). Non-admins see a read-only list — no invite row,
     // no Remove buttons (decision: read-only view per session-4 plan).
