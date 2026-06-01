@@ -25,9 +25,19 @@ off `main` at this SHA.
   directly; bypass the agent loop. **Verified:** the executors are plain
   callables `(sql, projectId, input)` with no agent context — but they are *not
   exported* today (only `runAggregateJira` is). Reuse = add named exports.
-- **A2.** Add the thin `jira_sprints` SQL view now (Block 6 pre-authorized it
-  "when a third tool needs it"). **Jenny applies the DDL on Neon by hand** —
-  Claude does not run schema against prod.
+- **A2. RESOLVED THIS SESSION → DROPPED (option b).** A2 proposed adding the
+  thin `jira_sprints` SQL view now. During execute, the trace showed **nothing
+  in this block reads `jira_sprints`**: `runListJiraSprints` /
+  `runGetJiraSprintSummary` read `entities` directly (per Block 6 **decision J**,
+  "one view per primary tool surface" — the `tools.js` L628 comment), and the
+  endpoint reads `jira_issues` + those executors. A2 conflicts with the prior,
+  deliberate decision J, and was locked in design chat without J in view, so it
+  does not override J inside an execute-time fork. **The `jira_sprints` view
+  migration is pulled OUT of Block 16 (no step-1 DDL, no prod schema apply).**
+  Introducing `jira_sprints` later requires first overturning decision J with a
+  stated reason — backlog item, see PROJECT.md. The endpoint loses nothing:
+  sprint resolution already works via the executors (`entities`) + the direct
+  `jira_issues` read.
 - **B.** Summary cards + "% done" use `status_category` (new/indeterminate/done).
   Board-status chart shows raw `status` columns **colored by category**.
 - **C.** One active sprint; `?sprint_id=` override. No active sprint → empty
@@ -81,33 +91,21 @@ All green:
   is in `ALLOWED_COLUMNS` (L28). Counts↔list precondition holds.
 
 ## Files to change
-1. **`db/migrations/<date>-jira-sprints-view.sql`** *(new)* — `jira_sprints`
-   view. Jenny applies DDL.
-2. **`functions/_lib/ai/tools.js`** — add `export` to `runGetJiraSprintSummary`,
+1. **`functions/_lib/ai/tools.js`** — add `export` to `runGetJiraSprintSummary`,
    `runListJiraSprints`, `runQueryJiraIssues`. Carve-out header (file hosts the
    D4b project-scoping gate). Default mode.
-3. **`functions/api/projects/[id]/sprint.js`** *(new)* — the endpoint. Carve-out
+2. **`functions/api/projects/[id]/sprint.js`** *(new)* — the endpoint. Carve-out
    header (project-scoping + freshness). Default mode.
-4. **`public/auth.css`** — port `sv-*` component styles, `.seg` segmented
+3. **`public/auth.css`** — port `sv-*` component styles, `.seg` segmented
    control, sticky `.project-bar`, and the mobile rules from the mockup.
-5. **`public/project.html`** — `VALID_TABS` (+`sprint:1`, ~L507), `renderTabBody`
+4. **`public/project.html`** — `VALID_TABS` (+`sprint:1`, ~L507), `renderTabBody`
    branch (~L1160), new `renderSprint()`, segmented-control tab strip + sticky
    bar markup + scroll-shadow JS, default-tab logic (~L785, gated on
    `getConnectionState()`), viewport meta zoom-lock.
 
-## `jira_sprints` view (decision A2)
-Mirror `jira_issues`: thin filter on `entities WHERE source='jira' AND
-source_type='jira_sprint'`, metadata projected as flat columns. `CREATE OR
-REPLACE VIEW` for idempotency. Columns:
-- Base: `id, project_id, connection_id, source_id, title, content_text,
-  source_url, source_created_at, source_updated_at`
-- Projected: `sprint_id::integer, board_id::integer, sprint_name, state,
-  start_date::timestamptz, end_date::timestamptz, complete_date::timestamptz,
-  goal, jira_project_key`
-
-Matches the metadata written in `functions/_lib/connectors/jira.js`
-`mapSprintToEntity` and read today by `runListJiraSprints` /
-`runGetJiraSprintSummary`.
+> **`db/migrations/<date>-jira-sprints-view.sql` — REMOVED.** Originally file #1
+> (the `jira_sprints` view). Dropped per the A2 disposition above (decision J
+> wins). No DDL, no prod schema apply this block.
 
 ## Endpoint: `GET /api/projects/:id/sprint?sprint_id=`
 Template: `functions/api/projects/[id]/index.js`. Steps:
@@ -192,16 +190,18 @@ Template: `functions/api/projects/[id]/index.js`. Steps:
 Branch `block-16-sprintview-readonly-tab` off `main` @ `ac4e539`. ff-merge only;
 per-diff review; **no push to main without explicit per-push approval**. Each
 session ends runnable.
-1. `jira_sprints` view migration **[Jenny applies DDL]** — default mode.
-2. `/sprint` endpoint + `tools.js` exports — **default mode, carve-out header**
+
+**Re-sequenced after A2 was dropped — there is no longer a "[Jenny applies DDL]"
+gate; verification is unblocked immediately.**
+1. `/sprint` endpoint + `tools.js` exports — **default mode, carve-out header**
    (project-isolation + freshness).
-3. UI render (`renderSprint` + `sv-*` CSS) — auto mode.
-4. Tab wiring + segmented control + sticky bar + default-tab + viewport — auto
+2. UI render (`renderSprint` + `sv-*` CSS) — auto mode.
+3. Tab wiring + segmented control + sticky bar + default-tab + viewport — auto
    mode.
 
 ## Verification
-- **DDL first:** Jenny applies the `jira_sprints` view in Neon before endpoint
-  verification.
+- **No DDL gate** (A2 dropped) — verification is unblocked immediately after the
+  step-1 endpoint commit.
 - **Endpoint (curl, with cookie):** assert response shape; issues all carry the
   requested `sprint_id`; `as_of` == `MAX(sync_runs.started_at)` for the Jira
   connection.

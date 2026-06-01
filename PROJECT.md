@@ -230,6 +230,20 @@ https://dash.cloudflare.com → Workers & Pages → `elinno-agent` → Deploymen
 
 ---
 
+## 11b. Deferred decisions / backlog
+
+- **`jira_sprints` view (Block 16, decision A2 — dropped 2026-05-31).** A2 (locked
+  in design chat) proposed a thin `jira_sprints` SQL view. During Block 16
+  execute it was found to have **no consumer**: the sprint executors
+  (`runListJiraSprints`, `runGetJiraSprintSummary`) read `entities` directly per
+  Block 6 **decision J** ("one view per primary tool surface"), and the Sprint
+  View endpoint reads `jira_issues` + those executors. A2 conflicts with the
+  prior, deliberate decision J, so the migration was pulled from Block 16 and no
+  prod DDL was applied. **Do NOT introduce `jira_sprints` without first
+  overturning decision J with a stated reason.** Block 16 has no step-1 DDL gate.
+
+---
+
 ## 12. How to use these docs with Claude Code / Cursor
 
 ```bash
