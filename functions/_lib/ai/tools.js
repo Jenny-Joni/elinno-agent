@@ -38,6 +38,14 @@
 //   (c) D4c telemetry catches any attempt for post-hoc analysis.
 // Citations are server-derived from searchHybrid results, not
 // LLM-derived.
+//
+// Block 16 (Sprint View): runQueryJiraIssues / runListJiraSprints /
+// runGetJiraSprintSummary are additionally `export`ed so the read-only
+// /api/projects/:id/sprint endpoint can call them directly, bypassing the
+// agent loop (no model spend). This is a PURELY ADDITIVE change — the
+// executors' bodies, project-scoping (each filters `WHERE project_id = $`),
+// and the agent dispatch path are unchanged. The export keyword does not
+// alter internal references from executeTool's dispatch switch.
 // =========================================================================
 
 import { searchHybrid } from './search.js';
@@ -528,7 +536,7 @@ function clampLimit(raw, defaultLimit, maxLimit) {
   return truncated;
 }
 
-async function runQueryJiraIssues(sql, projectId, input, crossProjectIds) {
+export async function runQueryJiraIssues(sql, projectId, input, crossProjectIds) {
   const limit = clampLimit(input.limit, JIRA_QUERY_DEFAULT_LIMIT, JIRA_QUERY_MAX_LIMIT);
   const statusCategory =
     typeof input.status_category === 'string' && input.status_category.length > 0
@@ -620,7 +628,7 @@ async function runQueryJiraIssues(sql, projectId, input, crossProjectIds) {
   };
 }
 
-async function runListJiraSprints(sql, projectId, input, crossProjectIds) {
+export async function runListJiraSprints(sql, projectId, input, crossProjectIds) {
   const limit = clampLimit(input.limit, JIRA_SPRINTS_DEFAULT_LIMIT, JIRA_SPRINTS_MAX_LIMIT);
   const state =
     typeof input.state === 'string' && input.state.length > 0 ? input.state : null;
@@ -685,7 +693,7 @@ async function runListJiraSprints(sql, projectId, input, crossProjectIds) {
   };
 }
 
-async function runGetJiraSprintSummary(sql, projectId, input) {
+export async function runGetJiraSprintSummary(sql, projectId, input) {
   const sprintIdRaw = input.sprint_id;
   const sprintId =
     typeof sprintIdRaw === 'number' && Number.isFinite(sprintIdRaw)
