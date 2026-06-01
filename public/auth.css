@@ -3168,7 +3168,10 @@ table.users-table {
 .project-shell.sprint-mode .project-main-header.scrolled { box-shadow: 0 6px 16px rgba(26,21,48,.07); }
 
 /* Sprint panel */
-.sv { padding:4px 0 30px; max-width:980px; margin:0 auto; }
+/* width:100% gives a definite cross-size inside the column-flex #tabBody —
+   without it, the `margin:0 auto` auto-margins suppress flex stretch and the
+   dashboard shrinks to content width (narrow when issue list = flat "None"). */
+.sv { width:100%; padding:4px 0 30px; max-width:980px; margin:0 auto; }
 .sv-head { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; margin-top:18px; }
 .sv-titlerow { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .sv-title { font-family:var(--font-semibold); font-size:26px; line-height:1.1; margin:0; }
