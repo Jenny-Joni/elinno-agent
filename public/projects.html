@@ -186,6 +186,33 @@
       line-height: 1.5;
     }
     .pj-loading { padding: 60px 0; text-align: center; color: var(--text-3); font-family: var(--font); font-size: 13px; }
+
+    /* 2026-06-01 — admin drag-to-reorder. */
+    .pj-head__actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    .pj-reorder-hint {
+      font-family: var(--font);
+      font-size: 12px;
+      color: var(--text-3);
+      margin: -8px 0 14px;
+    }
+    .pcard__grip { display: none; }
+    /* Reorder mode: cards become draggable, clicks suppressed, create tile hidden. */
+    .pj-grid-admin.reordering .pcard { cursor: grab; user-select: none; }
+    .pj-grid-admin.reordering .pcard:hover { background: var(--bg); border-color: var(--border); }
+    .pj-grid-admin.reordering .pcard__grip {
+      display: inline-flex;
+      align-items: center;
+      margin-left: auto;
+      color: var(--text-3);
+      font-size: 16px;
+    }
+    .pj-grid-admin.reordering .pcard-create { display: none; }
+    .pcard.pcard--dragging { opacity: 0.4; }
+    .pcard.pcard--dragover { outline: 2px dashed var(--brand); outline-offset: 2px; }
+    @media (max-width: 700px) {
+      .pj-head .pj-head__actions { width: 100%; }
+      .pj-head__actions .btn { flex: 1; justify-content: center; }
+    }
   </style>
 </head>
 <body>
@@ -215,8 +242,13 @@
           <h1 class="pj-heading">Your projects</h1>
           <p class="pj-sub">Each project has its own connected sources and chat history. Open one to start asking questions.</p>
         </div>
-        <div id="newProjectAction" class="pj-desktop-new" style="display:none;">
-          <a href="/projects/new.html" class="btn btn--primary"><i class="ti ti-plus"></i> New project</a>
+        <div class="pj-head__actions pj-desktop-new">
+          <button id="reorderBtn" class="btn btn--ghost" type="button" style="display:none;"><i class="ti ti-arrows-sort"></i> Reorder</button>
+          <button id="reorderSaveBtn" class="btn btn--primary" type="button" style="display:none;">Save order</button>
+          <button id="reorderCancelBtn" class="btn btn--ghost" type="button" style="display:none;">Cancel</button>
+          <div id="newProjectAction" style="display:none;">
+            <a href="/projects/new.html" class="btn btn--primary"><i class="ti ti-plus"></i> New project</a>
+          </div>
         </div>
       </div>
       <a id="newProjectMobile" href="/projects/new.html" class="btn btn--primary pj-mobile-new" style="display:none;margin-bottom:16px;"><i class="ti ti-plus"></i> New project</a>
@@ -233,6 +265,10 @@
     'use strict';
 
     let me = null;
+    // Last-loaded project list (ordered). Kept so reorder mode can snapshot
+    // and restore on Cancel without a refetch.
+    let projectsData = [];
+    let reordering = false;
 
     function $(s) { return document.querySelector(s); }
     function esc(s) {
@@ -288,6 +324,7 @@
         if (!res.ok) { renderError(); return; }
         const data = await res.json();
         const projects = Array.isArray(data.projects) ? data.projects : [];
+        projectsData = projects;
         if (projects.length === 0) { renderEmpty(); return; }
         renderPopulated(projects);
       } catch { renderError(); }
@@ -304,12 +341,13 @@
       // is somehow missing a slug. Matches the pattern in dashboard.html.
       const cardHref = p.slug ? '/project/' + esc(p.slug) : '/project.html?id=' + esc(p.id);
       return ''
-        + '<a class="pcard" href="' + cardHref + '">'
+        + '<a class="pcard" href="' + cardHref + '" data-id="' + esc(p.id) + '">'
         +   '<div class="pcard__head">'
         +     avatarHtml
         +     '<div style="flex:1;min-width:0;">'
         +       '<div class="pcard__name">' + esc(p.name) + '</div>'
         +     '</div>'
+        +     '<span class="pcard__grip" aria-hidden="true"><i class="ti ti-grip-vertical"></i></span>'
         +   '</div>'
         +   desc
         +   (updated ? '<div class="pcard__footer">Updated ' + updated + '</div>' : '')
@@ -317,12 +355,17 @@
     }
 
     function renderPopulated(projects) {
-      const gridCls = me.is_admin ? 'pj-grid-admin' : 'pj-grid-member';
+      const gridCls = (me.is_admin ? 'pj-grid-admin' : 'pj-grid-member')
+        + (reordering ? ' reordering' : '');
       const cards = projects.map(renderCard).join('');
       const create = me.is_admin
         ? '<a href="/projects/new.html" class="pcard-create"><div class="pcard-create__icon"><i class="ti ti-plus"></i></div><span class="pcard-create__label">New project</span></a>'
         : '';
-      $('#projectsList').innerHTML = '<div class="' + gridCls + '">' + cards + create + '</div>';
+      $('#projectsList').innerHTML = '<div class="' + gridCls + '" id="pjGrid">' + cards + create + '</div>';
+      // Admin reorder affordance: only meaningful with 2+ projects.
+      const canReorder = me.is_admin && projects.length >= 2;
+      $('#reorderBtn').style.display = (canReorder && !reordering) ? '' : 'none';
+      if (reordering) wireGridDnd();
     }
 
     function renderEmpty() {
@@ -358,6 +401,114 @@
     $('#projectsList').addEventListener('click', (e) => {
       if (e.target && e.target.id === 'retryBtn') loadProjects();
     });
+
+    // ---------- Admin drag-to-reorder ----------
+    // Global order: admin drags cards, Save persists via PUT /api/projects/order,
+    // every user then sees the same order. Cards reorder live in the DOM during
+    // drag; Save reads the DOM id order, Cancel re-renders the original list.
+    function setReorderButtons() {
+      const canReorder = me.is_admin && projectsData.length >= 2;
+      $('#reorderBtn').style.display = (canReorder && !reordering) ? '' : 'none';
+      $('#reorderSaveBtn').style.display = reordering ? '' : 'none';
+      $('#reorderCancelBtn').style.display = reordering ? '' : 'none';
+      const np = $('#newProjectAction');
+      if (np) np.style.display = (me.is_admin && !reordering) ? '' : 'none';
+    }
+
+    function enterReorder() {
+      if (reordering) return;
+      reordering = true;
+      renderPopulated(projectsData); // re-render with .reordering + DnD wiring
+      setReorderButtons();
+    }
+
+    function exitReorder() {
+      reordering = false;
+      renderPopulated(projectsData); // canonical (possibly updated) order
+      setReorderButtons();
+    }
+
+    function wireGridDnd() {
+      const grid = document.getElementById('pjGrid');
+      if (!grid) return;
+      let dragging = null;
+      grid.querySelectorAll('.pcard[data-id]').forEach((c) => { c.draggable = true; });
+
+      grid.addEventListener('dragstart', (e) => {
+        const card = e.target.closest('.pcard[data-id]');
+        if (!card) return;
+        dragging = card;
+        e.dataTransfer.effectAllowed = 'move';
+        // setData is required for Firefox to initiate the drag.
+        try { e.dataTransfer.setData('text/plain', card.dataset.id); } catch {}
+        card.classList.add('pcard--dragging');
+      });
+
+      grid.addEventListener('dragover', (e) => {
+        if (!dragging) return;
+        const target = e.target.closest('.pcard[data-id]');
+        if (!target || target === dragging) { e.preventDefault(); return; }
+        e.preventDefault();
+        const cards = [...grid.querySelectorAll('.pcard[data-id]')];
+        // Insert relative to the card under the cursor based on current order.
+        if (cards.indexOf(dragging) < cards.indexOf(target)) {
+          grid.insertBefore(dragging, target.nextSibling);
+        } else {
+          grid.insertBefore(dragging, target);
+        }
+      });
+
+      grid.addEventListener('drop', (e) => { e.preventDefault(); });
+
+      grid.addEventListener('dragend', () => {
+        if (dragging) dragging.classList.remove('pcard--dragging');
+        dragging = null;
+      });
+
+      // Suppress card navigation while reordering (cards are <a> links).
+      grid.addEventListener('click', (e) => {
+        if (!reordering) return;
+        const card = e.target.closest('.pcard[data-id]');
+        if (card) { e.preventDefault(); e.stopPropagation(); }
+      }, true);
+    }
+
+    async function saveOrder() {
+      const grid = document.getElementById('pjGrid');
+      if (!grid) return;
+      const ids = [...grid.querySelectorAll('.pcard[data-id]')].map((c) => c.dataset.id);
+      const saveBtn = $('#reorderSaveBtn');
+      saveBtn.disabled = true;
+      try {
+        const res = await fetch('/api/projects/order', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: ids }),
+        });
+        if (res.status === 401) { gotoLogin(); return; }
+        if (res.status === 409) {
+          // The project set changed since load — refetch the canonical list.
+          alert('The project list changed in another tab or session. Reloading the latest order.');
+          reordering = false;
+          await loadProjects();
+          setReorderButtons();
+          return;
+        }
+        if (!res.ok) { alert('Couldn’t save the new order. Please try again.'); return; }
+        // Persisted: reorder the in-memory list to match and re-render.
+        const byId = new Map(projectsData.map((p) => [p.id, p]));
+        projectsData = ids.map((id) => byId.get(id)).filter(Boolean);
+        exitReorder();
+      } catch {
+        alert('Couldn’t save the new order. Please check your connection.');
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }
+
+    $('#reorderBtn').addEventListener('click', enterReorder);
+    $('#reorderCancelBtn').addEventListener('click', exitReorder);
+    $('#reorderSaveBtn').addEventListener('click', saveOrder);
   })();
   </script>
 </body>

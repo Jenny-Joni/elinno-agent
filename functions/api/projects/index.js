@@ -159,11 +159,14 @@ export async function onRequestGet({ request, env }) {
         p.owner_user_id,
         p.slug,
         p.logo_r2_key,
+        p.sort_position,
         p.created_at,
         p.updated_at
         FROM projects p
        WHERE p.deleted_at IS NULL
-       ORDER BY p.updated_at DESC, p.id DESC
+       -- 2026-06-01: admin-set global order first (PUT /api/projects/order),
+       -- then unordered/new projects (sort_position NULL) by recency.
+       ORDER BY p.sort_position ASC NULLS LAST, p.updated_at DESC, p.id DESC
     `;
 
     return json({
