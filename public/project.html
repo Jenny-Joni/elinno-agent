@@ -522,7 +522,12 @@
     const projectId = (document.querySelector('meta[name="x-project-id"]')?.getAttribute('content'))
       || initialParams.get('id');
     let initialConvId = initialParams.get('c');
-    const initialTabRaw = initialParams.get('tab');
+    // Active tab now travels in the path: /project/<slug>/<tab>. The slug
+    // route (functions/project/[slug]/[tab].js) injects it as a meta tag so
+    // the page boots into the tab without a UTM-looking ?tab= query param.
+    // Legacy /project.html?id=<uuid>&tab=<tab> URLs still work via ?tab=.
+    const initialTabMeta = document.querySelector('meta[name="x-active-tab"]')?.getAttribute('content') || null;
+    const initialTabRaw = initialTabMeta || initialParams.get('tab');
     // Block 13.7b: the 7a-2 ?just_connected= bounce to project_settings.html
     // is removed — the Slack OAuth callback now redirects there directly.
 
@@ -927,17 +932,23 @@
       // to most-recent (the existing fallback at boot). Legacy
       // /project/<slug>?c=<uuid> URLs still work if pasted — the
       // initial load reads ?c= once before applyState strips it.
+      // Tab travels in the path (/project/<slug>/<tab>), NOT as ?tab= —
+      // ?tab=sprint looks like a UTM param (same rationale as the
+      // project_settings/<slug>/<tab> route). chat = the slug-only default,
+      // so it gets no segment. The legacy /project.html?id= fallback keeps
+      // ?tab= because there's no path route for it.
       const u = new URL(location.href);
       if (project && project.slug) {
-        u.pathname = '/project/' + project.slug;
+        u.pathname = '/project/' + project.slug + (activeTab !== 'chat' ? '/' + activeTab : '');
         u.searchParams.delete('id');
+        u.searchParams.delete('tab'); // strip any legacy ?tab= we were loaded with
       } else {
         u.pathname = '/project.html';
         u.searchParams.set('id', project.id);
+        if (activeTab !== 'chat') u.searchParams.set('tab', activeTab);
+        else u.searchParams.delete('tab');
       }
       u.searchParams.delete('c');
-      if (activeTab !== 'chat') u.searchParams.set('tab', activeTab);
-      else u.searchParams.delete('tab');
       history.replaceState(null, '', u.toString());
 
       renderSidebar();
