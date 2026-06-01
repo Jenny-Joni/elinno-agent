@@ -130,7 +130,7 @@ export async function onRequestGet({ request, env, params }) {
 
     // ── Step 5: uncapped issue list — direct read, project_id AND sprint_id ─
     const issueRows = await sql`
-      SELECT issue_key, issue_type, status, status_category,
+      SELECT issue_key, sprint_id, issue_type, status, status_category,
              assignee_display_name, title, story_points, labels, source_url
         FROM jira_issues
        WHERE project_id = ${projectId}
@@ -140,6 +140,7 @@ export async function onRequestGet({ request, env, params }) {
     `;
     const issues = issueRows.map((r) => ({
       issue_key: r.issue_key,
+      sprint_id: r.sprint_id,
       issue_type: r.issue_type,
       status: r.status,
       status_category: r.status_category,
