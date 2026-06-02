@@ -65,6 +65,15 @@ export async function onRequestPut({ request, env }) {
     seen.add(id);
   }
 
+  // postgres-js array-binding gotcha (HANDOFF 9.2 / Block 12.3 ANY() fix):
+  // passing a JS array as a bind param (`unnest(${order}::text[])`) trips the
+  // driver under Hyperdrive + fetch_types:false and 500s. The codebase's
+  // established pattern is to build a Postgres array LITERAL string and let the
+  // server cast it (cf. cross-project conversations `{...}::uuid[]`). Every
+  // element is already hard-validated against UUID_RE above, so joining them
+  // into `{…}` is injection-safe.
+  const orderLiteral = '{' + order.join(',') + '}';
+
   const sql = postgres(env.HYPERDRIVE.connectionString, {
     max: 5,
     fetch_types: false,
@@ -89,7 +98,7 @@ export async function onRequestPut({ request, env }) {
       await sql`
         UPDATE projects AS p
            SET sort_position = v.ord - 1
-          FROM unnest(${order}::text[]) WITH ORDINALITY AS v(id, ord)
+          FROM unnest(${orderLiteral}::text[]) WITH ORDINALITY AS v(id, ord)
          WHERE p.id = v.id::uuid
            AND p.deleted_at IS NULL
       `;
