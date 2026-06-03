@@ -75,7 +75,14 @@
 
 /* ---------- Reset / base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Lock zoom: allow scroll/pan but no pinch-zoom (Android/Chrome honor this;
+     iOS is handled by /_lib/no-zoom.js). Prevent iOS text auto-inflation too. */
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   margin: 0;
   font-family: var(--font-regular);
@@ -3146,7 +3153,7 @@ table.users-table {
 
 /* Segmented control (Sprint View / Chat switcher) */
 .seg { display:inline-flex; background:var(--bg-subtle); border:1px solid var(--border); border-radius:11px; padding:3px; gap:3px; }
-.seg-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; border:none; background:none; cursor:pointer; font-family:var(--font-medium); font-size:13.5px; color:var(--text-2); padding:8px 18px; border-radius:8px; transition:background .12s,color .12s,box-shadow .12s; }
+.seg-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; border:none; background:none; cursor:pointer; font-family:var(--font-medium); font-size:13.5px; color:var(--text-2); padding:8px 18px; border-radius:8px; white-space:nowrap; transition:background .12s,color .12s,box-shadow .12s; }
 .seg-btn svg { width:16px; height:16px; }
 .seg-btn:hover { color:var(--text); }
 .seg-btn.active { background:var(--bg); color:var(--brand-strong); box-shadow:0 1px 3px rgba(26,21,48,.13); }
@@ -3223,13 +3230,13 @@ table.users-table {
 .sv-sw--todo { background:var(--cat-new); } .sv-sw--prog { background:var(--cat-prog); } .sv-sw--done { background:var(--cat-done); }
 
 /* raw board-status column chart */
-.sv-chart { display:flex; align-items:flex-end; gap:18px; padding:0 4px; }
+.sv-chart { display:flex; align-items:flex-start; gap:18px; padding:0 4px; }
 .sv-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; }
 .sv-bar-val { font-family:var(--font-semibold); font-size:15px; }
 .sv-bartrack { height:180px; width:100%; max-width:64px; display:flex; align-items:flex-end; }
 .sv-bar { width:100%; border-radius:7px 7px 0 0; min-height:6px; }
 .sv-bar--new { background:var(--cat-new); } .sv-bar--ind { background:var(--cat-prog); } .sv-bar--don { background:var(--cat-done); }
-.sv-bar-lbl { font-family:var(--font-medium); font-size:13px; text-align:center; }
+.sv-bar-lbl { font-family:var(--font-medium); font-size:13px; line-height:1.25; text-align:center; }
 .sv-bar-sub { font-family:var(--font-regular); font-size:11.5px; color:var(--text-3); margin-top:-4px; }
 
 /* assignee workload */
@@ -3328,22 +3335,33 @@ table.users-table {
   .sv-card-head { flex-direction:column; align-items:flex-start; gap:4px; }
   .sv-card-sub { font-size:11.5px; }
   .sv-catkey { flex-wrap:wrap; gap:8px 14px; }
-  .sv-chart { gap:6px; }
+  .sv-chart { gap:10px; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch; }
+  .sv-col { flex:0 0 54px; }
   .sv-bartrack { height:130px; max-width:46px; }
-  .sv-bar-val { font-size:13px; } .sv-bar-lbl { font-size:11px; } .sv-bar-sub { font-size:10.5px; }
+  .sv-bar-val { font-size:13px; } .sv-bar-lbl { font-size:11px; min-height:2.5em; } .sv-bar-sub { font-size:10.5px; }
   .sv-wl-row { grid-template-columns:104px 1fr 30px; gap:10px; }
   .sv-wl-name { font-size:12.5px; gap:7px; }
   .sv-wl-av { width:20px; height:20px; font-size:10px; }
   /* grouped issues -> compact 2-line cards */
   .sv-group .sv-tbl, .sv-group .sv-tbl tbody { display:block; }
-  .sv-group .sv-tbl tr { display:grid; grid-template-columns:1fr auto; gap:1px 10px; padding:9px 14px; }
+  .sv-group .sv-tbl tr { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,42vw); gap:1px 10px; padding:9px 14px; }
   .sv-group .sv-tbl tr:not(:last-child) { border-bottom:1px solid var(--border-soft); }
   .sv-group .sv-tbl td { display:block; padding:0; border:none; width:auto; }
   .sv-group .sv-tbl td:nth-child(1) { grid-column:1; grid-row:1; }
   .sv-group .sv-tbl td:nth-child(3) { grid-column:2; grid-row:1; justify-self:end; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:42vw; color:var(--text-3); font-size:12px; }
-  .sv-group .sv-tbl td.sv-it-title { grid-column:1 / -1; grid-row:2; white-space:normal; overflow:visible; text-overflow:clip; color:var(--text-2); font-size:13px; margin-top:1px; }
+  .sv-group .sv-tbl td.sv-it-title { grid-column:1 / -1; grid-row:2; min-width:0; overflow-wrap:anywhere; white-space:normal; overflow:visible; text-overflow:clip; color:var(--text-2); font-size:13px; margin-top:1px; }
   .sv-group { margin-top:12px; }
   .sv-group-head { padding:10px 14px; }
+  /* flat (Group: None) table -> stacked cards, same as grouped */
+  .sv-tbl--flat thead { display:none; }
+  .sv-tbl--flat, .sv-tbl--flat tbody { display:block; }
+  .sv-tbl--flat tr { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,42vw); gap:2px 10px; padding:12px 2px; border-bottom:1px solid var(--border-soft); }
+  .sv-tbl--flat tr:last-child { border-bottom:none; }
+  .sv-tbl--flat td { display:block; padding:0; border:none; }
+  .sv-tbl--flat td:nth-child(1) { grid-column:1; grid-row:1; }
+  .sv-tbl--flat td:nth-child(3) { grid-column:2; grid-row:1; justify-self:end; }
+  .sv-tbl--flat td.sv-it-title { grid-column:1 / -1; grid-row:2; min-width:0; overflow-wrap:anywhere; white-space:normal; color:var(--text-2); font-size:13px; margin-top:1px; }
+  .sv-tbl--flat td:nth-child(4) { grid-column:1 / -1; grid-row:3; color:var(--text-3); font-size:12px; margin-top:2px; }
   .sv-menu { min-width:180px; }
   .sv-filters { flex-wrap:wrap; gap:8px 6px; }
   .sv-filters .sv-filterwrap { flex:none; }

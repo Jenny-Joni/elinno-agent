@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <script src="/_lib/no-zoom.js" defer></script>
   <title>Project — Elinno Agent</title>
   <meta name="robots" content="noindex" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
-  <link rel="stylesheet" href="/auth.css?v=2026-06-01-2" />
+  <link rel="stylesheet" href="/auth.css?v=2026-06-03-1" />
   <style>
     /* v1.4 (Block 13.5): per-row ⋯ menu on conversation sidebar.
        The legacy .conv-item rule in auth.css styles the row text; this
@@ -2397,7 +2398,7 @@
       }
       if (svUi.groupBy === 'none') {
         const rows = items.map(it => '<tr>' + svItemCell(it) + svTitleCell(it) + svStatusCell(it) + svAsgCell(it) + '</tr>').join('');
-        return '<table class="sv-tbl"><thead><tr><th>Item</th><th>Title</th><th>Status</th><th>Assignee</th></tr></thead><tbody>' + rows + '</tbody></table>';
+        return '<table class="sv-tbl sv-tbl--flat"><thead><tr><th>Item</th><th>Title</th><th>Status</th><th>Assignee</th></tr></thead><tbody>' + rows + '</tbody></table>';
       }
       if (svUi.groupBy === 'assignee') return svGroupedHtml(items, 'assignee');
       if (svUi.groupBy === 'type') return svGroupedHtml(items, 'type');
