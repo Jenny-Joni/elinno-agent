@@ -74,11 +74,12 @@ export async function onRequestGet({ request, env }) {
              description,
              owner_user_id,
              logo_r2_key,
+             sort_position,
              created_at,
              updated_at
         FROM projects
        WHERE deleted_at IS NULL
-       ORDER BY updated_at DESC, id DESC
+       ORDER BY sort_position ASC NULLS LAST, updated_at DESC, id DESC
     `;
 
     const projectIds = projects.map((p) => p.id);
