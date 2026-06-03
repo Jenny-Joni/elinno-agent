@@ -6158,3 +6158,175 @@ public/
 - **Wrangler manual-deploy escape hatch**: still proven, but didn't fire
   this session. The webhook held up on every push.
 
+## Session closeout — 2026-05-31 (mobile + visual-consistency pass)
+
+### Production state at session end
+
+`main` at `ac4e539`, working tree clean (except two intentionally-untracked
+`_dev` mockups, below), fully in sync with `origin/main` — all 7 commits
+pushed. Branched off `main@794a043` (`fix(chat): dedupe identical citation
+chips in the rail`, 2026-05-28); Jenny confirmed that was the expected SHA.
+
+### TL;DR
+
+Applied a mobile-responsiveness + visual-consistency styling pass whose
+finished files were authored **outside the repo** and dropped into
+`~/Downloads/files/` (authoritative spec: `MOBILE-PASS-CHANGELOG.md`). This
+was an **apply-as-is** task, not a re-derive: the dropped files *were* the
+change. My job was the git mechanics — confirm state, branch, copy files over
+their repo counterparts, stage scoped commits for per-diff review. No
+re-styling or re-deciding.
+
+**Biggest visible change (Decision C):** font tokens in `auth.css`
+(`'cregular'/'clight'/'cmedium'/'csemibold'` — typo family names with no
+`@font-face`) now point at the real loaded family `'Clash Grotesk'`. Every
+authed page was silently rendering in the Space Grotesk fallback; they now
+render in Clash Grotesk. Browser-verified the font actually loads
+(`document.fonts.check`).
+
+### What shipped — 5 commits (the pass) + 2 follow-ups, all on `origin/main`
+
+| Commit | Summary |
+|---|---|
+| `e48a50e` | `feat(css)` — font tokens → Clash Grotesk; mobile hardening (16px controls kill iOS focus-zoom, 44px tap targets, `overflow-x:hidden` guard, breakpoint convention 700/480/360); fixed undefined modal tokens (`--color-surface`→`--bg`, `--color-text`→`--text`). Files: `auth.css`, `styles.css`. |
+| `7ae9dfa` | `fix(viewport)` — zoom lock (`maximum-scale=1, user-scalable=no`) across `404/admin/dashboard/projects/forgot-password/reset-password.html`, `cross-project/chat.html`, `cross-project/new.html`, `_dev/components.html`. |
+| `65732a5` | `fix(viewport)` — zoom lock on login-hero `index.html` + cross-project chats `cross-project/index.html`. (Reworded from the changelog's `restore index/move to chats.html` — that split was a flat-upload artifact; this repo already had the right structure, so no `git mv`.) |
+| `9c33b0b` | `refactor(settings)` — migrate `project_settings.html` + `workspace_settings.html` to v1.4 bare-noun tokens; add mobile grid stacking (`.ps-row`, `.ws-info-grid` → 1fr). |
+| `4eae1dc` | `fix(project)` — page-local ≤700px block re-collapsing `.project-shell` to one column + re-applying the off-canvas `.project-sidebar` drawer (the desktop alignment override was defeating the shared `auth.css` mobile collapse). |
+| `0e0f1b9` | (follow-up) `refactor(settings)` — promote `--danger-tint`/`--danger-border` into v1.4 `:root`; swap the last two `--color-danger-bg/-border` refs in `project_settings.html`. Identical rgba values → zero visual change; completes the migration (open-item #2 closed). |
+| `ac4e539` | (follow-up) `fix(projects/new)` — viewport lock + 16px mobile inputs on `public/projects/new.html`, which was missed in the upload's folder flatten (it name-collided with `cross-project/new.html`). Page-local `.np-field input/textarea {font-size:16px}` overrides its own 14px rule, which out-specifies the shared `auth.css` mobile rule. |
+
+### Key resolutions / deviations from the changelog
+
+- **Index/chats split was N/A.** The changelog was written against a *flat*
+  upload where `index.html` had been overwritten by the chats page. The real
+  repo already had `index.html` = login hero and `cross-project/index.html` =
+  cross-project chats, each differing from its dropped file by only the
+  viewport line. So: no `git mv`, no top-level `chats.html`, and open-item #1
+  ("rename chats.html") is moot.
+- **`projects/new.html` (new-PROJECT form)** had no file in the drop — it
+  collided away in the flatten (the dropped `new.html` is the *cross-project*
+  "New cross-project chat" page). It got the full audit in-repo as follow-up
+  `ac4e539` rather than a blind one-line patch.
+- **Byte-identical, not committed:** `login.html`, `_lib/sticky-topbar.js`
+  matched the dropped versions exactly.
+
+### Drift guard (the safety check that gated every copy)
+
+A whole-file copy == a one-line viewport edit *only* if a "viewport-only"
+file's real diff vs the LIVE repo is exactly the viewport `<meta>` line. Rule
+applied before every copy: re-diff against live repo; if more than the
+viewport line differs → STOP (repo advanced after the drop, copy would
+silently revert work). Confirmed safe: HEAD `794a043` (2026-05-28) predates
+the 2026-05-31 drop, and its `seenChipKeys` dedup logic is already present in
+the dropped `chat.html`/`project.html`. No drift; every viewport-only file
+differed by exactly the one line.
+
+### Verification done
+
+- Browser pass (static server, DevTools): font flip live (Clash Grotesk
+  loaded), viewport locks present, no horizontal scroll at 360px,
+  `.ps-row`/`.ws-info-grid` collapse to 1fr, project.html drawer rules fire.
+- `grep` clean: no live `cregular`/`clight` refs (only the explanatory
+  comment), no `var(--color-surface|--color-text)` in `auth.css`, zero
+  `var(--color-*)` in `project_settings.html`, viewport lock on every
+  committed page, `<style>` brace balance intact.
+
+### Open follow-ups (next session candidates)
+
+1. **Live device test not done.** Verification was DevTools-emulator only.
+   Recommend a real-device pass at 360px/700px on `project.html` (drawer),
+   `cross-project/chat.html`, and the two settings pages.
+2. **WCAG 1.4.4 regression (by request).** `user-scalable=no` blocks
+   pinch-zoom (Decision D). Modern iOS Safari ignores it anyway; the 16px
+   input rule is what actually kills focus-zoom. To reverse later: drop the
+   two viewport attributes; the 16px rule can stay.
+3. Open-item #2 (danger-token promotion) is **closed** (`0e0f1b9`).
+   Open-item #1 (rename chats.html) is **moot** (see deviations).
+
+### Stale local branches
+
+Add to the maintenance list: `mobile-consistency-pass` and
+`mobile-pass-followups` (both ff-merged to main, safe to delete).
+
+### Intentionally untracked
+
+`public/_dev/project-chat-mockup.html`, `public/_dev/sprint-view-mockup.html`
+— pre-existing untracked mockups, unrelated to this pass, never staged.
+
+## Session closeout — 2026-06-03 (admin reorder fix + dashboard order + mobile polish)
+
+### Production state at session end
+
+`main` at `ba0fc31`, **1 commit ahead of `origin/main`** — `ba0fc31` (the
+mobile-polish batch) is ff-merged to local `main` and awaiting Jenny's
+`git push origin main`. The four earlier commits this session
+(`e1428f3`, `8d92b57`, `75e7d6f`, `17608ff`) are already on `origin/main` /
+production. Working tree clean except the two intentionally-untracked `_dev`
+mockups (still never staged) and this HANDOFF edit.
+
+### What shipped this session
+
+| Commit | Summary | Pushed? |
+|---|---|---|
+| `e1428f3` | `fix` — admin global project-reorder returned **HTTP 500**. Root cause: `functions/api/projects/order.js` passed a JS array as a bind param (`unnest(${order}::text[])`) — the postgres-js + Hyperdrive + `fetch_types:false` array-binding gotcha (HANDOFF 9.2 / Block 12.3 ANY() fix). Fix: build a Postgres array **literal** string `'{' + order.join(',') + '}'` and let the server cast `::text[]`. SECURITY-CARVE-OUT file → default mode; authz/UUID-validation/permutation-gate unchanged. | yes |
+| `8d92b57` | `fix` — dashboard ignored the global order. `functions/api/dashboard.js` had its own `ORDER BY updated_at DESC, id DESC`; added `sort_position` to the SELECT + `ORDER BY sort_position ASC NULLS LAST, updated_at DESC, id DESC` to mirror `/api/projects`. | yes |
+| `75e7d6f` | `fix` — dashboard: render Projects section **above** Cross-project chats (swapped `render()` order in `public/dashboard.html`). | yes |
+| `17608ff` | `style` — dashboard: 44px gap between Projects and Cross-project chats (`.cpchats-section { margin-top:44px; margin-bottom:28px }`). | yes |
+| `ba0fc31` | `fix` — mobile-polish batch (5 fixes, below). | **no — awaiting Jenny's push to main** |
+
+### `ba0fc31` mobile-polish batch (Sprint View + app-wide)
+
+All in `public/auth.css` unless noted; verified by reasoning + width math
+(desktop preview can't exercise touch zoom).
+
+1. **Segmented-control tab** — added `white-space:nowrap` to `.seg-btn` so
+   "Sprint View" stops wrapping to two lines on mobile.
+2. **Board-status chart** — `.sv-chart` `align-items:flex-end`→`flex-start`
+   (fixes staggered value numbers when labels wrap to different line counts);
+   mobile chart now `overflow-x:auto` with fixed-width columns
+   (`.sv-col{flex:0 0 54px}`) + `min-height:2.5em` labels so 7 workflow
+   columns stay legible and bar values/baselines align.
+3. **Grouped issue cards** — mobile row grid `1fr auto`→
+   `minmax(0,1fr) minmax(0,42vw)` + title `min-width:0; overflow-wrap:anywhere`
+   so long assignee names / titles no longer overflow and get clipped by the
+   card's `overflow:hidden` right edge.
+4. **Flat "Group: None" issue table** — had **no** mobile treatment (rendered
+   the full 4-col desktop table → Status pill overlapped the card border).
+   Tagged it `.sv-tbl--flat` in `public/project.html` and gave it the same
+   stacked-card mobile layout as the grouped tables (key+status row 1, title
+   row 2, assignee row 3).
+5. **App-wide zoom lock** — new shared script `public/_lib/no-zoom.js`
+   (cancels iOS `gesture*` pinch, multi-touch `touchmove`, and double-tap;
+   leaves single-finger scroll intact) loaded `defer` from the `<head>` of
+   **all 15 shipped pages** (every page except the `login.html` redirect stub
+   and the `_dev` mockups). Plus `html { touch-action:pan-x pan-y;
+   text-size-adjust:100% }` in `auth.css`. Cache token bumped
+   `?v=2026-06-01-2` → `?v=2026-06-03-1` on all 13 auth.css-linking pages.
+
+### ⚠️ Reverses prior open follow-up #2 (WCAG 1.4.4) — by explicit request
+
+The 2026-05-31 closeout flagged `user-scalable=no` as a WCAG 1.4.4 regression
+and suggested *reversing* it later. **This session Jenny explicitly asked to
+disable pinch/double-tap zoom on every screen** and I *hardened* it with JS
+(iOS ignores the meta). This is now an **intentional product decision** — do
+**not** "fix" it back without re-confirming with Jenny. Follow-up #2 is closed
+as won't-fix.
+
+### Not touched this session
+
+The Sprint View implementation plan
+(`~/.claude/plans/sprint-view-implementation-nested-jellyfish.md`) is unrelated
+to this session's work and was **not** executed — Sprint View shipped in an
+earlier block; this session only adjusted its mobile CSS.
+
+### Stale local branches
+
+Add to the maintenance list once `ba0fc31` is on `origin/main`:
+`feature-admin-project-reorder` and `mobile-fixes` (the latter also pushed to
+origin as a preview branch — delete after the main push).
+
+### To finish shipping
+
+Run from Jenny's terminal: `git push origin main` (pushes `ba0fc31`).
+
