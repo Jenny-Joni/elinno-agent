@@ -611,11 +611,12 @@
       // Hero card ("Ask across all your projects at once") removed
       // per Jenny 2026-05-27. renderHero() is still defined in case
       // it returns, but is no longer rendered.
-      // Cross-project chats list (above projects). Section omitted entirely
-      // when the user has no cross-project chats yet.
+      // Projects on top, cross-project chats below (Jenny 2026-06-02).
+      // The cross-project chats section is omitted entirely when the user
+      // has no cross-project chats yet.
       const projectsById = new Map((data.projects || []).map(p => [p.id, p]));
-      parts.push(renderCrossProjectChatsSection(data.conversations || [], projectsById));
       parts.push(renderProjectsSection(data.projects, isAdmin));
+      parts.push(renderCrossProjectChatsSection(data.conversations || [], projectsById));
       root.innerHTML = parts.join('');
     }
 
