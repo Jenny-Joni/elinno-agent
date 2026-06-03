@@ -4,11 +4,11 @@
 
 | Field | Value |
 |---|---|
-| Document | PRD v1.2 |
+| Document | PRD v1.4 |
 | Owner | Jenny (jenny@elinnovation.net) |
-| Status | Draft — ready for review |
-| Last updated | 2026-05-11 |
-| Related | Build Plan v1.2, HANDOFF.md, PROJECT.md |
+| Status | Living doc — reflects the shipped v1.4 product |
+| Last updated | 2026-06-03 |
+| Related | Build Plan, HANDOFF.md, PROJECT.md |
 
 ---
 
@@ -16,7 +16,24 @@
 
 Elinno Agent is a multi-tenant project intelligence platform. An admin creates a project, connects the team's existing tools (Jira and Slack in v1.1; Monday and Google Drive in v1.2 — see §11.2), and the platform syncs and indexes that data into a unified store. Team members then chat with an AI assistant scoped to a single project, asking questions like "How many tickets are still open in this sprint?" or "How much did we spend on testing this quarter?"
 
-The AI does not guess. Every answer is derived from a tool call against the synced data, and every fact in a response links back to its source so the user can verify. The v1.1 MVP set (Slack + Jira) is deliberate; the architecture is built so additional connectors (Monday and Google Drive ship in v1.2; Notion, Telegram, GitHub, etc. as plug-in modules later) can be added without core changes.
+The AI does not guess. Every answer is derived from a tool call against the synced data, and every fact in a response links back to its source so the user can verify. The v1.1 MVP set (Slack + Jira) is deliberate; the architecture is built so additional connectors (Monday and Google Drive planned for a later release; Notion, Telegram, GitHub, etc. as plug-in modules after that) can be added without core changes.
+
+---
+
+## 1.1 What's shipped since v1.2 (current state — v1.4)
+
+The original PRD framed cross-project AI, mobile, and most of the workspace surfaces as future work. Several of those have since shipped. This section (added 2026-06-03) is the authoritative list of what is **live in production today**; the detailed requirements in §§3–11 have been updated in place to match, and the items below note where a feature graduated out of the §11 backlog.
+
+- **Cross-project AI mode — SHIPPED** (was §11.1 "planned for v1.2"). A workspace-level chat surface lets a user query across multiple projects at once. Combos are addressed by `'+'`-joined, alphabetically-sorted project slugs in the URL (e.g. `/cross-project/joni+rain`). Tools accept a `project_ids` array; the agent path enforces per-project authorization server-side. See §11.1 for the as-built notes.
+- **Shared-workspace project visibility — SHIPPED** (2026-05-27). Projects are now **shared across all users in the workspace** rather than scoped to a single owner: any authenticated workspace user sees every live project. Cross-project **chats remain per-creator** — each user keeps their own combinations and history. (The v1.4 workspace model is still "solo": one workspace == one D1 user; a real `workspaces` table is a future migration.)
+- **Workspace dashboard — SHIPPED.** A single summary screen (`/dashboard`) renders, in one load: the user identity, the workspace cross-project AI cap + month-to-date spend, the user's recent cross-project chats, and a card per project with its active Jira sprint summary (sprint name, dates, days-left, % complete) and ticket counts (total / open / done). Projects render above cross-project chats.
+- **Sprint View — SHIPPED.** A read-only "Sprint View" tab on the project page renders the active Jira sprint as a dashboard: header + date-based progress bar, summary cards, status-category and board-status charts (columns colored by category, with story-point subtitles), assignee workload, and a grouped/filterable issue list. It reads Neon directly via the existing sprint executors — **no agent loop, no extra model spend**. It's the default tab whenever Jira is connected (empty state when there's no active sprint).
+- **Global project ordering — SHIPPED.** Workspace admins can drag-and-drop to set a **workspace-global** display order for projects (`projects.sort_position`); the order is the same for every user and is honored by both the projects list and the dashboard. Admin-only, enforced server-side.
+- **Project logos — SHIPPED.** Projects carry an optional logo (`logo_r2_key`) served from a CDN (`logos.elinnoagent.com`); an initial-letter placeholder renders when none is set.
+- **Workspace settings — SHIPPED.** A workspace-settings screen surfaces workspace metadata (name, plan, project count) and the cross-project AI cap state (cap, MTD spend, period start, reset date).
+- **Mobile-responsive web + zoom lock — SHIPPED.** All authed screens are responsive (stacked cards, single-column collapse, off-canvas drawers). Pinch- and double-tap-zoom are disabled app-wide so screens stay at a fixed device-width size (viewport `user-scalable=no` plus a JS backstop for iOS Safari, which ignores the meta). This is an intentional product decision — note it supersedes the earlier WCAG-1.4.4 "consider reversing" caveat. **Native mobile apps remain out of scope.**
+
+**Still deferred** (unchanged from the backlog): Monday + Google Drive connectors (§11.2 — v1.4 ships Jira + Slack only), write-back to source systems, per-user permission mirroring, audit log, and paid tiers (§11.3).
 
 ---
 
@@ -33,13 +50,13 @@ Project information lives across at least four tools. Status updates require hum
 - **Scoped per project:** data and AI access are isolated so cross-project leakage is not possible.
 - **Pluggable connectors:** adding the fifth, sixth, tenth integration is days of work, not weeks.
 
-### 2.3 Non-goals (v1.1)
+### 2.3 Non-goals
 
-- Cross-project AI mode. v1.1 chat is strictly bound to one project at a time. Cross-project queries are a planned v1.2 extension (see §11.1).
-- Writing back to source systems (creating Jira tickets, posting to Slack, etc.). Read-only in v1.1.
+- ~~Cross-project AI mode.~~ **Shipped in v1.4** (see §1.1 and §11.1). Both project-scoped and cross-project chat now exist; project chat remains the default surface.
+- Writing back to source systems (creating Jira tickets, posting to Slack, etc.). Read-only through v1.4.
 - Real-time streaming chat dashboards. The chat is request/response.
-- Mobile-native apps. Web only in v1.1.
-- Per-user permission mirroring from source systems. The bot operates with the credentials provided at connection time; what the bot can see, all members of the project can see.
+- Mobile-**native** apps. The web app is mobile-responsive (see §1.1), but there is no native iOS/Android app.
+- Per-user permission mirroring from source systems. The bot operates with the credentials provided at connection time; what the bot can see, every user in the workspace can see.
 
 ---
 
@@ -47,9 +64,11 @@ Project information lives across at least four tools. Status updates require hum
 
 | Role | What they do | Key capabilities |
 |---|---|---|
-| **Admin** | Creates the workspace and projects, connects external systems, manages members and billing. | Full control: workspace settings, projects, connectors, members, billing. |
-| **Member** | Asks questions in the project chat. | Read-only chat access; sees citations and source links. |
-| **AI Bot** | Internal actor that runs tools on behalf of members. | Scoped to a single project; cannot read another project's data. |
+| **Admin** | Creates the workspace and projects, connects external systems, manages members and billing, and sets the workspace-global project display order. | Full control: workspace settings, projects, connectors, members, billing, global project ordering. |
+| **Member** | Asks questions in project chat and cross-project chat. | Read-only chat access; sees citations and source links. |
+| **AI Bot** | Internal actor that runs tools on behalf of users. | In project mode, scoped to a single project. In cross-project mode, scoped to the explicit set of projects the user selected, with per-project authorization re-checked server-side on every tool call. |
+
+> **Shared-workspace visibility (v1.4):** projects are shared across the whole workspace — every authenticated user sees all live projects (the earlier per-owner scoping is retired). Cross-project **chats** remain per-creator. The v1.4 workspace model is still "solo" (one workspace == one D1 user); a multi-user `workspaces` table is a future migration.
 
 ---
 
@@ -88,9 +107,11 @@ Project information lives across at least four tools. Status updates require hum
 
 ### 5.2 Projects
 
-- A project has: name, description, owner, created_at, members.
+- A project has: name, slug, description, owner, created_at, updated_at, an optional logo (`logo_r2_key`, served from `logos.elinnoagent.com` with an initial-letter placeholder fallback), and a workspace-global `sort_position`.
 - Each project has its own connection set, sync schedule, AI conversation history, and entity store.
-- Soft delete (archive) in v1.1; hard delete is an admin-only action with a confirmation step.
+- **Visibility is workspace-wide (v1.4):** every authenticated workspace user sees all live projects (see §3).
+- **Global display order (v1.4):** admins set a single workspace-global project order by drag-and-drop. `sort_position` is workspace-global (no per-user state); the projects list and the dashboard both honor it. Reordering is admin-only, validated and applied server-side as an exact permutation of the live project set.
+- Soft delete (archive); hard delete is an admin-only action with a confirmation step.
 
 ### 5.3 Connectors (MVP set)
 
@@ -131,9 +152,11 @@ Monday and Google Drive deferred to v1.2 — see §11.2 for connector designs (a
   - `query_jira_issues`, `list_jira_sprints`, `get_jira_sprint_summary`, `aggregate_jira` (counts, sums by group).
   - `list_slack_channels`, `query_slack_messages`.
   - Monday + Drive tools (`list_monday_boards`, `get_monday_board_schema`, `query_monday_items`, `aggregate_monday`, `list_drive_files`, `read_drive_file`) ship in v1.2 — see §11.2.
-- Every tool requires `project_id` as the first argument; the server rejects cross-project calls regardless of LLM input.
+- **Project mode:** every tool requires `project_id`; the server rejects cross-project calls regardless of LLM input.
+- **Cross-project mode (v1.4):** tools accept a `project_ids` array; the server re-validates authorization for **every** project on **every** tool call — the LLM's argument list is never trusted.
 - Every response includes citations (links to source records). Responses with zero citations are treated as a model failure and surfaced as such.
 - Hard cap of ~6 tool iterations per user message to bound cost and latency.
+- The Sprint View tab reuses the Jira sprint executors (`get_jira_sprint_summary`, `aggregate_jira`, sprint/issue list reads) **directly, bypassing the agent loop** — it's a read-only data view, so it incurs no model spend.
 
 ### 5.8 Admin UI
 
@@ -147,6 +170,14 @@ Monday and Google Drive deferred to v1.2 — see §11.2 for connector designs (a
 - "Data as of" freshness indicator on every AI response, per source cited.
 - "Refresh and ask again" action on each AI response: targeted re-sync of only the cited sources, then the question is re-run automatically.
 - Suggested example questions on first open per project.
+- **Sprint View tab (v1.4):** read-only active-Jira-sprint dashboard (date-based progress, summary cards, status-category + board-status charts, assignee workload, grouped/filterable issue list). Default tab when Jira is connected; empty state when no active sprint.
+
+### 5.10 Workspace surfaces (v1.4)
+
+- **Dashboard (`/dashboard`):** one-load workspace summary — identity, cross-project AI cap + MTD spend, recent cross-project chats, and a per-project card showing the active Jira sprint summary (name, dates, days-left, % complete) and ticket counts (total / open / done). Projects render above cross-project chats.
+- **Cross-project chat:** workspace-level multi-project chat surface. Combos are addressed by `'+'`-joined, alphabetically-sorted project slugs in the URL (e.g. `/cross-project/joni+rain`). Sidebar filters to the active combo; chats are per-creator.
+- **Workspace settings:** workspace metadata (name, plan, project count) and cross-project AI cap state (cap, MTD spend, period start, reset date).
+- **Mobile:** all of the above are mobile-responsive with zoom locked to device width (see §1.1 and §7).
 
 ---
 
@@ -211,7 +242,8 @@ Elinno Agent is free to use in v1.1. There is no paid tier, no per-seat pricing,
 | Synced records per project | Soft cap 250k | Beyond this, ingestion slows and admin is notified. Prevents runaway storage. |
 | Manual full re-sync per connection | 1 per hour (admin only) | Prevents accidental thrash on source-system rate limits. |
 | Targeted re-sync per member | 5 per user per hour | "Refresh and ask again" action on a chat response; refreshes only cited sources. |
-| Members per project | Unlimited (v1.1) | No reason to cap; usage cost is dominated by chat volume, not membership. |
+| Cross-project AI monthly cap | Per-user, configurable (default ~$20/mo) | Cross-project chat (project_id-null messages) is metered against a per-user month-to-date spend cap with a monthly reset; surfaced on the dashboard and workspace settings. |
+| Members per project | Unlimited | No reason to cap; usage cost is dominated by chat volume, not membership. |
 
 ### 8.2 Cost discipline
 
@@ -254,13 +286,13 @@ Free in v1.1 is a deliberate choice for adoption, not a permanent commitment. Po
 
 ## 11. Post-v1.1 Backlog
 
-Items intentionally deferred from v1.1. Cross-project AI mode (§11.1) gets a fuller sketch because it's the most likely v1.2 extension and the design needs to be settled before the v1.1 architecture is locked. The remaining items are listed briefly.
+Items deferred from earlier releases. §11.1 (cross-project AI) is retained in full as the **as-built record** — it has since shipped. The remaining items are still deferred and listed briefly.
 
-### 11.1 Cross-project AI mode (planned for v1.2)
+### 11.1 Cross-project AI mode — SHIPPED in v1.4
 
-v1.1 is strictly project-scoped: every chat is bound to a single project, and tools cannot read across projects. v1.2 adds a second mode where an admin can ask questions across multiple projects — "which project is most behind schedule?", "total spent on testing across all projects?", "compare velocity between Project A and Project B."
+> **Status: shipped.** This section was originally the v1.2 design sketch; the feature is now live. The design below held up as built — the notes are kept as the authoritative record. The key as-built specifics: combos are addressed by `'+'`-joined, alphabetically-sorted project slugs in the URL (e.g. `/cross-project/joni+rain`); projects are workspace-shared but cross-project **chats are per-creator**; and cross-project spend is metered against a per-user monthly cap (see §8.1).
 
-This is the highest-privacy-risk feature in the system, so it is deliberately deferred until the project-scoped flow is rock-solid. Sketch of the v1.2 design:
+The platform supports a second chat mode where a user can ask questions across multiple projects — "which project is most behind schedule?", "total spent on testing across all projects?", "compare velocity between Project A and Project B." This is the highest-privacy-risk feature in the system, so it was deliberately built only after the project-scoped flow was solid. The design:
 
 #### Modes
 
