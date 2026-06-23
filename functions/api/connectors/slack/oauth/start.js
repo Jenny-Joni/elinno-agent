@@ -101,6 +101,26 @@ export async function onRequestGet({ request, env }) {
       return error('Internal error', 500);
     }
 
+    // Self-heal abandoned starts. A pending row with empty
+    // external_account_id is the residue of an OAuth flow that began but
+    // never completed (user closed the Slack consent screen, cancelled,
+    // or the callback errored). It carries NO credentials (encryption
+    // columns NULL) so it is safe to drop. Without this, that row
+    // collides with the new INSERT on
+    // UNIQUE(project_id, source, external_account_id, deleted_at) and
+    // every retry 500s — the stuck-pending-row failure documented in
+    // this file's FAILURE BEHAVIOR section (Block 9 polish). Scoped to
+    // pending + empty-external_account_id + live rows ONLY: active and
+    // soft-deleted connections are never touched.
+    await sql`
+      DELETE FROM connections
+       WHERE project_id          = ${projectId}
+         AND source              = 'slack'
+         AND status              = 'pending'
+         AND external_account_id = ''
+         AND deleted_at         IS NULL
+    `;
+
     // INSERT pending row. State IS the future connection.id (C2 + C3).
     // C1's migration permits NULL on encryption columns at this stage;
     // the callback's UPDATE fills them. external_account_id is empty
