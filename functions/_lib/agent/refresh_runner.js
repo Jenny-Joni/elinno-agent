@@ -87,9 +87,11 @@ export async function runRefreshAction({ env, sql, request, projectId, userId, s
              c.wrapped_data_key, c.iv, c.ciphertext_credentials,
              c.encryption_algorithm, c.credential_metadata,
              c.status, c.status_reason, c.last_sync_at, c.last_sync_cursor,
-             c.next_sync_at, c.created_at, c.updated_at, c.deleted_at,
-             c.selected_channel_id, c.selected_channel_name,
-             c.selected_project_key, c.selected_project_name
+             c.next_sync_at, c.created_at, c.updated_at, c.deleted_at
+        -- NOTE: selected_channel_*/selected_project_* are NOT columns —
+        -- they live in credential_metadata (JSONB, selected above) and
+        -- the connectors read them from there. Selecting them as columns
+        -- threw "column does not exist" and broke this refresh path.
         FROM entities e
         JOIN connections c ON c.id = e.connection_id
        WHERE e.id IN ${sql(entityIds)}

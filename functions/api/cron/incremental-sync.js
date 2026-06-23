@@ -80,9 +80,13 @@ export async function onRequestPost({ request, env }) {
              wrapped_data_key, iv, ciphertext_credentials,
              encryption_algorithm, credential_metadata,
              status, status_reason, last_sync_at, last_sync_cursor,
-             next_sync_at, created_at, updated_at, deleted_at,
-             selected_channel_id, selected_channel_name,
-             selected_project_key, selected_project_name
+             next_sync_at, created_at, updated_at, deleted_at
+        -- NOTE: selected_channel_*/selected_project_* are NOT columns —
+        -- they live in credential_metadata (JSONB, selected above). The
+        -- connector loops read them from there (slack.js / jira.js read
+        -- connection.credential_metadata.selected_*). Selecting them as
+        -- columns threw "column does not exist" and 500'd this endpoint
+        -- before any sync_run was created — no incremental sync ever ran.
         FROM connections
        WHERE deleted_at IS NULL
          AND status = 'active'
