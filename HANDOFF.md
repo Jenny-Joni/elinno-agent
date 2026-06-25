@@ -6330,3 +6330,64 @@ origin as a preview branch — delete after the main push).
 
 Run from Jenny's terminal: `git push origin main` (pushes `ba0fc31`).
 
+## Session closeout — 2026-06-25 (Slack OAuth unblock + dead auto-sync repair)
+
+### Production state at session end
+
+`main` at `3d48d7c`, **pushed to `origin/main`** (both fixes live on
+production). Working tree clean except the two intentionally-untracked
+`_dev` mockups. Two fix branches ff-merged + pushed, then deleted (local +
+origin): `fix-slack-oauth-stuck-pending`, `fix-cron-sync-phantom-columns`.
+
+### What shipped this session
+
+| Commit | Summary | Pushed? |
+|---|---|---|
+| `5820b0d` | `fix` — Slack OAuth `start` self-heals an abandoned `pending` row. An incomplete OAuth flow left a `pending` connections row with empty `external_account_id`; it collided with `UNIQUE NULLS NOT DISTINCT (project_id, source, external_account_id, deleted_at)` so **every reconnect 500'd** (`{"error":"Internal error"}`). Now `start` deletes any live `pending`/empty-`external_account_id` Slack row for the project before INSERT. SECURITY-CARVE-OUT (OAuth) → default mode. | yes |
+| `3d48d7c` | `fix` — removed 4 phantom `selected_*` columns from the SELECTs in `functions/api/cron/incremental-sync.js` and `functions/_lib/agent/refresh_runner.js`. `selected_channel_id/_name` + `selected_project_key/_name` are **not columns** — they live in `credential_metadata` (JSONB), which the connectors already read. The bad SELECT threw `column does not exist`, so the cron **500'd before creating any sync_run and no scheduled incremental sync ever ran** — only manual full syncs. SECURITY-CARVE-OUT (cron auth boundary) → default mode. | yes |
+
+### Production data fix (Jenny's hands, run in Neon)
+
+Cleared the stuck Slack pending row for the **rain** project
+(`2fc38f6b-954d-44ca-8d1d-8d6bf947ba88`):
+`DELETE FROM connections WHERE project_id='…' AND source='slack' AND
+status='pending' AND external_account_id='' AND deleted_at IS NULL;`
+→ `DELETE 1`. Slack reconnect unblocked immediately (independent of the
+code fix).
+
+### Auto-sync: the dead-cron root cause
+
+A dedicated scheduler Worker **does** exist —
+`workers/cron-scheduler/` (`elinno-agent-cron-scheduler`), cron
+`0 8 * * *` (daily 08:00 UTC), POSTs `jira`+`slack` to
+`https://elinnoagent.com/api/cron/incremental-sync` with HMAC auth. It has
+been firing daily all along but hitting the broken endpoint → 500 → nothing
+synced. `3d48d7c` repairs the endpoint; **first successful auto-run expected
+2026-06-24 08:00 UTC** (today's 08:00 run predated the fix going live).
+
+### ⚠️ OPEN — Problem 2: Jira sprint data still stale (verify next)
+
+Rain's Jira (`RAINONE`, connection `active`) has `last_sync_cursor` **frozen
+at `2026-05-21T09:48:54.494+0300`** across a month of manual full syncs, and
+every run reports `cap_hit: true` (500-issue/run ceiling; 1,143 issues
+stored, 1,047 `Done`). New Jira statuses therefore never reached
+`jira_issues`, so **Sprint View doesn't show them**. fullSync is *supposed*
+to be DESC newest-first (jira.js:446) yet max-updated-seen is stuck at
+May 21 — suspicious.
+
+**Watch-item:** after the first successful incremental cron run (post-fix),
+re-run:
+`SELECT last_sync_cursor, last_sync_at FROM connections WHERE
+project_id='2fc38f6b-…' AND source='jira' AND deleted_at IS NULL;`
+- cursor advances past `2026-05-21` → healed (auto-sync was the whole issue).
+- cursor stays frozen → Atlassian `/rest/api/3/search/jql` is **not honoring
+  `ORDER BY updated`**; fix the sync ordering / 500-cap next. This is the
+  likely remaining bug.
+
+### Method note
+
+Claude has no production DB access (Neon = Jenny's hands). Diagnosis ran via
+read-only SQL Jenny pasted back; all writes (the DELETE, the `git push origin
+main`) were Jenny's. Both edited files are SECURITY-CARVE-OUTS — default
+mode, diff shown before each commit.
+
