@@ -263,12 +263,17 @@ function adfToPlainText(node) {
 
 function mapIssueToEntity(issue, projectKey, siteUrl) {
   const fields = issue.fields || {};
-  // SPRINT_FIELD_ID returns an array of sprint objects (issues can carry
-  // across sprints). For v1.1 take the first listed; multi-sprint history
-  // is Block 9 polish.
+  // SPRINT_FIELD_ID returns an array of sprint objects (issues carry across
+  // sprints, ordered oldest→newest). Pick the ACTIVE sprint if the issue is in
+  // one; otherwise fall back to the most recent (last) sprint. Taking [0] (the
+  // oldest) mis-tagged carried-over issues to a closed sprint, so they never
+  // matched the active-sprint query in sprint.js.
   const sprintArray = fields[SPRINT_FIELD_ID];
   const sprint =
-    Array.isArray(sprintArray) && sprintArray.length > 0 ? sprintArray[0] : null;
+    Array.isArray(sprintArray) && sprintArray.length > 0
+      ? (sprintArray.find((s) => s && s.state === 'active') ??
+         sprintArray[sprintArray.length - 1])
+      : null;
 
   const summary = fields.summary || '';
   const descriptionText = adfToPlainText(fields.description);
