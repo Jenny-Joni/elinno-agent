@@ -53,6 +53,24 @@ import { runAggregateJira } from '../../../_lib/ai/aggregate_jira_compiler.js';
 const ISSUE_LIST_MAX = 500; // == the sync ceiling; uncapped vs the agent's 50.
 const DAY_MS = 86_400_000;
 
+// A stored sprint counts as "the active sprint" only if it's state='active',
+// not completed, and not stale. A completed sprint has complete_date set; a
+// record whose end_date passed long ago is a stale state whose Jira close never
+// synced (the sprint-refresh step swallows its own errors, so states can freeze
+// indefinitely). The grace keeps genuinely-overdue-but-running sprints visible
+// (they still render via the `overdue` path) while excluding months-old records.
+const ACTIVE_SPRINT_STALE_GRACE_MS = 30 * DAY_MS;
+function pickActiveSprint(results, nowMs = Date.now()) {
+  return (results || []).find((s) => {
+    if (!s || s.sprint_id == null) return false;
+    if (s.complete_date) return false; // definitively closed in Jira
+    const endMs = s.end_date ? Date.parse(s.end_date) : NaN;
+    // Only exclude on a validly-parsed, long-past end date; null/unparseable is kept.
+    if (!Number.isNaN(endMs) && endMs < nowMs - ACTIVE_SPRINT_STALE_GRACE_MS) return false;
+    return true;
+  }) || null;
+}
+
 export async function onRequestGet({ request, env, params }) {
   const { error: errResp } = await requireWorkspaceScope(
     request,
@@ -89,9 +107,11 @@ export async function onRequestGet({ request, env, params }) {
       const sprintList = await runListJiraSprints(sql, projectId, {
         state: 'active',
       });
-      const active = sprintList?.results?.[0] || null;
+      const active = pickActiveSprint(sprintList?.results);
       if (!active || active.sprint_id == null) {
         // No active sprint → empty state. No closed-sprint fallback (dec. C).
+        // pickActiveSprint also drops stale/completed sprints whose Jira close
+        // never synced, so a long-ended sprint no longer shows as "active".
         return json({ ok: true, active: false, as_of: await freshness(sql, projectId) });
       }
       sprintId = active.sprint_id;
