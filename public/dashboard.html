@@ -9,7 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
-  <link rel="stylesheet" href="/auth.css?v=2026-06-03-1" />
+  <link rel="stylesheet" href="/auth.css?v=2026-08-02-1" />
   <style>
     /* Dashboard layout per v1.4 mockup screen-02. v1.4 components
        (.brandmark/.wordmark/.eyebrow/.surface/.pill/.btn--*) live in
@@ -390,6 +390,7 @@
         <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
       </a>
       <div class="app-nav-actions">
+        <a href="/whats-new.html" class="wn-navlink">What's new<span class="wn-navlink__dot" style="display:none;"></span></a>
         <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
         <span id="navUserAvatar" class="pcard__avatar" style="width:28px;height:28px;background:var(--brand);color:#fff;font-size:11px;border-radius:50%;" title=""></span>
         <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
@@ -406,6 +407,8 @@
   </main>
 
   <script src="/_lib/sticky-topbar.js" defer></script>
+  <script src="/_lib/whats-new-data.js" defer></script>
+  <script src="/_lib/whats-new-badge.js" defer></script>
 
   <script>
   (function () {
@@ -604,11 +607,48 @@
         + '</div>';
     }
 
+    // What's New strip (PRD §5.11.8). Permanent: it renders even with no
+    // published release, in a neutral variant. If it disappeared, the
+    // dashboard would reflow and the entry point would exist only for
+    // users who hadn't clicked it yet.
+    function renderWhatsNewStrip() {
+      const all = Array.isArray(window.WHATS_NEW) ? window.WHATS_NEW : [];
+      const latest = all.filter(e => e && e.status === 'published')[0] || null;
+
+      let title, body;
+      if (latest) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(latest.date || ''));
+        const months = ['January','February','March','April','May','June',
+                        'July','August','September','October','November','December'];
+        const when = m ? ' — week of ' + months[Number(m[2]) - 1] + ' ' + Number(m[3]) : '';
+        title = esc(latest.version) + esc(when);
+        body = esc(latest.headline);
+      } else {
+        title = 'What\'s new';
+        body = 'Product updates will appear here as they ship.';
+      }
+
+      // The New pill is hidden by default; whats-new-badge.js reveals it
+      // when the newest published release hasn't been read.
+      return '<a class="surface wn-strip" href="/whats-new.html">'
+        + '<span class="wn-strip__icon"><i class="ti ti-sparkles" aria-hidden="true"></i></span>'
+        + '<span style="min-width:0;">'
+        + '<span class="wn-strip__title">' + title
+        + ' <span class="wn-strip__new" style="display:none;">New</span></span>'
+        + '<span class="wn-strip__body">' + body + '</span>'
+        + '</span>'
+        + '<span class="wn-strip__arrow"><i class="ti ti-arrow-right" aria-hidden="true"></i></span>'
+        + '<span class="wn-strip__read">Read what\'s new '
+        + '<i class="ti ti-arrow-right" aria-hidden="true" style="font-size:14px;"></i></span>'
+        + '</a>';
+    }
+
     function render(data) {
       const root = $('#dashRoot');
       const isAdmin = !!(data.user && data.user.is_admin);
       const parts = [];
       parts.push(renderGreeting(data.user, data.projects));
+      parts.push(renderWhatsNewStrip());
       // Hero card ("Ask across all your projects at once") removed
       // per Jenny 2026-05-27. renderHero() is still defined in case
       // it returns, but is no longer rendered.
@@ -619,6 +659,9 @@
       parts.push(renderProjectsSection(data.projects, isAdmin));
       parts.push(renderCrossProjectChatsSection(data.conversations || [], projectsById));
       root.innerHTML = parts.join('');
+      // The strip is built here, after whats-new-badge.js has already run,
+      // so its New pill needs applying to the markup that just landed.
+      if (window.whatsNewBadge) window.whatsNewBadge.refresh();
     }
 
     // D6: preserve the page user tried to reach so login can return them here.
