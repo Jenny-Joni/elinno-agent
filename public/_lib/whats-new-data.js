@@ -54,21 +54,25 @@ window.WHATS_NEW = [
   {
     version: 'v1.5',
     date: '2026-08-02',
-    status: 'draft',
+    status: 'published',
     headline: 'Sprint numbers now match your board, and you can refresh every connection at once.',
     features: [
       {
         tag: 'New',
         title: "What's new",
         body: "This page. Every week we'll post a short summary of what's been added, changed or fixed — new features get a brief explanation and a preview, smaller fixes get a one-line mention. Find it any time from the top nav.",
-        image: '/whats-new/v1-5-whats-new.png',
+        // Real screenshot pending. Published without one by Jenny's explicit
+        // call; the slot shows a labelled placeholder until the PNG lands at
+        // /whats-new/v1-5-whats-new.png.
+        image: null,
         alt: "The What's new page showing the latest release."
       },
       {
         tag: 'New',
         title: 'Sync now',
         body: 'Refresh every connected source across all your projects in one go, instead of opening each project and syncing it separately. The button sits in the header on the Projects page. Admins only.',
-        image: '/whats-new/v1-5-sync-now.png',
+        // Real screenshot pending — see the note above.
+        image: null,
         alt: 'The Projects page header with the Sync now button.'
       }
     ],
