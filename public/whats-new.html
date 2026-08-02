@@ -104,8 +104,15 @@
       if (fixes.length) {
         html += '<p class="wn-fixes__head">Also fixed</p>';
         fixes.forEach(fix => {
-          html += '<div class="wn-fix"><i class="ti ti-check" aria-hidden="true"></i><span>'
-            + esc(fix) + '</span></div>';
+          // fixes[] entries are { tag, text }; tag defaults to Fixed. Not every
+          // line under "Also fixed" is a fix — small new behaviour belongs here
+          // too, and would otherwise be mislabelled or forced into features[],
+          // which would then owe a preview image it does not need.
+          const tag = (fix && fix.tag) || 'Fixed';
+          const text = fix && fix.text !== undefined ? fix.text : fix;
+          html += '<div class="wn-fix"><i class="ti ti-check" aria-hidden="true"></i>'
+            + '<span><span class="pill ' + (TAG_CLASS[tag] || 'wn-tag--fixed') + '">'
+            + esc(tag) + '</span> ' + esc(text) + '</span></div>';
         });
       }
       return html;
@@ -118,6 +125,9 @@
         + '<span class="wn-date">' + esc(fmtWeekOf(entry.date)) + '</span>'
         + '<span class="pill wn-tag--improved">Latest</span>'
         + '</div>'
+        // The headline also carries the collapsed rows and the dashboard
+        // strip; here it introduces the issue before the first feature.
+        + '<p class="wn-headline">' + esc(entry.headline) + '</p>'
         + renderIssueBody(entry)
         + '</section>';
     }
@@ -139,9 +149,7 @@
 
     function renderEmpty() {
       return '<section class="surface surface--lg wn-empty">'
-        + '<p class="wn-empty__title">Nothing new just yet</p>'
-        + '<p class="wn-empty__body">When we ship something you&rsquo;d notice, it&rsquo;ll show up here. '
-        + 'Check back after the next update.</p>'
+        + 'Nothing published yet. Updates will appear here as they ship.'
         + '</section>';
     }
 
