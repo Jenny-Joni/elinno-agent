@@ -4,5 +4,8 @@
   "description": "Elinno Agent — multi-tenant project intelligence platform",
   "dependencies": {
     "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
   }
 }
