@@ -265,7 +265,9 @@ Preview screenshots are **supplied by Jenny**, together with the entry copy, for
 
 R2 was considered and rejected: it would allow publishing an image without a deploy, but publication requires a deploy anyway since the content constant ships as code.
 
-**A feature entry is not publishable without its image.** If copy arrives without one, the entry stays `draft`.
+**A feature entry is not publishable without its image.** If copy arrives without one, the entry stays `draft` — unless Jenny explicitly chooses to publish ahead of the screenshot, in which case the preview slot renders a labelled placeholder until the PNG lands. v1.5 shipped this way on 2026-08-02.
+
+The placeholder is deliberately plain text, never a drawn approximation of the screen. An invented preview would eventually publish an image showing behaviour the product does not have, which is the failure this section exists to prevent.
 
 #### 5.11.7 Publication workflow
 
