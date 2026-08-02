@@ -161,7 +161,12 @@ export async function onRequestGet({ request, env }) {
         p.logo_r2_key,
         p.sort_position,
         p.created_at,
-        p.updated_at
+        p.updated_at,
+        -- Latest successful sync across this project's live connections, so
+        -- the card can show data freshness (updated by "Sync now" / the cron)
+        -- rather than the project row's own updated_at.
+        (SELECT MAX(c.last_sync_at) FROM connections c
+          WHERE c.project_id = p.id AND c.deleted_at IS NULL) AS last_sync_at
         FROM projects p
        WHERE p.deleted_at IS NULL
        -- 2026-06-01: admin-set global order first (PUT /api/projects/order),

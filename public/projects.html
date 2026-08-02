@@ -399,7 +399,10 @@
 
     function renderCard(p) {
       const desc = p.description ? '<p class="pcard__desc">' + esc(p.description) + '</p>' : '';
-      const updated = p.updated_at ? esc(fmtRelative(p.updated_at)) : '';
+      // Show data freshness: prefer the project's latest connection sync,
+      // fall back to the project row's updated_at when nothing has synced.
+      const stampTs = p.last_sync_at || p.updated_at;
+      const updated = stampTs ? esc(fmtRelative(stampTs)) : '';
       // Block 15.2: render uploaded logo when present, else initial-letter.
       const avatarHtml = p.logo_url
         ? '<img class="pcard__avatar" src="' + esc(p.logo_url) + '" alt="' + esc(p.name) + '">'
