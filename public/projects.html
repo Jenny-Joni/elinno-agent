@@ -52,14 +52,14 @@
       .pj-head { flex-direction: column; align-items: stretch; }
       .pj-grid-admin,
       .pj-grid-member { grid-template-columns: 1fr; }
-      .pj-mobile-new {
-        display: block;
-        width: 100%;
-        text-align: center;
-      }
     }
-    .pj-mobile-new { display: none; }
-    @media (max-width: 700px) { .pj-head .pj-desktop-new { display: none; } }
+    /* Below 700px the header actions become a full-width vertical stack so
+       Sync now / Reorder / New project (and Save/Cancel during reorder) all
+       show — replacing the old single mobile-only New project button. */
+    @media (max-width: 700px) {
+      .pj-head .pj-desktop-new { display: flex; flex-direction: column; align-items: stretch; }
+      .pj-head__actions #newProjectAction { width: 100%; }
+    }
 
     .pcard {
       background: var(--bg);
@@ -215,7 +215,7 @@
     .pcard.pcard--dragover { outline: 2px dashed var(--brand); outline-offset: 2px; }
     @media (max-width: 700px) {
       .pj-head .pj-head__actions { width: 100%; }
-      .pj-head__actions .btn { flex: 1; justify-content: center; }
+      .pj-head__actions .btn { flex: none; width: 100%; justify-content: center; }
     }
   </style>
 </head>
@@ -258,11 +258,6 @@
             <a href="/projects/new.html" class="btn btn--primary"><i class="ti ti-plus"></i> New project</a>
           </div>
         </div>
-      </div>
-      <a id="newProjectMobile" href="/projects/new.html" class="btn btn--primary pj-mobile-new" style="display:none;margin-bottom:16px;"><i class="ti ti-plus"></i> New project</a>
-      <div id="syncAllActionMobile" class="pj-mobile-new" style="display:none;margin-bottom:16px;">
-        <button id="syncAllBtnMobile" class="btn btn--ghost" type="button" style="width:100%;justify-content:center;"><i class="ti ti-refresh"></i> Sync now</button>
-        <div id="syncAllStampMobile" class="pj-sync-stamp" style="margin-top:6px;"></div>
       </div>
       <div id="projectsList">
         <div class="pj-loading">Loading projects…</div>
@@ -317,9 +312,7 @@
       });
     }
     function setSyncStamp(html) {
-      ['#syncAllStamp', '#syncAllStampMobile'].forEach(sel => {
-        const el = $(sel); if (el) el.innerHTML = html;
-      });
+      const el = $('#syncAllStamp'); if (el) el.innerHTML = html;
     }
     async function refreshSyncStamp() {
       try {
@@ -331,9 +324,11 @@
       } catch { /* leave blank */ }
     }
     async function doSyncAll() {
-      const btns = [$('#syncAllBtn'), $('#syncAllBtnMobile')].filter(Boolean);
-      const original = btns.map(b => b.innerHTML);
-      btns.forEach(b => { b.disabled = true; b.innerHTML = '<i class="ti ti-loader"></i> Syncing…'; });
+      const btn = $('#syncAllBtn');
+      if (!btn) return;
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ti ti-loader"></i> Syncing…';
       try {
         const res = await fetch('/api/sync-all', { method: 'POST' });
         const d = await res.json().catch(() => ({}));
@@ -354,13 +349,12 @@
       } catch {
         setSyncStamp('Sync failed — check your connection');
       } finally {
-        btns.forEach((b, i) => { b.disabled = false; b.innerHTML = original[i]; });
+        btn.disabled = false; btn.innerHTML = original;
       }
     }
     function initSyncAll() {
-      const b1 = $('#syncAllBtn'), b2 = $('#syncAllBtnMobile');
-      if (b1) b1.addEventListener('click', doSyncAll);
-      if (b2) b2.addEventListener('click', doSyncAll);
+      const b = $('#syncAllBtn');
+      if (b) b.addEventListener('click', doSyncAll);
       refreshSyncStamp();
     }
 
@@ -379,9 +373,7 @@
       if (me.is_admin) {
         $('#adminLink').style.display = '';
         $('#newProjectAction').style.display = '';
-        $('#newProjectMobile').style.display = '';
         $('#syncAllAction').style.display = '';
-        $('#syncAllActionMobile').style.display = '';
         initSyncAll();
       }
       loadProjects();
