@@ -208,13 +208,12 @@ Users have no way to learn what changed in the product. Ten sessions of work shi
 
 #### 5.11.3 Versioning
 
-Releases are **semantically versioned** (v1.5, v1.6, …), continuing the existing v1.1 → v1.4 line, which has had no version marker since v1.4 shipped on 2026-05-23.
+Releases are versioned (v1.5, v1.6, …), continuing the existing v1.1 → v1.4 line, which has had no version marker since v1.4 shipped on 2026-05-23.
 
-| Bump | When |
-|---|---|
-| Minor (v1.5 → v1.6) | Any change a user would notice |
-| Patch (v1.5 → v1.5.1) | A fix to something already shipped |
-| No entry | Work with no user-visible effect |
+**Version numbers are assigned by hand, per issue.** There is no bump rule to consult and no automatic derivation. Two constraints follow, both on how code reads the field:
+
+- **Never order or compare by parsing the version string.** Ordering is by array position or date. String comparison would sort v1.10 below v1.9.
+- **Version strings must be unique.** The unread marker (§5.11.10) fires when the stored value differs from the newest published version, so reusing a number means nobody gets a marker for the second issue. `whats-new-badge.js` warns on load when two entries share a version.
 
 A release carries a date alongside its version. The date is the week the digest is published, not the date the underlying code shipped — manual curation means these differ, and that is expected.
 
@@ -246,7 +245,7 @@ Each release is one object:
 | `status` | Required. `'draft'` or `'published'`. Only published entries render. |
 | `headline` | Required. One sentence. Rendered in the dashboard strip and in collapsed rows. |
 | `features` | Zero or more. Each gets a tag, title, short explanation, and a preview image. |
-| `fixes` | Zero or more plain strings. **Never** carry images. |
+| `fixes` | Zero or more `{ tag, text }` objects, `tag` defaulting to `Fixed`. **Never** carry images. The tag exists because not every line under "Also fixed" is a fix — small new behaviour belongs there too, and would otherwise be mislabelled or pushed into `features[]`, which then owes a preview image it does not need. |
 
 `tag` is one of `New`, `Improved`, `Fixed`.
 
@@ -254,32 +253,19 @@ Each release is one object:
 
 #### 5.11.6 Preview images
 
-Screenshots are static assets, committed to **`public/whats-new/*.png`** and served by Pages. No new infrastructure; cache-busting by filename. (R2 was considered, reusing the bucket already serving project logos per §5.2. Rejected: publication already requires a deploy, so R2's decoupling buys nothing here.)
+Preview screenshots are **supplied by Jenny**, together with the entry copy, for each version. Claude Code does not capture, generate, or edit them.
 
-**Authoring rule — crop tight.** A full-screen desktop capture is unreadable in the ~270px mobile column. Each preview must be cropped to the element that changed — the button, the row, the chart — not the whole screen.
+| Item | Rule |
+|---|---|
+| Location | `public/whats-new/`, committed to the repo and served by Pages |
+| Naming | `v{version}-{slug}.png` — e.g. `v1-5-sync-now.png`. Version in the filename makes cache-busting automatic and stale images identifiable. |
+| Format | PNG |
+| Crop | Tight to the element that changed — the button, the row, the chart. A full-screen desktop capture is unreadable in the ~270px mobile column. |
+| Contents | No real project names, Jira keys, or assignee names. What's New is visible to every user in the workspace. (Block 16.9 is the cautionary case: two `_dev` mockups carrying real assignee names and sprint data were tracked into `public/` and served publicly. See HANDOFF.md.) |
 
-**First-issue exception.** The v1.5 entry announcing this feature needs a preview of the feature itself, which cannot be captured before it exists. Take the shot from the preview deploy before ff-merge.
+R2 was considered and rejected: it would allow publishing an image without a deploy, but publication requires a deploy anyway since the content constant ships as code.
 
-##### 5.11.6.1 Captured, never generated
-
-Every preview is a screenshot of a real rendered page. Claude Code may **capture** images; it may not **generate** them. Drawing an approximation of a screen, or synthesising a mock that resembles one, is forbidden — it would eventually publish a preview showing behaviour the product does not have.
-
-Capture is **net-new tooling**: no headless-capture helper exists in `scripts/` today, and `package.json` carries no Playwright or Puppeteer. The existing browser capability referenced by WORKFLOW.md § Mockup and preview review is **Preview MCP**, used for static mockups during plan phase — it is not the same thing as the per-week capture helper described in 5.11.6.2. Element-level capture against a CSS selector is preferred over full-page capture: it produces the tight crop this section requires directly, rather than a wide shot cropped by hand afterwards.
-
-##### 5.11.6.2 Capture constraints
-
-**Auth.** Every page worth capturing sits behind login, and credential handling is a hard limit in `.claude/settings.json`. Capture therefore runs against a local `wrangler pages dev` instance with a seeded test user — never against production using a live session.
-
-**Real data must not leak.** The app renders real project names, real Jira keys, and real assignee names. What's New is visible to every user in the workspace, so a careless capture of Sprint View would publish the team's ticket assignments to all of them. Two mitigations, both required:
-
-- Capture against seeded demo data, not the live workspace.
-- Crop to an element that contains no names. The tight-crop rule mostly achieves this — a shot of the Sync now button carries no personal data — but it must be checked, not assumed.
-
-Every image is eyeballed by Jenny before publish, on the same footing as the text. (Block 16.9 is the cautionary case: two `_dev` mockups carrying real assignee names and sprint data were tracked into `public/` and served publicly. See HANDOFF.md.)
-
-**Determinism.** Week-to-week captures need identical viewport, device scale, and framing, or the page reads as ragged. A small helper in `scripts/` takes a URL, a CSS selector, and an output filename, sets a fixed viewport, and writes the PNG. Written once; makes each week's capture a single command.
-
-**Naming.** `v{major}-{minor}-{slug}.png` (e.g. `v1-5-sync-now.png`). Version in the filename means cache-busting is automatic and stale images are identifiable at a glance.
+**A feature entry is not publishable without its image.** If copy arrives without one, the entry stays `draft`.
 
 #### 5.11.7 Publication workflow
 
@@ -337,7 +323,7 @@ Per-device, so the marker can reappear on a second browser. Accepted: cross-devi
 #### 5.11.12 Dependencies and consequences
 
 - **Cache-bust.** New CSS in `auth.css` only reaches pages whose query string is bumped. Verified 2026-08-02: all shipping pages were **uniform** at `2026-06-03-1` — the one outlier, `2026-06-01-2`, is on `public/_dev/components.html`, a dev gallery rather than a shipping page. Every page touched by this work moves to a single new value; untouched pages are left alone.
-- **Capture tooling.** The `scripts/` capture helper (§5.11.6.2) and a seeded local test user are prerequisites for any *feature* entry, since features require preview images. Neither exists yet. Fix-only entries need neither, so the feature ships with published fix-only entries and its first feature entry held as a draft.
+- **Preview images.** A *feature* entry needs its image before it can publish (§5.11.6); Jenny supplies both image and copy. Fix-only entries need neither, which is why v1.4 and v1.3 ship published while v1.5 waits on its two previews. There is no capture tooling and no seeded-user prerequisite — that pipeline was removed once authoring moved to Jenny.
 - **`.app-nav-actions` below 700px.** Verified 2026-08-02: defined once, never touched inside any `@media` block — the only mobile nav rule is `.app-nav.is-hidden` (sticky hide/show). Hiding the link on mobile therefore required a new rule, not an override.
 - **Deferred, not adopted here.** `workspace_settings.html` being unreachable, the `Cross-project` nav link that only that page carries, and full cache-bust alignment across all pages are pre-existing issues. They are noted, not fixed, in this work.
 
