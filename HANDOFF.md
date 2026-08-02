@@ -6391,3 +6391,59 @@ read-only SQL Jenny pasted back; all writes (the DELETE, the `git push origin
 main`) were Jenny's. Both edited files are SECURITY-CARVE-OUTS — default
 mode, diff shown before each commit.
 
+## Session closeout — 2026-08-01/02 (Jira sprint fixes + workspace Sync-now)
+
+### Production state at session end
+
+`main` at **`59ec001`**, pushed to `origin/main` (in sync). Working tree clean
+except the two intentionally-untracked `_dev` mockups. All pushes to main were
+Jenny's (the deny-push-to-main hook blocks Claude).
+
+### What shipped (all live on production, verified in the browser)
+
+| Commit | Summary |
+|---|---|
+| `b37bd14` | `fix` — **Jira sprint membership**: `mapIssueToEntity` (`jira.js:266`) took `sprintArray[0]` (the *oldest* sprint in Jira's oldest→newest array), so carried-over issues were filed under a closed sprint and missed the active-sprint query. Now prefers `state==='active'`, else the last (most recent). Rain Trade Sprint View went **102 → 151** (every board status now matches Jira to the unit). SECURITY-CARVE-OUT-adjacent (connector data mapping) → default mode. Backfill = one full sync (content-hash upsert re-maps rows). |
+| `19b040d` | `fix` — **stale active sprint**: the resolver (`sprint.js`) took `results[0]` and trusted stored `state='active'`. New `pickActiveSprint()` drops sprints that are completed (`complete_date`) or ended >30d ago, so a long-closed sprint no longer shows as active. Rain One now correctly shows **"No active sprint"** (RAIN Sprint 12 ended May 14). Genuine/overdue sprints still render. |
+| `28c9b58` | `feat` — **workspace "Sync now"** on `/projects` (admin-only). New `functions/api/sync-all.js`: `GET` returns `MAX(connections.last_sync_at)`; `POST` runs an **incremental** sync of every active connection of every live project (mirrors the cron loop — per-connection `sync_runs`, failure isolation, `last_sync_at` bump; 60s cooldown + ~20s soft time budget). SECURITY-CARVE-OUT (cross-project enumeration gated on `requireWorkspaceAdmin`). Verified: synced all 6 connections, stamp updated. |
+| `9541a75` | `fix` — Projects header actions now show on **mobile** as a full-width stack (Reorder + New project + Sync now); dropped the mobile-only duplicate button. |
+| `34713f2` | `style` — Sync now placed **last** in the actions row (rightmost desktop / bottom mobile). |
+| `59ec001` | `feat` — project **cards show latest sync** (`GET /api/projects` adds per-project `MAX(last_sync_at)`; card uses it, falling back to `updated_at`). Cards read "Updated N min ago" after a sync. |
+
+### Parked (committed, NOT pushed — awaiting Jenny)
+
+- **Sprint-page "Sync now" button** on branch `feat-sprint-sync-button` (`856bd4e`):
+  admin-only button in the Sprint View header, reuses the per-connection full-sync
+  endpoint, inline rate-limit handling. Left parked by explicit request; ship with
+  `git push origin main` after ff-merging when wanted.
+
+### ⚠️ Open follow-ups (none broken — optional / diagnostic)
+
+1. **Board-column-config sync ("Bug A")** — the sprint counts include issues whose
+   status isn't a board column, so the app shows 4 more than Jira's board (Rain Trade
+   151 vs board 147: WLDC-103/123/319 in **Backlog** + WLDC-233 in stray status **"re"**).
+   The "Issues by board status" chart also alphabetizes statuses instead of using the
+   board's real column order. Fix = sync `/board/{id}/configuration` and count/show only
+   mapped columns in board order. Bigger, self-contained. NOT a defect — the app reflects
+   raw sprint membership faithfully.
+2. **Rain One sprint-refresh staleness root cause** — Rain One's Jira syncs succeed but
+   sprint state never updated (the refresh step swallows errors, `jira.js:523`). `19b040d`
+   fixes the *display*; the underlying refresh failure is undiagnosed. Next step: surface
+   the swallowed error into `sync_runs.detail`, run a sync, read it. Project
+   `2fc38f6b-954d-44ca-8d1d-8d6bf947ba88`.
+3. **Slack incremental cursor-wipe** (`slack.js:480/602`) — confirmed bug: a zero-new-message
+   run returns `cursor_after=null` → overwrites `last_sync_cursor` with NULL → next run
+   re-scans the full 30-day window. Jira avoids this by seeding `latestUpdatedSeen=cursor`;
+   Slack doesn't. Clean fix, unshipped.
+4. **"0 pts"** on the board-status chart (story points not summing/displaying).
+5. **WLDC-233 "re" status** — a stray status in *Jira* to clean up (Jenny's action, not code).
+
+### Notes
+
+- The workspace Sync-now POST took ~35s once (a single connection's incremental
+  catch-up ran past the 20s soft budget — the budget only stops *starting* new syncs).
+  It completed cleanly. If heavier workspaces bump the ~30s Worker limit, move to a
+  background job.
+- Jenny prefers UI mockups built on the real page/real CSS (inject into the live page
+  for preview), not hand-rolled approximations. Saved to memory.
+
