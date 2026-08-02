@@ -9,7 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
-  <link rel="stylesheet" href="/auth.css?v=2026-06-03-1" />
+  <link rel="stylesheet" href="/auth.css?v=2026-08-02-1" />
   <style>
     /* Admin-screen-only layout: mirror the v1.4 mockup screen-10.
        All v1.4 components (.brandmark/.wordmark/.eyebrow/.surface/
@@ -222,6 +222,7 @@
         <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
       </a>
       <div class="app-nav-actions">
+        <a href="/whats-new.html" class="wn-navlink">What's new<span class="wn-navlink__dot" style="display:none;"></span></a>
         <a href="/admin.html" class="is-active">Admin</a>
         <span id="navUserAvatar" class="members-row__avatar self" style="width:28px;height:28px;font-size:11px;" title=""></span>
         <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
@@ -358,6 +359,8 @@
   </div>
 
   <script src="/_lib/sticky-topbar.js" defer></script>
+  <script src="/_lib/whats-new-data.js" defer></script>
+  <script src="/_lib/whats-new-badge.js" defer></script>
 
   <script>
   (function () {
