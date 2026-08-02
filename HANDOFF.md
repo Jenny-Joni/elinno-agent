@@ -6447,3 +6447,63 @@ Jenny's (the deny-push-to-main hook blocks Claude).
 - Jenny prefers UI mockups built on the real page/real CSS (inject into the live page
   for preview), not hand-rolled approximations. Saved to memory.
 
+---
+
+## Block 16.9 — `_dev` mockup data exposure (2026-08-02)
+
+### ⚠️ Record correction: the `_dev` mockups were NOT untracked
+
+Every closeout above describes `public/_dev/*` as "intentionally untracked."
+**That stopped being true at `3dce781`.** The statement was accurate when
+written — the 2026-08-01/02 closeout (`f395ad4`, 12:48) predates `3dce781`
+("chore: track _dev sprint-view + project-chat mockups", 12:58) by ten
+minutes, and the doc was never revisited. Earlier closeouts are left as
+written; they were correct at the time. This section is the correction.
+
+### The exposure
+
+`public/` is the Pages build output and `public/_dev/` was never in
+`.gitignore`, so tracked mockups were **served publicly**. Verified live
+2026-08-02 (the 308 is Pages' extensionless-URL redirect; following it
+returns 200, unauthenticated):
+
+| File | Production | Real data in the served body |
+|---|---|---|
+| `_dev/project-chat-mockup.html` | **200** at `/_dev/project-chat-mockup` | **Yes** — named assignees with per-person issue counts: "Saifullah Omar, Usama Shafique, and Tamar Gelbart each have 16 issues, followed by Zulkefal with 12 and Hamza Ch with 10." |
+| `_dev/sprint-view-mockup.html` | **200** at `/_dev/sprint-view-mockup` | **Yes** — "RAIN Sprint 12", "May 22 – Jun 5, 2026", "Goal: Ship connector settings redesign", "Day 6 of 14" |
+| `_dev/components.html` | **200** | No — generic component gallery |
+
+`noindex` is present on the mockups: it kept them out of search results and
+did nothing about a direct URL. Underscore directories are served normally
+(`/_lib/no-zoom.js` → 200), so the `_dev` prefix was never a barrier.
+
+Found while planning Block 17, by running `git ls-files public/_dev/` to
+confirm the HANDOFF claim rather than trusting it.
+
+### The fix
+
+| Commit | Summary |
+|---|---|
+| `708c5ca` | `fix` — `git rm --cached` all three `_dev` mockups (**files remain on disk**; index-only removal) + `public/_dev/` added to `.gitignore`. `components.html` carries no real data but was untracked too, for consistency. |
+
+Both halves are one commit deliberately: ignoring without untracking does
+nothing, and untracking without ignoring lets it recur — `PROJECT.md`'s
+deploy section shows `git add .`, so "don't stage the mockups" was an
+instruction, not a guardrail. Verified after commit: `git ls-files
+public/_dev/` returns nothing, all three files still on disk, and
+`git add -n .` stages nothing under `_dev`.
+
+### ⚠️ Residual exposure — NOT closed by this commit
+
+1. **Live until deployed.** `git rm --cached` removes the files from the
+   *next* build. The data stays reachable on production until this branch
+   is ff-merged and pushed. **Verify after deploy:**
+   `curl -sIL https://elinnoagent.com/_dev/project-chat-mockup` → expect 404.
+2. **Still in git history.** The content is recoverable from `3dce781`.
+   Scrubbing it would mean rewriting merged history, which WORKFLOW.md
+   forbids — flagged, not actioned. Relevant if the repo ever goes public
+   (itself a listed re-lock trigger).
+3. **Prior Pages deployments.** Earlier builds still contain the files
+   unless those deployments are purged in the Cloudflare dashboard —
+   Jenny's hands (no CLI rollback/purge by Claude).
+
