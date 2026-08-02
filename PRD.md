@@ -33,6 +33,8 @@ The original PRD framed cross-project AI, mobile, and most of the workspace surf
 - **Workspace settings — SHIPPED.** A workspace-settings screen surfaces workspace metadata (name, plan, project count) and the cross-project AI cap state (cap, MTD spend, period start, reset date).
 - **Mobile-responsive web + zoom lock — SHIPPED.** All authed screens are responsive (stacked cards, single-column collapse, off-canvas drawers). Pinch- and double-tap-zoom are disabled app-wide so screens stay at a fixed device-width size (viewport `user-scalable=no` plus a JS backstop for iOS Safari, which ignores the meta). This is an intentional product decision — note it supersedes the earlier WCAG-1.4.4 "consider reversing" caveat. **Native mobile apps remain out of scope.**
 
+- **What's new — SHIPPED** (2026-08-02, see §5.11). A hand-curated, roughly-weekly in-product digest of user-facing changes at `/whats-new.html`, with a dashboard strip and a nav link on every authed page. Entries carry a `draft`/`published` status so a half-written issue cannot go live on an unrelated push; publication is a separate explicit command. Static — no endpoint, no schema change.
+
 **Still deferred** (unchanged from the backlog): Monday + Google Drive connectors (§11.2 — v1.4 ships Jira + Slack only), write-back to source systems, per-user permission mirroring, audit log, and paid tiers (§11.3).
 
 ---
@@ -178,6 +180,172 @@ Monday and Google Drive deferred to v1.2 — see §11.2 for connector designs (a
 - **Cross-project chat:** workspace-level multi-project chat surface. Combos are addressed by `'+'`-joined, alphabetically-sorted project slugs in the URL (e.g. `/cross-project/joni+rain`). Sidebar filters to the active combo; chats are per-creator.
 - **Workspace settings:** workspace metadata (name, plan, project count) and cross-project AI cap state (cap, MTD spend, period start, reset date).
 - **Mobile:** all of the above are mobile-responsive with zoom locked to device width (see §1.1 and §7).
+
+### 5.11 What's new
+
+#### 5.11.1 Purpose
+
+Users have no way to learn what changed in the product. Ten sessions of work shipped between 2026-05-24 and 2026-08-02 — Sprint View, shared-workspace visibility, workspace Sync now, the Jira sprint-membership fix — with no in-product announcement of any of it. Features that shipped correctly go unused because nobody knows they exist.
+
+**What's new** is a manually-curated, roughly-weekly digest of user-facing changes, published at the owner's explicit command. It is not an automatic deployment log.
+
+#### 5.11.2 Scope
+
+**In scope**
+
+- A `/whats-new.html` page listing releases, newest first.
+- A dashboard strip surfacing the latest release.
+- A per-user unread marker, stored client-side.
+- Content authored by hand, one entry per release, reviewed before publication.
+
+**Out of scope**
+
+- Automatic generation from commits, deploys, or `HANDOFF.md`.
+- Email or push delivery. The digest is in-product only.
+- Per-role or per-project filtering of entries (see 5.11.9).
+- An admin UI for authoring entries. Content ships as code.
+- Comments, reactions, or any read-receipt telemetry.
+
+#### 5.11.3 Versioning
+
+Releases are **semantically versioned** (v1.5, v1.6, …), continuing the existing v1.1 → v1.4 line, which has had no version marker since v1.4 shipped on 2026-05-23.
+
+| Bump | When |
+|---|---|
+| Minor (v1.5 → v1.6) | Any change a user would notice |
+| Patch (v1.5 → v1.5.1) | A fix to something already shipped |
+| No entry | Work with no user-visible effect |
+
+A release carries a date alongside its version. The date is the week the digest is published, not the date the underlying code shipped — manual curation means these differ, and that is expected.
+
+#### 5.11.4 Cadence
+
+Target is weekly. A week in which nothing user-facing shipped produces **no entry** — an empty or padded issue is worse than a gap. Because entries are headed by date, gaps read as normal rather than as neglect.
+
+#### 5.11.5 Content model
+
+Each release is one object:
+
+```js
+{
+  version:  'v1.5',
+  date:     '2026-08-02',
+  status:   'draft',            // 'draft' | 'published'
+  headline: 'Sprint numbers now match your Jira board, and you can refresh every connection at once.',
+  features: [
+    { tag: 'New', title: 'Sync now', body: '…', image: '/whats-new/v1-5-sync-now.png', alt: '…' }
+  ],
+  fixes: [ 'Issues carried over from an earlier sprint were counted against the wrong sprint.' ]
+}
+```
+
+| Field | Rule |
+|---|---|
+| `version` | Required. Semantic, `v`-prefixed. Assigned at publish, not at draft — several sessions can feed one weekly issue. |
+| `date` | Required. Publication date. |
+| `status` | Required. `'draft'` or `'published'`. Only published entries render. |
+| `headline` | Required. One sentence. Rendered in the dashboard strip and in collapsed rows. |
+| `features` | Zero or more. Each gets a tag, title, short explanation, and a preview image. |
+| `fixes` | Zero or more plain strings. **Never** carry images. |
+
+`tag` is one of `New`, `Improved`, `Fixed`.
+
+**Features get previews; fixes do not.** If every item carried an image, a thin week would read as a large one and the authoring cost would make the weekly cadence unsustainable.
+
+#### 5.11.6 Preview images
+
+Screenshots are static assets, committed to **`public/whats-new/*.png`** and served by Pages. No new infrastructure; cache-busting by filename. (R2 was considered, reusing the bucket already serving project logos per §5.2. Rejected: publication already requires a deploy, so R2's decoupling buys nothing here.)
+
+**Authoring rule — crop tight.** A full-screen desktop capture is unreadable in the ~270px mobile column. Each preview must be cropped to the element that changed — the button, the row, the chart — not the whole screen.
+
+**First-issue exception.** The v1.5 entry announcing this feature needs a preview of the feature itself, which cannot be captured before it exists. Take the shot from the preview deploy before ff-merge.
+
+##### 5.11.6.1 Captured, never generated
+
+Every preview is a screenshot of a real rendered page. Claude Code may **capture** images; it may not **generate** them. Drawing an approximation of a screen, or synthesising a mock that resembles one, is forbidden — it would eventually publish a preview showing behaviour the product does not have.
+
+Capture is **net-new tooling**: no headless-capture helper exists in `scripts/` today, and `package.json` carries no Playwright or Puppeteer. The existing browser capability referenced by WORKFLOW.md § Mockup and preview review is **Preview MCP**, used for static mockups during plan phase — it is not the same thing as the per-week capture helper described in 5.11.6.2. Element-level capture against a CSS selector is preferred over full-page capture: it produces the tight crop this section requires directly, rather than a wide shot cropped by hand afterwards.
+
+##### 5.11.6.2 Capture constraints
+
+**Auth.** Every page worth capturing sits behind login, and credential handling is a hard limit in `.claude/settings.json`. Capture therefore runs against a local `wrangler pages dev` instance with a seeded test user — never against production using a live session.
+
+**Real data must not leak.** The app renders real project names, real Jira keys, and real assignee names. What's New is visible to every user in the workspace, so a careless capture of Sprint View would publish the team's ticket assignments to all of them. Two mitigations, both required:
+
+- Capture against seeded demo data, not the live workspace.
+- Crop to an element that contains no names. The tight-crop rule mostly achieves this — a shot of the Sync now button carries no personal data — but it must be checked, not assumed.
+
+Every image is eyeballed by Jenny before publish, on the same footing as the text. (Block 16.9 is the cautionary case: two `_dev` mockups carrying real assignee names and sprint data were tracked into `public/` and served publicly. See HANDOFF.md.)
+
+**Determinism.** Week-to-week captures need identical viewport, device scale, and framing, or the page reads as ragged. A small helper in `scripts/` takes a URL, a CSS selector, and an output filename, sets a fixed viewport, and writes the PNG. Written once; makes each week's capture a single command.
+
+**Naming.** `v{major}-{minor}-{slug}.png` (e.g. `v1-5-sync-now.png`). Version in the filename means cache-busting is automatic and stale images are identifiable at a glance.
+
+#### 5.11.7 Publication workflow
+
+Visibility is gated by the `status` field; deployment is gated by git. These are two separate things.
+
+1. Owner requests a draft. Content is written into the changelog constant with `status: 'draft'`.
+2. Pushing to `main` deploys that code. A draft entry is **still invisible to users** — the page and strip render published entries only.
+3. Owner says publish, explicitly and separately. `status` flips to `'published'`, and the entry goes live on the next deploy.
+
+The flag is load-bearing because session closeouts push to `main` mid-week. Without it, a half-assembled weekly issue would go live the moment any unrelated commit shipped. Claude Code cannot publish: the deny hook blocks pushes to `main`, so step 3 is always Jenny's.
+
+#### 5.11.8 Surfaces
+
+**Page — `/whats-new.html`**
+
+- Latest published release expanded; earlier releases collapse to a single row showing version, date, and headline. Prevents unbounded scroll as issues accumulate.
+- Reachable from a permanent nav link, so the page cannot become orphaned the way `workspace_settings.html` currently is (nothing links to it).
+- Renders an empty state when nothing is published.
+
+**Dashboard strip**
+
+- Sits above the Projects section on `/dashboard.html`. Shows the latest published release's version, date, and headline; links to the page.
+- Permanent. Only the unread markers clear on read — if the strip itself disappeared, the dashboard would reflow and the entry point would exist only for users who had not yet clicked it. Renders a neutral variant when nothing is published.
+
+**Nav link**
+
+- `What's new`, first in `.app-nav-actions`, left of `Admin`. Present on all six authed pages — dashboard, projects, project, project_settings, workspace_settings, admin. Members see it, giving that row something besides avatar and Log out.
+- **Hidden below 700px.** A fourth item does not fit the mobile nav row, and `.app-nav` translates offscreen on scroll-down anyway. The dashboard strip carries discovery on mobile.
+
+#### 5.11.9 Audience
+
+All users see the same entries. Admin-only features (for example workspace Sync now) are described in neutral language and labelled as admin-only in the body text rather than filtered out.
+
+Rationale: per-role filtering means tagging every entry by audience and maintaining that tagging forever, to spare members the mild confusion of reading about a button they do not have. The trade is not worth it at this scale.
+
+#### 5.11.10 Unread state
+
+A single `localStorage` key holds the last version the user has read. When it differs from the newest published version, an unread dot renders on the nav link and a `New` pill renders on the dashboard strip. Both clear together on visit.
+
+Per-device, so the marker can reappear on a second browser. Accepted: cross-device correctness would require a `last_seen_version` column on the D1 users table — a schema migration, therefore a security carve-out and a DDL approval gate — in exchange for not seeing a dot twice.
+
+**Forward-compatible.** If per-device drift proves annoying, the server-side column can be added later without changing the content model or either surface.
+
+#### 5.11.11 Non-functional
+
+| Requirement | Detail |
+|---|---|
+| No backend | Static page, static content constant. No new API endpoint, no D1 or Neon read. The page reuses `/api/me` for its auth gate. |
+| No migration | Nothing added to any schema. |
+| Additive CSS | New `.wn-*` block appended to `auth.css`. No existing selector modified. Verified: no `.wn-` prefix existed in the codebase beforehand. |
+| Mobile | Existing constraints apply — 44px tap targets, `overflow-x: clip`, zoom locked. |
+| Accessibility | Every preview image carries an `alt`. Unread dot is decorative and not the sole carrier of meaning; the `New` pill is text. |
+| Reduced motion | No animation introduced. |
+
+#### 5.11.12 Dependencies and consequences
+
+- **Cache-bust.** New CSS in `auth.css` only reaches pages whose query string is bumped. Verified 2026-08-02: all shipping pages were **uniform** at `2026-06-03-1` — the one outlier, `2026-06-01-2`, is on `public/_dev/components.html`, a dev gallery rather than a shipping page. Every page touched by this work moves to a single new value; untouched pages are left alone.
+- **Capture tooling.** The `scripts/` capture helper (§5.11.6.2) and a seeded local test user are prerequisites for any *feature* entry, since features require preview images. Neither exists yet. Fix-only entries need neither, so the feature ships with published fix-only entries and its first feature entry held as a draft.
+- **`.app-nav-actions` below 700px.** Verified 2026-08-02: defined once, never touched inside any `@media` block — the only mobile nav rule is `.app-nav.is-hidden` (sticky hide/show). Hiding the link on mobile therefore required a new rule, not an override.
+- **Deferred, not adopted here.** `workspace_settings.html` being unreachable, the `Cross-project` nav link that only that page carries, and full cache-bust alignment across all pages are pre-existing issues. They are noted, not fixed, in this work.
+
+#### 5.11.13 Success criteria
+
+- A user who has not visited in a week sees an unread marker on login and can read what changed in under a minute.
+- Publishing an issue requires no code change beyond editing one constant and adding image files.
+- No release ships with an empty or padded entry.
 
 ---
 
