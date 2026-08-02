@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sprint View — mockup</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <link rel="stylesheet" href="/auth.css?v=2026-05-26-1" />
+  <style>
+    /* ---- Mockup-only styling for the Sprint View tab body (sv-*) ---- */
+    .mock-ribbon {
+      position: fixed; top: 10px; right: 12px; z-index: 9999;
+      background: #1a1530; color: #fff; font-family: var(--font-medium);
+      font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+      padding: 6px 10px; border-radius: 50px; opacity: .85;
+    }
+
+    /* Tab strip — make the two tabs visible (the real app collapsed them). */
+    .project-tabs .project-tab.tab-show {
+      display: inline-flex !important; align-items: center; gap: 6px;
+      background: none; border: none; cursor: pointer;
+      font-family: var(--font-medium); font-size: 14px;
+      color: var(--text-3); padding: 14px 4px; margin-right: 22px;
+      border-bottom: 2px solid transparent;
+    }
+    .project-tabs .project-tab.tab-show.active {
+      color: var(--text); border-bottom-color: var(--brand);
+    }
+
+    .sv { padding: 4px 28px 32px; max-width: 880px; }
+
+    /* Sprint header */
+    .sv-head {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 24px; margin-top: 18px;
+    }
+    .sv-titlerow { display: flex; align-items: center; gap: 12px; }
+    .sv-title {
+      font-family: var(--font-semibold); font-size: 26px; line-height: 1.1;
+      color: var(--text); margin: 0;
+    }
+    .sv-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-medium); font-size: 12px;
+      padding: 4px 10px; border-radius: 50px;
+    }
+    .sv-pill--active { background: var(--color-success-bg); color: var(--success); }
+    .sv-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+    .sv-meta {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+      margin-top: 10px; color: var(--text-2);
+      font-family: var(--font-regular); font-size: 14px;
+    }
+    .sv-meta i { color: var(--text-3); margin-right: 3px; }
+    .sv-sep { color: var(--text-faint); }
+
+    .sv-daysleft {
+      flex: none; text-align: center; min-width: 96px;
+      background: var(--brand-tint); border: 1px solid var(--brand-soft-border);
+      border-radius: var(--radius-lg); padding: 12px 16px;
+    }
+    .sv-daysleft-num {
+      font-family: var(--font-semibold); font-size: 34px; line-height: 1;
+      color: var(--brand-strong);
+    }
+    .sv-daysleft-lbl {
+      font-family: var(--font-medium); font-size: 12px; letter-spacing: .03em;
+      text-transform: uppercase; color: var(--brand-strong); margin-top: 4px;
+    }
+
+    /* Time progress */
+    .sv-progress { margin-top: 20px; }
+    .sv-progress-track {
+      height: 8px; border-radius: 50px; background: var(--border-soft);
+      overflow: hidden;
+    }
+    .sv-progress-fill { height: 100%; border-radius: 50px; background: var(--brand); }
+    .sv-progress-lbl {
+      margin-top: 7px; color: var(--text-3);
+      font-family: var(--font-regular); font-size: 12.5px;
+    }
+
+    /* Stat cards */
+    .sv-stats {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+      margin-top: 22px;
+    }
+    .sv-stat {
+      border: 1px solid var(--border); border-radius: var(--radius-md);
+      background: var(--bg-subtle); padding: 14px 16px;
+    }
+    .sv-stat-num {
+      font-family: var(--font-semibold); font-size: 22px; color: var(--text);
+      line-height: 1;
+    }
+    .sv-stat-lbl {
+      margin-top: 6px; color: var(--text-2);
+      font-family: var(--font-regular); font-size: 12.5px;
+    }
+
+    /* Chart card */
+    .sv-card {
+      margin-top: 22px; border: 1px solid var(--border);
+      border-radius: var(--radius-lg); background: var(--bg); padding: 22px 24px 18px;
+    }
+    .sv-card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .sv-card-title {
+      font-family: var(--font-medium); font-size: 16px; color: var(--text); margin: 0;
+    }
+    .sv-legend { display: flex; gap: 16px; }
+    .sv-leg {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--text-2); font-family: var(--font-regular); font-size: 12.5px;
+    }
+    .sv-sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+    .sv-sw--todo { background: #8b93a7; }
+    .sv-sw--prog { background: var(--brand); }
+    .sv-sw--done { background: var(--success); }
+
+    .sv-chart {
+      display: flex; align-items: flex-end; gap: 18px;
+      padding: 0 4px;
+    }
+    .sv-col {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .sv-bar-val {
+      font-family: var(--font-semibold); font-size: 15px; color: var(--text);
+    }
+    .sv-bartrack {
+      height: 210px; width: 100%; max-width: 64px;
+      display: flex; align-items: flex-end;
+    }
+    .sv-bar {
+      width: 100%; border-radius: 7px 7px 0 0; min-height: 6px;
+      transition: height .4s ease;
+    }
+    .sv-bar--todo { background: #8b93a7; }
+    .sv-bar--prog { background: var(--brand); }
+    .sv-bar--done { background: var(--success); }
+    .sv-bar-lbl {
+      font-family: var(--font-medium); font-size: 13px; color: var(--text);
+      text-align: center;
+    }
+    .sv-bar-sub {
+      font-family: var(--font-regular); font-size: 11.5px; color: var(--text-3);
+      margin-top: -4px;
+    }
+    .sv-foot {
+      margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-soft);
+      color: var(--text-3); font-family: var(--font-regular); font-size: 12px;
+    }
+    .sv-foot i { margin-right: 4px; }
+
+    /* Mockup capture only: the real app pins the shell to the viewport and
+       clips overflow (no page scroll). For a full-height screenshot, let
+       content flow and the page scroll naturally. */
+    html, body { height: auto !important; overflow: auto !important; }
+    .app-main, #shellRoot, .project-shell, .project-sidebar,
+    .project-main, #tabBody {
+      height: auto !important; max-height: none !important;
+      min-height: 0 !important; overflow: visible !important;
+    }
+    .pj-from { margin-top: 6px; }
+    .pj-scopechip { gap: 6px; }
+  </style>
+</head>
+<body>
+  <div class="mock-ribbon">Mockup · sample data</div>
+
+  <nav class="app-nav">
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+        <span class="brandmark"></span>
+        <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
+      </a>
+      <div class="app-nav-actions">
+        <a href="/admin.html">Admin</a>
+        <span style="width:28px;height:28px;background:var(--brand);color:#fff;font-size:11px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font);font-weight:600;">J</span>
+        <button class="btn btn--ghost" style="padding:6px 12px;font-size:12px;">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-main">
+    <div class="custom-container">
+      <div class="project-shell">
+        <aside class="project-sidebar">
+          <div class="project-sidebar-header">
+            <div class="project-sidebar-title">Conversations</div>
+            <button class="new-conv-btn" type="button" title="New conversation">+</button>
+          </div>
+          <div id="convList">
+            <div class="conv-row">
+              <div class="conv-item">
+                <div class="conv-title-wrap"><span class="conv-title">What insights on the current sprint</span></div>
+                <div class="conv-meta" style="color:var(--text-3);font-size:12px;margin-top:2px;">2 minutes ago · 2 messages</div>
+              </div>
+            </div>
+            <div class="conv-row">
+              <div class="conv-item">
+                <div class="conv-title-wrap"><span class="conv-title">Which issues are blocking?</span></div>
+                <div class="conv-meta" style="color:var(--text-3);font-size:12px;margin-top:2px;">1 hour ago · 4 messages</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main class="project-main">
+          <div class="project-main-header">
+            <div class="project-header-left">
+              <div class="project-header-titles">
+                <div class="project-breadcrumb">
+                  <a href="/projects.html">Projects</a> / <span>Rain</span>
+                </div>
+              </div>
+            </div>
+            <div class="project-tabs">
+              <button class="project-tab tab-show" type="button">Chat</button>
+              <button class="project-tab tab-show active" type="button">Sprint View</button>
+              <a class="project-tab" href="#" title="Project settings" style="text-decoration:none;color:var(--text-3);margin-left:auto;padding:8px 10px;"><i class="ti ti-settings" style="font-size:18px;line-height:1;"></i></a>
+            </div>
+          </div>
+
+          <div id="tabBody">
+            <div class="pj-from">
+              <span class="pj-from__label">From</span>
+              <span class="pj-scopechip"><span class="pj-scopechip__icon">R</span>Rain</span>
+            </div>
+
+            <div class="sv">
+              <div class="sv-head">
+                <div class="sv-head-main">
+                  <div class="sv-titlerow">
+                    <h2 class="sv-title">RAIN Sprint 12</h2>
+                    <span class="sv-pill sv-pill--active"><span class="sv-dot"></span>Active</span>
+                  </div>
+                  <div class="sv-meta">
+                    <span><i class="ti ti-calendar"></i> May 22 – Jun 5, 2026</span>
+                    <span class="sv-sep">·</span>
+                    <span><i class="ti ti-target"></i> Goal: Ship connector settings redesign</span>
+                  </div>
+                </div>
+                <div class="sv-daysleft">
+                  <div class="sv-daysleft-num">8</div>
+                  <div class="sv-daysleft-lbl">days left</div>
+                </div>
+              </div>
+
+              <div class="sv-progress">
+                <div class="sv-progress-track"><div class="sv-progress-fill" style="width:43%"></div></div>
+                <div class="sv-progress-lbl">Day 6 of 14 · 43% of the sprint elapsed</div>
+              </div>
+
+              <div class="sv-stats">
+                <div class="sv-stat"><div class="sv-stat-num">79</div><div class="sv-stat-lbl">Total issues</div></div>
+                <div class="sv-stat"><div class="sv-stat-num">9 / 64</div><div class="sv-stat-lbl">Story points done</div></div>
+                <div class="sv-stat"><div class="sv-stat-num">3</div><div class="sv-stat-lbl">Done (4%)</div></div>
+                <div class="sv-stat"><div class="sv-stat-num">3</div><div class="sv-stat-lbl">Unassigned</div></div>
+              </div>
+
+              <div class="sv-card">
+                <div class="sv-card-head">
+                  <h3 class="sv-card-title">Issues by status</h3>
+                  <div class="sv-legend">
+                    <span class="sv-leg"><span class="sv-sw sv-sw--todo"></span>To do</span>
+                    <span class="sv-leg"><span class="sv-sw sv-sw--prog"></span>In progress</span>
+                    <span class="sv-leg"><span class="sv-sw sv-sw--done"></span>Done</span>
+                  </div>
+                </div>
+                <div class="sv-chart">
+                  <div class="sv-col">
+                    <div class="sv-bar-val">29</div>
+                    <div class="sv-bartrack"><div class="sv-bar sv-bar--todo" style="height:94%"></div></div>
+                    <div class="sv-bar-lbl">To Do</div>
+                    <div class="sv-bar-sub">24 pts</div>
+                  </div>
+                  <div class="sv-col">
+                    <div class="sv-bar-val">31</div>
+                    <div class="sv-bartrack"><div class="sv-bar sv-bar--prog" style="height:100%"></div></div>
+                    <div class="sv-bar-lbl">In Progress</div>
+                    <div class="sv-bar-sub">26 pts</div>
+                  </div>
+                  <div class="sv-col">
+                    <div class="sv-bar-val">12</div>
+                    <div class="sv-bartrack"><div class="sv-bar sv-bar--prog" style="height:39%"></div></div>
+                    <div class="sv-bar-lbl">In Review</div>
+                    <div class="sv-bar-sub">5 pts</div>
+                  </div>
+                  <div class="sv-col">
+                    <div class="sv-bar-val">4</div>
+                    <div class="sv-bartrack"><div class="sv-bar sv-bar--prog" style="height:13%"></div></div>
+                    <div class="sv-bar-lbl">Blocked</div>
+                    <div class="sv-bar-sub">0 pts</div>
+                  </div>
+                  <div class="sv-col">
+                    <div class="sv-bar-val">3</div>
+                    <div class="sv-bartrack"><div class="sv-bar sv-bar--done" style="height:10%"></div></div>
+                    <div class="sv-bar-lbl">Done</div>
+                    <div class="sv-bar-sub">9 pts</div>
+                  </div>
+                </div>
+                <div class="sv-foot"><i class="ti ti-refresh"></i> Synced from Jira · as of 2 minutes ago · columns reflect this board's own workflow statuses</div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
