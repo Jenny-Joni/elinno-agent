@@ -11,3 +11,7 @@ node_modules/
 # Ad-hoc operational SQL scripts (e.g. local-only data wipes).
 # Schema migrations live under db/migrations/ and ARE tracked.
 scripts/*.sql
+
+# Design mockups — reference artifacts only. public/ is the Pages build
+# output, so anything tracked here deploys publicly. Never commit these.
+public/_dev/
