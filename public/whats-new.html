@@ -157,7 +157,6 @@
 
       let html = renderLatest(published[0]);
       published.slice(1).forEach((entry, i) => { html += renderPast(entry, i + 1); });
-      html += '<p class="wn-foot">Only user-facing changes are listed here.</p>';
       root.innerHTML = html;
 
       root.addEventListener('click', e => {
