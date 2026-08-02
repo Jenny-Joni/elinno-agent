@@ -24,9 +24,23 @@
                in collapsed rows.
      features  Zero or more. Each carries a tag, title, short explanation,
                and a preview image. tag is 'New' | 'Improved' | 'Fixed'.
-     fixes     Zero or more plain strings. NEVER carry images — if every
-               item had one, a thin week would read as a large one and the
-               authoring cost would sink the weekly cadence.
+     fixes     Zero or more { tag, text } objects, tag defaulting to
+               'Fixed'. NEVER carry images — if every item had one, a thin
+               week would read as a large one and the authoring cost would
+               sink the weekly cadence. The tag exists because not every
+               line under "Also fixed" is a fix: small new behaviour belongs
+               there too, and would otherwise be mislabelled or pushed into
+               features[], which then owes a preview image it doesn't need.
+
+   Copy, images and version numbers are Jenny's, per version. Claude Code
+   edits this file mechanically; it does not draft entry text and does not
+   capture, generate or edit the images.
+
+   Version numbers are assigned by hand, which puts two constraints on any
+   code reading this file: never order or compare by parsing the version
+   string (string comparison sorts v1.10 below v1.9 — order by array
+   position or date), and version strings must stay unique or the unread
+   marker misses an issue.
 
    Register: user-facing copy, not a changelog of the work. No commit
    SHAs, file paths, function or table names, block numbers, or internal
@@ -41,27 +55,30 @@ window.WHATS_NEW = [
     version: 'v1.5',
     date: '2026-08-02',
     status: 'draft',
-    headline: 'Sprint numbers now match your Jira board, and you can refresh every connection at once.',
+    headline: 'Sprint numbers now match your board, and you can refresh every connection at once.',
     features: [
       {
         tag: 'New',
         title: "What's new",
         body: "This page. Every week we'll post a short summary of what's been added, changed or fixed — new features get a brief explanation and a preview, smaller fixes get a one-line mention. Find it any time from the top nav.",
         image: '/whats-new/v1-5-whats-new.png',
-        alt: "The What's new page showing the latest release with tagged entries."
+        alt: "The What's new page showing the latest release."
       },
       {
         tag: 'New',
         title: 'Sync now',
         body: 'Refresh every connected source across all your projects in one go, instead of opening each project and syncing it separately. The button sits in the header on the Projects page. Admins only.',
         image: '/whats-new/v1-5-sync-now.png',
-        alt: 'The Projects page header with the Sync now button at the end of the actions row.'
+        alt: 'The Projects page header with the Sync now button.'
       }
     ],
+    // The overnight-auto-sync line is deliberately absent. The 2026-06-25
+    // cron repair was never confirmed to have completed a run, so the claim
+    // is unverified; it returns in a later issue once that is checked.
     fixes: [
-      'Issues carried over from an earlier sprint were counted against the wrong sprint. Sprint View now matches your board.',
-      'A sprint that had already finished could keep showing as active. Projects with no running sprint now say so.',
-      "Project cards show when that project's data was last synced."
+      { tag: 'Fixed', text: 'Issues carried over from an earlier sprint were counted against the wrong sprint. Sprint View now matches your board.' },
+      { tag: 'Fixed', text: 'A sprint that had already finished could keep showing as active. Projects with no running sprint now say so.' },
+      { tag: 'New', text: "Project cards show when that project's data was last synced." }
     ]
   },
   {
@@ -71,7 +88,7 @@ window.WHATS_NEW = [
     headline: 'A new look across every screen.',
     features: [],
     fixes: [
-      'Every screen has been redesigned — clearer type, calmer colours, and layouts that hold up on a phone.'
+      { tag: 'Improved', text: 'Every screen has been redesigned — clearer type, calmer colours, and layouts that hold up on a phone.' }
     ]
   },
   {
@@ -81,7 +98,7 @@ window.WHATS_NEW = [
     headline: 'Ask questions that span more than one project.',
     features: [],
     fixes: [
-      'Start a chat that draws on every project in your workspace at once, instead of asking each one separately.'
+      { tag: 'New', text: 'Start a chat that draws on every project in your workspace at once, instead of asking each one separately.' }
     ]
   }
 ];
