@@ -3369,3 +3369,263 @@ table.users-table {
   .sv-filters .sv-filterwrap:first-child { flex:0 0 100%; }
   .sv-filters .sv-filterwrap:last-child .sv-menu { left:auto; right:0; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   BLOCK 17 — What's New (PRD §5.11)
+   Net-new .wn-* components: the /whats-new.html page, the dashboard
+   strip, and the nav link + unread dot. No existing selector is
+   modified. Verified at plan time: no .wn- prefix existed in this file.
+   Page-local layout (.dash-shell, .dash-greeting, .pcard*) deliberately
+   stays in dashboard.html — it is not duplicated here.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ---------- Page shell ---------- */
+.wn-shell { max-width: 780px; margin: 0 auto; padding: 28px 20px 80px; }
+
+.wn-title {
+  font-family: var(--font);
+  font-size: 24px;
+  font-weight: 500;
+  text-transform: uppercase;
+  line-height: 1.15;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+.wn-title strong { font-weight: 600; }
+
+.wn-sub {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-2);
+  margin: 0 0 28px;
+  line-height: 1.45;
+}
+
+/* ---------- Issue: one published release ---------- */
+.wn-issue { padding: 22px 22px 20px; margin-bottom: 12px; }
+
+.wn-issue__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 0.5px solid var(--border-soft);
+  margin-bottom: 20px;
+}
+.wn-version {
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1;
+}
+.wn-date {
+  font-family: var(--font);
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.wn-issue__head .pill { margin-left: auto; }
+
+/* ---------- Feature: tag + title + explanation + preview ---------- */
+.wn-feature { margin-bottom: 24px; }
+.wn-feature:last-of-type { margin-bottom: 0; }
+.wn-feature__title {
+  font-family: var(--font);
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 9px 0 5px;
+}
+.wn-feature__body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-2);
+  margin: 0 0 13px;
+}
+.wn-shot {
+  background: var(--brand-soft);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 13px;
+}
+.wn-shot img { display: block; width: 100%; height: auto; border-radius: 8px; }
+
+/* Tags extend the real .pill base. Deliberately NOT reusing
+   .pill--role-admin / .pill--status-active, whose names would be
+   misleading on a changelog. */
+.wn-tag--new      { background: var(--success-tint); color: var(--success); }
+.wn-tag--improved { background: var(--brand-tint);   color: var(--brand-strong); }
+.wn-tag--fixed    { background: #f4f4f4;             color: var(--text-2); }
+
+/* ---------- Fixes: compact list, never carries images ---------- */
+.wn-fixes__head {
+  font-family: var(--font);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 500;
+  margin: 24px 0 11px;
+}
+.wn-fix {
+  display: flex;
+  gap: 9px;
+  font-family: var(--font);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+.wn-fix i { color: var(--text-3); flex-shrink: 0; margin-top: 2px; font-size: 15px; }
+
+/* ---------- Collapsed earlier issue ---------- */
+.wn-past {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 15px 20px;
+  margin-bottom: 10px;
+  text-align: left;
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: background var(--t-fast);
+}
+.wn-past:hover { background: var(--brand-soft); }
+.wn-past__version { font-size: 14px; font-weight: 600; color: var(--text-2); }
+.wn-past__date { font-size: 12px; color: var(--text-3); }
+.wn-past__headline {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wn-foot {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--border-soft);
+  font-family: var(--font);
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+/* ---------- Empty state (nothing published yet) ---------- */
+.wn-empty { padding: 44px 24px; text-align: center; }
+.wn-empty__title {
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+.wn-empty__body {
+  font-family: var(--font);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+  margin: 0 auto;
+  max-width: 380px;
+}
+
+/* ---------- Dashboard strip ---------- */
+.wn-strip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 17px;
+  margin-bottom: 28px;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--t-fast);
+}
+.wn-strip:hover { background: var(--brand-soft); }
+.wn-strip__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  background: var(--brand-tint);
+  color: var(--brand-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.wn-strip__title {
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wn-strip__body {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 0;
+  line-height: 1.4;
+}
+.wn-strip__arrow { margin-left: auto; color: var(--text-3); font-size: 17px; flex-shrink: 0; }
+.wn-strip__read { display: none; }
+
+/* ---------- Unread markers — one localStorage key drives both ---------- */
+.wn-strip__new {
+  background: var(--brand);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  letter-spacing: 0.04em;
+}
+.wn-navlink { position: relative; }
+.wn-navlink__dot {
+  position: absolute;
+  top: -3px;
+  right: -9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+
+/* ---------- Mobile floor (≤700px) ---------- */
+@media (max-width: 700px) {
+  .wn-shell { padding: 16px 14px 64px; }
+  .wn-title { font-size: 21px; }
+  .wn-issue { padding: 16px 15px; }
+  .wn-past { padding: 14px 15px; flex-wrap: wrap; min-height: 44px; }
+  .wn-past__headline { margin-left: 0; flex-basis: 100%; }
+
+  /* Nav link hidden: a fourth item does not fit the actions row, and
+     .app-nav translates offscreen on scroll-down anyway. The dashboard
+     strip carries discovery here. (PRD §5.11.8) */
+  .wn-navlink { display: none; }
+
+  /* Strip stacks; the chevron becomes an explicit read affordance,
+     since a right-aligned arrow reads as decoration at this width. */
+  .wn-strip { flex-wrap: wrap; min-height: 44px; }
+  .wn-strip__arrow { display: none; }
+  .wn-strip__read {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-basis: 100%;
+    font-family: var(--font);
+    font-size: 12.5px;
+    color: var(--brand-strong);
+    margin-top: 4px;
+  }
+}
