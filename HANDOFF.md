@@ -6614,3 +6614,91 @@ Ran against this session's commits. Classification:
 Outcome: nothing appended. Awaiting Jenny's `add`/`skip` on the omission
 list; silence is `skip`.
 
+
+---
+
+## Session closeout — 2026-08-02 (Block 17 revision 3: authoring moves to Jenny)
+
+### Production state at session end
+
+`main` **8 commits ahead of `origin/main`**, all unpushed. Everything through
+`fa49a7b` (the nav-avatar fix) is live. Working tree clean.
+
+### What changed
+
+Revision 3 changes **who authors What's New content**, not how it renders.
+Jenny writes all copy, supplies all images, and assigns all version numbers,
+per version. Claude Code's involvement is mechanical: given copy and images,
+edit the constant and commit. It does not draft entry text and does not
+capture, generate or edit images.
+
+| Commit | Summary |
+|---|---|
+| `ba9cd06` | `style` — `.wn-headline` added; `.wn-empty` collapsed to the mockup's single rule. `.wn-past` kept. |
+| `b310c1a` | `feat` — headline renders inside the expanded issue; each fix carries a tag pill. |
+| `d78b790` | `docs` — `fixes[]` → `{ tag, text }`; v1.5 takes Jenny's verbatim copy, stays `draft`. |
+| `4483f14` | `feat` — badge warns when two entries share a version string. |
+| `21edef0` | `chore` — capture helper and Playwright removed. |
+| `ddd687a` | `docs` — PRD §5.11 updated in place; §5.11.6.1 and §5.11.6.2 deleted. |
+| `7780926` | `docs` — WORKFLOW four-step check → one-step notice. |
+| `03ab8c9` | `docs` — BLOCK_17_PLAN records revision 3. |
+
+### ⚠️ Addenda are no longer the working artifact
+
+The revised addenda in `~/Downloads/` predate everything that shipped, so each
+revision drags stale text forward. Re-merging rev 3 verbatim would have
+reverted §5.11.7 to git-gating, restored the false "cache-bust split three
+ways" claim, and reopened decisions 4 and 5. All three were caught and
+preserved.
+
+**The merged `PRD.md` §5.11 is the source of truth.** Future changes go
+straight into it — no more addendum round-trips.
+
+### Two constraints from hand-assigned version numbers
+
+1. **Never order or compare by parsing the version string** — string
+   comparison sorts v1.10 below v1.9. Order by array position or date.
+   Verified already satisfied: `whats-new-badge.js` uses inequality only, and
+   the page and strip order by array position.
+2. **Version strings must be unique** — the marker fires on
+   `stored !== newest`, so a duplicate silently skips an issue.
+   `whats-new-badge.js` now warns on load.
+
+### Session file — checked, clean
+
+`.wrangler/whats-new-session.json` (would have held a live session cookie in
+plaintext): **does not exist on disk, was never staged or committed on any
+ref** (`git log --all --full-history` empty for that path and for
+`.wrangler/*`), and the directory is gitignored. `--save-session` was never
+run. Nothing to remediate.
+
+### ⚠️ STILL OPEN — Cloudflare edge cache
+
+Block 16.9 remains **unclosed**. `/_dev/project-chat-mockup` still returns
+**200 with five real assignee names**. Origin 404s correctly; the edge holds a
+cached copy under `s-maxage=604800`, so it persists until **~2026-08-09**
+without a manual purge. Cloudflare → elinnoagent.com → Caching →
+Configuration → Purge Everything. Jenny's hands.
+
+### Open follow-ups
+
+1. **Cache purge** — above. Highest priority; open since 2026-08-02 12:58.
+2. **8 commits unpushed.**
+3. **v1.5 publication** — Jenny supplies `v1-5-whats-new.png` and
+   `v1-5-sync-now.png`, flips `status` to `published`, pushes. v1.4 and v1.3
+   stay published and become the collapsed archive rows beneath it.
+4. **Auto-sync claim unverified** — the overnight-refresh line was pulled from
+   v1.5 copy. The 2026-06-25 watch-item was never closed: re-run the
+   `last_sync_cursor` query and confirm it advanced past `2026-05-21` before
+   that claim ships to users.
+5. **Notification decision** — five named individuals in data publicly
+   reachable since 2026-08-02 12:58.
+
+### What's New notice (per the rule merged this session)
+
+User-visible this session: nothing new. The three page-level changes (headline
+in the issue, tagged fixes, footer removed) alter how the existing v1.4/v1.3
+entries render; v1.5 is still draft and invisible.
+
+Left out as internal: the badge duplicate-version warning, the capture-helper
+and Playwright removal, and all four doc updates.
