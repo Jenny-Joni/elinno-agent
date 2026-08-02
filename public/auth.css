@@ -3462,6 +3462,20 @@ table.users-table {
 }
 .wn-shot img { display: block; width: 100%; height: auto; border-radius: 8px; }
 
+/* Preview slot before the real screenshot lands. Deliberately plain: a drawn
+   approximation of the screen would eventually publish a preview showing
+   behaviour the product does not have. */
+.wn-shot--placeholder {
+  border-style: dashed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  font-family: var(--font);
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
 /* Tags extend the real .pill base. Deliberately NOT reusing
    .pill--role-admin / .pill--status-active, whose names would be
    misleading on a changelog. */

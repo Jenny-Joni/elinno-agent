@@ -88,11 +88,15 @@
         + '<span class="pill ' + tagClass + '">' + esc(f.tag || 'New') + '</span>'
         + '<h2 class="wn-feature__title">' + esc(f.title) + '</h2>'
         + '<p class="wn-feature__body">' + esc(f.body) + '</p>';
-      // Features carry a preview; fixes never do. A feature whose image has
-      // not been captured yet renders without one rather than with a broken
-      // <img> — the entry is simply not publishable until it lands.
+      // Features carry a preview; fixes never do. Until the real screenshot
+      // arrives the slot renders a labelled placeholder rather than a drawn
+      // approximation of the screen — an invented preview would eventually
+      // show behaviour the product does not have.
       if (f.image) {
         html += '<div class="wn-shot"><img src="' + esc(f.image) + '" alt="' + esc(f.alt || '') + '" /></div>';
+      } else {
+        html += '<div class="wn-shot wn-shot--placeholder">'
+          + '<span>Preview image coming shortly</span></div>';
       }
       return html + '</div>';
     }
