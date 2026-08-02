@@ -6507,3 +6507,110 @@ public/_dev/` returns nothing, all three files still on disk, and
    unless those deployments are purged in the Cloudflare dashboard —
    Jenny's hands (no CLI rollback/purge by Claude).
 
+---
+
+## Session closeout — 2026-08-02 (Block 16.9 exposure fix + Block 17 What's New)
+
+### Production state at session end
+
+`main` at `15fa73f`, **8 commits ahead of `origin/main`** — everything from
+`af3f470` onward is unpushed. Block 16.9 (`708c5ca`, `a7cab5c`) **was**
+pushed and is live. Working tree clean; `public/_dev/` now holds untracked
+mockups plus two verification harnesses, all covered by the new ignore rule.
+
+### ⚠️ BLOCKING — Cloudflare edge cache still serving the exposed data
+
+Block 16.9 is deployed but **not closed**. The origin 404s correctly; the
+edge is still serving a cached 200 with the assignee names in the body:
+
+- `curl .../_dev/project-chat-mockup` → **200**, 5 name matches
+- `curl .../_dev/project-chat-mockup?cb=123` → **404** (cache bypassed)
+- Response header: `cache-control: public, s-maxage=604800` — a **7-day**
+  edge TTL, so this does not expire on its own until ~2026-08-09.
+
+**Fix: Cloudflare dashboard → elinnoagent.com → Caching → Configuration →
+Purge Everything.** Jenny's hands; Claude has no credentials and production
+cache operations sit with deploy rollbacks. Confirm with
+`curl -sI https://elinnoagent.com/_dev/project-chat-mockup | head -1` → 404.
+
+Lesson worth carrying: on a `public/`-served project, untracking a file is
+three steps, not one — untrack, deploy, **purge**. A 7-day TTL means the
+data outlives the fix by a week otherwise.
+
+### What shipped
+
+| Commit | Summary |
+|---|---|
+| `708c5ca` | `fix` — untracked all three `_dev` mockups (`git rm --cached`, files kept on disk) + `public/_dev/` added to `.gitignore`. See the Block 16.9 section above. |
+| `a7cab5c` | `docs` — corrected the HANDOFF "intentionally untracked" claim and recorded the exposure. |
+| `af3f470` | `docs` — `BLOCK_17_PLAN.md`. |
+| `99cb4ad` | `feat` — `.wn-*` block appended to `auth.css` (260 lines, additive, no existing selector modified). |
+| `c68dd34` | `feat` — `_lib/whats-new-badge.js`, shared unread logic; one file, one script line per page. |
+| `31222b2` | `feat` — `_lib/whats-new-data.js`, content constant with `draft`/`published` status. v1.4 + v1.3 published, v1.5 draft. |
+| `74f6b7d` | `feat` — `/whats-new.html`. Auth-gated on `/api/me`; renders published entries only. |
+| `a2a5909` | `feat` — dashboard strip between greeting and Projects + nav link + cache-bust. |
+| `7353fea` | `feat` — nav link, badge modules and cache-bust across the other five authed pages. |
+| `15fa73f` | `docs` — merged both addenda into `PRD.md` §5.11 and `WORKFLOW.md`, with four corrections (see below). |
+
+### Four source-doc corrections, verified against the tree
+
+1. **Publication model.** The two addenda contradicted each other — PRD gated
+   publication on git, WORKFLOW on a status flag. Git-gating alone leaks a
+   half-written issue because closeouts push to `main` mid-week. Status flag
+   adopted; §5.11.5/§5.11.7 rewritten.
+2. **Cache-bust.** §5.11.12 claimed values were split three ways. They were
+   **uniform** at `2026-06-03-1`; the outlier `2026-06-01-2` is on
+   `_dev/components.html`, a dev gallery.
+3. **Six authed pages, not five.** `project.html` was missing from the source set.
+4. **Capture tooling.** §5.11.6.1's "existing headless tooling" is **Preview
+   MCP**. No `scripts/` capture helper exists and `package.json` has no
+   Playwright/Puppeteer — the helper is net-new.
+
+### Bug the preview caught (not review)
+
+`whats-new.html`'s inline script ran during parsing, **before** the deferred
+`whats-new-data.js` set `window.WHATS_NEW` — so every entry fell through to
+the empty state. The real page would have survived only on timing luck
+(`render()` sat behind a network round-trip). Fixed by gating on
+`DOMContentLoaded`. Verified by deriving a gate-free harness from the real
+file via string replacement, so the render code is identical by construction.
+
+### Verification performed
+
+Local static server, real `auth.css`. Page: v1.4 expanded, v1.3
+collapsed-and-expandable, **v1.5 draft absent from the DOM** (not merely
+hidden), empty state renders when nothing is published. Dashboard: strip
+between greeting and Projects; `New` pill + nav dot appear and clear
+**together** off one `localStorage` key. Mobile (375px): nav link hidden,
+strip stacks with the "Read what's new" affordance, 44px tap targets, no
+horizontal overflow. Busiest nav row (What's new + Cross-project + Admin +
+avatar + Log out) fits on one line at 1280px. No console errors.
+
+### ⚠️ Open follow-ups
+
+1. **Cache purge** — see BLOCKING above. Highest priority.
+2. **8 commits unpushed** — Block 17 is not on production.
+3. **Commit 8 deferred (DEFAULT mode)** — `scripts/` capture helper, seeded
+   local test user, two v1.5 preview images, then flip v1.5 to `published`.
+   Its own session. Until then What's New shows v1.4/v1.3 only, which is why
+   they were seeded published.
+4. **Prior Pages deployments + git history** still hold the `_dev` data —
+   see the Block 16.9 residual list.
+5. **Notification decision** — five named individuals appear in data that has
+   been publicly reachable since 2026-08-02 12:58. Jenny's call.
+
+### What's New check (per the rule merged this session)
+
+Ran against this session's commits. Classification:
+
+- **Feature** — the What's New feature itself. *Already captured* in the
+  seeded v1.5 draft entry ("What's new" + "Sync now"); no new item needed.
+- **Internal, proposed for omission** — Block 16.9 (`_dev` untracking +
+  ignore rule), `BLOCK_17_PLAN.md`, the addenda merge. No user-visible
+  product change. Block 16.9 is a data-exposure fix rather than a feature;
+  whether it warrants user communication is a notification question
+  (follow-up 5), not a changelog entry.
+
+Outcome: nothing appended. Awaiting Jenny's `add`/`skip` on the omission
+list; silence is `skip`.
+
