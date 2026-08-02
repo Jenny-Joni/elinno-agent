@@ -44,7 +44,7 @@ verification, enforced by the `public/_dev/` ignore rule added in Block 16.9.
 | Mockup CSS tokens exist? | Yes — a second `:root` at ~`auth.css:2402` defines `--brand`, `--text`, `--text-2/3`, `--brand-soft/tint/strong`, `--border(-soft)`, `--success(-tint)`, `--r-md/sm/pill`, `--font`, `--t-fast`, `--bg(-subtle)`. Distinct from the older `--color-*` set at `auth.css:13`. |
 | Referenced classes exist? | Yes — `.surface(--lg)`, `.eyebrow`, `.pill`, `.btn--ghost`, `.brandmark`, `.wordmark`, `.app-brand`. |
 | Dashboard nav static or JS? | **Static** (`dashboard.html:392`). `render()` builds only `#dashRoot` (line 621). Strip goes into `parts` between `renderGreeting` (611) and `renderProjectsSection` (619). |
-| Capture tooling exists? | **No.** `scripts/` holds only `delete-all-projects.sql` + `seed-admin.mjs`; no Playwright/Puppeteer in `package.json`. §5.11.6.1's "existing headless tooling" means **Preview MCP**; the helper is net-new. |
+| Capture tooling | **Not applicable as of revision 3.** Preview images are supplied by Jenny with the entry copy; Claude Code does not capture, generate or edit them. A helper was built and then removed once authoring moved. |
 | Bootstrap to replicate | `/_lib/no-zoom.js` (head, defer), `/_lib/sticky-topbar.js` (before `</body>`, defer); static nav with `#adminLink` (hidden→shown when `is_admin`), `#navUserAvatar`, `#logoutBtn`; identity from `/api/dashboard`; logout → `POST /api/logout`. |
 
 ---
@@ -68,8 +68,8 @@ carries `2026-05-26-1`; also immaterial). Correct §5.11.12 on merge.
 `project_settings`, `workspace_settings`, `admin` all carry `.app-nav-actions`.
 `project.html` was missing from the source set.
 
-**D. Capture tooling.** Correct §5.11.6.1's "existing headless tooling"
-reference to name Preview MCP, and state the `scripts/` helper is net-new.
+**D. Capture tooling.** Superseded by revision 3: §5.11.6.1 and §5.11.6.2
+are deleted outright, along with the helper they described.
 
 ---
 
@@ -88,7 +88,7 @@ ruling A:
 Seeded: **v1.5 `draft`** (features, pending preview images), **v1.4
 `published`**, **v1.3 `published`** (fix-only, no images needed). Page and
 strip render **latest published**, so the feature has day-one content without
-waiting on the capture helper.
+waiting on preview images.
 
 **`public/_lib/whats-new-badge.js`** — shared unread logic, following the
 existing `no-zoom.js` / `sticky-topbar.js` pattern: one file, one
@@ -103,8 +103,8 @@ identity from the existing endpoint (**no new API endpoint** — §5.11.11).
 Renders published entries: latest expanded, earlier collapsed to `.wn-past`
 rows with expand JS, `.wn-foot`. Empty state per the copy section below.
 
-*(deferred to commit 8)* **`scripts/capture-whats-new.mjs`** — headless
-element-capture helper (fixed viewport, CSS selector, output filename).
+*(removed in revision 3)* A `scripts/` capture helper was built and then
+deleted; images are Jenny's to supply.
 
 ### Edited files (all additive)
 
@@ -168,7 +168,7 @@ avoid apologising for a gap, matching §5.11.4's "gaps read as normal."
 No crypto, OAuth, webhook, project-scoping, or schema-migration surface is
 touched, so the core feature is **AUTO-eligible**. Unread state is
 `localStorage` (§5.11.10) — **no DDL, no migration**. The only sensitive piece
-is the capture helper's local seeded auth.
+was the capture helper's local seeded auth; that step no longer exists.
 
 | # | Commit | Mode | Notes |
 |---|---|---|---|
@@ -179,21 +179,21 @@ is the capture helper's local seeded auth.
 | 5 | `whats-new.html` — page, nav, empty state, badge include | AUTO | **empty-state copy gated** |
 | 6 | `dashboard.html` — nav link, `renderWhatsNewStrip()`, badge, cache-bust | AUTO | **strip empty copy gated** |
 | 7 | Nav link + badge + cache-bust across the other five authed pages | AUTO | one commit |
-| 8 | *(deferred)* capture helper + seeded local user + v1.5 images → flip v1.5 `published` | **DEFAULT** | local seeded auth + real-data-leak rules |
+| 8 | *(removed in revision 3)* — Jenny supplies images and flips `status` herself | — | no capture step exists |
 | 9 | Merge PRD addendum → §5.11 (rulings A–D) + WORKFLOW addendum; HANDOFF closeout | AUTO (doc-only) | HANDOFF is its own separate commit |
 
 **Publishing** — flipping a draft visible — is a separate later push to `main`
 by Jenny. Claude cannot publish; the deny hook blocks it.
 
-### Capture-helper deferral
+### Revision 3 — authoring moves to Jenny
 
-Deferred to commit 8, conditional on the seeding decision above. Safe **because**
-commits 3 and 5 ship published v1.4/v1.3, so the page has content on day one.
-The helper, a seeded local test user, and the first images are prerequisites
-only for the v1.5 *feature* entry — not for shipping the infrastructure. Any
-feature entry without an image is noted as a gap and is not publishable.
+Copy, images and version numbers are Jenny's, per version. Claude Code edits
+the content constant mechanically and does nothing else. The capture helper,
+its Playwright dependency and the seeded-local-user prerequisite are all
+removed. Two constraints follow from hand-assigned version numbers: never
+order or compare by parsing the version string, and versions must stay
+unique — `whats-new-badge.js` warns on duplicates.
 
----
 
 ## Open decisions — resolved
 
