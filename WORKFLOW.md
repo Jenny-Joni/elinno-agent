@@ -276,64 +276,37 @@ Doc-only work uses a lightweight version of the three phases: a one-line plan ("
 - HANDOFF.md updated at every session close: last-updated date, current block status, new env vars or services, new follow-ups, anything the next session's Phase 0 ritual needs to find.
 - Honor natural break points. When a plan calls one out, don't stretch the session to push past it.
 - The session-close HANDOFF update is its own doc-only commit.
-- Before writing the HANDOFF closeout, run the **What's New check** (below). It happens once per session, at close, and never mid-session.
+- Before writing the HANDOFF closeout, give the **What's New notice** (below). Once per session, at close, never mid-session.
 
-### The What's New check
+### The What's New notice
 
-At session close, before the HANDOFF closeout commit, Claude Code reviews what shipped this session and asks whether any of it belongs in What's New (PRD §5.11). Claude Code proposes; Jenny decides. Claude Code never adds an entry unprompted and never publishes one.
+At session close, before the HANDOFF closeout commit, Claude Code names what shipped this session that a user would notice. That is the whole step.
 
-**The four steps**
+**What it does.** One short list — the user-facing items from this session's commits, in plain language, plus a one-line note of anything it judged internal and left out.
 
-1. **Classify.** Claude Code sorts the session's commits into three buckets: *feature* (a user would notice and might use differently), *fix* (a user would notice something stopped being wrong), and *internal* (no user-visible effect).
+**What it does not do**
 
-2. **Draft.** Claude Code writes preview text for the feature and fix items — the actual copy that would appear on the page, in user-facing register, not a summary of the commits.
+- It does not draft entry copy. Jenny writes that.
+- It does not capture, generate, or request images. Jenny supplies those.
+- It does not touch the content constant. Nothing is written.
+- It does not ask for a decision. There is no `add` or `skip`; the notice is informational and the session ends whether or not Jenny responds.
 
-3. **Present.** Claude Code shows the draft, plus a one-line list of what it classified as internal and is proposing to omit. Jenny can pull anything out of that list.
+**Why it exists.** Reconstructing a version's contents from HANDOFF three weeks later is slow and lossy. The notice costs nothing and captures the work while it is fresh. Jenny writes and publishes on her own schedule.
 
-4. **Await the word.** Jenny replies `add` or `skip`, per item or for the batch. On `add`, Claude Code appends to the current draft entry. On `skip`, nothing is written. Silence is `skip`.
+**Register.** Plain description, not commit log. No SHAs, file paths, function or table names, block numbers, or internal vocabulary (`entities`, `executor`, `carve-out`, `Hyperdrive`). "Sprint View now matches the board for carried-over issues," not "`mapIssueToEntity` took `sprintArray[0]`."
 
-**Register rules for the preview text**
+### Authoring and publication
 
-The draft is user-facing copy, not a changelog of the work. It must not contain commit SHAs, file paths, function or table names, block numbers, or internal vocabulary (`entities`, `executor`, `carve-out`, `Hyperdrive`).
+Both are Jenny's, and neither runs through Claude Code.
 
-Write what changed from the user's side of the screen:
-
-| Not this | This |
-|---|---|
-| `mapIssueToEntity` took `sprintArray[0]`, so carried-over issues were filed under a closed sprint | Issues carried over from an earlier sprint were counted against the wrong sprint. Sprint View now matches your board. |
-| Added `functions/api/sync-all.js` with `requireWorkspaceAdmin` gating | Refresh every connected source across all your projects in one go. Admins only. |
-
-**Feature items need a preview image.** Per PRD §5.11.6, features carry a cropped screenshot and fixes do not. If a feature item is added and no image exists yet, Claude Code notes the gap; the entry is not publishable until the image lands.
-
-### Capture step (feature items only)
-
-When Jenny says `add` on a feature item, Claude Code offers to capture the preview. Runs only on `add`, never speculatively.
-
-1. Claude Code names the target: the page, the CSS selector it intends to capture, and the output filename (`v{major}-{minor}-{slug}.png`).
-2. On Jenny's go-ahead, it runs the `scripts/` capture helper against a local `wrangler pages dev` with seeded data — **never against production, and never with Jenny's session**. Credential handling stays a hard limit.
-3. Claude Code surfaces the resulting PNG for review.
-4. Jenny approves or asks for a re-shoot. The image is not committed until approved.
-
-**Claude Code captures; it never generates.** No drawn approximations, no synthesised mocks. If a page can't be rendered, the answer is "no image yet", not an invented one. (PRD §5.11.6.1.)
-
-**Check every shot for names.** Real project names, Jira keys, and assignee names must not appear. Seeded data plus a tight crop normally handles this; it is confirmed per image, not assumed.
-
-### Draft state and publication
-
-**Adding is not publishing.** These are two separate commands, usually days apart.
-
-Entries carry a status. The page renders published entries only, so a draft is invisible to users even when it is sitting on `main`. This matters: session closeouts push to `main`, so without the flag a half-assembled weekly issue would go live mid-week.
-
-| | Trigger | Effect |
+| | Who | What |
 |---|---|---|
-| **Add** | Jenny says `add` at session close | Item appended to the current draft entry. Not visible to users. |
-| **Publish** | Jenny says so explicitly, separately | Version number assigned, status flipped to published, entry goes live on next deploy. |
+| Copy | Jenny | Entry text for each version, written when she chooses |
+| Images | Jenny | Cropped PNGs per PRD §5.11.6, supplied with the copy |
+| Version number | Jenny | Assigned by hand per issue (PRD §5.11.3) |
+| Publication | Jenny | A normal push to `main`, already behind the per-push approval gate |
 
-**Version numbers are assigned at publish, not at draft.** Several sessions feed one weekly issue; whether that issue is a minor or a patch bump (PRD §5.11.3) is not knowable until the week closes.
-
-**The draft entry accumulates.** A second session in the same week appends to the existing draft rather than creating a new one. If no draft entry exists, `add` creates one.
-
-**Publishing is a normal push to `main`** and therefore already sits behind the per-push approval gate. Claude Code cannot publish; the deny hook blocks pushes to `main`.
+Claude Code's only involvement is mechanical: given copy and images, it edits the content constant and commits. It does not decide what goes in, does not write the words, and cannot publish — the deny hook blocks pushes to `main`.
 
 ### Commit treatment
 
@@ -341,12 +314,14 @@ Changes to the What's New content constant are **doc-only commits** under the ex
 
 The What's New commit is separate from the HANDOFF closeout commit. Two different audiences, two different registers.
 
+Note the one asymmetry in that classification: this "doc-only" file renders to every user. A commit that flips an entry's `status` to `published` is a user-facing change wearing a doc-only label, and does not get doc-only treatment.
+
 ### What this does not do
 
-- It does not make What's New automatic. Every entry passes through an explicit `add`.
-- It does not let Claude Code decide what users see. Classification is a proposal; the internal-omissions list is shown precisely so the judgment is reviewable.
-- It does not publish. Publication is a separate command on a separate day.
-- It does not run mid-session. One check, at close.
+- It does not make What's New automatic. Every entry is written by hand.
+- It does not let Claude Code decide what users read. The notice is a list of what shipped; the copy is Jenny's.
+- It does not publish. Publication is Jenny's push, on her own schedule.
+- It does not run mid-session. One notice, at close.
 - It does not run on doc-only sessions. Nothing user-facing ships.
 
 ---
