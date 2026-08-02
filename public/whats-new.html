@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <script src="/_lib/no-zoom.js" defer></script>
+  <title>What's new — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <link rel="stylesheet" href="/auth.css?v=2026-08-02-1" />
+</head>
+<!-- data-whats-new-page: whats-new-badge.js reads this to mark the release
+     read on visit, rather than depending on the pathname. -->
+<body data-whats-new-page>
+
+  <nav class="app-nav" data-sticky-topbar>
+    <div class="app-nav-inner">
+      <a href="/dashboard.html" class="app-brand" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
+        <span class="brandmark"></span>
+        <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
+      </a>
+      <div class="app-nav-actions">
+        <a href="/whats-new.html" class="wn-navlink is-active">What's new<span class="wn-navlink__dot" style="display:none;"></span></a>
+        <a id="adminLink" href="/admin.html" style="display:none;">Admin</a>
+        <span id="navUserAvatar" class="pcard__avatar" style="width:28px;height:28px;background:var(--brand);color:#fff;font-size:11px;border-radius:50%;" title=""></span>
+        <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main style="background:var(--bg-subtle);min-height:calc(100vh - 70px);">
+    <div class="wn-shell">
+
+      <div class="eyebrow">
+        <span class="eyebrow__label">What's new</span>
+        <span class="eyebrow__rule"></span>
+      </div>
+      <h1 class="wn-title">What's <strong>new</strong></h1>
+      <p class="wn-sub">A short weekly summary of what changed in Elinno Agent.</p>
+
+      <div id="wnRoot"></div>
+
+    </div>
+  </main>
+
+  <script src="/_lib/sticky-topbar.js" defer></script>
+  <script src="/_lib/whats-new-data.js" defer></script>
+  <script src="/_lib/whats-new-badge.js" defer></script>
+
+  <script>
+  (function () {
+    'use strict';
+
+    function $(s, root) { return (root || document).querySelector(s); }
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function initial(s) {
+      return (String(s || '?').trim()[0] || '?').toUpperCase();
+    }
+
+    function gotoLogin() {
+      location.replace('/?next=' + encodeURIComponent(location.pathname + location.search));
+    }
+
+    // "2026-08-02" -> "Week of August 2, 2026". Parsed as UTC parts rather
+    // than via Date(str) so the label can't slide a day across timezones.
+    function fmtWeekOf(iso) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+      if (!m) return '';
+      const months = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+      return 'Week of ' + months[Number(m[2]) - 1] + ' ' + Number(m[3]) + ', ' + m[1];
+    }
+
+    const TAG_CLASS = { New: 'wn-tag--new', Improved: 'wn-tag--improved', Fixed: 'wn-tag--fixed' };
+
+    function renderFeature(f) {
+      const tagClass = TAG_CLASS[f.tag] || 'wn-tag--new';
+      let html = '<div class="wn-feature">'
+        + '<span class="pill ' + tagClass + '">' + esc(f.tag || 'New') + '</span>'
+        + '<h2 class="wn-feature__title">' + esc(f.title) + '</h2>'
+        + '<p class="wn-feature__body">' + esc(f.body) + '</p>';
+      // Features carry a preview; fixes never do. A feature whose image has
+      // not been captured yet renders without one rather than with a broken
+      // <img> — the entry is simply not publishable until it lands.
+      if (f.image) {
+        html += '<div class="wn-shot"><img src="' + esc(f.image) + '" alt="' + esc(f.alt || '') + '" /></div>';
+      }
+      return html + '</div>';
+    }
+
+    function renderIssueBody(entry) {
+      let html = '';
+      (entry.features || []).forEach(f => { html += renderFeature(f); });
+      const fixes = entry.fixes || [];
+      if (fixes.length) {
+        html += '<p class="wn-fixes__head">Also fixed</p>';
+        fixes.forEach(fix => {
+          html += '<div class="wn-fix"><i class="ti ti-check" aria-hidden="true"></i><span>'
+            + esc(fix) + '</span></div>';
+        });
+      }
+      return html;
+    }
+
+    function renderLatest(entry) {
+      return '<section class="surface surface--lg wn-issue">'
+        + '<div class="wn-issue__head">'
+        + '<span class="wn-version">' + esc(entry.version) + '</span>'
+        + '<span class="wn-date">' + esc(fmtWeekOf(entry.date)) + '</span>'
+        + '<span class="pill wn-tag--improved">Latest</span>'
+        + '</div>'
+        + renderIssueBody(entry)
+        + '</section>';
+    }
+
+    // Earlier issues collapse to one row each, so the page can't grow an
+    // unbounded scroll as issues accumulate. Expanding reveals the full
+    // issue body in place.
+    function renderPast(entry, idx) {
+      return '<button class="wn-past" type="button" aria-expanded="false" aria-controls="wn-past-body-' + idx + '" data-idx="' + idx + '">'
+        + '<span class="wn-past__version">' + esc(entry.version) + '</span>'
+        + '<span class="wn-past__date">' + esc(fmtWeekOf(entry.date)) + '</span>'
+        + '<span class="wn-past__headline">' + esc(entry.headline)
+        + ' <i class="ti ti-chevron-down" aria-hidden="true" style="font-size:15px;"></i></span>'
+        + '</button>'
+        + '<section class="surface surface--lg wn-issue" id="wn-past-body-' + idx + '" hidden>'
+        + renderIssueBody(entry)
+        + '</section>';
+    }
+
+    function renderEmpty() {
+      return '<section class="surface surface--lg wn-empty">'
+        + '<p class="wn-empty__title">Nothing new just yet</p>'
+        + '<p class="wn-empty__body">When we ship something you&rsquo;d notice, it&rsquo;ll show up here. '
+        + 'Check back after the next update.</p>'
+        + '</section>';
+    }
+
+    function render() {
+      const all = Array.isArray(window.WHATS_NEW) ? window.WHATS_NEW : [];
+      const published = all.filter(e => e && e.status === 'published');
+      const root = $('#wnRoot');
+
+      if (!published.length) {
+        root.innerHTML = renderEmpty();
+        return;
+      }
+
+      let html = renderLatest(published[0]);
+      published.slice(1).forEach((entry, i) => { html += renderPast(entry, i + 1); });
+      html += '<p class="wn-foot">Only user-facing changes are listed here.</p>';
+      root.innerHTML = html;
+
+      root.addEventListener('click', e => {
+        const btn = e.target.closest('.wn-past');
+        if (!btn) return;
+        const body = $('#wn-past-body-' + btn.getAttribute('data-idx'));
+        if (!body) return;
+        const open = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+        body.hidden = open;
+        const chevron = $('.ti-chevron-down, .ti-chevron-up', btn);
+        if (chevron) {
+          chevron.classList.toggle('ti-chevron-down', open);
+          chevron.classList.toggle('ti-chevron-up', !open);
+        }
+      });
+    }
+
+    function start() {
+      // Auth gate — same pattern as admin.html. /api/me returns
+      // { user: null } when unauthenticated.
+      fetch('/api/me').then(r => r.json()).then(d => {
+        if (!d.user) { gotoLogin(); return; }
+        const av = $('#navUserAvatar');
+        av.textContent = initial(d.user.display_name || d.user.email);
+        av.title = d.user.display_name ? d.user.display_name + ' · ' + d.user.email : d.user.email;
+        if (d.user.is_admin) $('#adminLink').style.display = '';
+        render();
+      }).catch(() => gotoLogin());
+
+      $('#logoutBtn').addEventListener('click', async () => {
+        await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+        location.replace('/');
+      });
+    }
+
+    // This block is inline, so it runs DURING parsing — before the deferred
+    // whats-new-data.js has set window.WHATS_NEW. Deferred scripts all run
+    // before DOMContentLoaded, so waiting for it is what guarantees the data
+    // is there. Without this, render() reads an undefined list and falls
+    // through to the empty state.
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', start);
+    } else {
+      start();
+    }
+  })();
+  </script>
+</body>
+</html>
