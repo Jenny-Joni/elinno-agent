@@ -73,6 +73,35 @@
     return readStored() !== latest.version;
   }
 
+  // Version numbers are assigned by hand (PRD §5.11.3), so nothing stops two
+  // entries carrying the same string. That is quietly destructive: the marker
+  // fires on `stored !== newest`, so a reader who saw the first issue is
+  // already storing that version and never gets a marker for the second.
+  // Warn rather than throw — a duplicate should not blank the page — and warn
+  // on load so it surfaces on the preview deploy, before publication.
+  function warnOnDuplicateVersions() {
+    var list = window.WHATS_NEW;
+    if (!list || !list.length || !window.console || !console.warn) return;
+    var seen = {};
+    var dupes = [];
+    for (var i = 0; i < list.length; i++) {
+      var v = list[i] && list[i].version;
+      if (!v) continue;
+      if (seen[v]) {
+        if (dupes.indexOf(v) === -1) dupes.push(v);
+      } else {
+        seen[v] = true;
+      }
+    }
+    if (dupes.length) {
+      console.warn(
+        "What's New: duplicate version string(s) " + dupes.join(', ') +
+        ' — each issue needs a unique version or the unread marker will ' +
+        'skip one of them.'
+      );
+    }
+  }
+
   function onWhatsNewPage() {
     if (document.body && document.body.hasAttribute('data-whats-new-page')) return true;
     return /^\/whats-new(\.html)?\/?$/.test(window.location.pathname);
@@ -114,6 +143,7 @@
   };
 
   function init() {
+    warnOnDuplicateVersions();
     if (onWhatsNewPage()) {
       // Visiting the page IS reading it — both markers clear together.
       markRead();
