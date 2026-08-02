@@ -3427,6 +3427,16 @@ table.users-table {
 }
 .wn-issue__head .pill { margin-left: auto; }
 
+/* Headline, inside the expanded issue under the version row. The same
+   string also carries the collapsed archive rows and the dashboard strip. */
+.wn-headline {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-2);
+  margin: 0 0 22px;
+}
+
 /* ---------- Feature: tag + title + explanation + preview ---------- */
 .wn-feature { margin-bottom: 24px; }
 .wn-feature:last-of-type { margin-bottom: 0; }
@@ -3509,21 +3519,12 @@ table.users-table {
 }
 
 /* ---------- Empty state (nothing published yet) ---------- */
-.wn-empty { padding: 44px 24px; text-align: center; }
-.wn-empty__title {
+.wn-empty {
+  padding: 40px 22px;
+  text-align: center;
   font-family: var(--font);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-  margin: 0 0 6px;
-}
-.wn-empty__body {
-  font-family: var(--font);
-  font-size: 13.5px;
-  line-height: 1.55;
-  color: var(--text-2);
-  margin: 0 auto;
-  max-width: 380px;
+  font-size: 14px;
+  color: var(--text-3);
 }
 
 /* ---------- Dashboard strip ---------- */
