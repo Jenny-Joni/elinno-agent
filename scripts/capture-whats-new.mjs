@@ -18,6 +18,14 @@
 //     --selector ".wn-issue" \
 //     --out v1-5-whats-new.png
 //
+// Every page worth capturing sits behind login, so first save a session
+// once (opens a real browser window; you sign in yourself):
+//
+//   node scripts/capture-whats-new.mjs --save-session \
+//     --url http://localhost:8788/
+//
+// then capture as often as you like with --session.
+//
 // Options:
 //   --url        Page to capture. LOCALHOST ONLY (see below).
 //   --selector   CSS selector of the element to crop to.
@@ -29,6 +37,18 @@
 //   --scale      Device scale factor. Default: 2 (retina-crisp at half size)
 //   --wait       Extra settle time in ms after the selector appears. Default: 400
 //   --full       Capture the whole page instead of an element (discouraged).
+//   --session    Path to a saved session. Default: .wrangler/whats-new-session.json
+//   --save-session
+//                Open a visible browser, wait while you sign in, then save
+//                the session and exit. Captures nothing.
+//
+// SESSIONS AND CREDENTIALS. This script never asks for, stores, or types a
+// password. --save-session opens a real browser window and waits: you sign
+// in to the LOCAL instance with the LOCAL seeded test user, by hand, then
+// press Enter. Only the resulting session state is written, into
+// .wrangler/ (already gitignored, alongside wrangler's own local state).
+// Seeding that local user is likewise yours to run — generating credentials
+// is a hard limit in .claude/settings.json.
 //
 // LOCALHOST ONLY — this is enforced, not advisory. Every page worth
 // capturing sits behind login; credential handling is a hard limit in
@@ -46,8 +66,9 @@
 // would eventually publish a preview showing behaviour the product lacks.
 
 import { chromium } from 'playwright';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, access } from 'node:fs/promises';
 import path from 'node:path';
+import readline from 'node:readline/promises';
 
 function parseArgs(argv) {
   const out = {};
@@ -86,6 +107,45 @@ function assertLocal(rawUrl) {
 }
 
 const args = parseArgs(process.argv);
+const sessionPath = args.session
+  ? String(args.session)
+  : path.join('.wrangler', 'whats-new-session.json');
+
+// ── --save-session ────────────────────────────────────────────────────────
+// Opens a visible browser and waits while you sign in by hand. No password
+// is read, prompted for, or stored by this script — only the resulting
+// session state, into gitignored .wrangler/.
+if (args['save-session']) {
+  if (!args.url) {
+    console.error('--save-session needs --url (e.g. http://localhost:8788/)');
+    process.exit(2);
+  }
+  try {
+    assertLocal(args.url);
+  } catch (err) {
+    console.error(`✗ ${err.message}`);
+    process.exit(2);
+  }
+
+  await mkdir(path.dirname(sessionPath), { recursive: true });
+  const b = await chromium.launch({ headless: false });
+  const ctx = await b.newContext({ viewport: { width: 1280, height: 800 } });
+  const pg = await ctx.newPage();
+  await pg.goto(args.url, { waitUntil: 'domcontentloaded' }).catch(() => {});
+
+  console.log('\nA browser window is open.');
+  console.log('Sign in to the LOCAL instance with your LOCAL seeded test user.');
+  console.log('This script does not see, prompt for, or store your password.\n');
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  await rl.question('Press Enter once you are signed in… ');
+  rl.close();
+
+  await ctx.storageState({ path: sessionPath });
+  await b.close();
+  console.log(`✓ session saved to ${sessionPath} (gitignored)`);
+  console.log('  Re-run --save-session whenever it expires.');
+  process.exit(0);
+}
 
 if (!args.url || !args.out || (!args.selector && !args.full)) {
   console.error(
@@ -125,12 +185,29 @@ const outPath = path.join(dir, outName);
 
 await mkdir(dir, { recursive: true });
 
+// Reuse a saved session if one exists. Absent, the capture still runs —
+// unauthenticated pages work fine — and the redirect guard below will say
+// plainly if the target needed a session after all.
+let storageState;
+try {
+  await access(sessionPath);
+  storageState = sessionPath;
+  console.log(`· using session ${sessionPath}`);
+} catch {
+  if (args.session) {
+    console.error(`✗ session file not found: ${sessionPath}`);
+    console.error('  Create one with --save-session, or drop --session.');
+    process.exit(2);
+  }
+}
+
 const browser = await chromium.launch();
 const context = await browser.newContext({
   viewport: { width, height },
   deviceScaleFactor: scale,
   // No animation mid-shot, and it matches the app's own reduced-motion path.
   reducedMotion: 'reduce',
+  ...(storageState ? { storageState } : {}),
 });
 const page = await context.newPage();
 
