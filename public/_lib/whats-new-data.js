@@ -86,25 +86,9 @@ window.WHATS_NEW = [
       { tag: 'Fixed', text: 'A sprint that had already finished could keep showing as active. Projects with no running sprint now say so.' },
       { tag: 'New', text: "Project cards show when that project's data was last synced." }
     ]
-  },
-  {
-    version: 'v1.4',
-    date: '2026-05-23',
-    status: 'published',
-    headline: 'A new look across every screen.',
-    features: [],
-    fixes: [
-      { tag: 'Improved', text: 'Every screen has been redesigned — clearer type, calmer colours, and layouts that hold up on a phone.' }
-    ]
-  },
-  {
-    version: 'v1.3',
-    date: '2026-05-20',
-    status: 'published',
-    headline: 'Ask questions that span more than one project.',
-    features: [],
-    fixes: [
-      { tag: 'New', text: 'Start a chat that draws on every project in your workspace at once, instead of asking each one separately.' }
-    ]
   }
+  // v1.4 and v1.3 were removed on 2026-08-03 — What's New starts at v1.5.
+  // Their copy is recoverable from git history if they are ever wanted back.
+  // The collapsed archive-row rendering stays in whats-new.html and returns
+  // on its own the moment a second entry is published above this one.
 ];
