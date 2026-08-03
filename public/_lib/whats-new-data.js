@@ -62,9 +62,10 @@ window.WHATS_NEW = [
         title: "What's new",
         body: "This page. Every week we'll post a short summary of what's been added, changed or fixed — new features get a brief explanation and a preview, smaller fixes get a one-line mention. Find it any time from the top nav.",
         // Real screenshot pending. Published without one by Jenny's explicit
-        // call; the slot shows a labelled placeholder until the PNG lands at
-        // /whats-new/v1-5-whats-new.png.
+        // call; the slot shows the named stand-in wireframe until the PNG
+        // lands at /whats-new/v1-5-whats-new.png.
         image: null,
+        placeholder: 'whats-new',
         alt: "The What's new page showing the latest release."
       },
       {
@@ -73,6 +74,7 @@ window.WHATS_NEW = [
         body: 'Refresh every connected source across all your projects in one go, instead of opening each project and syncing it separately. The button sits in the header on the Projects page. Admins only.',
         // Real screenshot pending — see the note above.
         image: null,
+        placeholder: 'sync-now',
         alt: 'The Projects page header with the Sync now button.'
       }
     ],

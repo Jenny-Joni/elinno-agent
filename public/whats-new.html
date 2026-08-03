@@ -82,6 +82,28 @@
 
     const TAG_CLASS = { New: 'wn-tag--new', Improved: 'wn-tag--improved', Fixed: 'wn-tag--fixed' };
 
+    // Stand-in wireframes for features whose screenshot has not arrived. Kept
+    // as markup here rather than in the content constant, so that file stays
+    // copy-only; an entry just names which one it wants. Each is schematic on
+    // purpose — no product copy, nothing that could pass for a real screen.
+    const PLACEHOLDER = {
+      'whats-new':
+        '<div class="wn-mini">'
+        + '<div class="wn-mini__eyebrow">What\'s new</div>'
+        + '<p class="wn-mini__title">What\'s <strong>new</strong></p>'
+        + '<div class="wn-mini__row"><span class="wn-mini__tag">New</span><span class="wn-mini__bar"></span></div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__tag">New</span><span class="wn-mini__bar" style="width:70%;flex:none;"></span></div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__tag wn-mini__tag--grey">Fixed</span><span class="wn-mini__bar" style="width:55%;flex:none;"></span></div>'
+        + '</div>',
+      'sync-now':
+        '<div class="wn-mini wn-mini--bar-row">'
+        + '<span class="wn-mini__label">Projects</span>'
+        + '<span class="wn-mini__btn">Reorder</span>'
+        + '<span class="wn-mini__btn">New project</span>'
+        + '<span class="wn-mini__btn wn-mini__btn--primary">Sync now</span>'
+        + '</div>'
+    };
+
     function renderFeature(f) {
       const tagClass = TAG_CLASS[f.tag] || 'wn-tag--new';
       let html = '<div class="wn-feature">'
@@ -89,14 +111,14 @@
         + '<h2 class="wn-feature__title">' + esc(f.title) + '</h2>'
         + '<p class="wn-feature__body">' + esc(f.body) + '</p>';
       // Features carry a preview; fixes never do. Until the real screenshot
-      // arrives the slot renders a labelled placeholder rather than a drawn
-      // approximation of the screen — an invented preview would eventually
-      // show behaviour the product does not have.
+      // arrives the slot shows a schematic wireframe plus an explicit caption
+      // saying so. The wireframe is abstract by design — grey bars, no product
+      // copy — so it reads as a stand-in, not as a screenshot.
       if (f.image) {
         html += '<div class="wn-shot"><img src="' + esc(f.image) + '" alt="' + esc(f.alt || '') + '" /></div>';
-      } else {
-        html += '<div class="wn-shot wn-shot--placeholder">'
-          + '<span>Preview image coming shortly</span></div>';
+      } else if (f.placeholder && PLACEHOLDER[f.placeholder]) {
+        html += '<div class="wn-shot">' + PLACEHOLDER[f.placeholder]
+          + '<p class="wn-shot__cap">Placeholder &mdash; real screenshot goes here</p></div>';
       }
       return html + '</div>';
     }

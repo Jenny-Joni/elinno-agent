@@ -267,7 +267,7 @@ R2 was considered and rejected: it would allow publishing an image without a dep
 
 **A feature entry is not publishable without its image.** If copy arrives without one, the entry stays `draft` — unless Jenny explicitly chooses to publish ahead of the screenshot, in which case the preview slot renders a labelled placeholder until the PNG lands. v1.5 shipped this way on 2026-08-02.
 
-The placeholder is deliberately plain text, never a drawn approximation of the screen. An invented preview would eventually publish an image showing behaviour the product does not have, which is the failure this section exists to prevent.
+The placeholder is a **schematic wireframe** — grey bars, no product copy, captioned "Placeholder — real screenshot goes here". It is deliberately abstract so it reads as a stand-in rather than as a picture of the screen. A realistic drawn approximation is not acceptable: it would eventually publish a preview showing behaviour the product does not have, which is the failure this section exists to prevent. Placeholder markup lives in `whats-new.html`, keyed by a `placeholder` field on the feature, so the content constant stays copy-only.
 
 #### 5.11.7 Publication workflow
 
