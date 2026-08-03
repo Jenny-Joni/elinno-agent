@@ -76,7 +76,14 @@ export async function onRequestGet({ request, env }) {
              logo_r2_key,
              sort_position,
              created_at,
-             updated_at
+             updated_at,
+             -- Latest successful sync across this project's live connections,
+             -- so the card can show data freshness (updated by "Sync now" /
+             -- the cron) rather than the project row's own updated_at.
+             -- Mirrors the same subquery in functions/api/projects/index.js;
+             -- the two surfaces label this identically and must agree.
+             (SELECT MAX(c.last_sync_at) FROM connections c
+               WHERE c.project_id = projects.id AND c.deleted_at IS NULL) AS last_sync_at
         FROM projects
        WHERE deleted_at IS NULL
        ORDER BY sort_position ASC NULLS LAST, updated_at DESC, id DESC
@@ -272,6 +279,9 @@ export async function onRequestGet({ request, env }) {
           : null,
         created_at: p.created_at,
         updated_at: p.updated_at,
+        // Data freshness for the card's "Updated …" stamp. NULL when the
+        // project has never synced; the frontend falls back to updated_at.
+        last_sync_at: p.last_sync_at,
         has_jira: hasJira,
         jira_active_sprint: jiraActiveSprint,
       };

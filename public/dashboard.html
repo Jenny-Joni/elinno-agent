@@ -573,7 +573,13 @@
       const sources = hasJira
         ? jiraChip()
         : '<span class="srcchip srcchip--none">No sources yet</span>';
-      const updated = p.updated_at ? esc(fmtRelative(p.updated_at)) : '';
+      // Prefer the latest connector sync so "Updated" means the project's
+      // DATA is fresh, not that its row was touched (a rename, a logo, a
+      // reorder all bump updated_at). Falls back to updated_at when nothing
+      // has ever synced. Matches projects.html, which already did this —
+      // the two surfaces were showing different numbers under one label.
+      const stampTs = p.last_sync_at || p.updated_at;
+      const updated = stampTs ? esc(fmtRelative(stampTs)) : '';
       // Prefer slug routing; fall back to legacy ?id= for safety if slug is somehow missing.
       const cardHref = p.slug ? '/project/' + esc(p.slug) : '/project.html?id=' + esc(p.id);
       // Block 15.2: render uploaded logo when present, else initial-letter.
