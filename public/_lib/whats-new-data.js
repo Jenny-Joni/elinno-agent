@@ -52,7 +52,7 @@
 */
 window.WHATS_NEW = [
   {
-    version: 'v1.5',
+    version: 'v1.8',
     date: '2026-08-02',
     status: 'published',
     headline: 'Sprint numbers now match your board, and you can refresh every connection at once.',
@@ -63,7 +63,7 @@ window.WHATS_NEW = [
         body: "This page. Every week we'll post a short summary of what's been added, changed or fixed — new features get a brief explanation and a preview, smaller fixes get a one-line mention. Find it any time from the top nav.",
         // Real screenshot pending. Published without one by Jenny's explicit
         // call; the slot shows the named stand-in wireframe until the PNG
-        // lands at /whats-new/v1-5-whats-new.png.
+        // lands at /whats-new/v1-8-whats-new.png.
         image: null,
         placeholder: 'whats-new',
         alt: "The What's new page showing the latest release."
@@ -87,7 +87,7 @@ window.WHATS_NEW = [
       { tag: 'New', text: "Project cards show when that project's data was last synced." }
     ]
   }
-  // v1.4 and v1.3 were removed on 2026-08-03 — What's New starts at v1.5.
+  // v1.4 and v1.3 were removed on 2026-08-03 — What's New starts at v1.8.
   // Their copy is recoverable from git history if they are ever wanted back.
   // The collapsed archive-row rendering stays in whats-new.html and returns
   // on its own the moment a second entry is published above this one.
