@@ -3466,13 +3466,6 @@ table.users-table {
    plus an explicit caption saying it is a placeholder. Kept deliberately
    schematic — grey bars, no product copy — so it reads as a stand-in rather
    than as a screenshot of a screen that does not look like this. */
-.wn-shot__cap {
-  font-size: 11.5px;
-  font-family: var(--font);
-  color: var(--text-3);
-  margin: 7px 0 0;
-  text-align: center;
-}
 .wn-mini {
   background: var(--bg);
   border: 0.5px solid var(--border);

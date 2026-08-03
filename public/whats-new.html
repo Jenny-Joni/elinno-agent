@@ -117,8 +117,7 @@
       if (f.image) {
         html += '<div class="wn-shot"><img src="' + esc(f.image) + '" alt="' + esc(f.alt || '') + '" /></div>';
       } else if (f.placeholder && PLACEHOLDER[f.placeholder]) {
-        html += '<div class="wn-shot">' + PLACEHOLDER[f.placeholder]
-          + '<p class="wn-shot__cap">Placeholder &mdash; real screenshot goes here</p></div>';
+        html += '<div class="wn-shot">' + PLACEHOLDER[f.placeholder] + '</div>';
       }
       return html + '</div>';
     }

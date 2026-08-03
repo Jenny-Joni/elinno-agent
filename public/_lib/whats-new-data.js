@@ -78,13 +78,13 @@ window.WHATS_NEW = [
         alt: 'The Projects page header with the Sync now button.'
       }
     ],
-    // The overnight-auto-sync line is deliberately absent. The 2026-06-25
-    // cron repair was never confirmed to have completed a run, so the claim
-    // is unverified; it returns in a later issue once that is checked.
-    fixes: [
-      { tag: 'Fixed', text: 'Issues carried over from an earlier sprint were counted against the wrong sprint. Sprint View now matches your board.' },
-      { tag: 'Fixed', text: 'A sprint that had already finished could keep showing as active. Projects with no running sprint now say so.' }
-    ]
+    // No fixes listed in this issue. The "Also fixed" heading is suppressed
+    // automatically when this array is empty.
+    //
+    // The overnight-auto-sync line was also deliberately left out: the
+    // 2026-06-25 cron repair was never confirmed to have completed a run, so
+    // the claim is unverified until the last_sync_cursor query is checked.
+    fixes: []
   }
   // v1.4 and v1.3 were removed on 2026-08-03 — What's New starts at v1.8.
   // Their copy is recoverable from git history if they are ever wanted back.
