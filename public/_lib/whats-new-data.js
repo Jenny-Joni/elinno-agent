@@ -83,8 +83,7 @@ window.WHATS_NEW = [
     // is unverified; it returns in a later issue once that is checked.
     fixes: [
       { tag: 'Fixed', text: 'Issues carried over from an earlier sprint were counted against the wrong sprint. Sprint View now matches your board.' },
-      { tag: 'Fixed', text: 'A sprint that had already finished could keep showing as active. Projects with no running sprint now say so.' },
-      { tag: 'New', text: "Project cards show when that project's data was last synced." }
+      { tag: 'Fixed', text: 'A sprint that had already finished could keep showing as active. Projects with no running sprint now say so.' }
     ]
   }
   // v1.4 and v1.3 were removed on 2026-08-03 — What's New starts at v1.8.
