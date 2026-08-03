@@ -1,0 +1,20 @@
+# Cloudflare Pages header rules.
+#
+# Consumed at build time and never served as a file. Only paths that need to
+# differ from the platform default (public, max-age=14400, must-revalidate)
+# belong here.
+
+# The What's New content constant is the one file in the build that changes on
+# its own schedule — a new issue is published by editing it and pushing, with
+# no code change anywhere else (PRD §5.11.13). Under the default four-hour
+# max-age a browser will not even ask the server during that window, so a
+# freshly published issue stays invisible to anyone who visited recently,
+# including whoever is checking the publish worked. That happened on the first
+# real publish, 2026-08-03.
+#
+# no-cache does not mean "do not store" — the browser still caches, it just
+# revalidates first. The file is ~2KB with a strong ETag, so a revalidation is
+# a 304 with no body. Cheap, and it keeps publishing to "edit the constant,
+# push" with no cache-bust step to forget.
+/_lib/whats-new-data.js
+  Cache-Control: no-cache
