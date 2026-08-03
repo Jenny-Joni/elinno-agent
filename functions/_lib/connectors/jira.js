@@ -104,6 +104,43 @@ const SPRINT_PAGE_SIZE = 50;
 const MAX_BOARDS_PER_PROJECT = 50;
 const MAX_SPRINTS_PER_BOARD = 200;
 
+// How far back to rewind the cursor when turning it into a JQL date.
+//
+// JQL has no timezone syntax: "2026-06-01 15:30" is interpreted in the Jira
+// user's own timezone, while our cursor is UTC. If that timezone is behind
+// UTC the same literal denotes a LATER instant, and issues updated in the gap
+// would never be fetched — lost silently, with the sync still reporting
+// success. Rewinding past the widest real offset (UTC-12) makes the window
+// only ever too wide. Re-fetching is free: the UPSERT is idempotent and
+// no-op rows land in records_skipped.
+const JQL_CURSOR_REWIND_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Render an ISO timestamp as a JQL-safe date literal.
+ *
+ * JQL accepts "yyyy-MM-dd HH:mm" (also "yyyy/MM/dd HH:mm" and bare dates).
+ * It does NOT accept full ISO 8601 — a value like
+ * "2026-06-01T15:30:47.143+0300" is not a valid JQL date, and feeding one in
+ * matches nothing rather than erroring. That is what deadlocked incremental
+ * sync: zero issues returned means the cursor never advances, so the next run
+ * builds the identical broken query. Joni sat at 2026-06-01 and Rain at
+ * 2026-05-21 this way, both reporting successful syncs the whole time.
+ *
+ * Returns null when the input cannot be parsed, in which case the caller
+ * omits the clause and falls back to a full sync.
+ */
+export function toJqlTimestamp(iso, rewindMs = JQL_CURSOR_REWIND_MS) {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return null;
+  const d = new Date(ms - rewindMs);
+  const p = (n) => String(n).padStart(2, '0');
+  return (
+    `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}` +
+    ` ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`
+  );
+}
+
 // E2 rate-limit retry: at most one retry per request; cap retry-after
 // at 60s so a long Atlassian outage doesn't pin the Worker isolate.
 const MAX_RETRY_AFTER_SECONDS = 60;
@@ -543,10 +580,22 @@ async function _doSync(ctx, connection, options = {}) {
   // millisecond are absorbed by the UPSERT idempotency.
   let jql = `project = "${selectedProjectKey}"`;
   if (cursor) {
-    // Atlassian JQL accepts ISO 8601 timestamp strings in quotes.
-    // The >= comparison + UPSERT idempotency handle the boundary safely
-    // (one redundant fetch per sync, no missed records).
-    jql += ` AND updated >= "${cursor}"`;
+    // The cursor is stored as ISO 8601 but JQL cannot read that format, so
+    // it is rendered as "yyyy-MM-dd HH:mm" (see toJqlTimestamp). An
+    // unparseable cursor drops the clause entirely and falls back to a full
+    // sync — better to re-read everything than to match nothing and wedge
+    // the cursor, which is the failure this replaced.
+    const since = toJqlTimestamp(cursor);
+    if (since) {
+      jql += ` AND updated >= "${since}"`;
+    } else {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        event: 'jira_cursor_unparseable',
+        connection_id: connection.id,
+        cursor: String(cursor).slice(0, 64),
+      }));
+    }
   }
   jql += ` ORDER BY updated ${order}`;
 
