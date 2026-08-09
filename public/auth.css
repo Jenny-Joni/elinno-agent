@@ -1177,29 +1177,14 @@ table.users-table {
   font-style: italic;
 }
 
-/* Block 9.3 decisions H + I + K: empty-state suggestion chips on fresh
-   conversations. Source-gated (slack-only / jira-only / both / none).
-   Chips fill the input on click (no auto-submit) per decision I; the
-   'none' state shows a card pointing at the Connections tab. */
-.chat-suggestions {
-  padding: 24px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.chat-suggestions-label {
-  font-family: var(--font-regular);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-.chat-suggestions-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: stretch;
-}
+/* Block 18.4: the plural .chat-suggestions / -label / -grid / -empty* rules
+   that lived here were dead — nothing had referenced them since Block 13.7b
+   restyled the empty state, as project.html's own comment noted. Removed
+   rather than carried through the .sg-* refactor below.
+
+   .chat-suggestion (singular) survives one more commit: project.html still
+   uses it both as a class and as the querySelectorAll hook for chip clicks.
+   It goes in 18.5, with its last consumer. */
 .chat-suggestion {
   text-align: left;
   padding: 12px 16px;
@@ -1217,26 +1202,219 @@ table.users-table {
   border-color: var(--color-brand);
   background: var(--color-bg-wash);
 }
-.chat-suggestions-empty {
-  padding: 32px 24px;
-  border-radius: var(--radius-card, 12px);
-  background: var(--color-bg-soft);
+
+/* ══════════════════════════════════════════════════════════════════════
+   Block 18 — shared chat-suggestion module (.sg-*).
+   Consumed by BOTH chat surfaces, so it cannot stay page-local. Retires
+   project.html's .chat-empty* / .chat-empty__suggestion* and
+   cross-project/chat.html's .xc-empty* / .xc-suggestion* — those were
+   already the same rules under two names, which is the drift this module
+   exists to stop.
+   Tokens only, no new colours.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Empty-state block (merged) ─────────────────────────────────────── */
+.sg-empty {
+  margin: 40px auto;
+  max-width: 460px;
+  text-align: center;
+}
+.sg-empty__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--brand-tint);
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+  font-size: 22px;
+}
+.sg-empty__title {
+  font-family: var(--font);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+.sg-empty__title strong { font-weight: 600; }
+.sg-empty__sub {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 0 0 18px;
+  line-height: 1.5;
+}
+
+/* ── First-open cards ────────────────────────────────────────────────── */
+.sg-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
 }
-.chat-suggestions-empty-title {
-  font-family: var(--font-regular);
-  font-size: 14px;
-  color: var(--color-text-muted);
-}
-.chat-suggestions-empty-link {
-  font-family: var(--font-regular);
-  font-size: 14px;
-  color: var(--color-brand);
-  text-decoration: underline;
+.sg-card {
+  width: 100%;
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
   cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  text-decoration: none;
+  transition: background var(--t-fast, .1s ease-out), border-color var(--t-fast, .1s ease-out);
+}
+.sg-card:hover {
+  background: var(--brand-soft);
+  border-color: var(--brand-soft-border);
+}
+.sg-card__icon {
+  color: var(--brand);
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1;
+}
+.sg-card__text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+  /* Interpolated sprint names are arbitrary length and arrive from Jira.
+     Wrap rather than clip — a truncated question reads as broken copy. */
+  overflow-wrap: anywhere;
+}
+/* Interpolated value. Bold marks it as real data, not a placeholder the
+   user has to edit — the v1.1 <topic> failure mode. */
+.sg-card__text b { font-weight: 600; }
+
+/* Source tag. Rendered only in the 'both' state, where the list mixes
+   Slack and Jira questions and the mix is otherwise unreadable. */
+.sg-card__src {
+  flex-shrink: 0;
+  font-family: var(--font);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  border-radius: var(--r-pill);
+  padding: 3px 8px;
+  line-height: 1.5;
+}
+.sg-card__src.is-jira {
+  background: var(--jira-chip);
+  border: 0.5px solid var(--jira-chip-border);
+  color: var(--jira-text);
+}
+.sg-card__src.is-slack {
+  background: var(--slack-chip);
+  border: 0.5px solid var(--slack-chip-border);
+  color: var(--slack-text);
+}
+
+/* ── Returning rail ──────────────────────────────────────────────────────
+   Mounts as the first child of .chat-composer / .xc-composer so it inherits
+   the composer's horizontal padding and negative margin, and sits above the
+   input on both surfaces without new layout math. */
+.sg-rail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-bottom: 10px;
+}
+.sg-rail__label {
+  flex-shrink: 0;
+  font-family: var(--font);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.sg-rail__track {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x proximity;
+  /* Vertical breathing room so focus rings aren't clipped by overflow. */
+  padding: 2px 0;
+}
+.sg-rail__track::-webkit-scrollbar { display: none; }
+.sg-pill {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  max-width: 320px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg-subtle);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 6px 13px 6px 10px;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--t-fast, .1s ease-out), border-color var(--t-fast, .1s ease-out), color var(--t-fast, .1s ease-out);
+}
+.sg-pill:hover {
+  background: var(--brand-soft);
+  border-color: var(--brand-soft-border);
+  color: var(--text);
+}
+.sg-pill__icon { color: var(--brand); font-size: 13px; flex-shrink: 0; line-height: 1; }
+.sg-pill__text { overflow: hidden; text-overflow: ellipsis; }
+.sg-rail__dismiss {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+}
+.sg-rail__dismiss:hover { background: var(--brand-soft); color: var(--text-2); }
+
+@media (max-width: 700px) {
+  /* The label eats ~90px of a 360px viewport and says nothing the pills
+     don't. Drop it and give the track the full width. */
+  .sg-rail__label { display: none; }
+  /* Pills cap at roughly three-quarters of the viewport so the next one
+     always peeks past the right edge — the only cue that the row scrolls. */
+  .sg-pill { max-width: 74vw; font-size: 12px; }
+  .sg-rail { gap: 6px; padding-bottom: 8px; }
+
+  /* Mobile fit. The shell is height:calc(100vh - 130px); at 360-390px the
+     40px block margin + sub-paragraph pushed the fourth card under the
+     composer. Trimming both is what makes a four-card set viable here. */
+  .sg-empty { margin: 14px auto 0; }
+  .sg-empty__sub { display: none; }
+  .sg-card { padding: 11px 12px; }
+
+  /* EXCEPT in the 'none' state, where the sub-paragraph is not decorative —
+     it carries the whole actionable message ("Connect Slack or Jira…" for
+     admins, "Ask a workspace admin…" for members). Members get no CTA card
+     there either, so hiding it would leave them an icon and a title and
+     nothing else. */
+  .sg-empty--none .sg-empty__sub { display: block; }
 }
 
 /* Block 9.1: fixed-position toast for Sync-now feedback (success / 429 /
