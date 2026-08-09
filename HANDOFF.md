@@ -336,6 +336,248 @@ So you don't accidentally build them:
 
 ---
 
+## Adding an entry to What's New
+
+Procedure for `/whats-new.html`, `/_lib/whats-new-data.js`,
+`/_lib/whats-new-badge.js` and the `.wn-*` block in `auth.css`.
+`PRD.md` §5.11 is the source of truth; where this section and the PRD
+disagree, the PRD wins and this section gets corrected.
+
+### Division of labour — read this first
+
+**Jenny writes all copy and supplies all images.** Claude Code's role is
+mechanical: prepend the entry object, port markup that has already been
+approved, commit. No drafting, no image sourcing, no deciding which items are
+worth including.
+
+At session close Claude Code may **name** the user-facing items that shipped.
+That is the whole of its input. Naming is not drafting: "the sprint suggestion
+now interpolates the sprint name" is a name; "Your suggestions just got
+smarter" is copy, and is not Claude Code's to write.
+
+If a draft entry arrives from elsewhere (a chat session, a mockup file), it is
+a **stand-in**. Every string in it is rewritten before publishing.
+
+### What belongs in an entry
+
+Only things a user can see or do differently. The test: could someone who has
+never read the repo notice this?
+
+**In:** new features, changed behaviour, changed wording they will encounter,
+bugs they hit and no longer will.
+
+**Out:** refactors, module merges, shared-component extractions, cache-bust
+sweeps, schema changes, mode classifications, test coverage, anything whose
+description would have to name a file.
+
+A release can be large in the repo and small on this page. That is normal and
+is not a reason to pad it.
+
+### Entry anatomy
+
+Rendered by `.wn-*` components already in `auth.css`. No new CSS should be
+needed for a routine entry; if it is, that is a deliberate scope decision, not
+a side effect.
+
+```
+.wn-issue                     one release
+├── .wn-issue__head           version · date · "Latest" pill
+├── .wn-headline              one sentence, the whole release
+├── .wn-feature   (×n)        tag pill → title → body → preview
+│   └── .wn-shot              preview frame
+│       ├── img               a real screenshot, or
+│       └── .wn-mini          a schematic stand-in
+├── .wn-fixes__head           heading for the fixes list
+└── .wn-fix       (×n)        one line each, never carries an image
+```
+
+**Headline.** One sentence. It also carries the collapsed archive row and the
+dashboard strip, so it has to stand alone with no entry open.
+
+**Features.** Two to four. Each gets a tag (`New` / `Improved` / `Fixed`), a
+title, a short body, and a preview. More than four and the page stops being a
+weekly summary.
+
+**The fixes list.** `{tag, text}` objects, not plain strings. One line each. No
+previews. The heading text is hardcoded in `renderFeature`'s sibling
+`renderIssueBody` — currently "Also fixed". Changing it is a renderer change
+affecting every entry, not an entry-level choice.
+
+### Previews
+
+Two slots, and picking the right one matters more than it looks.
+
+**`.wn-shot img` — a real screenshot.** Use when the change is visual: layout,
+a new screen, something whose shape is the point.
+
+**`.wn-mini` — a schematic stand-in.** Used when the PNG has not landed and
+Jenny chooses to publish ahead of it. Every wireframe carries the caption
+"Placeholder — real screenshot goes here." The caption is not optional; it is
+what stops a stand-in reading as a picture of the product.
+
+> **Open compliance bug.** The live v1.8 entry renders no caption. `3dc2e9a`
+> removed both the captions and `.wn-shot__cap`, the rule they were the only
+> user of. The class was restored in Block 18.8 and the v1.9 previews carry
+> captions, but v1.8 is frozen as published and still has none. Fix it as its
+> own item, described as a correction.
+
+#### Bars or real copy
+
+The default is grey bars, no product copy — deliberately abstract, so it reads
+as a stand-in.
+
+**Exception, per `PRD.md` §5.11.6 (amended 2026-08-10, `f67eef1`):** where the
+change *is* text — suggested questions, error wording, labels — the wireframe
+may carry the real strings instead of bars. Grey bars communicate nothing about
+a feature whose entire content is which words appear, and a rendered sentence
+is not an approximation of a screenshot of that sentence; it is the same
+information.
+
+The exception does not extend to layout, charts, or anything whose shape is the
+point. Those get bars until the PNG arrives. What stays forbidden either way is
+the middle ground: invented copy that merely looks plausible.
+
+#### The freeze rule
+
+Preview strings must be **verbatim-accurate to the shipped strings at the time
+the entry is published, and are frozen thereafter.**
+
+Accuracy is a pre-publication check, not an ongoing obligation. A later release
+changing a question does not make an older entry wrong.
+
+This is why preview strings are **duplicated** into the `PLACEHOLDER` map
+rather than imported from the source they describe. Importing would look tidier
+and would be a bug: a changelog is a historical record, and an entry that
+derived its previews from live code would silently rewrite what it claimed
+shipped every time that code changed. Duplication here is correct.
+
+#### Privacy — the hard rule
+
+**No real sprint names, project names, channel names, person names, ticket
+keys, or workload figures in any preview, screenshot or example string.**
+
+This page is user-facing and its assets are served publicly. Use invented
+values — v1.9 uses `Sprint 24`, `Aurora`, `Beacon`. Where a shipped string
+interpolates real data, the preview shows an invented stand-in: verbatim means
+verbatim to the template, not to a workspace's data. If a screenshot is
+genuinely required, capture it from a fixture project seeded with invented
+data — never from a live workspace, and never crop a real one and assume the
+crop is clean. Block 16.9 is the cautionary case.
+
+### Version numbers
+
+Hand-assigned, semantic. There is no bump table and no derivation from commit
+history — Jenny picks the number.
+
+**Never sort or compare version strings as text.** `v1.10` sorts before `v1.9`
+lexicographically. Ordering comes from position in the data file, not from
+parsing. Version strings must also be unique: the unread marker fires on
+`stored !== newest`, so a duplicate silently skips an issue.
+`whats-new-badge.js` warns on load if two entries share a version.
+
+### Entry order — newest on top
+
+New entries are **prepended** to the array in `/_lib/whats-new-data.js`. The
+newest version is index 0; everything below it is history.
+
+- **Never edit a shipped entry** to make room for a new one. Prior versions are
+  immutable once published. A genuine correction to an old entry is its own
+  commit, described as a correction, and never bundled with a new release.
+- **Never re-create a prior entry** from a mockup or a rendered page. If a draft
+  file shows an earlier version as a collapsed archive row, that row is
+  scaffolding — the real object already exists in the data file and stays
+  untouched. `renderPast()` generates the row.
+- **Order comes from array position, not from the version string.**
+- **The newest *published* entry is the expanded one** and carries the "Latest"
+  pill. A `draft` entry at index 0 must not change what published users see.
+  Verified in Block 18.8 and true of all four surfaces, each of which filters
+  on `status === 'published'` *before* indexing: the page
+  (`whats-new.html`), the "Latest" pill (derived, only ever rendered on
+  `published[0]`), the nav badge (`whats-new-badge.js`) and the dashboard strip
+  (`dashboard.html`). If any future surface indexes first and filters second, a
+  draft will silently collapse the live release and users will see nothing
+  expanded, defeating the `status` flag entirely.
+
+### Draft and publish
+
+Entries carry `status: 'draft' | 'published'`. Only `published` is visible.
+
+An entry stays `draft` until **all** of these are true:
+
+1. The work it describes is merged to `main` and live in production.
+2. Every claim in it has been checked against shipped behaviour, not against
+   the plan. Behaviour changes during implementation; copy written from a plan
+   goes stale silently. (Precedent: a v1.9 line claiming small screens no
+   longer push the last suggestion under the message box was cut at port time
+   because measurement contradicted it.)
+3. The copy is Jenny's, not a stand-in.
+4. The date is the real release week.
+5. Every preview passes the privacy rule above.
+6. No claim depends on an unclosed `HANDOFF.md` watch-item. (Precedent: the
+   auto-sync wording was pulled from v1.8 until the cron watch-item was
+   confirmed.)
+
+### Where content lives
+
+The page is a **data constant plus a generator**, not markup. A mockup or a
+rendered page is never pasted in; it is translated. Adding one entry touches up
+to three files:
+
+| File | What goes in it |
+|---|---|
+| `/_lib/whats-new-data.js` | Copy only. Version, date, headline, `status`, and the feature objects: `{tag, title, body, image, placeholder, alt}`. `image: null` when the PNG has not landed. |
+| `whats-new.html` | Preview markup, as entries in the `PLACEHOLDER` map, keyed by the feature's `placeholder` field. The archive row is generated by `renderPast()` — never authored by hand, or the release renders twice. |
+| `auth.css` | Only if the entry needs a `.wn-*` class that does not exist. A routine entry does not touch this file. If it does, that is a scope decision, said out loud, **with a cache-bust bump**. |
+
+Images, when they exist: `public/whats-new/<version-with-hyphens>-<slug>.png`
+— e.g. `v1-8-whats-new.png`, `v1-5-sync-now.png`. Dots in the version become
+hyphens in the filename. Tight-cropped to the element that changed; a
+full-screen desktop capture is unreadable in the ~270px mobile column.
+
+**`alt` describes the illustration, not the content.** Screen-reader users get
+the substance from the body copy; repeating it in `alt` is duplication. Say
+what the image shows and that it is a placeholder — "Placeholder illustration:
+a project chat panel showing four suggested questions" — not the questions
+themselves.
+
+### Procedure
+
+1. **Confirm the baseline.** `origin/main` at the expected SHA, tree clean.
+2. **Assign the version and date.** Jenny. Date is the release week.
+3. **Write the copy.** Jenny. Headline, feature titles and bodies, the fixes
+   lines.
+4. **Settle the previews.** Screenshot or `.wn-mini`, one per feature. Approve
+   them rendered, at desktop **and** 390px, before anything is committed.
+5. **Port it.** Up to three files — see "Where content lives". Entry at
+   `status: 'draft'`, prepended; the previous release is not touched.
+6. **Verify on a preview deploy** — checklist below.
+7. **Flip to `status: 'published'`** as its own commit, so it can be reverted
+   without touching the content.
+
+### Verification checklist
+
+- [ ] Entry renders at desktop and at 390px; no preview overflows.
+- [ ] The previous release collapses to a `.wn-past` row and its headline still
+      reads correctly on its own.
+- [ ] The previous entry is byte-unchanged in the data file — check the diff,
+      not the rendering.
+- [ ] While the new entry is `draft`, the live page is indistinguishable from
+      before: previous release still expanded, still carrying "Latest".
+- [ ] Headline reads correctly in all three places it appears: the entry, the
+      collapsed archive row, the dashboard strip.
+- [ ] Every verbatim preview string matches the shipped string exactly. This is
+      the once-only check the freeze rule requires.
+- [ ] The unread badge appears for a user who has not seen this version, and
+      clears once they have. It is `localStorage`-backed, so test in a fresh
+      profile, not by clearing state by hand.
+- [ ] Nav link present and reachable on mobile. It is **not** hidden below
+      700px — `d584eb6` fixed exactly that; only its font-size changes.
+- [ ] No real names or figures anywhere in the entry or its assets.
+- [ ] `auth.css` cache-bust bumped **if and only if** `.wn-*` changed. A
+      content-only entry does not touch the stylesheet.
+
+---
+
 ## Suggested first prompt for a new Claude session
 
 Copy-paste this into a fresh chat:
