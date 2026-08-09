@@ -4,6 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <script src="/_lib/no-zoom.js" defer></script>
+  <!-- Block 18: shared suggested-questions module, both chat surfaces.
+       defer in <head> so it has executed before boot()'s first await
+       resolves and renderChat runs. -->
+  <script src="/_lib/chat-suggestions.js" defer></script>
   <title>Project — Elinno Agent</title>
   <meta name="robots" content="noindex" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -153,62 +157,10 @@
     }
     img.pj-scopechip__icon { object-fit: cover; }
 
-    /* Centered empty state — mirror of .xc-empty in cross-project/chat.html */
-    .chat-empty {
-      margin: 40px auto;
-      max-width: 460px;
-      text-align: center;
-    }
-    .chat-empty__icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      background: var(--brand-tint);
-      color: var(--brand);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 14px;
-      font-size: 22px;
-    }
-    .chat-empty__title {
-      font-family: var(--font);
-      font-size: 18px;
-      font-weight: 500;
-      color: var(--text);
-      margin: 0 0 8px;
-    }
-    .chat-empty__title strong { font-weight: 600; }
-    .chat-empty__sub {
-      font-family: var(--font);
-      font-size: 13px;
-      color: var(--text-2);
-      margin: 0 0 18px;
-      line-height: 1.5;
-    }
-    .chat-empty__suggestions {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      text-align: left;
-    }
-    .chat-empty__suggestion {
-      background: var(--bg);
-      border: 0.5px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 13px;
-      display: flex;
-      gap: 10px;
-      align-items: flex-start;
-      cursor: pointer;
-      font-family: var(--font);
-      font-size: 13px;
-      color: var(--text);
-      text-align: left;
-      text-decoration: none;
-    }
-    .chat-empty__suggestion:hover { background: var(--brand-soft); border-color: var(--brand-soft-border); }
-    .chat-empty__suggestion-icon { color: var(--brand); flex-shrink: 0; font-size: 14px; }
+    /* Block 18.5: the .chat-empty* rules that lived here moved to auth.css
+       as .sg-empty* / .sg-list / .sg-card. They were byte-identical to
+       cross-project/chat.html's .xc-empty* — the same rules under two names,
+       which is the drift the shared module exists to stop. */
 
     /* ─── Layout alignment with cross-project chat ─────────────────────
        Round-2 of the visual alignment: override the single-card
@@ -720,6 +672,12 @@
         const projData = await projRes.json();
         project = projData.project;
         if (!project || !project.id) { renderBootError(); return; }
+        // Block 18.2/18.5: active sprint name for the interpolated card.
+        // Absent or null is normal (no Jira, no active sprint, or the
+        // lookup degraded) — the card falls back to static wording.
+        suggestionContext = {
+          sprintName: (projData.suggestion_context && projData.suggestion_context.active_sprint_name) || null,
+        };
 
         // Step 2: GET conversations (decision AC: server scopes to session user).
         const convRes = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/conversations');
@@ -861,8 +819,8 @@
                      Members tab stays hidden (collapsed in v1.3 Block 12.1).
                      Connections tab hidden — sequencing-critical: kept in the DOM
                      with the existing JS handler so the eager connections fetch
-                     and getConnectionState/getSuggestionList still drive the
-                     chat empty-state suggestion chips. Phase 7a ports the full
+                     and getConnectionState still drives which suggestion set
+                     the shared module renders. Phase 7a ports the full
                      connect flow into Settings → Connections; 7b strips this
                      button + its handler. -->
                 <button class="project-tab" type="button" data-tab="members" hidden style="display:none;">Members <span class="tab-count" id="memberCountPill" style="display:none;"></span></button>
@@ -1277,6 +1235,11 @@
           <div class="chat-composer">
             <div class="chat-error" id="chatError" style="display:none;" role="alert"></div>
             <div class="ai-paused-banner" id="aiPausedBanner" style="display:none;" role="status"></div>
+            <!-- Block 18.5: persistent rail mount. Contents are rebuilt by
+                 renderRail(); visibility is a style toggle so typing never
+                 re-renders it. First child of .chat-composer so it inherits
+                 the composer's padding. -->
+            <div id="chatRail" style="display:none;"></div>
             <div class="chat-composer-row">
               <textarea class="chat-input" id="chatInput" placeholder="Ask ${escapeHtml(project && project.name ? project.name : 'this project')}…" rows="1" aria-label="Message"></textarea>
               <button class="chat-send-btn" id="chatSend" type="button" disabled aria-label="Send"><i class="ti ti-send"></i></button>
@@ -1303,19 +1266,16 @@
       });
     }
 
-    // Block 9.3 decision H: hardcoded source-gated suggestion lists. No
-    // channel-name / sprint-name interpolation — keeps the chip text static
-    // and dodges an extra API call. <topic> is a literal placeholder the
-    // user edits before sending (decision I: click fills + focuses, no
-    // auto-submit).
-    const SUGGESTIONS_SLACK = [
-      "What's been discussed about <topic> this week?",
-      "Summarize the last 24 hours of decisions.",
-    ];
-    const SUGGESTIONS_JIRA = [
-      "How many open tickets are in the active sprint?",
-      "Which issues are blocking?",
-    ];
+    // Block 18.5: the hardcoded SUGGESTIONS_SLACK / SUGGESTIONS_JIRA lists
+    // and getSuggestionList moved into /_lib/chat-suggestions.js, shared with
+    // cross-project chat. The <topic> placeholder chip is gone: the sprint
+    // card interpolates the real sprint name from suggestion_context instead.
+    // getConnectionState below still drives which set renders.
+
+    // Context passed to the shared module for interpolation. Populated in
+    // boot() from GET /api/projects/:id (Block 18.2); a null sprint name is
+    // normal and the card falls back to static wording.
+    let suggestionContext = { sprintName: null };
 
     // Block 9.3 decision J: "show only when active conversation has zero
     // user messages." Disappears after first send; reappears on a new
@@ -1338,14 +1298,6 @@
       return 'none';
     }
 
-    // Block 9.3 decision H: pick the chip list for each state. 'both' is
-    // the union of the two two-shape lists per the plan's Block 10 note.
-    function getSuggestionList(state) {
-      if (state === 'slack') return SUGGESTIONS_SLACK;
-      if (state === 'jira')  return SUGGESTIONS_JIRA;
-      if (state === 'both')  return SUGGESTIONS_SLACK.concat(SUGGESTIONS_JIRA);
-      return [];
-    }
 
     // 2026-05-27 (shared-workspace-visibility follow-up): empty state
     // aligned to cross-project chat (mockup screen-12). Centered icon
@@ -1354,69 +1306,60 @@
     //   - 'none' (no Slack/Jira connections): admins get the "Open
     //     Connections" CTA card, members get a contact-an-admin hint
     //     (no actionable card).
-    //   - 'slack' / 'jira' / 'both': suggestion list from
-    //     getSuggestionList(), rendered as cards.
-    // Hardcoded icon for each suggestion: keep it simple — the same
-    // ti-message-question for every chip. Avoids a per-string lookup
-    // and reads as "ask this" consistently.
-    function suggestionCardHtml(text, icon, href) {
-      const safe = escapeHtml(text);
-      const ic = icon || 'ti-message-question';
-      if (href) {
-        return ''
-          + '<a class="chat-empty__suggestion" href="' + escapeHtml(href) + '">'
-          +   '<i class="ti ' + ic + ' chat-empty__suggestion-icon"></i>'
-          +   '<span>' + safe + '</span>'
-          + '</a>';
-      }
+    //   - 'slack' / 'jira' / 'both': cards from the shared module's
+    //     ChatSuggestions.listHtml(state, ctx) (Block 18.5).
+    // Icons are per-catalog-entry now, set in /_lib/chat-suggestions.js
+    // rather than one ti-message-question for every chip.
+    // The 'none' state's CTA is a link, not a question, so it stays local —
+    // the shared module renders question cards only.
+    function connectionsCardHtml() {
+      const href = project && project.slug
+        ? '/project_settings/' + project.slug + '/connections'
+        : '/project_settings.html?id=' + encodeURIComponent(projectId) + '&tab=connections';
       return ''
-        + '<button class="chat-empty__suggestion chat-suggestion" type="button" data-suggestion="' + safe + '">'
-        +   '<i class="ti ' + ic + ' chat-empty__suggestion-icon"></i>'
-        +   '<span>' + safe + '</span>'
-        + '</button>';
+        + '<div class="sg-list">'
+        +   '<a class="sg-card" href="' + escapeHtml(href) + '">'
+        +     '<i class="ti ti-plug sg-card__icon"></i>'
+        +     '<span class="sg-card__text">Open Connections</span>'
+        +   '</a>'
+        + '</div>';
     }
 
     function renderSuggestionsHtml(state) {
       const projectName = project && project.name ? project.name : 'this project';
-      const titleHtml = '<h2 class="chat-empty__title">Ask <strong>' + escapeHtml(projectName) + '</strong></h2>';
-      const iconHtml = '<div class="chat-empty__icon"><i class="ti ti-messages"></i></div>';
+      const titleHtml = '<h2 class="sg-empty__title">Ask <strong>' + escapeHtml(projectName) + '</strong></h2>';
+      const iconHtml = '<div class="sg-empty__icon"><i class="ti ti-messages"></i></div>';
+      const CS = window.ChatSuggestions;
 
       if (state === 'none') {
         const subText = (me && me.is_admin)
           ? "Connect Slack or Jira to start asking questions about this project's data."
           : "No data sources are connected to this project yet. Ask a workspace admin to connect Slack or Jira.";
-        const cardsHtml = (me && me.is_admin)
-          ? '<div class="chat-empty__suggestions">'
-              + suggestionCardHtml('Open Connections', 'ti-plug',
-                  project && project.slug
-                    ? '/project_settings/' + project.slug + '/connections'
-                    : '/project_settings.html?id=' + encodeURIComponent(projectId) + '&tab=connections')
-            + '</div>'
-          : '';
+        // .sg-empty--none keeps the sub-paragraph visible below 700px. Here
+        // it is not decorative: it carries the whole actionable message, and
+        // members get no CTA card, so the blanket mobile hide would leave
+        // them an icon and a title and nothing else.
         return ''
-          + '<div class="chat-empty">'
+          + '<div class="sg-empty sg-empty--none">'
           +   iconHtml
           +   titleHtml
-          +   '<p class="chat-empty__sub">' + escapeHtml(subText) + '</p>'
-          +   cardsHtml
+          +   '<p class="sg-empty__sub">' + escapeHtml(subText) + '</p>'
+          +   ((me && me.is_admin) ? connectionsCardHtml() : '')
           + '</div>';
       }
 
-      const items = getSuggestionList(state);
-      if (items.length === 0) {
-        return ''
-          + '<div class="chat-empty">'
-          +   iconHtml
-          +   titleHtml
-          + '</div>';
+      // Defensive: if the module failed to load, render the empty state
+      // without cards rather than throwing and blanking the chat.
+      const cards = CS ? CS.listHtml(state, suggestionContext) : '';
+      if (!cards) {
+        return '<div class="sg-empty">' + iconHtml + titleHtml + '</div>';
       }
-      const cards = items.map(q => suggestionCardHtml(q)).join('');
       return ''
-        + '<div class="chat-empty">'
+        + '<div class="sg-empty">'
         +   iconHtml
         +   titleHtml
-        +   '<p class="chat-empty__sub">The agent reads this project’s connected data and cites every answer.</p>'
-        +   '<div class="chat-empty__suggestions">' + cards + '</div>'
+        +   '<p class="sg-empty__sub">The agent reads this project’s connected data and cites every answer.</p>'
+        +   cards
         + '</div>';
     }
 
@@ -1427,19 +1370,74 @@
     // token spend. Also wires the "Open Connections tab" link in the
     // 'none'-state card via a programmatic click on the existing tab button.
     function wireSuggestionChips(scope) {
-      scope.querySelectorAll('.chat-suggestion').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const input = document.getElementById('chatInput');
-          if (!input) return;
-          input.value = btn.dataset.suggestion || '';
-          input.focus();
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-        });
+      if (!window.ChatSuggestions) return;
+      window.ChatSuggestions.wire(scope, {
+        getInput: () => document.getElementById('chatInput'),
+        onDismiss: () => {
+          window.ChatSuggestions.dismiss(activeConvId);
+          renderRail();
+        },
       });
-      // Block 13.7b: the data-suggestions-link="connections" handler that
-      // simulated a click on the in-page Connections tab is removed —
-      // the empty-state CTA is now a plain <a href="/project_settings.html?...">
-      // navigation link.
+      // Block 13.7b: the empty-state CTA is a plain <a href> navigation link,
+      // so it needs no handler.
+    }
+
+    // ── Returning rail (Block 18.5) ────────────────────────────────────────
+    // Visible when the thread has messages, the composer is empty and nothing
+    // is in flight. The rail lives in a PERSISTENT node inside .chat-composer
+    // and is toggled by class on input — never re-rendered from the `input`
+    // handler, which would thrash layout and fight the textarea above it.
+    function railMount() {
+      return document.getElementById('chatRail');
+    }
+
+    function railShouldShow() {
+      if (inFlight) return false;
+      if (!window.ChatSuggestions) return false;
+      if (window.ChatSuggestions.isDismissed(activeConvId)) return false;
+      const input = document.getElementById('chatInput');
+      if (input && input.value.trim().length > 0) return false;
+      return userMessagesEver(activeConvId) > 0;
+    }
+
+    // Rebuilds the rail's contents. Called on render and after a turn
+    // completes — NOT on keystroke.
+    function renderRail() {
+      const mount = railMount();
+      if (!mount) return;
+      if (!window.ChatSuggestions || window.ChatSuggestions.isDismissed(activeConvId)) {
+        mount.innerHTML = '';
+        updateRailVisibility();
+        return;
+      }
+      const all = messagesById[activeConvId] || [];
+      // Last assistant turn that actually rendered — the same filter
+      // renderMessages uses, so the rail keys off the visible answer.
+      let last = null;
+      for (let i = all.length - 1; i >= 0; i--) {
+        if (all[i].role === 'assistant' && all[i].content) { last = all[i]; break; }
+      }
+      const sentTexts = all.filter(m => m.role === 'user').map(m => m.content || '');
+      mount.innerHTML = window.ChatSuggestions.railHtml({
+        surface: 'project',
+        state: getConnectionState(),
+        citations: last && Array.isArray(last.citations) ? last.citations : null,
+        // model === null marks a failed turn; following up a failure is the
+        // wrong nudge, so the rail renders nothing.
+        errored: !!(last && last.model === null),
+        sentTexts,
+        ctx: suggestionContext,
+      });
+      wireSuggestionChips(mount);
+      updateRailVisibility();
+    }
+
+    // Class toggle only. Cheap enough to call on every keystroke.
+    function updateRailVisibility() {
+      const mount = railMount();
+      if (!mount) return;
+      const show = railShouldShow() && mount.innerHTML.length > 0;
+      mount.style.display = show ? '' : 'none';
     }
 
     function renderMessages() {
@@ -1461,6 +1459,9 @@
       if (msgs.length === 0 && userMessagesEver(activeConvId) === 0) {
         list.innerHTML = renderSuggestionsHtml(getConnectionState());
         wireSuggestionChips(list);
+        // First-open cards are showing; the returning rail must not also be.
+        const mount = railMount();
+        if (mount) { mount.innerHTML = ''; mount.style.display = 'none'; }
         return;
       }
       // Pass the full message array (incl. any role='tool' rows) so
@@ -1477,6 +1478,8 @@
         btn.addEventListener('click', () => handleRefreshAndReask(btn));
       });
       list.scrollTop = list.scrollHeight;
+      // Block 18.5: the thread has messages, so the returning rail applies.
+      renderRail();
     }
 
     // Block 10.1 decision C: handler for the ↻ Refresh & re-ask button.
@@ -1739,6 +1742,11 @@
         input.style.height = 'auto';
         input.style.height = input.scrollHeight + 'px';
         send.disabled = inFlight || input.value.trim().length === 0;
+        // Block 18.5: hide the rail while the composer has content. A style
+        // toggle on a persistent node — deliberately NOT a re-render, which
+        // on every keystroke would thrash layout and can steal focus from
+        // the textarea the rail sits above.
+        updateRailVisibility();
       });
 
       // Enter sends; Shift+Enter newline; IME-safe (don't intercept while composing).
@@ -2851,8 +2859,8 @@
     // disconnect / activity-drawer helpers) lived here. Phase 7a ported
     // the flow to /project_settings.html; Phase 7b's callback retarget
     // makes Settings the single source. About 720 lines of dead code
-    // removed. loadConnections + getConnectionState + getSuggestionList
-    // are kept above — they drive the chat empty-state suggestion chips.
+    // removed. loadConnections + getConnectionState are kept above — they
+    // still decide which suggestion set the shared module renders.
 
     // Block 13.7b: showConnToast was previously defined alongside the
     // (now-removed) connections code, but it's also called by the
