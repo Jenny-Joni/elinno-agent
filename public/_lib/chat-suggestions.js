@@ -103,24 +103,24 @@
      citation source_types. Never model-generated, never a second API call. */
   var RAIL_KEYED = {
     'jira_sprint': [
-      { icon: 'ti-users',          q: 'Break that down by assignee' },
-      { icon: 'ti-trending-up',    q: 'Compare with the last three sprints' },
-      { icon: 'ti-alert-triangle', q: 'Which of those are blocked?' }
+      { id: 'r-sprint-assignee', icon: 'ti-users',          q: 'Break that down by assignee' },
+      { id: 'r-sprint-compare',  icon: 'ti-trending-up',    q: 'Compare with the last three sprints' },
+      { id: 'r-sprint-blocked',  icon: 'ti-alert-triangle', q: 'Which of those are blocked?' }
     ],
     'jira_issue': [
-      { icon: 'ti-alert-triangle', q: 'Which of those are blocked?' },
-      { icon: 'ti-users',          q: 'Who are they assigned to?' },
-      { icon: 'ti-clock',          q: 'Which have been open longest?' }
+      { id: 'r-issue-blocked',   icon: 'ti-alert-triangle', q: 'Which of those are blocked?' },
+      { id: 'r-issue-assignee',  icon: 'ti-users',          q: 'Who are they assigned to?' },
+      { id: 'r-issue-oldest',    icon: 'ti-clock',          q: 'Which have been open longest?' }
     ],
     'slack_message': [
-      { icon: 'ti-users',   q: 'Who was involved in that?' },
-      { icon: 'ti-gavel',   q: 'What was decided?' },
-      { icon: 'ti-history', q: 'Has this come up before?' }
+      { id: 'r-slack-who',       icon: 'ti-users',   q: 'Who was involved in that?' },
+      { id: 'r-slack-decided',   icon: 'ti-gavel',   q: 'What was decided?' },
+      { id: 'r-slack-prior',     icon: 'ti-history', q: 'Has this come up before?' }
     ],
     'cross': [
-      { icon: 'ti-alert-triangle', q: 'Which of those are blocked?' },
-      { icon: 'ti-git-compare',    q: 'Compare that with last sprint' },
-      { icon: 'ti-clock',          q: 'Which are overdue?' }
+      { id: 'r-x-blocked',       icon: 'ti-alert-triangle', q: 'Which of those are blocked?' },
+      { id: 'r-x-compare',       icon: 'ti-git-compare',    q: 'Compare that with last sprint' },
+      { id: 'r-x-overdue',       icon: 'ti-clock',          q: 'Which are overdue?' }
     ]
   };
 
@@ -209,7 +209,7 @@
   function genericItems(state, ctx) {
     return (GENERIC_POOL[state] || []).map(function (id) {
       var item = BY_ID[id];
-      return { icon: item.icon, q: textFor(id, ctx) };
+      return { id: item.id, icon: item.icon, q: textFor(id, ctx) };
     });
   }
 
@@ -228,7 +228,7 @@
     groups.forEach(function (g) {
       CATALOG[g].forEach(function (item) {
         if (already[item.id]) return;
-        out.push({ icon: item.icon, q: textFor(item.id, ctx) });
+        out.push({ id: item.id, icon: item.icon, q: textFor(item.id, ctx) });
       });
     });
     return out;
