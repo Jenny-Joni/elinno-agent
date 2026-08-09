@@ -24,6 +24,8 @@ import {
   requireWorkspaceAdmin,
 } from '../../../_lib/auth.js';
 import { isReservedSlug, validateSlugFormat } from '../../../_lib/slug.js';
+import { runListJiraSprints } from '../../../_lib/ai/tools.js';
+import { pickActiveSprint } from '../../../_lib/jira-sprint.js';
 
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 1000;
@@ -86,7 +88,47 @@ export async function onRequestGet({ request, env, params }) {
       ? `https://logos.elinnoagent.com/${project.logo_r2_key}`
       : null;
 
-    return json({ ok: true, project: { ...project, role, logo_url } });
+    // ── SECURITY-CARVE-OUT (Block 18.2): suggestion_context ──────────────
+    // Do not edit this block in auto mode. Scope of the marker is this block
+    // only, not the whole file — the PATCH/DELETE handlers below are ordinary.
+    //
+    // Carries the active Jira sprint name so project chat can interpolate it
+    // into a suggestion card without a second HTTP round trip on chat open
+    // (BLOCK_18_PLAN — this endpoint is boot step 1 and already awaited).
+    //
+    // PROJECT ISOLATION: runListJiraSprints filters `WHERE project_id = $`
+    // with the URL-bound params.id, the same value requireWorkspaceScope
+    // already authorised above. No caller-supplied id reaches this read, and
+    // the cross-project fragment is deliberately not passed.
+    //
+    // RESOLUTION PARITY: uses the shared pickActiveSprint so the chip names
+    // the same sprint the Sprint View tab does. Do not inline a looser rule
+    // here — that divergence is exactly what dashboard.js already has.
+    //
+    // FAILURE POSTURE: decorative data on a load-bearing endpoint, so the
+    // lookup is isolated. Any throw degrades to a null sprint name and the
+    // card falls back to its static wording; it must never turn a working
+    // project read into a 500.
+    let active_sprint_name = null;
+    try {
+      const sprintList = await runListJiraSprints(sql, params.id, {
+        state: 'active',
+      });
+      active_sprint_name = pickActiveSprint(sprintList?.results)?.sprint_name || null;
+    } catch (err) {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        event: 'suggestion_context_sprint_lookup_failed',
+        project_id: params.id,
+        message: err?.message ? String(err.message).slice(0, 200) : null,
+      }));
+    }
+
+    return json({
+      ok: true,
+      project: { ...project, role, logo_url },
+      suggestion_context: { active_sprint_name },
+    });
   } catch (_err) {
     return error('Internal error', 500);
   } finally {
