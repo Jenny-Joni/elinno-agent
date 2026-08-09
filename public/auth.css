@@ -3623,10 +3623,24 @@ table.users-table {
 }
 .wn-shot img { display: block; width: 100%; height: auto; border-radius: 8px; }
 
-/* Preview slot before the real screenshot lands: a small abstract wireframe
-   plus an explicit caption saying it is a placeholder. Kept deliberately
-   schematic — grey bars, no product copy — so it reads as a stand-in rather
-   than as a screenshot of a screen that does not look like this. */
+/* Preview slot before the real screenshot lands: a small wireframe plus an
+   explicit caption saying it is a placeholder.
+
+   Two forms, per PRD §5.11.6 (amended 2026-08-10). ABSTRACT — grey bars, no
+   product copy — is the default and is right when the change is structural.
+   VERBATIM — the real shipped strings, via .wn-mini__text / .wn-mini__pill —
+   is for features whose content IS text, where bars would say nothing. What
+   is never allowed is invented copy that merely looks plausible.
+
+   Verbatim strings are checked once at publication and frozen; an entry
+   records what shipped in that release and is not resynced later. */
+.wn-shot__cap {
+  font-size: 11.5px;
+  font-family: var(--font);
+  color: var(--text-3);
+  margin: 7px 0 0;
+  text-align: center;
+}
 .wn-mini {
   background: var(--bg);
   border: 0.5px solid var(--border);
@@ -3668,6 +3682,31 @@ table.users-table {
 .wn-mini__tag--grey { background: #f4f4f4; color: var(--text-2); }
 .wn-mini__bar { height: 5px; background: #eee; border-radius: 3px; flex: 1; }
 .wn-mini--bar-row { display: flex; align-items: center; gap: 8px; }
+/* Verbatim preview text (Block 18.8). Used where the feature's content is
+   the copy itself — suggested questions — so the preview carries the real
+   shipped strings rather than bars. */
+.wn-mini__text {
+  font-family: var(--font);
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-2);
+  flex: 1;
+  min-width: 0;
+}
+.wn-mini__text strong { font-weight: 600; color: var(--text); }
+/* Rail pill, for previews of the returning suggestion row. */
+.wn-mini__pill {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font);
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--text-2);
+  background: var(--bg-subtle);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 6px 10px;
+}
 .wn-mini__label {
   font-size: 12px;
   font-weight: 600;

@@ -52,6 +52,61 @@
 */
 window.WHATS_NEW = [
   {
+    version: 'v1.9',
+    // PLACEHOLDER — set to the actual merge week at publication. The renderer
+    // formats this as "Week of <month> <day>, <year>".
+    date: '2026-08-09',
+    // Draft: invisible on every surface. The page, the "Latest" pill, the nav
+    // badge and the dashboard strip all filter on status === 'published'
+    // BEFORE indexing, so v1.8 stays expanded and keeps "Latest" until this
+    // flips. Do not flip it before the block ships.
+    status: 'draft',
+    headline: 'Suggested questions now know what your agent can actually do — and they come back between answers instead of vanishing after the first message.',
+    features: [
+      {
+        tag: 'Improved',
+        title: 'Suggestions that match what the agent can do',
+        body: 'The agent has been able to compare velocity across sprints, rank workload by assignee and count label frequency for a while now — but none of the suggested questions asked for any of it. The set has been rewritten around those capabilities, so the questions on screen are the questions worth asking. Which ones appear still depends on whether you have Slack, Jira or both connected.',
+        image: null,
+        placeholder: 'sg-cards',
+        alt: 'Placeholder illustration: a project chat panel showing four suggested questions, three tagged Jira and one tagged Slack.'
+      },
+      {
+        tag: 'Improved',
+        title: 'The sprint question names your sprint',
+        body: 'Where a suggestion used to ask about "the current sprint" in the abstract, it now names the sprint that is actually running on your board. Nothing to edit before sending. When no sprint is active it falls back to the generic wording rather than showing a blank.',
+        image: null,
+        placeholder: 'sg-sprint',
+        alt: 'Placeholder illustration: the same suggestion shown twice, once naming a sprint and once in generic wording.'
+      },
+      {
+        tag: 'New',
+        title: 'Suggestions come back between answers',
+        body: 'Until now the suggestions disappeared the moment you sent your first message. A short row of follow-ups now sits above the composer whenever it is empty, picked from what the last answer was actually about. It hides while you type, never repeats a question you have already asked, and dismissing it clears it for the rest of that conversation.',
+        image: null,
+        placeholder: 'sg-rail',
+        alt: 'Placeholder illustration: a row of three follow-up suggestions above an empty message box.'
+      },
+      {
+        tag: 'Improved',
+        title: 'Cross-project chat gets the same set',
+        body: 'Cross-project chat had its own smaller, separate list of suggestions. Both surfaces now draw from one place, so a question added on one shows up on the other — including a new comparison of velocity across the projects in scope.',
+        image: null,
+        placeholder: 'sg-cross',
+        alt: 'Placeholder illustration: a cross-project chat panel showing three suggested questions, one tagged New.'
+      }
+    ],
+    // The draft carried a third line — "Suggested questions are narrower on
+    // small screens and no longer push the last one under the message box" —
+    // cut because it is not true. Four cards still need a 733px viewport;
+    // below that the last one sits under the composer and has to be scrolled
+    // to. It returns only if the mobile shortfall is actually fixed.
+    fixes: [
+      { tag: 'Fixed', text: 'The suggestion that asked about "<topic>" is gone — no suggestion needs editing before it will work.' },
+      { tag: 'Fixed', text: 'On a phone, the connect-a-source message no longer disappears when a project has nothing connected yet.' }
+    ]
+  },
+  {
     version: 'v1.8',
     date: '2026-08-02',
     status: 'published',

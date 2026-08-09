@@ -84,8 +84,19 @@
 
     // Stand-in wireframes for features whose screenshot has not arrived. Kept
     // as markup here rather than in the content constant, so that file stays
-    // copy-only; an entry just names which one it wants. Each is schematic on
-    // purpose — no product copy, nothing that could pass for a real screen.
+    // copy-only; an entry just names which one it wants.
+    //
+    // Two forms per PRD §5.11.6 (amended 2026-08-10). ABSTRACT — grey bars,
+    // no product copy — is the default. VERBATIM — the real shipped strings —
+    // is for features whose content IS the copy, where bars say nothing; the
+    // sg-* entries below are verbatim, checked once against the catalog at
+    // publication and frozen thereafter. Never invented plausible copy.
+    //
+    // The caption lives inside each verbatim entry rather than in
+    // renderFeature, deliberately: putting it back in the renderer would also
+    // re-caption v1.8's two previews, which are frozen as published.
+    // Caption required on every placeholder by PRD §5.11.6.
+    const CAP = '<p class="wn-shot__cap">Placeholder &mdash; real screenshot goes here</p>';
     const PLACEHOLDER = {
       'whats-new':
         '<div class="wn-mini">'
@@ -101,7 +112,51 @@
         + '<span class="wn-mini__btn">Reorder</span>'
         + '<span class="wn-mini__btn">New project</span>'
         + '<span class="wn-mini__btn wn-mini__btn--primary">Sync now</span>'
+        + '</div>',
+
+      // ── v1.9 (Block 18.8) — verbatim previews ─────────────────────────
+      // Strings below are the shipped strings from /_lib/chat-suggestions.js
+      // as of v1.9. Interpolated values use invented stand-ins (Sprint 24,
+      // Aurora, Beacon) — never a real sprint or project name.
+      'sg-cards':
+        '<div class="wn-mini">'
+        + '<div class="wn-mini__eyebrow">Project chat &middot; Slack and Jira connected</div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__tag">Jira</span><span class="wn-mini__text">How is <strong>Sprint 24</strong> tracking?</span></div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__tag">Jira</span><span class="wn-mini__text">Who has the most open tickets right now?</span></div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__tag">Jira</span><span class="wn-mini__text">How has velocity changed over the last three sprints?</span></div>'
+        + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__tag wn-mini__tag--grey">Slack</span><span class="wn-mini__text">Summarize the last 24 hours of decisions.</span></div>'
         + '</div>'
+        + CAP,
+      'sg-sprint':
+        '<div class="wn-mini">'
+        + '<div class="wn-mini__eyebrow">When a sprint is running</div>'
+        + '<div class="wn-mini__row" style="border-color:var(--brand-soft-border);background:var(--brand-soft);"><span class="wn-mini__tag">Jira</span><span class="wn-mini__text">How is <strong>Sprint 24</strong> tracking?</span></div>'
+        + '<div class="wn-mini__eyebrow" style="margin-top:11px;">When none is</div>'
+        + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__tag">Jira</span><span class="wn-mini__text">How is the active sprint tracking?</span></div>'
+        + '</div>'
+        + CAP,
+      'sg-rail':
+        '<div class="wn-mini">'
+        + '<div class="wn-mini__eyebrow">Above the message box, after an answer</div>'
+        + '<div class="wn-mini--bar-row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px;">'
+        +   '<span class="wn-mini__pill">Break that down by assignee</span>'
+        +   '<span class="wn-mini__pill">Compare with the last three sprints</span>'
+        +   '<span class="wn-mini__pill">Which of those are blocked?</span>'
+        + '</div>'
+        + '<div class="wn-mini__row" style="margin-bottom:0;">'
+        +   '<span class="wn-mini__text" style="color:var(--text-faint);">Ask a follow-up&hellip;</span>'
+        +   '<span class="wn-mini__btn wn-mini__btn--primary" style="width:16px;height:16px;padding:0;flex:none;"></span>'
+        + '</div>'
+        + '</div>'
+        + CAP,
+      'sg-cross':
+        '<div class="wn-mini">'
+        + '<div class="wn-mini__eyebrow">Cross-project chat</div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__tag wn-mini__tag--grey">&middot;</span><span class="wn-mini__text">Which projects are at risk of missing their sprint?</span></div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__tag">New</span><span class="wn-mini__text">Compare velocity across <strong>Aurora and Beacon</strong> over the last three sprints.</span></div>'
+        + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__tag wn-mini__tag--grey">&middot;</span><span class="wn-mini__text">Across <strong>Aurora and Beacon</strong>, who is the busiest assignee right now?</span></div>'
+        + '</div>'
+        + CAP
     };
 
     function renderFeature(f) {

@@ -235,9 +235,30 @@ available from `/api/projects` and `/api/dashboard`.
 | 18.5 | `feat` | AUTO | Wire `project.html`: mount empty-state list + rail; apply `.sg-empty--none` in the `none` branch; delete `SUGGESTIONS_SLACK`/`SUGGESTIONS_JIRA`/`getSuggestionList`/`suggestionCardHtml` and `.chat-empty__*` local CSS. **Keep** `getConnectionState` and the eager connections fetch |
 | 18.6 | `feat` | AUTO | Wire `cross-project/chat.html`: same, deleting `suggestionRow` and `.xc-empty*`/`.xc-suggestion*` local CSS. No `none` state on this surface |
 | 18.7 | `feat` | AUTO | `data-suggestion-id` on cards and pills, **DOM attribute only** — no payload field, no handler change, nothing on the send path |
-| 18.8 | `docs` | AUTO | What's New v1.9 entry — Jenny's copy, images and version string per PRD §5.11 |
+| 18.8 | `docs` | AUTO | What's New v1.9 entry — Jenny's copy and version string per PRD §5.11. **Three files, not one** — see below |
 
 One-fix rule and the 10-call iteration cap apply per sub-task.
+
+### 18.8 grew from one file to three — recorded, not absorbed
+
+The plan assumed 18.8 was "edit the content constant." It is not, because the
+v1.9 previews carry **verbatim shipped strings** rather than grey bars:
+
+| File | Why |
+|---|---|
+| `public/_lib/whats-new-data.js` | the entry object — copy only, as designed |
+| `public/whats-new.html` | four new `PLACEHOLDER` wireframes. Preview markup lives here by design so the content constant stays copy-only (PRD §5.11.6) |
+| `public/auth.css` | **three** classes: `.wn-mini__text`, `.wn-mini__pill`, and `.wn-shot__cap` restored |
+
+`.wn-shot__cap` was not foreseen. It was deleted in `3dc2e9a` as the only user
+of the v1.8 caption; v1.9 requires captions, so it comes back. The caption is
+applied **inside each new placeholder string**, not in `renderFeature` where it
+used to live — restoring it there would re-caption v1.8's two previews, and
+v1.8 is frozen as published.
+
+This is a prerequisite commit, not part of 18.8: `PRD.md` §5.11.6 was amended
+first (`f67eef1`) to permit verbatim previews and to fix the accuracy rule to
+"verbatim at publication, frozen thereafter" rather than perpetual sync.
 
 ### `.sg-empty--none` — the mobile rule breaks the `none` state
 
