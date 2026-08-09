@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <script src="/_lib/no-zoom.js" defer></script>
+  <!-- Block 18: shared suggested-questions module, both chat surfaces. -->
+  <script src="/_lib/chat-suggestions.js" defer></script>
   <title>Cross-project chat — Elinno Agent</title>
   <meta name="robots" content="noindex" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -307,60 +309,9 @@
       overflow-y: auto;
     }
 
-    .xc-empty {
-      margin: 40px auto;
-      max-width: 460px;
-      text-align: center;
-    }
-    .xc-empty__icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      background: var(--brand-tint);
-      color: var(--brand);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 14px;
-      font-size: 22px;
-    }
-    .xc-empty__title {
-      font-family: var(--font);
-      font-size: 18px;
-      font-weight: 500;
-      color: var(--text);
-      margin: 0 0 8px;
-    }
-    .xc-empty__title strong { font-weight: 600; }
-    .xc-empty__sub {
-      font-family: var(--font);
-      font-size: 13px;
-      color: var(--text-2);
-      margin: 0 0 18px;
-      line-height: 1.5;
-    }
-    .xc-suggestions {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      text-align: left;
-    }
-    .xc-suggestion {
-      background: var(--bg);
-      border: 0.5px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 13px;
-      display: flex;
-      gap: 10px;
-      align-items: flex-start;
-      cursor: pointer;
-      font-family: var(--font);
-      font-size: 13px;
-      color: var(--text);
-      text-align: left;
-    }
-    .xc-suggestion:hover { background: var(--brand-soft); border-color: var(--brand-soft-border); }
-    .xc-suggestion__icon { color: var(--brand); flex-shrink: 0; font-size: 14px; }
+    /* Block 18.6: .xc-empty* / .xc-suggestions / .xc-suggestion moved to
+       auth.css as .sg-empty* / .sg-list / .sg-card. They were byte-identical
+       to project.html's .chat-empty* — the same rules under two names. */
 
     .xc-composer {
       border-top: 0.5px solid var(--border-soft);
@@ -668,6 +619,8 @@
     // ---------- state ----------
     let me = null;
     let conv = null;            // active conversation
+    // Block 18.6: rail dismissal is keyed per conversation, in memory only.
+    const currentConvId = () => (conv && conv.id) || null;
     let conversations = [];     // sidebar list
     let projectsById = new Map();
     let messages = [];
@@ -1249,27 +1202,23 @@
         +   '</div>'
         + '</div>';
     }
-    function renderEmpty() {
-      const names = scopeNames();
-      const prose = naturalNameList(names) || 'your projects';
-      return ''
-        + '<div class="xc-empty">'
-        +   '<div class="xc-empty__icon"><i class="ti ti-affiliate"></i></div>'
-        +   '<h2 class="xc-empty__title">Ask across <strong>' + esc(prose) + '</strong></h2>'
-        +   '<p class="xc-empty__sub">The agent reads each project and labels every citation with the project name so you can tell which data point came from where.</p>'
-        +   '<div class="xc-suggestions">'
-        +     suggestionRow('ti-flag', 'Which projects are at risk of missing their sprint?')
-        +     suggestionRow('ti-alert-triangle', 'Where are the blockers across all projects?')
-        +     suggestionRow('ti-users', 'Across ' + (names.join(' and ') || 'projects') + ', who is the busiest assignee right now?')
-        +   '</div>'
-        + '</div>';
+    // Block 18.6: cards come from the shared module. Project names were
+    // already interpolated on this surface; the module now owns that prose
+    // (and its 0/1/2/n cases) so both surfaces read from one catalog.
+    function suggestionCtx() {
+      return { peers: scopeNames(), sprintName: null };
     }
-    function suggestionRow(icon, text) {
+    function renderEmpty() {
+      const prose = naturalNameList(scopeNames()) || 'your projects';
+      const CS = window.ChatSuggestions;
+      const cards = CS ? CS.listHtml('cross', suggestionCtx()) : '';
       return ''
-        + '<button class="xc-suggestion" type="button" data-suggestion="' + esc(text) + '">'
-        +   '<i class="ti ' + icon + ' xc-suggestion__icon"></i>'
-        +   '<span>' + esc(text) + '</span>'
-        + '</button>';
+        + '<div class="sg-empty">'
+        +   '<div class="sg-empty__icon"><i class="ti ti-affiliate"></i></div>'
+        +   '<h2 class="sg-empty__title">Ask across <strong>' + esc(prose) + '</strong></h2>'
+        +   '<p class="sg-empty__sub">The agent reads each project and labels every citation with the project name so you can tell which data point came from where.</p>'
+        +   cards
+        + '</div>';
     }
     function renderBody() {
       const visible = visibleMessages();
@@ -1313,6 +1262,7 @@
       return ''
         + '<div class="xc-composer">'
         +   '<div class="xc-composer__error" id="xcComposerError" style="display:none;"></div>'
+        +   '<div id="xcRail" style="display:none;"></div>'
         +   '<div class="xc-composer__row" style="' + rowOpacity + '">'
         +     '<textarea class="xc-composer__input" id="xcInput" rows="1" placeholder="' + esc(placeholder) + '" aria-label="Message"' + (pausedNow ? ' disabled' : '') + '></textarea>'
         +     '<button class="xc-composer__send" id="xcSend" type="button" disabled aria-label="Send"><i class="ti ti-send"></i></button>'
@@ -1341,18 +1291,20 @@
       wireMain();
       const body = document.getElementById('xcBody');
       if (body) body.scrollTop = body.scrollHeight;
+      renderRail();
     }
     function wireMain() {
-      document.querySelectorAll('[data-suggestion]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const input = document.getElementById('xcInput');
-          if (input) {
-            input.value = btn.getAttribute('data-suggestion') || '';
-            input.dispatchEvent(new Event('input'));
-            input.focus();
-          }
+      // Block 18.6: cards and rail pills are both [data-q] from the shared
+      // module; one wire() call covers them and the rail's × button.
+      if (window.ChatSuggestions) {
+        window.ChatSuggestions.wire(document, {
+          getInput: () => document.getElementById('xcInput'),
+          onDismiss: () => {
+            window.ChatSuggestions.dismiss(currentConvId());
+            renderRail();
+          },
         });
-      });
+      }
       const input = document.getElementById('xcInput');
       const send = document.getElementById('xcSend');
       if (input && send) {
@@ -1360,6 +1312,9 @@
           input.style.height = 'auto';
           input.style.height = input.scrollHeight + 'px';
           send.disabled = inFlight || input.value.trim().length === 0;
+          // Block 18.6: style toggle only — never re-render the rail from
+          // the input handler.
+          updateRailVisibility();
         });
         input.addEventListener('keydown', (e) => {
           if (e.isComposing || e.keyCode === 229) return;
@@ -1370,6 +1325,60 @@
         });
         send.addEventListener('click', sendMessage);
       }
+    }
+
+    // ── Returning rail (Block 18.6) ──────────────────────────────────────
+    // Same module, same rules as project chat: visible once the thread has
+    // messages, the composer is empty and nothing is in flight. Persistent
+    // node inside .xc-composer; contents rebuilt on render, visibility
+    // toggled on input.
+    function railMount() { return document.getElementById('xcRail'); }
+
+    function railShouldShow() {
+      if (inFlight) return false;
+      if (!window.ChatSuggestions) return false;
+      if (window.ChatSuggestions.isDismissed(currentConvId())) return false;
+      const input = document.getElementById('xcInput');
+      if (input && input.value.trim().length > 0) return false;
+      return messages.some(m => m.role === 'user');
+    }
+
+    function renderRail() {
+      const mount = railMount();
+      if (!mount) return;
+      if (!window.ChatSuggestions || window.ChatSuggestions.isDismissed(currentConvId())) {
+        mount.innerHTML = '';
+        updateRailVisibility();
+        return;
+      }
+      let last = null;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === 'assistant' && messages[i].content) { last = messages[i]; break; }
+      }
+      mount.innerHTML = window.ChatSuggestions.railHtml({
+        surface: 'cross',
+        state: 'cross',
+        citations: last && Array.isArray(last.citations) ? last.citations : null,
+        errored: !!(last && last.model === null),
+        sentTexts: messages.filter(m => m.role === 'user').map(m => m.content || ''),
+        ctx: suggestionCtx(),
+      });
+      if (window.ChatSuggestions) {
+        window.ChatSuggestions.wire(mount, {
+          getInput: () => document.getElementById('xcInput'),
+          onDismiss: () => {
+            window.ChatSuggestions.dismiss(currentConvId());
+            renderRail();
+          },
+        });
+      }
+      updateRailVisibility();
+    }
+
+    function updateRailVisibility() {
+      const mount = railMount();
+      if (!mount) return;
+      mount.style.display = (railShouldShow() && mount.innerHTML.length > 0) ? '' : 'none';
     }
 
     function showComposerError(msg) {
