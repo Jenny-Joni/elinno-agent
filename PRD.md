@@ -267,7 +267,20 @@ R2 was considered and rejected: it would allow publishing an image without a dep
 
 **A feature entry is not publishable without its image.** If copy arrives without one, the entry stays `draft` — unless Jenny explicitly chooses to publish ahead of the screenshot, in which case the preview slot renders a labelled placeholder until the PNG lands. v1.5 shipped this way on 2026-08-02.
 
-The placeholder is a **schematic wireframe** — grey bars, no product copy, captioned "Placeholder — real screenshot goes here". It is deliberately abstract so it reads as a stand-in rather than as a picture of the screen. A realistic drawn approximation is not acceptable: it would eventually publish a preview showing behaviour the product does not have, which is the failure this section exists to prevent. Placeholder markup lives in `whats-new.html`, keyed by a `placeholder` field on the feature, so the content constant stays copy-only.
+The placeholder is a **schematic wireframe**, captioned "Placeholder — real screenshot goes here" so it reads as a stand-in rather than as a picture of the screen.
+
+Two forms are allowed, chosen by what the feature actually is:
+
+- **Abstract** — grey bars, no product copy. The default, and correct whenever the change is structural: a new button, a moved row, a chart.
+- **Verbatim** — the real shipped strings. Correct only where the feature's content *is* text and grey bars would convey nothing, as with suggested questions, where which sentences appear is the entire change.
+
+What stays forbidden is the middle ground: a realistic drawn approximation that invents plausible-looking copy. That would publish a preview showing behaviour the product does not have, which is the failure this section exists to prevent. A verbatim preview avoids it by being exactly true; an abstract one avoids it by claiming nothing.
+
+**Verbatim previews are accurate at publication and frozen thereafter.** The strings must match the shipped strings exactly on the day the entry is published — a pre-publication check, made once, alongside the copy review. They are not maintained afterwards. A later release changing a question does not make an older entry wrong: an entry records what shipped in that release, and rewriting it to match current behaviour would destroy the record it exists to keep. For that reason preview strings are duplicated here rather than imported from the live catalog. The duplication is deliberate.
+
+**Interpolated strings take an invented value.** Where a shipped string interpolates real data — a sprint name, a project name — the preview shows a plausible invented stand-in, never a real one. Verbatim means verbatim to the template, not to any workspace's data. See the Contents row above, and Block 16.9.
+
+Placeholder markup lives in `whats-new.html`, keyed by a `placeholder` field on the feature, so the content constant stays copy-only.
 
 #### 5.11.7 Publication workflow
 
