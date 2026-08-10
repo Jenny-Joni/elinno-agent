@@ -79,23 +79,37 @@
 
   /* Explicit per-state lists, not concat() — concat produced eight cards.
      Four is the ceiling. */
+  // `both` order is load-bearing on mobile. Below 700px auth.css hides the
+  // fourth card, so position 4 is the one users on phones never see. Ordering
+  // it sprint / velocity / decisions / workload means the card lost is
+  // `workload` — still an aggregation question, but the least surprising of
+  // the three — while the sprint question, the aggregation headline the whole
+  // v1.9 refresh existed to surface, and the only Slack question all survive.
   var SETS = {
     jira:  ['sprint-status', 'workload', 'velocity', 'blockers'],
     slack: ['decisions', 'themes', 'unanswered'],
-    both:  ['sprint-status', 'workload', 'velocity', 'decisions'],
+    both:  ['sprint-status', 'velocity', 'decisions', 'workload'],
     cross: ['x-risk', 'x-velocity', 'x-workload']
   };
 
   /* Generic rail pool — the fallback when an answer succeeds but cites
      nothing. Reuses catalog ids rather than a second set of strings, so
      interpolation keeps working and the measurement query already covers it.
-     `both` is CURATED, not the first three of SETS.both: taking the first
-     three would drop `decisions` and leave a two-source workspace looking at
-     an all-Jira rail. */
+     `both` was originally curated as sprint/workload/decisions, deliberately
+     NOT the first three of SETS.both, because taking the first three would
+     have dropped `decisions` and left a two-source workspace looking at an
+     all-Jira rail.
+
+     The mobile reorder of SETS.both makes its first three sprint / velocity /
+     decisions — which already satisfies that rule, since the Slack question
+     is now in position 3. The two orders converged rather than one being
+     overruled: the pool is still curated to keep a Slack question, and the
+     curation now agrees with array order instead of contradicting it. Keeping
+     two different orders would just be one more thing to get wrong later. */
   var GENERIC_POOL = {
     jira:  ['sprint-status', 'workload', 'velocity'],
     slack: ['decisions', 'themes', 'unanswered'],
-    both:  ['sprint-status', 'workload', 'decisions'],
+    both:  ['sprint-status', 'velocity', 'decisions'],
     cross: ['x-risk', 'x-velocity', 'x-workload']
   };
 

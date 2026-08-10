@@ -1385,12 +1385,30 @@ table.users-table {
   .sg-pill { max-width: 74vw; font-size: 12px; }
   .sg-rail { gap: 6px; padding-bottom: 8px; }
 
-  /* Mobile fit. The shell is height:calc(100vh - 130px); at 360-390px the
-     40px block margin + sub-paragraph pushed the fourth card under the
-     composer. Trimming both is what makes a four-card set viable here. */
+  /* Mobile fit. The shell is height:calc(100vh - 130px). Measured on a real
+     preview deploy, the empty block was 281px against 175px of message area
+     — a 150px shortfall needing a 733px viewport, which current flagships
+     only just clear and everything smaller misses.
+     Trimming the margin and sub-paragraph was not enough on its own. */
   .sg-empty { margin: 14px auto 0; }
   .sg-empty__sub { display: none; }
   .sg-card { padding: 11px 12px; }
+
+  /* Two further trims, worth ~110px together, dropping the requirement to
+     roughly 620px — clears iPhone 13 mini and up. SE-class (~553px) still
+     scrolls; closing that gap would mean two cards plus a trimmed title,
+     which guts the empty state for the smallest slice of devices. Scrolling
+     is accepted there deliberately, not overlooked. */
+
+  /* The icon is decorative and costs 48px plus its 14px margin. */
+  .sg-empty__icon { display: none; }
+
+  /* Three cards, not four. Which card drops is a content decision made in
+     the SETS ordering in /_lib/chat-suggestions.js, not here — `both` was
+     reordered so the one lost on mobile is `workload` rather than the only
+     Slack question. Cross-project and Slack-only sets have three already,
+     so this rule is a no-op for them. */
+  .sg-list .sg-card:nth-child(n+4) { display: none; }
 
   /* EXCEPT in the 'none' state, where the sub-paragraph is not decorative —
      it carries the whole actionable message ("Connect Slack or Jira…" for
