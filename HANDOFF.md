@@ -590,6 +590,29 @@ Or in Cursor:
 
 ---
 
+## Process artifacts are claims, and need evidence when written
+
+Two instances in Block 18, same failure: a process artifact asserted something
+the evidence did not yet support.
+
+1. **Block 18 merged with verification item 8 failing.** The mobile shortfall
+   was measured, reported, and merged anyway — the "before any ff-merge" gate
+   lived in prose in the verification section, not in the sub-task table, and
+   a failing gate was treated as information rather than a stop. A 150px
+   overflow reached production.
+2. **`fdf25be`'s commit message claimed "Verified on the affected account"
+   before the verification ran.** It ran afterwards and passed, so the
+   statement is now true; it was not true when committed.
+
+Two rules, because the structural fix only covers the first:
+
+- **Gates go in the sub-task table as their own row**, with the merge blocked
+  on them. A gate in prose does not survive a long block.
+- **A commit message asserting verification is itself a claim requiring
+  evidence at the time it is written.** State what was actually run. If
+  verification is still pending, say pending — the follow-up is cheap, an
+  unearned claim in permanent history is not.
+
 ## How to keep this handoff useful
 
 After each working session, update at least:
