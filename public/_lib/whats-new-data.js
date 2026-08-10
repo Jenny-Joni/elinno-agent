@@ -53,14 +53,15 @@
 window.WHATS_NEW = [
   {
     version: 'v1.9',
-    // PLACEHOLDER — set to the actual merge week at publication. The renderer
-    // formats this as "Week of <month> <day>, <year>".
+    // Release week. Confirmed at publication (2026-08-10) — the week
+    // beginning Sunday 2026-08-09, matching v1.8's Sunday-dated convention.
+    // The renderer formats this as "Week of <month> <day>, <year>".
     date: '2026-08-09',
-    // Draft: invisible on every surface. The page, the "Latest" pill, the nav
-    // badge and the dashboard strip all filter on status === 'published'
-    // BEFORE indexing, so v1.8 stays expanded and keeps "Latest" until this
-    // flips. Do not flip it before the block ships.
-    status: 'draft',
+    // Published 2026-08-10. v1.9 is now published[0]: expanded, carrying
+    // "Latest". v1.8 remains published and renders as the collapsed
+    // .wn-past archive row beneath it, expandable on click — its object is
+    // untouched.
+    status: 'published',
     headline: 'Suggested questions now know what your agent can actually do — and they come back between answers instead of vanishing after the first message.',
     features: [
       {
