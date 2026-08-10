@@ -581,15 +581,24 @@
         return list.length ? list : null;
       } catch { return null; }
     }
+    // SECURITY-CARVE-OUT: do not edit in auto mode.
+    //
     // Build a slug-form combo URL: /cross-project/<sorted-slugs>+joined.
-    // 2026-05-27 (shared-workspace-visibility follow-up): convId is no
-    // longer included in the URL path — sidebar is the canonical "which
-    // chat is open" control, mirroring the single-project pattern in
-    // project.html applyState(). The convId parameter is accepted for
-    // call-site stability but ignored. Falls back to the legacy
-    // /cross-project/chat.html?ids= shape when slugs aren't available
-    // yet (projectsById still loading at first paint).
-    function chatUrl(_convId, optsIds) {
+    // Falls back to the legacy /cross-project/chat.html?ids= shape when the
+    // slug set can't be completed.
+    //
+    // 2026-05-27 (shared-workspace-visibility follow-up) stopped putting
+    // convId in the URL path — the sidebar is the canonical "which chat is
+    // open" control, mirroring project.html applyState(). That is right for
+    // the SLUG path: [combo]/[chat].js runs server-side and hands the page
+    // an x-active-chat-id meta tag, so the URL doesn't need to carry it.
+    //
+    // It was wrong for the FALLBACK path, and the comment here used to say
+    // convId was "accepted for call-site stability but ignored". No server
+    // function runs on /cross-project/chat.html, so there is no meta tag and
+    // nothing else identifies the conversation — dropping convId left the
+    // URL with no way to say which chat to open. See the loop note below.
+    function chatUrl(convId, optsIds) {
       const ids = optsIds === undefined ? getFilterIds() : optsIds;
       if (ids && ids.length && projectsById && projectsById.size) {
         const slugs = ids
@@ -601,7 +610,20 @@
         }
       }
       // Legacy / pre-projectsById fallback.
+      //
+      // convId MUST be carried here. Boot's combo branch resolves the right
+      // conversation and then location.replace()s to this URL; if the id is
+      // dropped, the replacement URL is byte-identical to the one that just
+      // loaded, getConvId() finds nothing, and boot re-enters the same branch
+      // forever. That was a live infinite reload loop on any combo whose slug
+      // set cannot be completed — including one referencing a project the
+      // user can no longer see, where it can never be completed.
+      //
+      // ?id= + ?ids= together is an already-supported shape: getConvId()
+      // reads ?id=, boot takes the normal path, and filterIds still scopes
+      // the sidebar (see the sidebarFilter comment in boot).
       const u = new URL('/cross-project/chat.html', location.origin);
+      if (convId) u.searchParams.set('id', convId);
       if (ids && ids.length) u.searchParams.set('ids', ids.join(','));
       return u.pathname + u.search;
     }
