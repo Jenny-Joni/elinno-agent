@@ -2,8 +2,8 @@
 
 > Drop this into a fresh Claude Code session so the assistant can pick up where the last session left off. This file is the single source of truth for "where are we and what's next." Update it after each working session.
 
-**Last updated:** 2026-05-28 (shared-workspace + UI alignment closeout)
-**Current product version:** v1.1 (the MVP being built now)
+**Last updated:** 2026-08-10 (Block 18 / v1.9 closeout)
+**Current product version:** v1.9 (live in production)
 **Owner / sole developer:** Jenny ([jenny@elinnovation.net](mailto:jenny@elinnovation.net))
 **AI tooling:** Claude Code (switched from Cursor + Claude.ai mid-Block-2-Session-3, 2026-05-03)
 
@@ -6967,3 +6967,124 @@ entries render; v1.5 is still draft and invisible.
 
 Left out as internal: the badge duplicate-version warning, the capture-helper
 and Playwright removal, and all four doc updates.
+
+---
+
+## Session closeout — 2026-08-10 (Block 18 → v1.9 shipped, two live defects fixed)
+
+Baseline at session start: `c32570c`, `main` level with `origin/main`, tree
+clean. Ended at `31dd10e`, 16 commits, all pushed and live.
+
+### What shipped
+
+**Block 18 — chat suggested questions (v1.9).** Nine commits, 18.0 → 18.8.
+The suggestion set was rewritten around `aggregate_jira` capability the agent
+has had since v1.2 but nothing surfaced; the sprint card interpolates the live
+sprint name with a static fallback; a returning "Try next" rail appears above
+the composer once a thread has messages; both chat surfaces now render from
+one shared module. `BLOCK_18_PLAN.md` holds the locked decisions.
+
+| Sub-task | Commit | Mode |
+|---|---|---|
+| 18.0 plan | `845e254` | AUTO |
+| 18.1 `pickActiveSprint` → `_lib/jira-sprint.js` | `4c255e1` | DEFAULT · CARVE-OUT |
+| 18.2 `suggestion_context` on `GET /api/projects/:id` | `2507b28` | DEFAULT · CARVE-OUT |
+| 18.3 `public/_lib/chat-suggestions.js` | `f03d233` | DEFAULT (not a carve-out) |
+| 18.4 `.sg-*` → `auth.css` + cache-bust | `d75d208` | AUTO |
+| 18.5 project chat wiring | `23a4296` | AUTO |
+| 18.6 cross-project wiring | `5d15996` | AUTO |
+| 18.7 `data-suggestion-id` | `c757ec6` | AUTO |
+| 18.8 v1.9 What's New entry | `d044bfd` | AUTO |
+
+**v1.9 published** (`f6a723c`). v1.8 untouched and collapsed to its archive
+row. Four features, two fixes, verbatim previews.
+
+### Two live defects found and fixed
+
+**Cross-project chat was unreachable** on any account whose combo could not
+produce a complete slug set — permanent "Loading chat…" while the page
+reload-looped, ~137 requests per minute, all returning 200 so nothing
+surfaced as an error. `chatUrl()` accepted a `convId` and discarded it, so
+boot's combo branch replaced the URL with a byte-identical one and re-entered
+itself forever. Fixed in `fdf25be` by carrying the id into the fallback URL.
+The discard was deliberate (2026-05-27) and correct for the slug path, where
+`[combo]/[chat].js` supplies an `x-active-chat-id` meta tag; it was fatal for
+the fallback, where no function runs.
+
+**The chat empty state overflowed on phones** — a measured 150px, needing a
+733px viewport. Fixed in `5c99e93`: icon hidden and three cards below 700px,
+110px recovered (measured), requirement now 623px. SE-class (~553px) still
+scrolls, accepted deliberately. `SETS.both` reordered to sprint / velocity /
+decisions / workload so the card lost on mobile is `workload` rather than the
+only Slack question; `GENERIC_POOL.both` aligned to match.
+
+### Process changes
+
+- **`PRD.md` §5.11.6 amended** (`f67eef1`) — previews may carry verbatim
+  shipped strings where the feature's content *is* text. Accurate at
+  publication, frozen thereafter; duplication into the `PLACEHOLDER` map is
+  deliberate, not to be "fixed" by importing from the catalog.
+- **HANDOFF gained the What's New procedure** (`b5bb3a4`).
+- **Two failures recorded, and the rules that follow** (`c8d54a3`, `31dd10e`)
+  — see "Process artifacts are claims" above and the Phase 1 verification
+  bullets in `WORKFLOW.md`.
+
+### ⚠️ Open — Jenny's, and the first two are the only unbounded ones
+
+1. **Old Pages deployments still serve the `_dev` mockups** with five real
+   teammate names, at their deployment URLs. Dashboard purge.
+2. **`~/Downloads/elinno-v1.9-suggested-questions/mockup-project-chat.html`**
+   is a second unscrubbed copy of the same names, outside the repo where
+   `.gitignore` does not reach. `rm -rf` the folder — every file in it is a
+   copy of something already in the repo.
+3. **Browser Cache TTL is a standing pipeline defect, not a task.** The zone
+   rewrites `Cache-Control` and overrides `public/_headers`, so every release
+   reaches warm-cache users up to four hours late, and the 14-page cache-bust
+   ritual is only half-effective: the HTML carrying the bumped link is under
+   the same TTL. Caching → Configuration → Browser Cache TTL → Respect
+   Existing Headers.
+4. **Jira cursor check** — gates the auto-sync line in a future entry.
+5. **SE fold question** — is the third suggestion clipped at the composer
+   edge (self-explanatory) or cleanly hidden (a silent loss)? Needs a real
+   phone; a small separate fix if the latter.
+
+### Open — engineering
+
+- **The twelve keyed rail strings are AI-written and unreviewed.** More
+  urgently, "Which of those are blocked?" appears in three of the four pools,
+  which makes the citation keying invisible and reads as a fixed row. A
+  design problem before a copy one; fix the overlap before any voice pass.
+- **Dangling project references** (chip `task_eae467e3`). Deleting a project
+  leaves its id in `conversations.project_ids`, so a chat's header, composer
+  and scope chips claim a project the agent no longer reads. No leak — the
+  send path re-filters on `deleted_at IS NULL`. Same root condition as the
+  `?ids=` loop: a dangling id can never complete a slug set, so that combo
+  permanently emits the fallback URL. `chatUrl` made that path safe, not
+  rare, so it is now load-bearing in production. Open product question:
+  filter dangling ids from the display, or show the project as removed.
+  Recommendation is show-as-removed, by the same reasoning as the freeze
+  rule — a conversation is a record of what it was answered under.
+  **Not a slug problem:** `projects.slug` is `TEXT NOT NULL` and every live
+  project has one.
+- `dashboard.js` active-sprint divergence — still resolves by a looser rule
+  than `_lib/jira-sprint.js`, so its card can name a sprint the chat chip and
+  Sprint View treat as absent.
+- v1.8's two previews carry no caption; `.wn-shot__cap` was restored in 18.8
+  but v1.8 is frozen as published. Its own correction commit.
+- `cross-project/chat.html:1016` uses `location.assign` where every other
+  redirect uses `replace`.
+- Widening "Jenny writes all copy" beyond changelog copy to all user-facing
+  product strings — agreed in principle, with a carve-out allowing Claude to
+  propose strings inside a plan. Not yet written into `WORKFLOW.md`.
+- Where the "repo goes public" re-lock trigger lives, so a future
+  open-sourcing decision actually hits it. The `_dev` content stays
+  recoverable from `3dce781`; rewriting merged history is forbidden.
+
+### What's New notice
+
+v1.9 is published and covers the user-visible work. Everything else this
+session was internal: the shared module, the CSS consolidation, the
+cache-bust sweep, the `pickActiveSprint` extraction, `data-suggestion-id`,
+and all doc changes. The cross-project loop fix is arguably user-visible but
+was never announced in a prior entry as working, so there is nothing to
+correct.
