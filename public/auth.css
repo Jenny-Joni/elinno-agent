@@ -288,61 +288,11 @@ img, svg { max-width: 100%; display: block; }
 .form-msg.hidden { display: none; }
 
 /* ---------- Dashboard / app shell ---------- */
-/* v1.3 (Block 12.1) — light-mode .app-nav per PRD §7.1(a) + §7.4.
-   The v1.2 dark-glass treatment was a marketing-shell carry-over that
-   read as an arbitrary dark stripe over a light-grey body in the authed
-   app. v1.3 inverts: white bg, thin bottom border, dark text. The brand
-   E mark stays (existing .app-brand-mark rule if present). Site-wide
-   propagation: every authed page shares this rule. */
-.app-nav {
-  position: sticky;
-  top: 0;
-  z-index: 99;
-  background: var(--color-bg-light);
-  border-bottom: 1px solid var(--color-border);
-}
-.app-nav-inner {
-  max-width: var(--container-max);
-  margin: 0 auto;
-  padding: 16px 15px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-.app-brand {
-  color: var(--color-text-dark);
-  font-family: var(--font-medium);
-  font-size: 18px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  text-decoration: none;
-}
-.app-nav-actions {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-}
-.app-nav-actions a {
-  color: var(--color-text-body);
-  font-family: var(--font-regular);
-  font-size: 14px;
-  text-decoration: none;
-  transition: color var(--t-form);
-}
-.app-nav-actions a:hover { color: var(--color-text-dark); }
-.app-nav-actions .btn-nav {
-  background: var(--color-brand);
-  border: 1px solid var(--color-brand);
-  color: var(--color-text-inverse);
-  padding: 10px 16px;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-medium);
-  font-size: 13px;
-  text-transform: uppercase;
-  transition: opacity var(--t-form);
-}
-.app-nav-actions .btn-nav:hover { opacity: 0.9; }
+/* Block 19 retired the .app-nav / .app-nav-inner / .app-brand /
+   .app-nav-actions / .btn-nav family that lived here (added in v1.3,
+   Block 12.1, per PRD §7.1(a) + §7.4). The authed app's navigation is
+   the left rail now — see the .side-nav section at the foot of this
+   file. .app-main below stays: it is the page body wrapper, not the bar. */
 
 .app-main {
   background: var(--color-bg-soft);
@@ -3139,39 +3089,14 @@ table.users-table {
 }
 
 /* ────────────────────────────────────────────────────────────────────
-   Sticky top bar — progressive-enhancement hook classes added by
-   public/_lib/sticky-topbar.js. The bar itself is already
-   position: sticky via .app-nav (defined further up in this file);
-   these rules just style the on-scroll affordances.
+   Block 19 retired the sticky-top-bar affordances that lived here
+   (.app-nav.is-lifted / .is-hidden) along with public/_lib/sticky-topbar.js.
 
-   - .is-lifted (desktop + mobile): subtle shadow, hairline border
-     drops away.
-   - .is-hidden (mobile only): translates the bar offscreen on
-     scroll-down so the user reclaims viewport height; pulled back
-     into view on scroll-up.
+   .is-hidden translated the bar offscreen on scroll-down so a phone could
+   reclaim ~70px of viewport. The rail gives that back permanently — its
+   mobile head bar is 52px and never moves — so there is nothing left to
+   reclaim and nothing to scroll away.
    ──────────────────────────────────────────────────────────────────── */
-.app-nav {
-  transition: box-shadow var(--t-fast), border-color var(--t-fast), transform 0.2s ease-out;
-}
-.app-nav.is-lifted {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border-bottom-color: transparent;
-}
-
-@media (max-width: 700px) {
-  .app-nav.is-hidden {
-    transform: translateY(-100%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-nav {
-    transition: none;
-  }
-  .app-nav.is-hidden {
-    transform: none;
-  }
-}
 
 /* ────────────────────────────────────────────────────────────────────
    v1.4 button family — BEM-style modifiers, sentence-case.
@@ -3904,34 +3829,24 @@ table.users-table {
   .wn-past { padding: 14px 15px; flex-wrap: wrap; min-height: 44px; }
   .wn-past__headline { margin-left: 0; flex-basis: 100%; }
 
-  /* The What's New link stays visible on mobile — this reverses the original
-     §5.11.8 decision to hide it below 700px.
-
-     Four items plus the brand do not fit a 375px row on their own: the row
-     needs ~238px and only ~208px is left after the brand, so flex silently
-     compensated by squashing the avatar to a sliver and wrapping "Log out"
-     onto two lines. Pinning flex-shrink stops the deformation; the space it
-     then needs is reclaimed from the wordmark below. */
-  .app-nav-actions { gap: 12px; }
-  .app-nav-actions > * { flex-shrink: 0; }
-  .app-nav-actions a { white-space: nowrap; }
-  .app-nav-actions .btn-nav,
-  .app-nav-actions .btn { white-space: nowrap; }
+  /* Block 19 retired the four .app-nav-actions rules that lived here, with
+     the bar itself. They existed because four items plus a brand do not fit
+     a 375px row — the row needed ~238px against the ~208px left after the
+     brand — and flex was silently squashing the avatar to a sliver and
+     wrapping "Log out" onto two lines. Pinned flex-shrink was a compensation
+     for a constraint the rail removes: navigation is off-canvas at this
+     width, so nothing competes for the row.
+     The What's New link stays visible on mobile (reversing the original
+     §5.11.8 decision); it is a rail row now. */
   .wn-navlink { font-size: 13px; }
 }
 
-/* Narrow phones only. Above this the wordmark fits alongside a four-item
-   actions row; below it the row would have to deform to survive, so the
-   wordmark gives way and the brandmark alone carries identity (it is still
-   the link home). Kept off the 700px query so larger phones and tablets
-   keep the full lockup. */
-@media (max-width: 430px) {
-  .app-brand .wordmark { display: none; }
-  /* workspace_settings carries a fifth item (Cross-project). With the
-     wordmark already gone the row still ran ~8px past the viewport, so the
-     gap tightens here too. */
-  .app-nav-actions { gap: 8px; }
-}
+/* Block 19 retired the ≤430px block that hid .app-brand .wordmark and
+   tightened .app-nav-actions to 8px. Both existed to stop a horizontal bar
+   overflowing a narrow phone — workspace_settings' fifth item ran the row
+   ~8px past the viewport even with the wordmark already gone. The rail is
+   off-canvas at these widths and its head bar carries two elements, so the
+   full lockup survives on every phone now. */
 
 @media (max-width: 700px) {
   /* Strip stacks; the chevron becomes an explicit read affordance,
