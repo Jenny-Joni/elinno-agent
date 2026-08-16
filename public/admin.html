@@ -9,7 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
-  <link rel="stylesheet" href="/auth.css?v=2026-08-10-1" />
+  <link rel="stylesheet" href="/auth.css?v=2026-08-16-1" />
   <style>
     /* Admin-screen-only layout: mirror the v1.4 mockup screen-10.
        All v1.4 components (.brandmark/.wordmark/.eyebrow/.surface/
@@ -215,22 +215,41 @@
 </head>
 <body>
 
-  <nav class="app-nav" data-sticky-topbar>
-    <div class="app-nav-inner">
-      <a href="/dashboard.html" class="app-brand" style="display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:inherit;">
-        <span class="brandmark"></span>
-        <span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span>
-      </a>
-      <div class="app-nav-actions">
-        <a href="/whats-new.html" class="wn-navlink">What's new<span class="wn-navlink__dot" style="display:none;"></span></a>
-        <a href="/admin.html" class="is-active">Admin</a>
-        <span id="navUserAvatar" class="members-row__avatar self" style="width:28px;height:28px;font-size:11px;" title=""></span>
-        <button id="logoutBtn" class="btn btn--ghost" type="button" style="padding:6px 12px;font-size:12px;">Log out</button>
+  <!-- ===================================================================
+       Block 19 side rail. This block is BYTE-IDENTICAL in all 11 authed
+       pages and is diffed across them by verification item 3. Do not edit
+       one copy — edit every copy, or the drift this rail exists to fix
+       starts over. Behavior: /_lib/side-nav.js. Styles: auth.css .side-nav*.
+       =================================================================== -->
+  <div class="side-nav-head">
+    <button class="side-nav-head__toggle" type="button" data-sn-mobile-toggle aria-label="Open navigation" aria-expanded="false"><i class="ti ti-menu-2" aria-hidden="true"></i></button>
+    <a class="side-nav-head__brand" href="/dashboard.html"><span class="brandmark"></span><span class="wordmark" style="font-size:14px;">Elinno&nbsp;Agent</span></a>
+  </div>
+  <div class="side-nav-backdrop" data-sn-backdrop></div>
+  <aside class="side-nav" aria-label="Main">
+    <div class="side-nav__brand">
+      <a class="side-nav__lockup" href="/dashboard.html"><span class="brandmark"></span><span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span></a>
+      <button class="side-nav__collapse" type="button" data-sn-toggle aria-label="Expand navigation" aria-expanded="false"><i class="ti ti-chevrons-right" aria-hidden="true"></i></button>
+    </div>
+    <div class="side-nav__scroll">
+      <a class="sn-item" href="/dashboard.html" data-sn-nav="dashboard" title="Dashboard"><i class="ti ti-layout-dashboard" aria-hidden="true"></i><span class="sn-item__label">Dashboard</span></a>
+      <button class="sn-item" type="button" data-sn-section="projects" aria-expanded="false" title="Projects"><i class="ti ti-folders" aria-hidden="true"></i><span class="sn-item__label">Projects</span><i class="ti ti-chevron-right sn-chev" aria-hidden="true"></i></button>
+      <div data-sn-children="projects"></div>
+      <a class="sn-item" href="/cross-project/index.html" data-sn-nav="cross-project" title="Cross-project chats"><i class="ti ti-messages" aria-hidden="true"></i><span class="sn-item__label">Cross-project chats</span></a>
+      <div id="adminLink" style="display:none;">
+        <div class="sn-divider"></div>
+        <a class="sn-item" href="/workspace_settings.html" data-sn-nav="workspace-settings" title="Workspace settings"><i class="ti ti-settings" aria-hidden="true"></i><span class="sn-item__label">Workspace settings</span></a>
+        <a class="sn-item" href="/admin.html" data-sn-nav="members" title="Members"><i class="ti ti-shield" aria-hidden="true"></i><span class="sn-item__label">Members</span></a>
       </div>
     </div>
-  </nav>
+    <div class="side-nav__foot">
+      <a class="sn-item wn-navlink" href="/whats-new.html" data-sn-nav="whats-new" title="What's new"><i class="ti ti-sparkles" aria-hidden="true"></i><span class="sn-item__label">What's new</span><span class="wn-navlink__dot" style="display:none;"></span></a>
+      <div class="sn-item sn-item--static" data-sn-user><span id="navUserAvatar" class="sn-avatar" title=""></span><span class="sn-item__label" data-sn-username>Account</span></div>
+      <button class="sn-item" type="button" id="logoutBtn" title="Log out"><i class="ti ti-logout" aria-hidden="true"></i><span class="sn-item__label">Log out</span></button>
+    </div>
+  </aside>
 
-  <main class="app-main" style="background:var(--bg-subtle);min-height:calc(100vh - 70px);padding:0;">
+  <main class="app-main" style="background:var(--bg-subtle);min-height:100vh;padding:0;">
     <div class="admin-shell">
       <div class="eyebrow">
         <span class="eyebrow__label">Workspace admin</span>
@@ -361,6 +380,7 @@
   <script src="/_lib/sticky-topbar.js" defer></script>
   <script src="/_lib/whats-new-data.js" defer></script>
   <script src="/_lib/whats-new-badge.js" defer></script>
+  <script src="/_lib/side-nav.js" defer></script>
 
   <script>
   (function () {

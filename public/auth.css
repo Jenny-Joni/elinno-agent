@@ -4004,7 +4004,21 @@ body.has-side-nav.side-nav-expanded { margin-left: 260px; }
   color: inherit;
   min-width: 0;
 }
-.side-nav:not(.is-expanded) .side-nav__brand { justify-content: center; padding: 0; }
+/* Collapsed: the mark and the expand control sit side by side. The control
+   must NOT be hidden here — it is the only way back out of the collapsed
+   state, and hiding it (as the first draft did) left the default state with
+   no way to expand unless you happened to click Projects. 64px less 12px of
+   padding leaves 52px; 18px mark + 4px gap + ~16px chevron fits. */
+.side-nav:not(.is-expanded) .side-nav__brand {
+  justify-content: center;
+  padding: 0 6px;
+  gap: 4px;
+}
+.side-nav:not(.is-expanded) .side-nav__collapse {
+  margin-left: 0;
+  padding: 2px;
+  font-size: 13px;
+}
 .side-nav__collapse {
   margin-left: auto;
   background: none;
@@ -4060,6 +4074,12 @@ body.has-side-nav.side-nav-expanded { margin-left: 260px; }
 .sn-item[aria-current="page"] > i:first-child,
 .sn-item.is-active > i:first-child { color: var(--brand); }
 .side-nav:not(.is-expanded) .sn-item { justify-content: center; padding: 9px 0; gap: 0; }
+
+/* The user row shows who you are; it is not a destination. Workspace
+   settings — the obvious target — is admin-only, so linking it would give
+   members a row into a forbidden page. */
+.sn-item--static { cursor: default; }
+.sn-item--static:hover { background: none; }
 
 /* ---------- Level 2 (projects) ---------- */
 .sn-l2 {
@@ -4141,16 +4161,29 @@ body.has-side-nav.side-nav-expanded { margin-left: 260px; }
 /* Collapsed rail: everything but the icons goes. The children of an
    accordion are hidden outright — there is nowhere to put them at 64px. */
 .side-nav:not(.is-expanded) .wordmark,
-.side-nav:not(.is-expanded) .side-nav__collapse,
 .side-nav:not(.is-expanded) .sn-item__label,
 .side-nav:not(.is-expanded) .sn-chev,
 .side-nav:not(.is-expanded) .sn-l2,
 .side-nav:not(.is-expanded) .sn-l3,
 .side-nav:not(.is-expanded) .sn-util { display: none; }
 
-/* The unread dot has no room to sit beside a hidden label, so it moves
-   onto the icon itself. */
-.side-nav:not(.is-expanded) .wn-navlink__dot { top: 4px; right: 16px; }
+/* The dot's base rule pins it absolutely at right:-9px against a
+   text-width .wn-navlink. A rail row is full-width, so that put the dot
+   outside the row entirely, floating above it. In the rail it is an
+   ordinary flex child at the end of the row instead. */
+.side-nav .wn-navlink__dot {
+  position: static;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+/* Collapsed, there is no label to sit beside — it overlaps the icon. */
+.side-nav:not(.is-expanded) .wn-navlink__dot {
+  position: absolute;
+  top: 7px;
+  right: 18px;
+  margin-left: 0;
+}
+.side-nav:not(.is-expanded) .wn-navlink { position: relative; }
 
 /* ---------- Mobile head bar (≤700px only; hidden above) ---------- */
 .side-nav-head { display: none; }
