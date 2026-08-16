@@ -7,6 +7,20 @@
   <title>Workspace settings — Elinno Agent</title>
   <meta name="robots" content="noindex" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <!-- Block 19 rail boot. BYTE-IDENTICAL in all 11 authed pages, like the
+       rail block in <body>; verification item 3b diffs them.
+
+       This MUST be inline and synchronous, and it must stay in <head>.
+       /_lib/side-nav.js is deferred, so it runs only after the document is
+       parsed — by then the rail has already painted collapsed at 64px with
+       the page at x=0, and applying the saved state jumps it to 260px. That
+       two-axis shift fired on EVERY navigation, which is what made moving
+       between, say, Sprint View and Chat look like a glitch rather than a
+       page change. Restoring the state here happens before first paint, so
+       there is nothing to jump.
+
+       Keep it tiny and dependency-free: it blocks the parser by design. -->
+  <script>(function(){var d=document.documentElement;d.classList.add('sn-boot');try{if(localStorage.getItem('elinno.sidenav.expanded')==='1')d.classList.add('sn-expanded');}catch(e){}})();</script>
   <link rel="stylesheet" href="/auth.css?v=2026-08-16-1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
   <style>

@@ -3904,12 +3904,12 @@ table.users-table {
      unmeasurable in a backgrounded tab, where transitions are throttled
      and getComputedStyle returns a frozen mid-tween. */
 }
-.side-nav.is-expanded { width: 260px; }
+html.sn-expanded .side-nav { width: 260px; }
 
 /* Page content clears the rail. Pages set no left margin of their own;
    this is the single place the offset is defined. */
-body.has-side-nav { margin-left: 64px; }
-body.has-side-nav.side-nav-expanded { margin-left: 260px; }
+html.sn-boot body { margin-left: 64px; }
+html.sn-boot.sn-expanded body { margin-left: 260px; }
 
 /* ---------- Brand row — reuses .brandmark / .wordmark (decision H1b) ---------- */
 .side-nav__brand {
@@ -3936,12 +3936,12 @@ body.has-side-nav.side-nav-expanded { margin-left: 260px; }
    state, and hiding it (as the first draft did) left the default state with
    no way to expand unless you happened to click Projects. 64px less 12px of
    padding leaves 52px; 18px mark + 4px gap + ~16px chevron fits. */
-.side-nav:not(.is-expanded) .side-nav__brand {
+html:not(.sn-expanded) .side-nav .side-nav__brand {
   justify-content: center;
   padding: 0 6px;
   gap: 4px;
 }
-.side-nav:not(.is-expanded) .side-nav__collapse {
+html:not(.sn-expanded) .side-nav .side-nav__collapse {
   margin-left: 0;
   padding: 2px;
   font-size: 13px;
@@ -4000,7 +4000,7 @@ body.has-side-nav.side-nav-expanded { margin-left: 260px; }
 }
 .sn-item[aria-current="page"] > i:first-child,
 .sn-item.is-active > i:first-child { color: var(--brand); }
-.side-nav:not(.is-expanded) .sn-item { justify-content: center; padding: 9px 0; gap: 0; }
+html:not(.sn-expanded) .side-nav .sn-item { justify-content: center; padding: 9px 0; gap: 0; }
 
 /* The user row shows who you are; it is not a destination. Workspace
    settings — the obvious target — is admin-only, so linking it would give
@@ -4087,12 +4087,12 @@ body.has-side-nav.side-nav-expanded { margin-left: 260px; }
 
 /* Collapsed rail: everything but the icons goes. The children of an
    accordion are hidden outright — there is nowhere to put them at 64px. */
-.side-nav:not(.is-expanded) .wordmark,
-.side-nav:not(.is-expanded) .sn-item__label,
-.side-nav:not(.is-expanded) .sn-chev,
-.side-nav:not(.is-expanded) .sn-l2,
-.side-nav:not(.is-expanded) .sn-l3,
-.side-nav:not(.is-expanded) .sn-util { display: none; }
+html:not(.sn-expanded) .side-nav .wordmark,
+html:not(.sn-expanded) .side-nav .sn-item__label,
+html:not(.sn-expanded) .side-nav .sn-chev,
+html:not(.sn-expanded) .side-nav .sn-l2,
+html:not(.sn-expanded) .side-nav .sn-l3,
+html:not(.sn-expanded) .side-nav .sn-util { display: none; }
 
 /* The dot's base rule pins it absolutely at right:-9px against a
    text-width .wn-navlink. A rail row is full-width, so that put the dot
@@ -4104,13 +4104,13 @@ body.has-side-nav.side-nav-expanded { margin-left: 260px; }
   flex-shrink: 0;
 }
 /* Collapsed, there is no label to sit beside — it overlaps the icon. */
-.side-nav:not(.is-expanded) .wn-navlink__dot {
+html:not(.sn-expanded) .side-nav .wn-navlink__dot {
   position: absolute;
   top: 7px;
   right: 18px;
   margin-left: 0;
 }
-.side-nav:not(.is-expanded) .wn-navlink { position: relative; }
+html:not(.sn-expanded) .side-nav .wn-navlink { position: relative; }
 
 /* ---------- Mobile head bar (≤700px only; hidden above) ---------- */
 .side-nav-head { display: none; }
@@ -4133,8 +4133,8 @@ body.side-nav-open .side-nav-backdrop { display: block; }
    squeezed under 500px.
    ════════════════════════════════════════════════════════════════════ */
 @media (max-width: 1100px) {
-  body.has-side-nav.side-nav-expanded { margin-left: 64px; }
-  body.side-nav-expanded .side-nav-backdrop { display: block; }
+  html.sn-boot.sn-expanded body { margin-left: 64px; }
+  html.sn-expanded body .side-nav-backdrop { display: block; }
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -4150,8 +4150,8 @@ body.side-nav-open .side-nav-backdrop { display: block; }
    65px apart vertically and 303px horizontally.
    ════════════════════════════════════════════════════════════════════ */
 @media (max-width: 700px) {
-  body.has-side-nav,
-  body.has-side-nav.side-nav-expanded {
+  html.sn-boot body,
+  html.sn-boot.sn-expanded body {
     margin-left: 0;
     padding-top: 52px;
   }
@@ -4194,29 +4194,29 @@ body.side-nav-open .side-nav-backdrop { display: block; }
   }
 
   /* Always the expanded tree on mobile — an icon-only rail behind a
-     backdrop would be a worse version of the head bar's own toggle. */
-  .side-nav,
-  .side-nav.is-expanded {
+     backdrop would be a worse version of the head bar's own toggle.
+     Width is unconditional here, so the collapsed/expanded state on <html>
+     is irrelevant below 700px. */
+  .side-nav {
     top: 52px;
     width: 280px;
     max-width: 85%;
     transform: translateX(-100%);
     border-right: 0.5px solid var(--border);
   }
-  body.side-nav-open .side-nav,
-  body.side-nav-open .side-nav.is-expanded { transform: translateX(0); }
+  body.side-nav-open .side-nav { transform: translateX(0); }
 
-  /* Labels come back even though .is-expanded may be absent. */
-  .side-nav:not(.is-expanded) .wordmark,
-  .side-nav:not(.is-expanded) .sn-item__label,
-  .side-nav:not(.is-expanded) .sn-chev,
-  .side-nav:not(.is-expanded) .sn-l2,
-  .side-nav:not(.is-expanded) .sn-l3,
-  .side-nav:not(.is-expanded) .sn-util { display: flex; }
-  .side-nav:not(.is-expanded) .sn-item__label,
-  .side-nav:not(.is-expanded) .wordmark { display: inline; }
-  .side-nav:not(.is-expanded) .sn-item { justify-content: flex-start; padding: 8px 9px; gap: 11px; }
-  .side-nav:not(.is-expanded) .wn-navlink__dot { top: -3px; right: -9px; }
+  /* Labels come back even when <html> is in the collapsed state. */
+  html:not(.sn-expanded) .side-nav .wordmark,
+  html:not(.sn-expanded) .side-nav .sn-item__label,
+  html:not(.sn-expanded) .side-nav .sn-chev,
+  html:not(.sn-expanded) .side-nav .sn-l2,
+  html:not(.sn-expanded) .side-nav .sn-l3,
+  html:not(.sn-expanded) .side-nav .sn-util { display: flex; }
+  html:not(.sn-expanded) .side-nav .sn-item__label,
+  html:not(.sn-expanded) .side-nav .wordmark { display: inline; }
+  html:not(.sn-expanded) .side-nav .sn-item { justify-content: flex-start; padding: 8px 9px; gap: 11px; }
+  html:not(.sn-expanded) .side-nav .wn-navlink__dot { top: -3px; right: -9px; }
 
   /* The rail's own brand row is redundant with the head bar's. */
   .side-nav__brand { display: none; }

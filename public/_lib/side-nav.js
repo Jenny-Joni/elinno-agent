@@ -74,6 +74,7 @@
   if (!rail) return;
 
   var body = document.body;
+  var root = document.documentElement;   // carries sn-boot / sn-expanded
   var scroll = rail.querySelector('.side-nav__scroll');
   var childBox = rail.querySelector('[data-sn-children="projects"]');
   var sectionBtn = rail.querySelector('[data-sn-section="projects"]');
@@ -100,7 +101,9 @@
     }
   })();
 
-  body.classList.add('has-side-nav');
+  // The boot script already added sn-boot before first paint. Re-add it so
+  // the rail still lays out if that script was stripped or failed.
+  root.classList.add('sn-boot');
 
   /* ─── Active item ────────────────────────────────────────────────────
      Every authed page maps to exactly ONE rail item. The block plan's
@@ -138,8 +141,10 @@
 
   /* ─── Expand / collapse (desktop) ────────────────────────────────── */
   function setExpanded(on, persist) {
-    rail.classList.toggle('is-expanded', on);
-    body.classList.toggle('side-nav-expanded', on);
+    // The layout state lives on <html>, not on the rail or the body, because
+    // the inline boot script in <head> has to set it before <body> exists.
+    // One class, one source of truth — keep these in sync with boot.
+    root.classList.toggle('sn-expanded', on);
     var t = rail.querySelector('[data-sn-toggle]');
     if (t) {
       t.setAttribute('aria-expanded', String(on));
@@ -159,7 +164,7 @@
   var toggleBtn = rail.querySelector('[data-sn-toggle]');
   if (toggleBtn) {
     toggleBtn.addEventListener('click', function () {
-      setExpanded(!rail.classList.contains('is-expanded'), true);
+      setExpanded(!root.classList.contains('sn-expanded'), true);
       // Deliberately does NOT force the Projects section open. The rail is
       // meant to look the same everywhere; opening a section the user had
       // closed would be the rail changing itself out from under them.
@@ -197,7 +202,7 @@
       // One backdrop, two jobs: it closes the mobile drawer, and below
       // 1100px it also closes the overlaying expanded rail (decision D).
       if (body.classList.contains('side-nav-open')) setDrawer(false);
-      else if (body.classList.contains('side-nav-expanded')) setExpanded(false, true);
+      else if (root.classList.contains('sn-expanded')) setExpanded(false, true);
     });
   }
 
@@ -318,28 +323,77 @@
 
   var fetching = false;
 
+  function renderEmpty() {
+    childBox.innerHTML = loadingRow('No projects yet')
+      + (isAdmin() ? '<a class="sn-util" href="/projects/new.html"><i class="ti ti-plus"></i>New project</a>' : '');
+  }
+
+  /* Render the tree from the last page's copy, then revalidate.
+
+     Without this the section shows "Loading…" and then pops the tree in on
+     every navigation, because /api/projects is a fresh round trip per page.
+     Moving between two children of the same project — Sprint View to Chat —
+     made the whole tree vanish and rebuild, which reads as a glitch rather
+     than a page change.
+
+     sessionStorage, not localStorage: the cache only needs to survive
+     navigation inside one tab, which is exactly the window the flash lives
+     in. A new tab or a new day starts from the network. The network result
+     always wins and overwrites; this only removes the empty gap before it
+     arrives. */
+  function cacheKeyFor() { return 'elinno.sidenav.projectsCache'; }
+
+  function readCache() {
+    try {
+      var raw = sessionStorage.getItem(cacheKeyFor());
+      var v = raw ? JSON.parse(raw) : null;
+      return (Object.prototype.toString.call(v) === '[object Array]') ? v : null;
+    } catch (e) { return null; }
+  }
+
+  function writeCache(rows) {
+    try {
+      // Only the fields the rail draws — not the whole project payload.
+      sessionStorage.setItem(cacheKeyFor(), JSON.stringify(rows.slice(0, PROJECT_CAP).map(function (p) {
+        return { name: p.name, slug: p.slug, has_jira: !!p.has_jira, role: p.role };
+      })));
+    } catch (e) { /* quota or private mode — the network path still works */ }
+  }
+
   function ensureProjects() {
-    if (projects || fetching || !childBox) return;
+    if (fetching || !childBox) return;
+
+    if (!projects) {
+      var cached = readCache();
+      if (cached && cached.length) {
+        projects = cached;
+        if (!userSet && cached[0].role === 'admin') {
+          applyUser({ is_admin: true, display_name: '', email: '' });
+        }
+        renderProjects();          // paints immediately, no network wait
+      } else {
+        childBox.innerHTML = loadingRow('Loading…');
+      }
+    }
+
     fetching = true;
-    childBox.innerHTML = loadingRow('Loading…');
     fetch('/api/projects', { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        projects = (d && Array.isArray(d.projects)) ? d.projects : [];
+        var fresh = (d && Array.isArray(d.projects)) ? d.projects : [];
         // /api/projects carries `role` per row; use it if /api/me lost the
         // race, so the admin rows are not silently withheld from an admin.
-        if (!userSet && projects.length && projects[0].role === 'admin') {
+        if (!userSet && fresh.length && fresh[0].role === 'admin') {
           applyUser({ is_admin: true, display_name: '', email: '' });
         }
-        if (!projects.length) {
-          childBox.innerHTML = loadingRow('No projects yet')
-            + (isAdmin() ? '<a class="sn-util" href="/projects/new.html"><i class="ti ti-plus"></i>New project</a>' : '');
-          return;
-        }
+        projects = fresh;
+        writeCache(fresh);
+        if (!fresh.length) { renderEmpty(); return; }
         renderProjects();
       })
       .catch(function () {
-        childBox.innerHTML = loadingRow("Couldn't load projects");
+        // Keep whatever the cache painted; only report if there is nothing.
+        if (!projects) childBox.innerHTML = loadingRow("Couldn't load projects");
       })
       .then(function () { fetching = false; });
   }
@@ -365,7 +419,7 @@
     sectionBtn.addEventListener('click', function () {
       // Clicking the section while collapsed should expand the rail first —
       // there is nowhere to draw children at 64px.
-      if (!rail.classList.contains('is-expanded') && !body.classList.contains('side-nav-open')) {
+      if (!root.classList.contains('sn-expanded') && !body.classList.contains('side-nav-open')) {
         setExpanded(true, true);
       }
       toggleSection();
