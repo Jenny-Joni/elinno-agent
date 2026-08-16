@@ -4231,7 +4231,14 @@ body.side-nav-open .side-nav-backdrop { display: block; }
      backdrop would be a worse version of the head bar's own toggle.
      Width is unconditional here, so the collapsed/expanded state on <html>
      is irrelevant below 700px. */
-  .side-nav {
+  /* html.sn-expanded is repeated here on purpose. The desktop rule
+     `html.sn-expanded .side-nav { width: 260px }` is (0,2,1); a bare
+     `.side-nav` is (0,1,0), and a media query adds no specificity — so
+     without this the collapsed/expanded state leaked through and the drawer
+     opened at 260px, 20px narrower than the conversations drawer it is
+     supposed to match. Measured at 375px before the fix. */
+  .side-nav,
+  html.sn-expanded .side-nav {
     top: 52px;
     width: 280px;
     max-width: 85%;
