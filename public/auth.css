@@ -3897,13 +3897,18 @@ table.users-table {
   display: flex;
   flex-direction: column;
   font-family: var(--font);
-  transition: width var(--t-fast);
+  /* No width transition. The rail is chrome that persists across every
+     page load, so an animation would replay on each navigation — the bar
+     sliding open again on every click reads as the app re-rendering
+     rather than as a stable frame around the page. It also made width
+     unmeasurable in a backgrounded tab, where transitions are throttled
+     and getComputedStyle returns a frozen mid-tween. */
 }
 .side-nav.is-expanded { width: 260px; }
 
 /* Page content clears the rail. Pages set no left margin of their own;
    this is the single place the offset is defined. */
-body.has-side-nav { margin-left: 64px; transition: margin-left var(--t-fast); }
+body.has-side-nav { margin-left: 64px; }
 body.has-side-nav.side-nav-expanded { margin-left: 260px; }
 
 /* ---------- Brand row — reuses .brandmark / .wordmark (decision H1b) ---------- */
@@ -4196,7 +4201,6 @@ body.side-nav-open .side-nav-backdrop { display: block; }
     width: 280px;
     max-width: 85%;
     transform: translateX(-100%);
-    transition: transform 0.25s ease-out;
     border-right: 0.5px solid var(--border);
   }
   body.side-nav-open .side-nav,
@@ -4221,8 +4225,5 @@ body.side-nav-open .side-nav-backdrop { display: block; }
   .side-nav-backdrop { top: 52px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .side-nav,
-  body.has-side-nav { transition: none; }
-  .side-nav.is-expanded { transition: none; }
-}
+/* No prefers-reduced-motion block for the rail: it has no motion to reduce.
+   Width, page offset and the mobile drawer all change instantly. */

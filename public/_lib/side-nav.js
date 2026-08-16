@@ -40,8 +40,29 @@
 (function () {
   'use strict';
 
+  /* The rail is a fixed frame around the app, not part of any one page, so
+     its whole state survives navigation — collapsed/expanded, whether the
+     Projects section is open, and which projects are open inside it. Without
+     this, every click reset the tree and you re-opened the same project on
+     each page. Per-device by design, same as _lib/whats-new-badge.js.
+
+     Open projects are keyed by SLUG, not list index: /api/projects orders by
+     sort_position, so an admin reordering projects would otherwise silently
+     expand a different one than the user left open. */
   var STORAGE_KEY = 'elinno.sidenav.expanded';
+  var SECTION_KEY = 'elinno.sidenav.projectsOpen';
+  var OPEN_KEY = 'elinno.sidenav.openProjects';
   var PROJECT_CAP = 5;
+
+  function readStore(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      return raw === null ? fallback : JSON.parse(raw);
+    } catch (e) { return fallback; }
+  }
+  function writeStore(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* private mode */ }
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -72,6 +93,12 @@
      the screen. G2 was a second, cruder guard on the same problem, and it
      cost the user the ability to compare two projects side by side. */
   var openProjects = Object.create(null);
+  (function () {
+    var saved = readStore(OPEN_KEY, []);
+    if (Object.prototype.toString.call(saved) === '[object Array]') {
+      saved.forEach(function (slug) { openProjects[slug] = true; });
+    }
+  })();
 
   body.classList.add('has-side-nav');
 
@@ -132,13 +159,10 @@
   var toggleBtn = rail.querySelector('[data-sn-toggle]');
   if (toggleBtn) {
     toggleBtn.addEventListener('click', function () {
-      var next = !rail.classList.contains('is-expanded');
-      setExpanded(next, true);
-      // Expanding from the collapsed state should reveal something useful.
-      if (next && sectionBtn && sectionBtn.getAttribute('aria-expanded') !== 'true'
-          && activeKey(location.pathname) === 'projects') {
-        toggleSection();
-      }
+      setExpanded(!rail.classList.contains('is-expanded'), true);
+      // Deliberately does NOT force the Projects section open. The rail is
+      // meant to look the same everywhere; opening a section the user had
+      // closed would be the rail changing itself out from under them.
     });
   }
 
@@ -159,11 +183,10 @@
     mobileToggle.addEventListener('click', function () {
       var opening = !body.classList.contains('side-nav-open');
       setDrawer(opening);
-      // The mobile rail always shows the full tree; ensure the accordion
-      // has its data the first time it is opened on a phone.
-      if (opening && sectionBtn && sectionBtn.getAttribute('aria-expanded') !== 'true'
-          && activeKey(location.pathname) === 'projects') {
-        toggleSection();
+      // If the section was already open when the drawer opens, make sure its
+      // data is loaded. Does not open a section the user had closed.
+      if (opening && sectionBtn && sectionBtn.getAttribute('aria-expanded') === 'true') {
+        ensureProjects();
       }
     });
   }
@@ -253,9 +276,9 @@
         return;
       }
 
-      var open = !!openProjects[i];
+      var open = !!openProjects[p.slug];
       html += '<button class="sn-l2' + (open ? ' is-open' : '') + '" type="button"'
-            + ' data-sn-project="' + i + '" aria-expanded="' + open + '">'
+            + ' data-sn-project="' + esc(p.slug) + '" aria-expanded="' + open + '">'
             + '<span class="sn-l2__label">' + name + '</span>'
             + '<i class="ti ti-chevron-' + (open ? 'down' : 'right') + ' sn-chev"></i></button>';
 
@@ -321,18 +344,24 @@
       .then(function () { fetching = false; });
   }
 
-  function toggleSection() {
+  // `persist` is false when restoring saved state on load — writing then
+  // would be a no-op at best and, if a read ever failed, would overwrite the
+  // user's real state with the fallback.
+  function setSection(open, persist) {
     if (!sectionBtn || !childBox) return;
-    var open = sectionBtn.getAttribute('aria-expanded') === 'true';
-    sectionBtn.setAttribute('aria-expanded', String(!open));
-    childBox.style.display = open ? 'none' : '';
+    sectionBtn.setAttribute('aria-expanded', String(open));
+    childBox.style.display = open ? '' : 'none';
     var chev = sectionBtn.querySelector('.sn-chev');
-    if (chev) chev.className = 'ti ti-chevron-' + (open ? 'right' : 'down') + ' sn-chev';
-    if (!open) ensureProjects();
+    if (chev) chev.className = 'ti ti-chevron-' + (open ? 'down' : 'right') + ' sn-chev';
+    if (persist) writeStore(SECTION_KEY, open);
+    if (open) ensureProjects();
+  }
+
+  function toggleSection() {
+    setSection(sectionBtn.getAttribute('aria-expanded') !== 'true', true);
   }
 
   if (sectionBtn) {
-    childBox.style.display = 'none';
     sectionBtn.addEventListener('click', function () {
       // Clicking the section while collapsed should expand the rail first —
       // there is nowhere to draw children at 64px.
@@ -341,6 +370,8 @@
       }
       toggleSection();
     });
+    // Restore the section exactly as it was left, on every page.
+    setSection(readStore(SECTION_KEY, false) === true, false);
   }
 
   // Each project toggles independently — opening one does not close any
@@ -349,17 +380,12 @@
     childBox.addEventListener('click', function (e) {
       var btn = e.target.closest('[data-sn-project]');
       if (!btn) return;
-      var i = Number(btn.getAttribute('data-sn-project'));
-      if (openProjects[i]) delete openProjects[i];
-      else openProjects[i] = true;
+      var slug = btn.getAttribute('data-sn-project');
+      if (openProjects[slug]) delete openProjects[slug];
+      else openProjects[slug] = true;
+      writeStore(OPEN_KEY, Object.keys(openProjects));
       renderProjects();
     });
-  }
-
-  // Auto-open the section on a page that lives under it, so the rail
-  // reflects where you are rather than starting blank.
-  if (rail.classList.contains('is-expanded') && activeKey(location.pathname) === 'projects') {
-    toggleSection();
   }
 
   markActive();
