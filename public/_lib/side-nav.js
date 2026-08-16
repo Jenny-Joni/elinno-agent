@@ -362,6 +362,13 @@
     for (var i = 0; i < links.length; i++) {
       if (links[i].getAttribute('href') === here) {
         links[i].setAttribute('aria-current', 'page');
+        /* Exactly one aria-current="page" per document. The Projects section
+           is marked by markActive() so the four Projects-mapped pages are not
+           left with none, but on a page that matches a specific child — a
+           project's Sprint View, say — the child is the page and the section
+           is only its ancestor. Hand the attribute down; the section keeps
+           .is-active, which is what actually draws the highlight. */
+        if (sectionBtn) sectionBtn.removeAttribute('aria-current');
         break;
       }
     }
