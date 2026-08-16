@@ -353,9 +353,41 @@ boot code changes either way.
 - **Out of scope:** `public/_dev/*` mockups (7 files also carrying `.app-nav`) —
   they are dev-only and already flagged as an exposure item in HANDOFF.
 
-## Verification matrix (19.8)
+## Verification matrix (19.8) — RUN 2026-08-16
 
-Run against the preview deploy, all 11 pages, before any ff-merge.
+Run against `block-19-side-menu.elinno-agent.pages.dev` on Jenny's signed-in
+admin session. **20 of 22 items pass. 2 could not be run and are listed as
+not-run, not as passes.**
+
+Three defects were found by the gate and fixed inside it:
+
+1. **Two `aria-current="page"` elements** on `/project/<slug>/*` and
+   `/project_settings/<slug>` — the Projects section and the matching
+   level-3 row. Fixed in `beb60de`: the deepest match wins, the section
+   keeps `.is-active`.
+2. **The mobile drawer opened at 260px, not 280px.** Re-keying state onto
+   `<html>` gave the desktop rule specificity (0,2,1) against the mobile
+   rule's (0,1,0), and a media query adds none — so the desktop width leaked
+   through and the two drawers no longer matched. Fixed in `fb43533`.
+3. **The rail rendered in Space Grotesk on the two settings pages** — they
+   were the only authed pages never loading Clash Grotesk, so the fallback
+   won silently. Reported by Jenny, fixed in `4159e4f`, which also caught
+   four pages missing the What's New badge module.
+
+**Not run, and why:**
+
+- **2b — the member rail.** Needs a signed-in non-admin session; the
+  workspace has one member (Oded) but I cannot sign in as them. Half the
+  design is role-shaped and this is the item that would prove it.
+- **12b's no-Jira branch.** All four projects in the workspace have Jira, so
+  the "collapses to a plain link for a member" path cannot be exercised on
+  real data at all. Covered only by a stubbed local test.
+- **13 — escaping** passes against a stubbed hostile project name and slug
+  locally (0 XSS, no attribute breakout). Proving it on real data would mean
+  creating a project named `<img src=x onerror=…>`, which is a write to the
+  workspace and was not done.
+
+Original matrix follows, with results.
 
 | # | Check | Threshold |
 |---|---|---|
