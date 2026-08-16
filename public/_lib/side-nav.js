@@ -60,7 +60,18 @@
 
   var user = null;          // { is_admin, display_name, email }
   var projects = null;      // cached /api/projects rows
-  var openProject = null;   // decision G2 — at most one
+
+  /* Which projects are expanded. Any number of them, independently —
+     opening one no longer closes another.
+
+     This reverses the plan's decision G2 (re-locked by Jenny, 2026-08-16).
+     G2 existed because a fully expanded rail measured 1090px against a
+     768px viewport. What actually solves that is G2b — .side-nav__scroll
+     is the only scrolling part, with the brand row and the footer pinned
+     outside it — so a taller tree scrolls instead of pushing Log out off
+     the screen. G2 was a second, cruder guard on the same problem, and it
+     cost the user the ability to compare two projects side by side. */
+  var openProjects = Object.create(null);
 
   body.classList.add('has-side-nav');
 
@@ -242,7 +253,7 @@
         return;
       }
 
-      var open = openProject === i;
+      var open = !!openProjects[i];
       html += '<button class="sn-l2' + (open ? ' is-open' : '') + '" type="button"'
             + ' data-sn-project="' + i + '" aria-expanded="' + open + '">'
             + '<span class="sn-l2__label">' + name + '</span>'
@@ -332,14 +343,15 @@
     });
   }
 
-  // Decision G2 — at most one project expanded. Delegated, because the
-  // rows are re-rendered on every toggle.
+  // Each project toggles independently — opening one does not close any
+  // other. Delegated, because the rows are re-rendered on every toggle.
   if (childBox) {
     childBox.addEventListener('click', function (e) {
       var btn = e.target.closest('[data-sn-project]');
       if (!btn) return;
       var i = Number(btn.getAttribute('data-sn-project'));
-      openProject = (openProject === i) ? null : i;
+      if (openProjects[i]) delete openProjects[i];
+      else openProjects[i] = true;
       renderProjects();
     });
   }

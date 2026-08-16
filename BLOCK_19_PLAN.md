@@ -89,9 +89,24 @@ Settled in plan-mode Q&A on 2026-08-16.
   and the `chatUrl` / `?ids=` fallback shape that caused the reload loop in
   `fdf25be` never enters this feature. Both chat surfaces already carry their
   own conversations sidebar; the rail was duplicating it.
-- **G2. Only one project is expanded at a time**, and only one top-level section.
-  **This is load-bearing, not tidiness** — measured on the rendered mockup
-  against production `auth.css` (2026-08-16):
+- **G2. ~~Only one project is expanded at a time.~~ REVERSED by Jenny on
+  2026-08-16, during execute.** Projects expand and collapse independently;
+  opening one never closes another.
+
+  The reversal is safe because **G2b, not G2, is what actually solves the
+  height problem.** `.side-nav__scroll` is the only scrolling part, with the
+  brand row and footer pinned outside it, so a tree taller than the viewport
+  scrolls internally instead of pushing Log out off the screen. G2 was a
+  second, cruder guard on the same problem, and it cost the ability to
+  compare two projects side by side.
+
+  Verified after the reversal, 1280×768, admin, three of four projects
+  expanded: scroller content 718px inside a 585px scroller — overflowing, as
+  intended — with the footer pinned at 641–768px and Log out at 760px, on
+  screen. Toggling the middle project closed left the other two open.
+
+  The original measurements that motivated G2 are kept below, because they
+  are still the reason G2b exists:
 
   | State | Admin rail | Member rail | Fits 768px |
   |---|---|---|---|
@@ -361,8 +376,8 @@ Run against the preview deploy, all 11 pages, before any ff-merge.
 | 12 | Accordion, level 2 | Expanding Projects renders **≤5** project rows + "All projects" (+ "New project" for admins only); each href returns **200** for the role that can see it |
 | 12b | Accordion, level 3 (G3 matrix) | On a Jira project as admin: exactly **3** actions (Sprint View · Chat · Settings). As member: **2**, Settings absent from the DOM. On a Jira-less project as admin: **2** (Chat · Settings). As member: the row is an `<a>` to `/project/<slug>` with **0** child rows and no chevron |
 | 12c | `has_jira` parity | For every project, `has_jira` from `GET /api/projects` **equals** `has_jira` from `GET /api/dashboard` — the two must not diverge the way `dashboard.js`'s sprint rule diverged from `_lib/jira-sprint.js` |
-| 12d | One-at-a-time (G2) | With a project expanded, expanding a second leaves exactly **1** project expanded and **1** top-level section open |
-| 12f | Rail fits the screen (G2b) | At **768px** viewport height, admin account, Projects + one project expanded: `.side-nav` height **≤ viewport**, and the Log out row's `getBoundingClientRect().bottom` is **within** the viewport. Mockup baseline: admin 767px / member 631px |
+| 12d | Independent toggles (G2 reversed) | Expanding a second project leaves **both** open; expanding a third leaves **3**; collapsing the middle one leaves the other **2** untouched. **PASS** locally |
+| 12f | Rail fits the screen (G2b) | At **768px** viewport height, admin account, with **every** project expanded (G2 no longer caps this): the Log out row's `getBoundingClientRect().bottom` is **within** the viewport and `.side-nav__scroll` absorbs the overflow. **PASS** locally — 718px of content in a 585px scroller, footer pinned 641–768px, Log out at 760px. This item carries the whole height guarantee now that G2 is gone |
 | 12g | No chat fetch (G1b) | Across all 11 pages, **0** requests to `/api/cross-project/conversations` originate from the rail, and Cross-project chats has **0** child rows and no chevron |
 | 12e | Sprint View lands | `/project/<slug>/sprint` for a `has_jira` project renders the Sprint View with the segmented control **visible** — i.e. the rail never links to a surface the page hides |
 | 13 | Escaping | A project named `<img src=x onerror=alert(1)>` renders as **literal text** at level 2, and its slug is escaped into the level-3 `href`s; `0` script executions |
