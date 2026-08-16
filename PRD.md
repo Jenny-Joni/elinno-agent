@@ -271,7 +271,11 @@ R2 was considered and rejected: it would allow publishing an image without a dep
 
 **A feature entry is not publishable without its image.** If copy arrives without one, the entry stays `draft` — unless Jenny explicitly chooses to publish ahead of the screenshot, in which case the preview slot renders a labelled placeholder until the PNG lands. v1.5 shipped this way on 2026-08-02.
 
-The placeholder is a **schematic wireframe**, captioned "Placeholder — real screenshot goes here" so it reads as a stand-in rather than as a picture of the screen.
+The placeholder is a **schematic wireframe**. It carries **no caption**. *Amended 2026-08-16 on Jenny's direction; previously it was captioned "Placeholder — real screenshot goes here" so it would read as a stand-in rather than as a picture of the screen.*
+
+This closes, by changing the rule, the compliance item HANDOFF has carried since `3dc2e9a` stripped the captions and `.wn-shot__cap`: v1.8 rendered uncaptioned, Block 18.8 restored the class to fix it, and the captions were removed again here. The page and this section now agree, which they did not between those two points.
+
+What the caption was guarding against still applies, and moves to the wireframe itself: a preview must not be mistakable for a photograph of the screen. Prefer the **verbatim** form where the feature's content is text or labels, so the preview shows what actually shipped rather than resembling it. `.wn-shot__cap` stays in `auth.css`, unused — deleting it is what made the last restoration necessary.
 
 Two forms are allowed, chosen by what the feature actually is:
 

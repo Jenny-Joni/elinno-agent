@@ -53,42 +53,42 @@
 window.WHATS_NEW = [
   {
     // ═══════════════════════════════════════════════════════════════════
-    // v2.0 — DRAFT. NOT PUBLISHED. Invisible to users while status is
-    // 'draft', which is the point: this sits on main un-shipped until
-    // Jenny publishes it.
+    // v2.0 — PUBLISHED 2026-08-16.
     //
-    // EVERY STRING BELOW IS A STAND-IN, written by Claude Code, and is to
-    // be rewritten before publishing. Per the division of labour in
-    // HANDOFF ("Adding an entry to What's New"), copy is Jenny's and
-    // Claude Code's input is limited to NAMING what shipped. These strings
-    // name the items; they are not the entry's voice and should not
-    // survive into it.
+    // AUTHORSHIP, recorded because it departs from the normal division of
+    // labour: the copy below was written by Claude Code and published at
+    // Jenny's explicit direction, after she was shown that it was stand-in
+    // text and approved it anyway. HANDOFF's "Adding an entry to What's
+    // New" says copy is Jenny's; this entry is the exception, not a change
+    // to that rule.
     //
-    // Publishing is a separate act on a separate day: rewrite the copy,
-    // flip status to 'published', push. Claude Code cannot publish — the
-    // deny hook blocks pushes to main.
+    // Entries are frozen once published — an entry records what shipped in
+    // its release and is not resynced later. Rewriting these strings is a
+    // deliberate correction, not routine editing.
     //
-    // Deliberately NOT included, per "What belongs in an entry": the rail
-    // is one shared component instead of eleven copies, the top bar and
-    // its scroll script were retired, an API field was added, the
-    // stylesheet was re-keyed and cache-busted. None of that is visible to
-    // a user. The font and What's-new-link inconsistencies found during
-    // the work were introduced and fixed inside this same unreleased
-    // block, so users never met them — they are not fixes to announce.
+    // Previews are the verbatim form: the navigation labels are the real
+    // shipped strings, and project names are invented stand-ins (Aurora,
+    // Beacon, Meridian) per PRD §5.11.6's Contents rule.
+    //
+    // Deliberately excluded per "What belongs in an entry": the shared
+    // component, the retired top bar, the added API field, the stylesheet
+    // re-key and cache-bust — none of it visible to a user. Also excluded
+    // are the font and What's-new-link inconsistencies, introduced and
+    // fixed inside this same unreleased block, so no user met them.
     // ═══════════════════════════════════════════════════════════════════
     version: 'v2.0',
     // Week beginning Sunday 2026-08-16, matching the Sunday-dated
     // convention v1.8 and v1.9 use. Confirm at publication.
     date: '2026-08-16',
-    status: 'draft',
-    headline: 'STAND-IN — Every screen now has the same menu down the left, so your projects, chats and settings are one click away from wherever you are.',
+    status: 'published',
+    headline: 'Every screen now has the same menu down the left, so your projects, chats and settings are one click away from wherever you are.',
     features: [
       {
         tag: 'New',
         // NAMED: navigation moved from a top bar to a persistent left menu,
         // present on every signed-in screen.
-        title: 'STAND-IN — A menu that follows you',
-        body: 'STAND-IN — Navigation used to live in a bar across the top, and what it contained changed from screen to screen. It is now a single menu down the left side of every screen, in the same place with the same contents wherever you are. It starts narrow and shows icons; open it when you want the labels.',
+        title: 'A menu that follows you',
+        body: 'Navigation used to live in a bar across the top, and what it contained changed from screen to screen. It is now a single menu down the left side of every screen, in the same place with the same contents wherever you are. It starts narrow and shows icons; open it when you want the labels.',
         image: null,
         placeholder: 'rail-desktop',
         alt: 'Placeholder illustration: a narrow icon menu down the left of the screen, and the same menu opened to show labels.'
@@ -97,8 +97,8 @@ window.WHATS_NEW = [
         tag: 'New',
         // NAMED: projects expand in the menu to Sprint View / Chat /
         // Settings; several can stay open at once.
-        title: 'STAND-IN — Your projects, without going via the projects page',
-        body: 'STAND-IN — Open Projects in the menu and every project is listed. Open a project and you can go straight to its Sprint View, its chat, or its settings. More than one can stay open at a time, so you can move between two projects without collapsing the first.',
+        title: 'Your projects, without going via the projects page',
+        body: 'Open Projects in the menu and every project is listed. Open a project and you can go straight to its Sprint View, its chat, or its settings. More than one can stay open at a time, so you can move between two projects without collapsing the first.',
         image: null,
         placeholder: 'rail-tree',
         alt: 'Placeholder illustration: a menu with two projects expanded, each showing Sprint View, Chat and Settings.'
@@ -109,8 +109,8 @@ window.WHATS_NEW = [
         // survives navigation; workspace settings and members are reachable
         // from the menu, where workspace settings previously was not linked
         // from any screen's navigation.
-        title: 'STAND-IN — It stays how you left it',
-        body: 'STAND-IN — The menu keeps its shape as you move around: open or closed, which projects you had expanded, and where you had scrolled to. Workspace settings and Members are in it too, which is new — workspace settings previously had no link in the navigation on any screen.',
+        title: 'It stays how you left it',
+        body: 'The menu keeps its shape as you move around: open or closed, which projects you had expanded, and where you had scrolled to. Workspace settings and Members are in it too, which is new — workspace settings previously had no link in the navigation on any screen.',
         image: null,
         placeholder: 'rail-mobile',
         alt: 'Placeholder illustration: the menu on a phone, closed behind a button and then slid open over the page.'
@@ -120,7 +120,7 @@ window.WHATS_NEW = [
       {
         tag: 'Improved',
         // NAMED: mobile chrome is 52px where the old bar was 70px.
-        text: 'STAND-IN — Phones get a little more of the screen back: the strip across the top is shorter than the bar it replaces.'
+        text: 'Phones get a little more of the screen back: the strip across the top is shorter than the bar it replaces.'
       }
     ]
   },
