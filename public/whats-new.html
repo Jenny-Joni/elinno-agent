@@ -351,19 +351,47 @@
       published.slice(1).forEach((entry, i) => { html += renderPast(entry, i + 1); });
       root.innerHTML = html;
 
-      root.addEventListener('click', e => {
-        const btn = e.target.closest('.wn-past');
-        if (!btn) return;
-        const body = $('#wn-past-body-' + btn.getAttribute('data-idx'));
-        if (!body) return;
-        const open = btn.getAttribute('aria-expanded') === 'true';
-        btn.setAttribute('aria-expanded', open ? 'false' : 'true');
-        body.hidden = open;
-        const chevron = $('.ti-chevron-down, .ti-chevron-up', btn);
-        if (chevron) {
-          chevron.classList.toggle('ti-chevron-down', open);
-          chevron.classList.toggle('ti-chevron-up', !open);
-        }
+      // Attached ONCE, not on every render. The listener used to be bound
+      // here inside render(); a second render would bind a second copy to
+      // the same #wnRoot, and every click would then toggle open and shut
+      // again in one go — the row would look dead. render() is called once
+      // today so this was latent, not live, but it is a trap worth closing.
+      if (!root.dataset.wnBound) {
+        root.dataset.wnBound = '1';
+        root.addEventListener('click', onArchiveClick);
+      }
+    }
+
+    function onArchiveClick(e) {
+      const btn = e.target.closest('.wn-past');
+      if (!btn) return;
+      const body = $('#wn-past-body-' + btn.getAttribute('data-idx'));
+      if (!body) return;
+      const open = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+      body.hidden = open;
+      const chevron = $('.ti-chevron-down, .ti-chevron-up', btn);
+      if (chevron) {
+        chevron.classList.toggle('ti-chevron-down', open);
+        chevron.classList.toggle('ti-chevron-up', !open);
+      }
+
+      // Archive rows sit at the BOTTOM of the page, so an entry opens into
+      // space that is off-screen: measured on the preview, 80px of 622px
+      // were visible — 13%. The row toggled correctly and looked broken,
+      // which is exactly how it was reported ("previous version can't
+      // expand"). Bring the newly revealed content into view when opening,
+      // and only when it is actually short of the fold.
+      if (open) return;                       // collapsing needs no scroll
+      requestAnimationFrame(() => {
+        const r = body.getBoundingClientRect();
+        const shortfall = r.bottom - window.innerHeight;
+        if (shortfall <= 0) return;           // already fully visible
+        const btnTop = btn.getBoundingClientRect().top + window.scrollY;
+        // Put the row near the top so the entry below it has room, but never
+        // scroll further than the document allows.
+        const target = Math.min(btnTop - 16, document.documentElement.scrollHeight - window.innerHeight);
+        window.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
       });
     }
 
