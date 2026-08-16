@@ -3992,14 +3992,48 @@ html:not(.sn-expanded) .side-nav .side-nav__collapse {
 }
 .sn-item > i:first-child { font-size: 17px; width: 17px; flex-shrink: 0; color: var(--text-3); }
 .sn-item:hover { background: var(--brand-soft); }
+/* The current item is highlighted from the boot script's sn-at-<key> class
+   on <html>, so it is correct at first paint. aria-current / .is-active are
+   the same styling, applied by the module afterwards — they agree, so
+   nothing changes visually when the module runs. The attribute still
+   carries the semantics for assistive tech; these class selectors carry the
+   pixels. Without the sn-at-* half, the highlight blinked on one frame late
+   on every navigation. */
+html.sn-at-dashboard .side-nav [data-sn-nav="dashboard"],
+html.sn-at-cross-project .side-nav [data-sn-nav="cross-project"],
+html.sn-at-workspace-settings .side-nav [data-sn-nav="workspace-settings"],
+html.sn-at-members .side-nav [data-sn-nav="members"],
+html.sn-at-whats-new .side-nav [data-sn-nav="whats-new"],
+html.sn-at-projects .side-nav [data-sn-section="projects"],
 .sn-item[aria-current="page"],
 .sn-item.is-active {
   background: var(--brand-tint);
   color: var(--brand-strong);
   font-weight: 500;
 }
+html.sn-at-dashboard .side-nav [data-sn-nav="dashboard"] > i:first-child,
+html.sn-at-cross-project .side-nav [data-sn-nav="cross-project"] > i:first-child,
+html.sn-at-workspace-settings .side-nav [data-sn-nav="workspace-settings"] > i:first-child,
+html.sn-at-members .side-nav [data-sn-nav="members"] > i:first-child,
+html.sn-at-whats-new .side-nav [data-sn-nav="whats-new"] > i:first-child,
+html.sn-at-projects .side-nav [data-sn-section="projects"] > i:first-child,
 .sn-item[aria-current="page"] > i:first-child,
 .sn-item.is-active > i:first-child { color: var(--brand); }
+
+/* Section open/closed is CSS, not an inline style set by JS, for the same
+   reason: an open section has to paint open. */
+.side-nav [data-sn-children] { display: none; }
+html.sn-section-open .side-nav [data-sn-children] { display: block; }
+html.sn-section-open .side-nav [data-sn-section] .sn-chev { transform: rotate(90deg); }
+
+/* The admin group is two rows. Revealing it after /api/me answered pushed
+   everything below it down, one frame into the page. !important is needed
+   and is the point: it overrides the inline style="display:none" the markup
+   ships with, which page boot code still clears independently (decision J).
+   Non-admins never get sn-admin, so the inline rule stands and the group
+   stays hidden. This is presentation only — every link inside is gated
+   server-side. */
+html.sn-admin .side-nav #adminLink { display: block !important; }
 html:not(.sn-expanded) .side-nav .sn-item { justify-content: center; padding: 9px 0; gap: 0; }
 
 /* The user row shows who you are; it is not a destination. Workspace

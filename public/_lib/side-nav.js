@@ -52,6 +52,7 @@
   var STORAGE_KEY = 'elinno.sidenav.expanded';
   var SECTION_KEY = 'elinno.sidenav.projectsOpen';
   var OPEN_KEY = 'elinno.sidenav.openProjects';
+  var TREE_KEY = 'elinno.sidenav.treeHtml';
   var PROJECT_CAP = 5;
 
   function readStore(key, fallback) {
@@ -236,6 +237,18 @@
     if (nameEl) nameEl.textContent = u.display_name || u.email || 'Account';
 
     if (u.is_admin && adminGroup) adminGroup.style.display = '';
+    /* Remember the role and the avatar letter so the next page paints them
+       instead of popping them in once /api/me answers. The admin group is two
+       rows; revealing it after paint moved everything below it.
+
+       This is a display hint, never a permission. The group's links are
+       admin-gated server-side regardless, and /api/me overwrites this within
+       the same page load — so a revoked admin sees the two rows for one paint
+       and then loses them, which is the correct direction to fail. */
+    try {
+      localStorage.setItem('elinno.sidenav.admin', u.is_admin ? '1' : '0');
+      localStorage.setItem('elinno.sidenav.initial', String(name.trim()[0] || '').toUpperCase());
+    } catch (e) { /* private mode */ }
 
     // Role landed after the accordion was already drawn — redraw so the
     // admin-only Settings / New project rows appear.
@@ -302,6 +315,12 @@
 
     childBox.innerHTML = html;
     markActiveChild();
+    // Stash the finished markup so the next page can paint the tree during
+    // parse, before this module has even run. The inline restore block after
+    // the rail markup reads this key. Caching HTML rather than re-deriving it
+    // guarantees the restored tree is pixel-identical to this render — and
+    // everything in it was escaped on the way in, above.
+    try { sessionStorage.setItem(TREE_KEY, childBox.innerHTML); } catch (e) { /* quota */ }
   }
 
   // Mark the level-3 row matching the current URL, so a project's own
@@ -404,9 +423,9 @@
   function setSection(open, persist) {
     if (!sectionBtn || !childBox) return;
     sectionBtn.setAttribute('aria-expanded', String(open));
-    childBox.style.display = open ? '' : 'none';
-    var chev = sectionBtn.querySelector('.sn-chev');
-    if (chev) chev.className = 'ti ti-chevron-' + (open ? 'down' : 'right') + ' sn-chev';
+    // Visibility and the chevron's direction are CSS, keyed to this class,
+    // so an open section paints open instead of being opened a frame later.
+    root.classList.toggle('sn-section-open', open);
     if (persist) writeStore(SECTION_KEY, open);
     if (open) ensureProjects();
   }
