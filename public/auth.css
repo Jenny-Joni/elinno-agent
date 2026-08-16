@@ -1398,11 +1398,18 @@ table.users-table {
   .sg-pill { max-width: 74vw; font-size: 12px; }
   .sg-rail { gap: 6px; padding-bottom: 8px; }
 
-  /* Mobile fit. The shell is height:calc(100vh - 130px). Measured on a real
-     preview deploy, the empty block was 281px against 175px of message area
-     — a 150px shortfall needing a 733px viewport, which current flagships
-     only just clear and everything smaller misses.
-     Trimming the margin and sub-paragraph was not enough on its own. */
+  /* Mobile fit. Measured on a real preview deploy in Block 18, when the
+     shell was height:calc(100vh - 130px): the empty block was 281px against
+     175px of message area — a 150px shortfall needing a 733px viewport,
+     which current flagships only just clear and everything smaller misses.
+     Trimming the margin and sub-paragraph was not enough on its own.
+
+     Block 19 changed the premise: the shell is now calc(100vh - 112px) on
+     mobile, because the 70px .app-nav became a 52px rail head bar. That is
+     18px MORE message area than these numbers assume, so the 733px and
+     620px figures below are upper bounds now, not current measurements.
+     The real post-rail number is verification item 11 and is not yet
+     measured — do not quote the old figures as if they still hold. */
   .sg-empty { margin: 14px auto 0; }
   .sg-empty__sub { display: none; }
   .sg-card { padding: 11px 12px; }
