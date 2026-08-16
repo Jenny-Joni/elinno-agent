@@ -205,54 +205,83 @@
         + '</div>'
         + '</div>'
         + CAP,
-      // ── v2.0 (Block 19) — side menu, DRAFT ────────────────────────────
-      // Abstract by default per PRD §5.11.6: this release is layout, not
-      // text, so the wireframes use grey bars and carry no product copy.
-      // The §5.11.6 verbatim-strings exception applies only where the
-      // change IS the wording, which it is not here.
+      // ── v2.0 (Block 19) — side menu ────────────────────────────────────
+      // VERBATIM form per PRD §5.11.6: the navigation labels below are the
+      // real shipped strings from the rail. Grey bars would say nothing here
+      // — that the menu holds these destinations, and that a project opens
+      // to Sprint View / Chat / Settings, IS the change.
+      // Project names are invented stand-ins (Aurora, Beacon, Meridian),
+      // never the workspace's own, per the Contents rule in the same
+      // section and the convention the v1.9 previews already set.
       'rail-desktop':
-        '<div class="wn-mini wn-mini--bar-row" style="align-items:stretch;gap:10px;">'
-        +   '<div style="width:26px;border:0.5px solid var(--border);border-radius:6px;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:7px;">'
-        +     '<span style="width:11px;height:11px;border-radius:3px;background:var(--brand);"></span>'
-        +     '<span style="width:11px;height:11px;border-radius:3px;background:var(--border);"></span>'
-        +     '<span style="width:11px;height:11px;border-radius:3px;background:var(--border);"></span>'
+        '<div class="wn-mini--bar-row" style="gap:14px;align-items:flex-start;">'
+        +   '<div>'
+        +     '<div class="wn-mini__eyebrow" style="margin-bottom:6px;">Closed</div>'
+        +     '<div class="wn-mini" style="padding:8px 6px;width:46px;">'
+        +       '<div style="display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--text-3);font-size:14px;">'
+        +         '<i class="ti ti-layout-dashboard" style="color:var(--brand);"></i>'
+        +         '<i class="ti ti-folders"></i><i class="ti ti-messages"></i>'
+        +         '<i class="ti ti-settings"></i><i class="ti ti-shield"></i>'
+        +       '</div>'
+        +     '</div>'
         +   '</div>'
-        +   '<div style="flex:1;border:0.5px solid var(--border);border-radius:6px;padding:7px 8px;">'
-        +     '<div class="wn-mini__row" style="border:none;background:var(--brand-soft);padding:4px 6px;"><span class="wn-mini__bar" style="width:52%;flex:none;"></span></div>'
-        +     '<div class="wn-mini__row" style="border:none;padding:4px 6px;"><span class="wn-mini__bar" style="width:66%;flex:none;"></span></div>'
-        +     '<div class="wn-mini__row" style="border:none;padding:4px 6px;margin-bottom:0;"><span class="wn-mini__bar" style="width:44%;flex:none;"></span></div>'
+        +   '<div style="flex:1;min-width:0;">'
+        +     '<div class="wn-mini__eyebrow" style="margin-bottom:6px;">Open</div>'
+        +     '<div class="wn-mini" style="padding:9px 8px;">'
+        +       '<div class="wn-mini__row" style="border:none;background:var(--brand-tint);padding:5px 7px;"><span class="wn-mini__text" style="color:var(--brand-strong);font-weight:600;">Dashboard</span></div>'
+        +       '<div class="wn-mini__row" style="border:none;padding:5px 7px;"><span class="wn-mini__text">Projects</span></div>'
+        +       '<div class="wn-mini__row" style="border:none;padding:5px 7px;"><span class="wn-mini__text">Cross-project chats</span></div>'
+        +       '<div style="height:1px;background:var(--border-soft);margin:6px 4px;"></div>'
+        +       '<div class="wn-mini__row" style="border:none;padding:5px 7px;"><span class="wn-mini__text">Workspace settings</span></div>'
+        +       '<div class="wn-mini__row" style="border:none;padding:5px 7px;margin-bottom:0;"><span class="wn-mini__text">Members</span></div>'
+        +     '</div>'
         +   '</div>'
         + '</div>'
         + CAP,
       'rail-tree':
         '<div class="wn-mini">'
-        +   '<div class="wn-mini__row" style="border:none;padding:4px 6px;"><span class="wn-mini__bar" style="width:40%;flex:none;"></span></div>'
-        +   '<div class="wn-mini__row" style="border:none;padding:4px 6px 4px 20px;"><span class="wn-mini__bar" style="width:34%;flex:none;background:var(--border);"></span></div>'
-        +   '<div class="wn-mini__row" style="border:none;padding:3px 6px 3px 38px;"><span class="wn-mini__bar" style="width:28%;flex:none;background:var(--border-soft);"></span></div>'
-        +   '<div class="wn-mini__row" style="border:none;padding:3px 6px 3px 38px;"><span class="wn-mini__bar" style="width:22%;flex:none;background:var(--border-soft);"></span></div>'
-        +   '<div class="wn-mini__row" style="border:none;padding:3px 6px 3px 38px;"><span class="wn-mini__bar" style="width:26%;flex:none;background:var(--border-soft);"></span></div>'
-        +   '<div class="wn-mini__row" style="border:none;padding:4px 6px 4px 20px;"><span class="wn-mini__bar" style="width:30%;flex:none;background:var(--border);"></span></div>'
-        +   '<div class="wn-mini__row" style="border:none;padding:3px 6px 3px 38px;margin-bottom:0;"><span class="wn-mini__bar" style="width:24%;flex:none;background:var(--border-soft);"></span></div>'
+        +   '<div class="wn-mini__row" style="border:none;background:var(--brand-tint);padding:5px 7px;"><span class="wn-mini__text" style="color:var(--brand-strong);font-weight:600;">Projects</span></div>'
+        +   '<div class="wn-mini__row" style="border:none;padding:5px 7px 5px 18px;"><span class="wn-mini__text"><strong>Aurora</strong></span></div>'
+        +   '<div class="wn-mini__row" style="border:none;padding:3px 7px 3px 32px;"><span class="wn-mini__text" style="color:var(--text-3);">Sprint View</span></div>'
+        +   '<div class="wn-mini__row" style="border:none;padding:3px 7px 3px 32px;"><span class="wn-mini__text" style="color:var(--text-3);">Chat</span></div>'
+        +   '<div class="wn-mini__row" style="border:none;padding:3px 7px 3px 32px;"><span class="wn-mini__text" style="color:var(--text-3);">Settings</span></div>'
+        +   '<div class="wn-mini__row" style="border:none;padding:5px 7px 5px 18px;"><span class="wn-mini__text"><strong>Beacon</strong></span></div>'
+        +   '<div class="wn-mini__row" style="border:none;padding:3px 7px 3px 32px;"><span class="wn-mini__text" style="color:var(--text-3);">Sprint View</span></div>'
+        +   '<div class="wn-mini__row" style="border:none;padding:3px 7px 3px 32px;"><span class="wn-mini__text" style="color:var(--text-3);">Chat</span></div>'
+        +   '<div class="wn-mini__row" style="border:none;padding:3px 7px 3px 32px;"><span class="wn-mini__text" style="color:var(--text-3);">Settings</span></div>'
+        +   '<div class="wn-mini__row" style="border:none;padding:5px 7px 5px 18px;margin-bottom:0;"><span class="wn-mini__text">Meridian</span></div>'
         + '</div>'
         + CAP,
       'rail-mobile':
-        '<div class="wn-mini wn-mini--bar-row" style="gap:12px;align-items:stretch;">'
-        +   '<div style="flex:1;border:0.5px solid var(--border);border-radius:6px;padding:6px;">'
-        +     '<div class="wn-mini--bar-row" style="gap:5px;margin-bottom:7px;"><span style="width:12px;height:9px;border:0.5px solid var(--border);border-radius:2px;"></span><span class="wn-mini__bar" style="width:38%;flex:none;"></span></div>'
-        +     '<div class="wn-mini__row" style="border:none;padding:3px 0;"><span class="wn-mini__bar" style="width:78%;flex:none;background:var(--border-soft);"></span></div>'
-        +     '<div class="wn-mini__row" style="border:none;padding:3px 0;margin-bottom:0;"><span class="wn-mini__bar" style="width:60%;flex:none;background:var(--border-soft);"></span></div>'
+        '<div class="wn-mini--bar-row" style="gap:14px;align-items:stretch;">'
+        +   '<div style="flex:1;">'
+        +     '<div class="wn-mini__eyebrow" style="margin-bottom:6px;">Closed</div>'
+        +     '<div class="wn-mini" style="padding:0;overflow:hidden;">'
+        +       '<div class="wn-mini--bar-row" style="gap:7px;padding:7px 9px;border-bottom:0.5px solid var(--border-soft);">'
+        +         '<i class="ti ti-menu-2" style="font-size:13px;color:var(--text-2);"></i>'
+        +         '<span class="wn-mini__text" style="font-size:11px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;">Elinno Agent</span>'
+        +       '</div>'
+        +       '<div style="padding:9px;"><span class="wn-mini__bar" style="display:block;width:80%;margin-bottom:6px;"></span><span class="wn-mini__bar" style="display:block;width:60%;"></span></div>'
+        +     '</div>'
         +   '</div>'
-        +   '<div style="flex:1;border:0.5px solid var(--border);border-radius:6px;padding:6px;position:relative;overflow:hidden;">'
-        +     '<div style="position:absolute;inset:0;background:rgba(0,0,0,.22);"></div>'
-        +     '<div style="position:relative;width:70%;height:100%;background:#fff;border-right:0.5px solid var(--border);padding:4px 5px;">'
-        +       '<div class="wn-mini__row" style="border:none;padding:3px 0;"><span class="wn-mini__bar" style="width:70%;flex:none;"></span></div>'
-        +       '<div class="wn-mini__row" style="border:none;padding:3px 0;"><span class="wn-mini__bar" style="width:55%;flex:none;background:var(--border);"></span></div>'
-        +       '<div class="wn-mini__row" style="border:none;padding:3px 0;margin-bottom:0;"><span class="wn-mini__bar" style="width:62%;flex:none;background:var(--border);"></span></div>'
+        +   '<div style="flex:1;">'
+        +     '<div class="wn-mini__eyebrow" style="margin-bottom:6px;">Open</div>'
+        +     '<div class="wn-mini" style="padding:0;overflow:hidden;position:relative;">'
+        +       '<div class="wn-mini--bar-row" style="gap:7px;padding:7px 9px;border-bottom:0.5px solid var(--border-soft);">'
+        +         '<i class="ti ti-x" style="font-size:13px;color:var(--text-2);"></i>'
+        +         '<span class="wn-mini__text" style="font-size:11px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;">Elinno Agent</span>'
+        +       '</div>'
+        +       '<div style="position:relative;background:rgba(0,0,0,.22);">'
+        +         '<div style="width:78%;background:var(--bg);padding:7px;">'
+        +           '<div class="wn-mini__row" style="border:none;background:var(--brand-tint);padding:4px 6px;"><span class="wn-mini__text" style="color:var(--brand-strong);font-weight:600;">Dashboard</span></div>'
+        +           '<div class="wn-mini__row" style="border:none;padding:4px 6px;"><span class="wn-mini__text">Projects</span></div>'
+        +           '<div class="wn-mini__row" style="border:none;padding:4px 6px;margin-bottom:0;"><span class="wn-mini__text">Cross-project chats</span></div>'
+        +         '</div>'
+        +       '</div>'
         +     '</div>'
         +   '</div>'
         + '</div>'
         + CAP,
-
       'sg-cross':
         '<div class="wn-mini">'
         + '<div class="wn-mini__eyebrow">Cross-project chat</div>'
