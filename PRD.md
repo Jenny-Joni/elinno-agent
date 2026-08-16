@@ -253,7 +253,11 @@ Each release is one object:
 
 #### 5.11.6 Preview images
 
-Preview screenshots are **supplied by Jenny**, together with the entry copy, for each version. Claude Code does not capture, generate, or edit them.
+Preview screenshots may be **captured by Claude Code**. *Amended 2026-08-16 on Jenny's explicit direction. Previously: "supplied by Jenny … Claude Code does not capture, generate, or edit them", with the capture pipeline deliberately removed when authoring moved to Jenny (see §5.11 notes and the 2026-08-02 closeout).*
+
+The amendment covers **images only**. Entry copy remains Jenny's, unchanged — see the division of labour in HANDOFF.md, "Adding an entry to What's New".
+
+Every other rule in this section still binds. The **Contents** row binds hardest and is the reason this amendment is narrow: a captured screenshot must carry no real project names, Jira keys or assignee names, so captures are taken against invented stand-ins — not against the live workspace, whose projects and members would otherwise be frozen into the release notes permanently. Block 16.9 is the cautionary case and is still open in HANDOFF.
 
 | Item | Rule |
 |---|---|
