@@ -178,12 +178,18 @@ export async function onRequestGet({ request, env }) {
         -- "Active Jira connections per project"); there must not be two
         -- definitions of "has Jira", the way dashboard.js's active-sprint
         -- rule drifted from _lib/jira-sprint.js. Only the SQL SHAPE differs:
-        -- dashboard.js can use `project_id IN ${sql(ids)}` because it early-
-        -- returns on an empty project list first (dashboard.js:95) — postgres-js
-        -- cannot bind an empty array. This handler has no such early return
-        -- and must keep returning `projects: []`, so the same rule is
-        -- expressed as a correlated EXISTS, matching the last_sync_at
-        -- subquery directly above.
+        -- dashboard.js can bind the project-id list directly because it
+        -- early-returns on an empty project list first (dashboard.js:95) —
+        -- postgres-js cannot bind an empty array. This handler has no such
+        -- early return and must keep returning an empty projects array, so
+        -- the same rule is expressed as a correlated EXISTS, matching the
+        -- last_sync_at subquery directly above.
+        --
+        -- NOTE: this comment is INSIDE a tagged template literal. No
+        -- backticks and no dollar-brace in here — both are live syntax to
+        -- the JS parser, not comment text. Writing one here is what broke
+        -- the first Block 19 preview build (esbuild: Expected ";" but found
+        -- "project_id"). node --check did NOT catch it.
         EXISTS (
           SELECT 1 FROM connections c
            WHERE c.project_id = p.id
