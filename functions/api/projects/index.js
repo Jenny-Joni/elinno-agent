@@ -166,7 +166,31 @@ export async function onRequestGet({ request, env }) {
         -- the card can show data freshness (updated by "Sync now" / the cron)
         -- rather than the project row's own updated_at.
         (SELECT MAX(c.last_sync_at) FROM connections c
-          WHERE c.project_id = p.id AND c.deleted_at IS NULL) AS last_sync_at
+          WHERE c.project_id = p.id AND c.deleted_at IS NULL) AS last_sync_at,
+        -- Block 19 (decision G4): does this project have a live Jira
+        -- connection? The side rail gates each project's "Sprint View"
+        -- child on it, because the Sprint View / Chat segmented control
+        -- on project.html is itself hidden without Jira — a rail link to
+        -- /project/<slug>/sprint would otherwise route fine and land on a
+        -- surface the page refuses to show.
+        --
+        -- The PREDICATE is the same rule dashboard.js uses (see its step 2,
+        -- "Active Jira connections per project"); there must not be two
+        -- definitions of "has Jira", the way dashboard.js's active-sprint
+        -- rule drifted from _lib/jira-sprint.js. Only the SQL SHAPE differs:
+        -- dashboard.js can use `project_id IN ${sql(ids)}` because it early-
+        -- returns on an empty project list first (dashboard.js:95) — postgres-js
+        -- cannot bind an empty array. This handler has no such early return
+        -- and must keep returning `projects: []`, so the same rule is
+        -- expressed as a correlated EXISTS, matching the last_sync_at
+        -- subquery directly above.
+        EXISTS (
+          SELECT 1 FROM connections c
+           WHERE c.project_id = p.id
+             AND c.source = 'jira'
+             AND c.status = 'active'
+             AND c.deleted_at IS NULL
+        ) AS has_jira
         FROM projects p
        WHERE p.deleted_at IS NULL
        -- 2026-06-01: admin-set global order first (PUT /api/projects/order),
@@ -185,6 +209,12 @@ export async function onRequestGet({ request, env }) {
         logo_url: p.logo_r2_key
           ? `https://logos.elinnoagent.com/${p.logo_r2_key}`
           : null,
+        // Coerced so the wire shape is a real boolean, matching
+        // /api/dashboard's `has_jira: hasJira`. Callers compare with !== false
+        // nowhere — they branch on truthiness — but the two endpoints are
+        // checked against each other in Block 19's verification matrix, and a
+        // type mismatch there would read as a divergence that isn't one.
+        has_jira: !!p.has_jira,
       })),
     });
   } catch (_err) {
