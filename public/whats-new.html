@@ -152,7 +152,13 @@
     // renderFeature, deliberately: putting it back in the renderer would also
     // re-caption v1.8's two previews, which are frozen as published.
     // Caption required on every placeholder by PRD §5.11.6.
-    const CAP = '<p class="wn-shot__cap">Placeholder &mdash; real screenshot goes here</p>';
+    // The 'Placeholder — real screenshot goes here' caption was removed on
+    // 2026-08-16 at Jenny's direction, from every entry. NOTE: PRD §5.11.6
+    // still requires it, and HANDOFF carries an open compliance item about
+    // v1.8 rendering no caption after 3dc2e9a stripped it — Block 18.8
+    // restored .wn-shot__cap precisely to close that. Removing it again
+    // reopens the same gap between the PRD and the page. Flagged; the PRD
+    // needs amending to match, or this needs reverting.
     const PLACEHOLDER = {
       'whats-new':
         '<div class="wn-mini">'
@@ -181,16 +187,14 @@
         + '<div class="wn-mini__row"><span class="wn-mini__tag">Jira</span><span class="wn-mini__text">Who has the most open tickets right now?</span></div>'
         + '<div class="wn-mini__row"><span class="wn-mini__tag">Jira</span><span class="wn-mini__text">How has velocity changed over the last three sprints?</span></div>'
         + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__tag wn-mini__tag--grey">Slack</span><span class="wn-mini__text">Summarize the last 24 hours of decisions.</span></div>'
-        + '</div>'
-        + CAP,
+        + '</div>',
       'sg-sprint':
         '<div class="wn-mini">'
         + '<div class="wn-mini__eyebrow">When a sprint is running</div>'
         + '<div class="wn-mini__row" style="border-color:var(--brand-soft-border);background:var(--brand-soft);"><span class="wn-mini__tag">Jira</span><span class="wn-mini__text">How is <strong>Sprint 24</strong> tracking?</span></div>'
         + '<div class="wn-mini__eyebrow" style="margin-top:11px;">When none is</div>'
         + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__tag">Jira</span><span class="wn-mini__text">How is the active sprint tracking?</span></div>'
-        + '</div>'
-        + CAP,
+        + '</div>',
       'sg-rail':
         '<div class="wn-mini">'
         + '<div class="wn-mini__eyebrow">Above the message box, after an answer</div>'
@@ -203,8 +207,7 @@
         +   '<span class="wn-mini__text" style="color:var(--text-faint);">Ask a follow-up&hellip;</span>'
         +   '<span class="wn-mini__btn wn-mini__btn--primary" style="width:16px;height:16px;padding:0;flex:none;"></span>'
         + '</div>'
-        + '</div>'
-        + CAP,
+        + '</div>',
       // ── v2.0 (Block 19) — side menu ────────────────────────────────────
       // VERBATIM form per PRD §5.11.6: the navigation labels below are the
       // real shipped strings from the rail. Grey bars would say nothing here
@@ -236,8 +239,7 @@
         +       '<div class="wn-mini__row" style="border:none;padding:5px 7px;margin-bottom:0;"><span class="wn-mini__text">Members</span></div>'
         +     '</div>'
         +   '</div>'
-        + '</div>'
-        + CAP,
+        + '</div>',
       'rail-tree':
         '<div class="wn-mini">'
         +   '<div class="wn-mini__row" style="border:none;background:var(--brand-tint);padding:5px 7px;"><span class="wn-mini__text" style="color:var(--brand-strong);font-weight:600;">Projects</span></div>'
@@ -250,8 +252,7 @@
         +   '<div class="wn-mini__row" style="border:none;padding:3px 7px 3px 32px;"><span class="wn-mini__text" style="color:var(--text-3);">Chat</span></div>'
         +   '<div class="wn-mini__row" style="border:none;padding:3px 7px 3px 32px;"><span class="wn-mini__text" style="color:var(--text-3);">Settings</span></div>'
         +   '<div class="wn-mini__row" style="border:none;padding:5px 7px 5px 18px;margin-bottom:0;"><span class="wn-mini__text">Meridian</span></div>'
-        + '</div>'
-        + CAP,
+        + '</div>',
       'rail-mobile':
         '<div class="wn-mini--bar-row" style="gap:14px;align-items:stretch;">'
         +   '<div style="flex:1;">'
@@ -280,8 +281,7 @@
         +       '</div>'
         +     '</div>'
         +   '</div>'
-        + '</div>'
-        + CAP,
+        + '</div>',
       'sg-cross':
         '<div class="wn-mini">'
         + '<div class="wn-mini__eyebrow">Cross-project chat</div>'
@@ -289,7 +289,6 @@
         + '<div class="wn-mini__row"><span class="wn-mini__tag">New</span><span class="wn-mini__text">Compare velocity across <strong>Aurora and Beacon</strong> over the last three sprints.</span></div>'
         + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__tag wn-mini__tag--grey">&middot;</span><span class="wn-mini__text">Across <strong>Aurora and Beacon</strong>, who is the busiest assignee right now?</span></div>'
         + '</div>'
-        + CAP
     };
 
     function renderFeature(f) {
