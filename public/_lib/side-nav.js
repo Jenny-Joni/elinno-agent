@@ -86,9 +86,16 @@
     if (!key) return;
     var el = rail.querySelector('[data-sn-nav="' + key + '"]');
     if (el) el.setAttribute('aria-current', 'page');
-    // The Projects section button is not a link, so it carries .is-active
-    // rather than aria-current — aria-current on a non-link reads oddly.
-    if (key === 'projects' && sectionBtn) sectionBtn.classList.add('is-active');
+    // Projects has no [data-sn-nav] element — it is the accordion's
+    // <button data-sn-section>. It still gets aria-current: the attribute is
+    // valid on any element, not just links, and without it the four
+    // Projects-mapped pages (/projects, /projects/new, /project/*,
+    // /project_settings/*) would expose no current-page marker at all.
+    // .is-active is the styling hook; aria-current is the semantic one.
+    if (key === 'projects' && sectionBtn) {
+      sectionBtn.classList.add('is-active');
+      sectionBtn.setAttribute('aria-current', 'page');
+    }
   }
 
   /* ─── Expand / collapse (desktop) ────────────────────────────────── */
