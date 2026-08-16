@@ -49,7 +49,6 @@
      Open projects are keyed by SLUG, not list index: /api/projects orders by
      sort_position, so an admin reordering projects would otherwise silently
      expand a different one than the user left open. */
-  var STORAGE_KEY = 'elinno.sidenav.expanded';
   var SECTION_KEY = 'elinno.sidenav.projectsOpen';
   var OPEN_KEY = 'elinno.sidenav.openProjects';
   var TREE_KEY = 'elinno.sidenav.treeHtml';
@@ -75,7 +74,7 @@
   if (!rail) return;
 
   var body = document.body;
-  var root = document.documentElement;   // carries sn-boot / sn-expanded
+  var root = document.documentElement;   // carries sn-boot / sn-section-open / sn-admin
   var scroll = rail.querySelector('.side-nav__scroll');
 
   /* Keep the rail's own scroll position across navigation. Each page is a
@@ -171,38 +170,6 @@
     }
   }
 
-  /* ─── Expand / collapse (desktop) ────────────────────────────────── */
-  function setExpanded(on, persist) {
-    // The layout state lives on <html>, not on the rail or the body, because
-    // the inline boot script in <head> has to set it before <body> exists.
-    // One class, one source of truth — keep these in sync with boot.
-    root.classList.toggle('sn-expanded', on);
-    var t = rail.querySelector('[data-sn-toggle]');
-    if (t) {
-      t.setAttribute('aria-expanded', String(on));
-      t.setAttribute('aria-label', on ? 'Collapse navigation' : 'Expand navigation');
-      var i = t.querySelector('i');
-      if (i) i.className = 'ti ti-chevrons-' + (on ? 'left' : 'right');
-    }
-    if (persist) {
-      try { localStorage.setItem(STORAGE_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
-    }
-  }
-
-  var startExpanded = false;
-  try { startExpanded = localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) { /* private mode */ }
-  setExpanded(startExpanded, false);
-
-  var toggleBtn = rail.querySelector('[data-sn-toggle]');
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', function () {
-      setExpanded(!root.classList.contains('sn-expanded'), true);
-      // Deliberately does NOT force the Projects section open. The rail is
-      // meant to look the same everywhere; opening a section the user had
-      // closed would be the rail changing itself out from under them.
-    });
-  }
-
   /* ─── Mobile drawer (≤700px) ─────────────────────────────────────── */
   function setDrawer(on) {
     body.classList.toggle('side-nav-open', on);
@@ -233,8 +200,8 @@
     backdrop.addEventListener('click', function () {
       // One backdrop, two jobs: it closes the mobile drawer, and below
       // 1100px it also closes the overlaying expanded rail (decision D).
+      // The backdrop only has one job now: close the mobile drawer.
       if (body.classList.contains('side-nav-open')) setDrawer(false);
-      else if (root.classList.contains('sn-expanded')) setExpanded(false, true);
     });
   }
 
@@ -474,11 +441,6 @@
 
   if (sectionBtn) {
     sectionBtn.addEventListener('click', function () {
-      // Clicking the section while collapsed should expand the rail first —
-      // there is nowhere to draw children at 64px.
-      if (!root.classList.contains('sn-expanded') && !body.classList.contains('side-nav-open')) {
-        setExpanded(true, true);
-      }
       toggleSection();
     });
     // Restore the section exactly as it was left, on every page.

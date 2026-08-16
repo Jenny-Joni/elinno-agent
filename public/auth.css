@@ -3891,7 +3891,7 @@ table.users-table {
   left: 0;
   bottom: 0;
   z-index: 100;
-  width: 64px;
+  width: 260px;
   background: var(--bg);
   border-right: 0.5px solid var(--border);
   display: flex;
@@ -3904,12 +3904,14 @@ table.users-table {
      unmeasurable in a backgrounded tab, where transitions are throttled
      and getComputedStyle returns a frozen mid-tween. */
 }
-html.sn-expanded .side-nav { width: 260px; }
+/* Always expanded on desktop (2026-08-16, Jenny's direction). There is no
+   collapsed state and no toggle any more, so the width is unconditional
+   rather than keyed to a class. Below 700px the rail is off-canvas and the
+   mobile block overrides this. */
 
 /* Page content clears the rail. Pages set no left margin of their own;
    this is the single place the offset is defined. */
-html.sn-boot body { margin-left: 64px; }
-html.sn-boot.sn-expanded body { margin-left: 260px; }
+html.sn-boot body { margin-left: 260px; }
 
 /* ---------- Brand row — reuses .brandmark / .wordmark (decision H1b) ---------- */
 .side-nav__brand {
@@ -3931,32 +3933,6 @@ html.sn-boot.sn-expanded body { margin-left: 260px; }
   color: inherit;
   min-width: 0;
 }
-/* Collapsed: the mark and the expand control sit side by side. The control
-   must NOT be hidden here — it is the only way back out of the collapsed
-   state, and hiding it (as the first draft did) left the default state with
-   no way to expand unless you happened to click Projects. 64px less 12px of
-   padding leaves 52px; 18px mark + 4px gap + ~16px chevron fits. */
-html:not(.sn-expanded) .side-nav .side-nav__brand {
-  justify-content: center;
-  padding: 0 6px;
-  gap: 4px;
-}
-html:not(.sn-expanded) .side-nav .side-nav__collapse {
-  margin-left: 0;
-  padding: 2px;
-  font-size: 13px;
-}
-.side-nav__collapse {
-  margin-left: auto;
-  background: none;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  color: var(--text-3);
-  font-size: 15px;
-  line-height: 1;
-}
-.side-nav__collapse:hover { color: var(--text-2); }
 
 /* ---------- Scroll area (the only scrolling part) + pinned foot ---------- */
 .side-nav__scroll {
@@ -4034,7 +4010,6 @@ html.sn-section-open .side-nav [data-sn-section] .sn-chev { transform: rotate(90
    stays hidden. This is presentation only — every link inside is gated
    server-side. */
 html.sn-admin .side-nav #adminLink { display: block !important; }
-html:not(.sn-expanded) .side-nav .sn-item { justify-content: center; padding: 9px 0; gap: 0; }
 
 /* The user row shows who you are; it is not a destination. Workspace
    settings — the obvious target — is admin-only, so linking it would give
@@ -4121,12 +4096,6 @@ html:not(.sn-expanded) .side-nav .sn-item { justify-content: center; padding: 9p
 
 /* Collapsed rail: everything but the icons goes. The children of an
    accordion are hidden outright — there is nowhere to put them at 64px. */
-html:not(.sn-expanded) .side-nav .wordmark,
-html:not(.sn-expanded) .side-nav .sn-item__label,
-html:not(.sn-expanded) .side-nav .sn-chev,
-html:not(.sn-expanded) .side-nav .sn-l2,
-html:not(.sn-expanded) .side-nav .sn-l3,
-html:not(.sn-expanded) .side-nav .sn-util { display: none; }
 
 /* The dot's base rule pins it absolutely at right:-9px against a
    text-width .wn-navlink. A rail row is full-width, so that put the dot
@@ -4138,13 +4107,6 @@ html:not(.sn-expanded) .side-nav .sn-util { display: none; }
   flex-shrink: 0;
 }
 /* Collapsed, there is no label to sit beside — it overlaps the icon. */
-html:not(.sn-expanded) .side-nav .wn-navlink__dot {
-  position: absolute;
-  top: 7px;
-  right: 18px;
-  margin-left: 0;
-}
-html:not(.sn-expanded) .side-nav .wn-navlink { position: relative; }
 
 /* ---------- Mobile head bar (≤700px only; hidden above) ---------- */
 .side-nav-head { display: none; }
@@ -4160,16 +4122,12 @@ html:not(.sn-expanded) .side-nav .wn-navlink { position: relative; }
 }
 body.side-nav-open .side-nav-backdrop { display: block; }
 
-/* ════════════════════════════════════════════════════════════════════
-   ≤1100px — expanded rail overlays instead of pushing (decision D).
-   Page content keeps its 64px offset; the rail floats over it with the
-   backdrop. Prevents the chat pane on the two chat surfaces from being
-   squeezed under 500px.
-   ════════════════════════════════════════════════════════════════════ */
-@media (max-width: 1100px) {
-  html.sn-boot.sn-expanded body { margin-left: 64px; }
-  html.sn-expanded body .side-nav-backdrop { display: block; }
-}
+/* ≤1100px — the overlay rule that lived here is gone with the collapsed
+   state (2026-08-16). It let an expanded rail float over a 64px resting
+   rail so the chat pane kept its width; with the rail always expanded there
+   is no resting state to fall back to, and a rule that only half-applies is
+   worse than none. The cost is recorded in BLOCK_19_PLAN under decision D.
+   ──────────────────────────────────────────────────────────────────── */
 
 /* ════════════════════════════════════════════════════════════════════
    ≤700px — off-canvas. The rail slides in from the left behind the
@@ -4184,8 +4142,7 @@ body.side-nav-open .side-nav-backdrop { display: block; }
    65px apart vertically and 303px horizontally.
    ════════════════════════════════════════════════════════════════════ */
 @media (max-width: 700px) {
-  html.sn-boot body,
-  html.sn-boot.sn-expanded body {
+  html.sn-boot body {
     margin-left: 0;
     padding-top: 52px;
   }
@@ -4227,18 +4184,11 @@ body.side-nav-open .side-nav-backdrop { display: block; }
     color: inherit;
   }
 
-  /* Always the expanded tree on mobile — an icon-only rail behind a
-     backdrop would be a worse version of the head bar's own toggle.
-     Width is unconditional here, so the collapsed/expanded state on <html>
-     is irrelevant below 700px. */
-  /* html.sn-expanded is repeated here on purpose. The desktop rule
-     `html.sn-expanded .side-nav { width: 260px }` is (0,2,1); a bare
-     `.side-nav` is (0,1,0), and a media query adds no specificity — so
-     without this the collapsed/expanded state leaked through and the drawer
-     opened at 260px, 20px narrower than the conversations drawer it is
-     supposed to match. Measured at 375px before the fix. */
-  .side-nav,
-  html.sn-expanded .side-nav {
+  /* The drawer is 280px to match the conversations drawer beside it, so it
+     has to override the desktop 260px. Both are plain `.side-nav` now that
+     the collapsed state is gone, and a media query adds no specificity — but
+     this rule is LATER in the file, so it wins. */
+  .side-nav {
     top: 52px;
     width: 280px;
     max-width: 85%;
@@ -4247,22 +4197,9 @@ body.side-nav-open .side-nav-backdrop { display: block; }
   }
   body.side-nav-open .side-nav { transform: translateX(0); }
 
-  /* Labels come back even when <html> is in the collapsed state. */
-  html:not(.sn-expanded) .side-nav .wordmark,
-  html:not(.sn-expanded) .side-nav .sn-item__label,
-  html:not(.sn-expanded) .side-nav .sn-chev,
-  html:not(.sn-expanded) .side-nav .sn-l2,
-  html:not(.sn-expanded) .side-nav .sn-l3,
-  html:not(.sn-expanded) .side-nav .sn-util { display: flex; }
-  html:not(.sn-expanded) .side-nav .sn-item__label,
-  html:not(.sn-expanded) .side-nav .wordmark { display: inline; }
-  html:not(.sn-expanded) .side-nav .sn-item { justify-content: flex-start; padding: 8px 9px; gap: 11px; }
-  html:not(.sn-expanded) .side-nav .wn-navlink__dot { top: -3px; right: -9px; }
-
   /* The rail's own brand row is redundant with the head bar's. */
   .side-nav__brand { display: none; }
-  .side-nav__collapse { display: none; }
-
+  
   .side-nav-backdrop { top: 52px; }
 }
 
