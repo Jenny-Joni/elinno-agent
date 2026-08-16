@@ -382,8 +382,12 @@
       // which is exactly how it was reported ("previous version can't
       // expand"). Bring the newly revealed content into view when opening,
       // and only when it is actually short of the fold.
+      // setTimeout, NOT requestAnimationFrame: rAF does not fire in a
+      // backgrounded tab, so a page opened in a background tab and switched
+      // to later would never run this at all. Third time this has bitten in
+      // this block — the rail's scroll-persistence save had the same flaw.
       if (open) return;                       // collapsing needs no scroll
-      requestAnimationFrame(() => {
+      setTimeout(() => {
         const r = body.getBoundingClientRect();
         const shortfall = r.bottom - window.innerHeight;
         if (shortfall <= 0) return;           // already fully visible
@@ -392,7 +396,7 @@
         // scroll further than the document allows.
         const target = Math.min(btnTop - 16, document.documentElement.scrollHeight - window.innerHeight);
         window.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
-      });
+      }, 0);
     }
 
     function start() {
