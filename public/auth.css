@@ -66,8 +66,16 @@
    CSS media queries can't read custom properties, so these can't be real
    var()s — treat the list below as the source of truth and reuse these
    exact values rather than inventing new ones per page:
-     700px  — primary layout boundary (matches sticky-topbar.js mobileMQ);
-              two-column shells collapse, app nav switches to mobile.
+    1100px  — side-rail push/overlay boundary (Block 19, decision D). Above
+              it an expanded .side-nav pushes page content right; at or below
+              it the rail overlays with a backdrop instead. Set here because
+              the chat pane on the two chat surfaces crosses its 500px floor
+              at ~1040px of viewport once a 260px rail and a 220px
+              conversations sidebar are both in the row. The only breakpoint
+              in this list that was derived rather than designed.
+     700px  — primary layout boundary (was also sticky-topbar.js mobileMQ,
+              retired in Block 19.7); two-column shells collapse, the side
+              rail goes off-canvas.
      480px  — auth-card / fine card adjustments.
      360px  — tested minimum width (no horizontal scroll at or above this).
    Mobile-first: author base styles for ~360px, layer up with min-width.
@@ -338,7 +346,10 @@ img, svg { max-width: 100%; display: block; }
 
 .app-main {
   background: var(--color-bg-soft);
-  min-height: calc(100vh - 70px);
+  /* Block 19: was calc(100vh - 70px) — the 70px was the .app-nav the side
+     rail replaced. The rail is a fixed left column and takes no vertical
+     space, so the full viewport height is available again. */
+  min-height: 100vh;
   padding: 70px 0;
 }
 
@@ -728,12 +739,14 @@ table.users-table {
   overflow: hidden;
   display: grid;
   grid-template-columns: 260px 1fr;
-  /* Lock the shell to (viewport − nav − app-main top+bottom padding) so
-     long conversations scroll inside .chat-messages instead of the whole
-     page. .app-main is 100vh-70px nav + 70px top/bottom padding, so the
-     available height for the shell is 100vh − 210px. min-height keeps
-     the layout usable on short viewports (page-level scroll falls back). */
-  height: calc(100vh - 210px);
+  /* Lock the shell to (viewport − app-main top+bottom padding) so long
+     conversations scroll inside .chat-messages instead of the whole page.
+     Block 19: was 100vh − 210px, where 210 = 70px .app-nav + 70px top +
+     70px bottom padding. The rail replaced the nav and occupies no
+     vertical space, so only the 140px of padding is subtracted now.
+     min-height keeps the layout usable on short viewports (page-level
+     scroll falls back). */
+  height: calc(100vh - 140px);
   min-height: 480px;
   position: relative;
 }
@@ -3928,4 +3941,309 @@ table.users-table {
     color: var(--brand-strong);
     margin-top: 4px;
   }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Block 19 (v2.0) — persistent left side rail.
+
+   Replaces .app-nav on every authed page. Markup is static in each of
+   the 11 pages (decision I — a JS-rendered rail would flash, and every
+   page's inline boot script queries #logoutBtn synchronously, which runs
+   BEFORE any deferred external script). Behavior lives in
+   /_lib/side-nav.js.
+
+   Three levels: rail item → project → project action. Collapsed 64px
+   (the default, icon-only); expanded 260px, pushing page content right.
+
+   HEIGHT IS THE BINDING CONSTRAINT. Measured against this stylesheet on
+   2026-08-16: an admin rail with Projects and one project expanded is
+   767px — it clears a 768px viewport by one pixel. That is why
+   .side-nav__scroll is the only scrolling part and the brand row and
+   .side-nav__foot sit outside it: What's new / avatar / Log out must
+   never be pushed off-screen. Same reasoning as #convList above.
+   ════════════════════════════════════════════════════════════════════ */
+
+.side-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 100;
+  width: 64px;
+  background: var(--bg);
+  border-right: 0.5px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font);
+  transition: width var(--t-fast);
+}
+.side-nav.is-expanded { width: 260px; }
+
+/* Page content clears the rail. Pages set no left margin of their own;
+   this is the single place the offset is defined. */
+body.has-side-nav { margin-left: 64px; transition: margin-left var(--t-fast); }
+body.has-side-nav.side-nav-expanded { margin-left: 260px; }
+
+/* ---------- Brand row — reuses .brandmark / .wordmark (decision H1b) ---------- */
+.side-nav__brand {
+  height: 56px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 15px;
+  border-bottom: 0.5px solid var(--border-soft);
+  text-decoration: none;
+  color: inherit;
+}
+.side-nav:not(.is-expanded) .side-nav__brand { justify-content: center; padding: 0; }
+.side-nav__collapse {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-3);
+  font-size: 15px;
+  line-height: 1;
+}
+.side-nav__collapse:hover { color: var(--text-2); }
+
+/* ---------- Scroll area (the only scrolling part) + pinned foot ---------- */
+.side-nav__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 7px;
+}
+.side-nav__foot {
+  flex-shrink: 0;
+  padding: 8px 7px;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* ---------- Level 1 ---------- */
+.sn-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 9px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  color: var(--text-2);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+.sn-item > i:first-child { font-size: 17px; width: 17px; flex-shrink: 0; color: var(--text-3); }
+.sn-item:hover { background: var(--brand-soft); }
+.sn-item[aria-current="page"],
+.sn-item.is-active {
+  background: var(--brand-tint);
+  color: var(--brand-strong);
+  font-weight: 500;
+}
+.sn-item[aria-current="page"] > i:first-child,
+.sn-item.is-active > i:first-child { color: var(--brand); }
+.side-nav:not(.is-expanded) .sn-item { justify-content: center; padding: 9px 0; gap: 0; }
+
+/* ---------- Level 2 (projects) ---------- */
+.sn-l2 {
+  display: flex;
+  align-items: center;
+  padding: 7px 9px 7px 35px;
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  color: var(--text-2);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+.sn-l2:hover { background: var(--brand-soft); }
+.sn-l2.is-open { color: var(--text); font-weight: 500; }
+.sn-l2__label { overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Level 3 (project actions) ---------- */
+.sn-l3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px 6px 53px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--text-3);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sn-l3 i { font-size: 13px; flex-shrink: 0; }
+.sn-l3:hover { background: var(--brand-soft); color: var(--text-2); }
+.sn-l3[aria-current="page"] {
+  background: var(--brand-tint);
+  color: var(--brand-strong);
+  font-weight: 500;
+}
+
+/* Utility rows ("All projects", "New project") sit at level 2's indent
+   but read as level 3 — quieter than a project name, not a peer of one. */
+.sn-util {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px 7px 35px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--text-3);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sn-util i { font-size: 13px; flex-shrink: 0; }
+.sn-util:hover { background: var(--brand-soft); color: var(--text-2); }
+
+.sn-chev { margin-left: auto; font-size: 12px; color: var(--text-faint); flex-shrink: 0; }
+.sn-divider { height: 1px; background: var(--border-soft); margin: 8px 5px; }
+
+/* Collapsed rail: everything but the icons goes. The children of an
+   accordion are hidden outright — there is nowhere to put them at 64px. */
+.side-nav:not(.is-expanded) .wordmark,
+.side-nav:not(.is-expanded) .side-nav__collapse,
+.side-nav:not(.is-expanded) .sn-item__label,
+.side-nav:not(.is-expanded) .sn-chev,
+.side-nav:not(.is-expanded) .sn-l2,
+.side-nav:not(.is-expanded) .sn-l3,
+.side-nav:not(.is-expanded) .sn-util { display: none; }
+
+/* The unread dot has no room to sit beside a hidden label, so it moves
+   onto the icon itself. */
+.side-nav:not(.is-expanded) .wn-navlink__dot { top: 4px; right: 16px; }
+
+/* ---------- Mobile head bar (≤700px only; hidden above) ---------- */
+.side-nav-head { display: none; }
+
+/* ---------- Backdrop — shared with the ≤700px off-canvas state ---------- */
+.side-nav-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(0, 0, 0, 0.32);
+  cursor: pointer;
+}
+body.side-nav-open .side-nav-backdrop { display: block; }
+
+/* ════════════════════════════════════════════════════════════════════
+   ≤1100px — expanded rail overlays instead of pushing (decision D).
+   Page content keeps its 64px offset; the rail floats over it with the
+   backdrop. Prevents the chat pane on the two chat surfaces from being
+   squeezed under 500px.
+   ════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  body.has-side-nav.side-nav-expanded { margin-left: 64px; }
+  body.side-nav-expanded .side-nav-backdrop { display: block; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ≤700px — off-canvas. The rail slides in from the left behind the
+   backdrop, opened from a 52px head bar that belongs to this component.
+
+   The head bar is 18px SHORTER than the .app-nav it replaces, so phones
+   gain vertical budget rather than losing it — the same budget Block 18
+   fought for on the chat empty state.
+
+   The conversations hamburger on project.html / cross-project/chat.html
+   stays in .project-main-header. Measured at 375px: the two controls are
+   65px apart vertically and 303px horizontally.
+   ════════════════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  body.has-side-nav,
+  body.has-side-nav.side-nav-expanded {
+    margin-left: 0;
+    padding-top: 52px;
+  }
+
+  .side-nav-head {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 52px;
+    z-index: 101;
+    background: var(--bg);
+    border-bottom: 0.5px solid var(--border);
+    padding: 0 14px;
+  }
+  .side-nav-head__toggle {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--bg);
+    color: var(--text-2);
+    font-size: 17px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .side-nav-head__brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  /* Always the expanded tree on mobile — an icon-only rail behind a
+     backdrop would be a worse version of the head bar's own toggle. */
+  .side-nav,
+  .side-nav.is-expanded {
+    top: 52px;
+    width: 280px;
+    max-width: 85%;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease-out;
+    border-right: 0.5px solid var(--border);
+  }
+  body.side-nav-open .side-nav,
+  body.side-nav-open .side-nav.is-expanded { transform: translateX(0); }
+
+  /* Labels come back even though .is-expanded may be absent. */
+  .side-nav:not(.is-expanded) .wordmark,
+  .side-nav:not(.is-expanded) .sn-item__label,
+  .side-nav:not(.is-expanded) .sn-chev,
+  .side-nav:not(.is-expanded) .sn-l2,
+  .side-nav:not(.is-expanded) .sn-l3,
+  .side-nav:not(.is-expanded) .sn-util { display: flex; }
+  .side-nav:not(.is-expanded) .sn-item__label,
+  .side-nav:not(.is-expanded) .wordmark { display: inline; }
+  .side-nav:not(.is-expanded) .sn-item { justify-content: flex-start; padding: 8px 9px; gap: 11px; }
+  .side-nav:not(.is-expanded) .wn-navlink__dot { top: -3px; right: -9px; }
+
+  /* The rail's own brand row is redundant with the head bar's. */
+  .side-nav__brand { display: none; }
+  .side-nav__collapse { display: none; }
+
+  .side-nav-backdrop { top: 52px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-nav,
+  body.has-side-nav { transition: none; }
+  .side-nav.is-expanded { transition: none; }
 }
