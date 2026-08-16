@@ -3993,8 +3993,16 @@ body.has-side-nav.side-nav-expanded { margin-left: 260px; }
   gap: 9px;
   padding: 0 15px;
   border-bottom: 0.5px solid var(--border-soft);
+}
+/* The brand row holds a link AND the collapse button, so it cannot itself
+   be the <a> — an <a> may not contain a <button>. The lockup is the link. */
+.side-nav__lockup {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   text-decoration: none;
   color: inherit;
+  min-width: 0;
 }
 .side-nav:not(.is-expanded) .side-nav__brand { justify-content: center; padding: 0; }
 .side-nav__collapse {
@@ -4113,6 +4121,22 @@ body.has-side-nav.side-nav-expanded { margin-left: 260px; }
 
 .sn-chev { margin-left: auto; font-size: 12px; color: var(--text-faint); flex-shrink: 0; }
 .sn-divider { height: 1px; background: var(--border-soft); margin: 8px 5px; }
+
+/* The avatar keeps #navUserAvatar's existing look so page boot code that
+   sets .textContent and .title needs no change (decision J). */
+.sn-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 
 /* Collapsed rail: everything but the icons goes. The children of an
    accordion are hidden outright — there is nowhere to put them at 64px. */
