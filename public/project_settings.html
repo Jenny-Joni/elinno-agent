@@ -601,10 +601,15 @@
        so an open Projects section paints WITH its tree instead of painting
        empty and filling in once /_lib/side-nav.js has fetched /api/projects.
        That fill-in was the remaining flicker when moving between two children
-       of the same project. It also paints the avatar letter, for the same
-       reason. The markup came from the previous page's own render (escaped
-       there) and the live render replaces it moments later. -->
-  <script>(function(){try{var d=document.documentElement,i=localStorage.getItem('elinno.sidenav.initial'),a=document.getElementById('navUserAvatar');if(a&&i)a.textContent=i;if(!d.classList.contains('sn-section-open'))return;var s=document.querySelector('[data-sn-section="projects"]');if(s)s.setAttribute('aria-expanded','true');var b=document.querySelector('[data-sn-children="projects"]'),h=sessionStorage.getItem('elinno.sidenav.treeHtml');if(b&&h)b.innerHTML=h;}catch(e){}})();</script>
+       of the same project. It also paints the avatar letter, and restores the
+       rail's own scroll offset — each page is a new document, so without that
+       the menu jumped back to the top whenever you clicked something near the
+       bottom of a long tree.
+       Order matters: the tree has to be in place before scrollTop means
+       anything, so the scroll restore comes last.
+       The markup came from the previous page's own render (escaped there) and
+       the live render replaces it moments later. -->
+  <script>(function(){try{var d=document.documentElement,i=localStorage.getItem('elinno.sidenav.initial'),a=document.getElementById('navUserAvatar');if(a&&i)a.textContent=i;if(d.classList.contains('sn-section-open')){var s=document.querySelector('[data-sn-section="projects"]');if(s)s.setAttribute('aria-expanded','true');var b=document.querySelector('[data-sn-children="projects"]'),h=sessionStorage.getItem('elinno.sidenav.treeHtml');if(b&&h)b.innerHTML=h;}var c=document.querySelector('.side-nav__scroll'),y=sessionStorage.getItem('elinno.sidenav.scrollTop');if(c&&y)c.scrollTop=+y;}catch(e){}})();</script>
 
   <main class="app-main">
     <div class="custom-container">

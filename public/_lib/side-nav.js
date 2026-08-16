@@ -77,6 +77,37 @@
   var body = document.body;
   var root = document.documentElement;   // carries sn-boot / sn-expanded
   var scroll = rail.querySelector('.side-nav__scroll');
+
+  /* Keep the rail's own scroll position across navigation. Each page is a
+     new document, so the scroll area starts at 0 — with several projects
+     expanded, clicking something near the bottom (Members, say) jumped the
+     menu back to the top and you lost your place in a list you had not
+     touched. Saved here, restored before paint by the inline block after
+     the rail markup.
+
+     sessionStorage, like the tree cache: it only has to survive navigation
+     inside one tab.
+
+     Debounced with setTimeout, deliberately NOT requestAnimationFrame: rAF
+     does not fire at all in a backgrounded tab, so an rAF-coalesced write
+     silently loses the position for anyone who scrolls the menu and then
+     switches away before clicking. A timer still fires when throttled. */
+  var SCROLL_KEY = 'elinno.sidenav.scrollTop';
+  if (scroll) {
+    var scrollTimer = null;
+    var saveScroll = function () {
+      try { sessionStorage.setItem(SCROLL_KEY, String(scroll.scrollTop)); } catch (e) { /* private mode */ }
+    };
+    scroll.addEventListener('scroll', function () {
+      if (scrollTimer) clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(saveScroll, 120);
+    }, { passive: true });
+    // A click navigates away before the debounce fires, so flush first.
+    rail.addEventListener('click', function () {
+      if (scrollTimer) clearTimeout(scrollTimer);
+      saveScroll();
+    }, true);
+  }
   var childBox = rail.querySelector('[data-sn-children="projects"]');
   var sectionBtn = rail.querySelector('[data-sn-section="projects"]');
   var adminGroup = document.getElementById('adminLink');
