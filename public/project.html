@@ -729,32 +729,57 @@
     //   401 mid-flight → redirect to /login.html?next=...
     //   403 / 404 on the project resource → /projects.html (don't leak existence)
     //   Other non-OK → render boot-error state-card with Retry
+    /* Sprint prefetch. Started during boot so the sprint payload is
+       usually already in hand by the time the shell renders — which is what
+       removes the second "Loading sprint…" screen. renderSprint consumes the
+       promise once; a later tab switch back falls through to a fresh fetch. */
+    let sprintPrefetch = null;
+    function prefetchSprint() {
+      if (sprintPrefetch) return sprintPrefetch;
+      const spOverride = new URLSearchParams(location.search).get('sprint_id');
+      sprintPrefetch = fetch(
+        '/api/projects/' + encodeURIComponent(projectId) + '/sprint'
+        + (spOverride ? ('?sprint_id=' + encodeURIComponent(spOverride)) : '')
+      ).catch(() => null);
+      return sprintPrefetch;
+    }
+
     async function boot() {
       if (!projectId) { location.replace('/projects.html'); return; }
       renderLoadingShell();
 
       try {
-        /* Steps 1-3.5 run CONCURRENTLY. They used to be four awaited
-           fetches in a row, and nothing rendered until the last one landed.
-           Measured against the preview on a real project: project 534ms,
-           conversations 384ms, members 85ms, connections 413ms — 1416ms
-           serial, where the slowest alone is 534ms. None of them depends on
-           another's result, so the wait was pure ordering.
+        /* The whole boot runs as ONE concurrent graph, not a queue.
 
-           Firing them together does mean conversations/members/connections
-           are requested for a project the caller may turn out not to be able
-           to see. That costs three requests that 403 harmlessly; it leaks
-           nothing, because each endpoint scopes to the session itself. The
-           project response is still the one that decides the redirect, and
-           it is still checked first below. */
-        const [projRes, convRes, memRes, connRes] = await Promise.all([
-          fetch('/api/projects/' + encodeURIComponent(projectId)),
-          fetch('/api/projects/' + encodeURIComponent(projectId) + '/conversations'),
-          fetch('/api/projects/' + encodeURIComponent(projectId) + '/members').catch(() => null),
-          fetch('/api/projects/' + encodeURIComponent(projectId) + '/connections').catch(() => null)
-        ]);
+           It used to be four fetches in a row, then messages, then — only
+           after the shell had rendered — the sprint fetch. Measured on the
+           preview: 1416ms of ordering for the four, 556ms for messages, and
+           1138ms for sprint starting from zero after render. That is also
+           why two loading screens appeared: "Loading…" for the boot, then
+           "Loading sprint…" inside the shell for a fetch that had not even
+           been started yet.
+
+           Now: the four independent calls fire together; messages chains off
+           conversations the moment it lands, rather than waiting for the
+           slowest sibling; and sprint is prefetched alongside everything when
+           this page is going to show it. By the time the shell renders the
+           sprint payload is usually already in hand, so the second loading
+           screen has nothing to wait for. */
+        const projP = fetch('/api/projects/' + encodeURIComponent(projectId));
+        const convP = fetch('/api/projects/' + encodeURIComponent(projectId) + '/conversations');
+        const memP  = fetch('/api/projects/' + encodeURIComponent(projectId) + '/members').catch(() => null);
+        const connP = fetch('/api/projects/' + encodeURIComponent(projectId) + '/connections').catch(() => null);
+
+        /* Prefetch sprint when the URL already says so — which the side
+           menu's project links now always do. When the tab is instead
+           inferred from connection state, it is kicked off below, still
+           before the shell renders. */
+        const urlWantsSprint = /\/sprint\/?$/.test(location.pathname)
+          || new URLSearchParams(location.search).get('tab') === 'sprint';
+        if (urlWantsSprint) prefetchSprint();
 
         // Step 1: the project response gates everything else, unchanged.
+        const projRes = await projP;
         if (projRes.status === 401) { redirectToLogin(); return; }
         if (projRes.status === 403 || projRes.status === 404) {
           // 403-collapse from requireWorkspaceScope (v1.3 successor to
@@ -774,6 +799,7 @@
         };
 
         // Step 2: conversations (decision AC: server scopes to session user).
+        const convRes = await convP;
         if (convRes.status === 401) { redirectToLogin(); return; }
         if (convRes.status === 403) { location.replace('/projects.html'); return; }
         if (!convRes.ok) { renderBootError(); return; }
@@ -781,8 +807,7 @@
         conversations = Array.isArray(convData.conversations) ? convData.conversations : [];
 
         // Step 3 (decision G): auto-create one if user has zero conversations
-        // in this project. Lower friction than an empty state. Still serial —
-        // it can only be decided once conversations has come back.
+        // in this project. Lower friction than an empty state.
         if (conversations.length === 0) {
           const createRes = await fetch(
             '/api/projects/' + encodeURIComponent(projectId) + '/conversations',
@@ -796,12 +821,29 @@
           conversations = [createData.conversation];
         }
 
+        // Step 4 (decisions F + V): resolve activeConvId — ?c= if it matches a
+        // real row, otherwise most-recent (conversations[0] is updated_at DESC).
+        if (initialConvId && conversations.some(c => c.id === initialConvId)) {
+          activeConvId = initialConvId;
+        } else {
+          activeConvId = conversations[0].id;
+        }
+
+        // Step 5: messages, started NOW rather than after members and
+        // connections have also landed. It is the only call that genuinely
+        // depends on conversations, so it chains off it directly.
+        const msgsP = fetch(
+          '/api/projects/' + encodeURIComponent(projectId) +
+          '/conversations/' + encodeURIComponent(activeConvId) + '/messages'
+        );
+
         // Sub-task 2.6: members feeds the Members tab's count pill (decision
         // Y) from first paint. Non-OK leaves members/memberCount null — boot
         // does not fail over an unknown count, and the tab retries on open.
-        // NOTE: this endpoint currently 404s in production; the swallow below
+        // NOTE: this endpoint currently 404s in production; the swallow here
         // is why that has gone unnoticed.
         try {
+          const memRes = await memP;
           if (memRes) {
             if (memRes.status === 401) { redirectToLogin(); return; }
             if (memRes.status === 403) { location.replace('/projects.html'); return; }
@@ -816,9 +858,9 @@
         }
 
         // Step 3.5 (Block 4 commit 8): connections. Same swallow-on-failure
-        // pattern — Connections tab will re-fetch on first open if this
-        // fails. Chat + Members still work.
+        // pattern — Connections tab will re-fetch on first open if this fails.
         try {
+          const connRes = await connP;
           if (connRes) {
             if (connRes.status === 401) { redirectToLogin(); return; }
             if (connRes.status === 403) { location.replace('/projects.html'); return; }
@@ -831,19 +873,19 @@
           // Swallow — Connections tab open will retry.
         }
 
-        // Step 4 (decisions F + V): resolve activeConvId — ?c= if it matches a
-        // real row, otherwise most-recent (conversations[0] is updated_at DESC).
-        if (initialConvId && conversations.some(c => c.id === initialConvId)) {
-          activeConvId = initialConvId;
-        } else {
-          activeConvId = conversations[0].id;
+        // Connection state is known now, so if the tab is going to be Sprint
+        // View by inference rather than by URL, start its fetch here — still
+        // before the shell renders, rather than after.
+        {
+          const _csEarly = getConnectionState();
+          if (!urlWantsSprint && !initialTabRaw && (_csEarly === 'jira' || _csEarly === 'both')) {
+            prefetchSprint();
+          }
         }
 
-        // Step 5: GET messages for active conversation.
-        const msgsRes = await fetch(
-          '/api/projects/' + encodeURIComponent(projectId) +
-          '/conversations/' + encodeURIComponent(activeConvId) + '/messages'
-        );
+        // Await messages last: it has been in flight since conversations
+        // resolved, so this usually costs nothing by the time we reach it.
+        const msgsRes = await msgsP;
         if (msgsRes.status === 401) { redirectToLogin(); return; }
         if (msgsRes.status === 403) { location.replace('/projects.html'); return; }
         if (!msgsRes.ok) { renderBootError(); return; }
@@ -2200,9 +2242,16 @@
     }
 
     async function renderSprint(body) {
-      // Loading placeholder (keeps the FROM chip stable across the fetch).
-      body.innerHTML = projectFromRowHtml()
-        + '<div class="sv"><div class="sv-empty"><p class="sv-empty-text">Loading sprint…</p></div></div>';
+      // Take the boot-time prefetch if there is one; only paint the loading
+      // placeholder when we are actually going to wait for a fresh fetch.
+      // Painting it unconditionally is what produced a second loading screen
+      // even when the data was already available.
+      const pending = sprintPrefetch;
+      sprintPrefetch = null;
+      if (!pending) {
+        body.innerHTML = projectFromRowHtml()
+          + '<div class="sv"><div class="sv-empty"><p class="sv-empty-text">Loading sprint…</p></div></div>';
+      }
 
       const spOverride = new URLSearchParams(location.search).get('sprint_id');
       const url = '/api/projects/' + encodeURIComponent(projectId) + '/sprint'
@@ -2210,7 +2259,7 @@
 
       let data;
       try {
-        const res = await fetch(url);
+        const res = (pending && await pending) || await fetch(url);
         if (res.status === 401) { redirectToLogin(); return; }
         if (res.status === 403) { location.replace('/projects.html'); return; }
         if (!res.ok) { renderSprintError(body); return; }
