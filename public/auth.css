@@ -145,7 +145,7 @@ img, svg { max-width: 100%; display: block; }
   background: var(--color-bg-light);
   border-radius: var(--radius-lg);
   padding: 45px 40px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 60px var(--scrim-strong);
 }
 
 .auth-eyebrow {
@@ -210,7 +210,7 @@ img, svg { max-width: 100%; display: block; }
 .field input::placeholder { color: var(--color-text-placeholder); }
 .field input:focus {
   outline: none;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--wash-field);
   border-color: var(--color-brand);
 }
 
@@ -233,7 +233,7 @@ img, svg { max-width: 100%; display: block; }
 }
 .btn-primary {
   background: var(--color-brand);
-  color: #fff;
+  color: var(--color-text-inverse);
   width: 100%;
 }
 .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
@@ -252,7 +252,7 @@ img, svg { max-width: 100%; display: block; }
   padding: 10px 14px;
   font-size: 12px;
 }
-.btn-danger:hover:not(:disabled) { background: var(--color-error); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: var(--color-error); color: var(--color-text-inverse); }
 
 /* ---------- Auth-page footer row ---------- */
 .auth-foot {
@@ -337,7 +337,7 @@ img, svg { max-width: 100%; display: block; }
 
 /* ---------- Cards ---------- */
 .card {
-  background: #fff;
+  background: var(--bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 32px;
@@ -345,7 +345,7 @@ img, svg { max-width: 100%; display: block; }
 
 /* ---------- Admin user table ---------- */
 .users-table-wrap {
-  background: #fff;
+  background: var(--bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -453,7 +453,7 @@ table.users-table {
 .field textarea::placeholder { color: var(--color-text-placeholder); }
 .field textarea:focus {
   outline: none;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--wash-field);
   border-color: var(--color-brand);
 }
 
@@ -483,7 +483,7 @@ table.users-table {
 }
 
 .project-card {
-  background: #fff;
+  background: var(--bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 32px;
@@ -518,7 +518,7 @@ table.users-table {
   transition: stroke var(--t-card);
 }
 .project-card:hover .project-card-icon svg path,
-.project-card:hover .project-card-icon svg circle { stroke: #fff; }
+.project-card:hover .project-card-icon svg circle { stroke: var(--color-text-inverse); }
 
 .project-card-name {
   color: var(--color-text-dark);
@@ -554,13 +554,13 @@ table.users-table {
 }
 
 .badge.muted {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--wash-pill);
   color: var(--color-text-body);
 }
 
 /* ---------- Skeleton loading state (decision P: 4 ghost cards) ---------- */
 .project-card-skeleton {
-  background: #fff;
+  background: var(--bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 32px;
@@ -598,7 +598,7 @@ table.users-table {
      • projects/new.html unauthorized state (decision O)
    Reused in Session 3+ for the same four-state pattern on chat / members tabs. */
 .state-card {
-  background: #fff;
+  background: var(--bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 56px 32px;
@@ -683,7 +683,7 @@ table.users-table {
 
 /* ---------- Project shell — sidebar + main, single white card on soft-grey body ---------- */
 .project-shell {
-  background: #fff;
+  background: var(--bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -751,7 +751,7 @@ table.users-table {
   line-height: 1;
   transition: background var(--t-form), color var(--t-form);
 }
-.new-conv-btn:hover { background: var(--color-brand); color: #fff; }
+.new-conv-btn:hover { background: var(--color-brand); color: var(--color-text-inverse); }
 .new-conv-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .new-conv-btn:disabled:hover { background: var(--color-brand-tint); color: var(--color-brand); }
 
@@ -773,7 +773,7 @@ table.users-table {
   text-align: left;
   width: 100%;
 }
-.conv-item:hover { background: rgba(0, 0, 0, 0.04); }
+.conv-item:hover { background: var(--wash-hover); }
 .conv-item.active {
   background: var(--color-brand-tint);
   color: var(--color-brand);
@@ -865,7 +865,7 @@ table.users-table {
   gap: 8px;
   transition: background var(--t-form), color var(--t-form);
 }
-.project-tab:hover { background: rgba(0, 0, 0, 0.04); }
+.project-tab:hover { background: var(--wash-hover); }
 .project-tab.active {
   color: var(--color-brand);
   background: var(--color-brand-tint);
@@ -928,7 +928,7 @@ table.users-table {
 }
 .chat-msg.user .chat-msg-avatar {
   background: var(--color-brand);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 .chat-msg.assistant .chat-msg-avatar {
   background: var(--color-bg-soft);
@@ -962,7 +962,7 @@ table.users-table {
 }
 .chat-msg.user .chat-msg-content {
   background: var(--color-brand);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 .chat-msg.assistant .chat-msg-content {
   background: var(--color-bg-soft);
@@ -1401,7 +1401,7 @@ table.users-table {
   font-size: 13px;
   line-height: 1.4;
   max-width: 360px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 12px var(--wash-divider);
   display: none;
 }
 .conn-toast-success {
@@ -1547,7 +1547,7 @@ table.users-table {
 }
 .chat-input:focus {
   outline: none;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--wash-field);
   border-color: var(--color-brand);
 }
 .chat-input::placeholder { color: var(--color-text-placeholder); }
@@ -1555,7 +1555,7 @@ table.users-table {
 .chat-send-btn {
   padding: 14px 22px;
   background: var(--color-brand);
-  color: #fff;
+  color: var(--color-text-inverse);
   border: none;
   border-radius: var(--radius-sm);
   font-family: var(--font-medium);
@@ -1615,7 +1615,7 @@ table.users-table {
   display: none;
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--scrim);
   cursor: pointer;
   z-index: 1;
   opacity: 0;
@@ -1696,12 +1696,12 @@ table.users-table {
   font-size: 11px;
   padding: 2px 7px;
   border-radius: 50px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--wash-pill);
   color: var(--color-text-body);
 }
 .project-tab.active .tab-count {
   background: var(--color-brand);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 
 /* ---------- Members tab body ---------- */
@@ -1724,8 +1724,8 @@ table.users-table {
   align-items: end;
 }
 .invite-row .field { margin: 0; }
-.invite-row .field input { background: #fff; }
-.invite-row .field input:focus { background: rgba(0, 0, 0, 0.04); }
+.invite-row .field input { background: var(--bg); }
+.invite-row .field input:focus { background: var(--wash-hover); }
 .invite-row .btn-primary { width: auto; padding: 16px 22px; }
 .invite-row .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .invite-row .btn-primary:disabled:hover { filter: none; }
@@ -1751,7 +1751,7 @@ table.users-table {
    a CSS-grid row pattern to match the mockup verbatim (.member-row with
    grid-template-columns). Visually equivalent, semantically distinct. */
 .members-list {
-  background: #fff;
+  background: var(--bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -1789,7 +1789,7 @@ table.users-table {
 /* Self-row marker: solid-brand avatar (mockup line 1250). */
 .member-row.you .avatar {
   background: var(--color-brand);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 
 .member-info {
@@ -1982,7 +1982,7 @@ table.users-table {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 40px var(--scrim);
 }
 
 .modal-header {
@@ -2037,7 +2037,7 @@ table.users-table {
   color: var(--text);
 }
 .channel-list-item:hover {
-  background: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
+  background: var(--color-surface-hover, var(--wash-hover));
   border-color: var(--color-border);
 }
 
@@ -2164,7 +2164,7 @@ table.users-table {
    neutral grey; fill color flips with the variant modifier. */
 .spend-bar-track {
   height: 8px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--wash-pill);
   border-radius: 50px;
   overflow: hidden;
 }
@@ -2353,7 +2353,7 @@ table.users-table {
   font-size: 17px;
 }
 .cross-project-chat-card.locked-v2 .cross-project-chat-card-source-icon {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--wash-field);
   color: var(--color-text-muted);
 }
 .cross-project-chat-card-body {
@@ -2371,7 +2371,7 @@ table.users-table {
   font-size: 11px;
 }
 .cross-project-chat-card.locked-v2 .cross-project-chat-card-foot {
-  border-top-color: rgba(0, 0, 0, 0.06);
+  border-top-color: var(--wash-pill);
 }
 .cross-project-chat-card-foot-cta {
   color: var(--color-brand);
@@ -2412,7 +2412,7 @@ table.users-table {
   padding: 14px 16px;
   background: var(--color-bg-light);
   cursor: pointer;
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  border-top: 1px solid var(--wash-hover);
   transition: background var(--t-form);
 }
 .picker-row:first-child { border-top: none; }
@@ -2598,6 +2598,17 @@ table.users-table {
   --r-pill: 50px;
   --r-bubble: 11px;              /* chat message bubbles */
 
+  /* Overlay washes (Block 20). Every value is byte-identical to the literal
+     it replaced, so migrating to them changes nothing in light mode. They
+     exist because rgba(0,0,0,…) cannot be themed: on a dark surface a black
+     wash is invisible, and each of these needs a white counterpart. */
+  --wash-hover: rgba(0, 0, 0, 0.04);      /* row / card hover */
+  --wash-field: rgba(0, 0, 0, 0.05);      /* subtle field fill */
+  --wash-pill: rgba(0, 0, 0, 0.06);       /* pill + tag fill */
+  --wash-divider: rgba(0, 0, 0, 0.12);    /* heavy divider */
+  --scrim: rgba(0, 0, 0, 0.3);            /* drawer / modal backdrop */
+  --scrim-strong: rgba(0, 0, 0, 0.4);
+
   /* Font alias — points at the existing Clash Grotesk stack. */
   --font: var(--font-regular);
 }
@@ -2649,8 +2660,8 @@ table.users-table {
   background: var(--brand);
   border-radius: 0 50px 50px 0;
 }
-.brandmark--light { border-color: #fff; }
-.brandmark--light::after { background: #fff; }
+.brandmark--light { border-color: var(--color-text-inverse); }
+.brandmark--light::after { background: var(--bg); }
 .wordmark {
   font-family: var(--font);
   font-weight: 600;
@@ -2963,7 +2974,7 @@ table.users-table {
 .inline-edit__save {
   display: none;
   background: var(--brand);
-  color: #fff;
+  color: var(--color-text-inverse);
   border: none;
   border-radius: 6px;
   width: 26px;
@@ -3079,7 +3090,7 @@ table.users-table {
     min-width: 0;
     border-radius: var(--r-md) var(--r-md) 0 0;
     padding: 12px 8px calc(env(safe-area-inset-bottom, 0px) + 12px);
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 -8px 24px var(--wash-divider);
   }
   .menu__item {
     padding: 14px 12px;
@@ -3133,7 +3144,7 @@ table.users-table {
 }
 .btn--primary {
   background: var(--brand);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 .btn--primary:hover:not(:disabled) { filter: brightness(1.08); }
 .btn--ghost {
@@ -3147,7 +3158,7 @@ table.users-table {
 }
 .btn--danger {
   background: var(--danger);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 .btn--danger:hover:not(:disabled) { filter: brightness(1.05); }
 .btn--primary:disabled,
@@ -3345,7 +3356,7 @@ table.users-table {
 
 /* status-CATEGORY segmented bar */
 .sv-catbar { display:flex; height:30px; border-radius:8px; overflow:hidden; border:1px solid var(--border); }
-.sv-catseg { display:flex; align-items:center; justify-content:center; color:#fff; font-family:var(--font-medium); font-size:12.5px; }
+.sv-catseg { display:flex; align-items:center; justify-content:center; color:var(--color-text-inverse); font-family:var(--font-medium); font-size:12.5px; }
 .sv-catseg--todo { background:var(--cat-new); } .sv-catseg--prog { background:var(--cat-prog); } .sv-catseg--done { background:var(--cat-done); }
 .sv-catseg + .sv-catseg { box-shadow:inset 1.5px 0 0 rgba(255,255,255,.6); }
 .sv-catkey { display:flex; gap:18px; margin-top:10px; flex-wrap:wrap; }
@@ -3371,7 +3382,7 @@ table.users-table {
 .sv-wl-av.un { background:var(--border-soft); color:var(--text-3); }
 .sv-wl-track { height:22px; border-radius:6px; background:var(--border-soft); overflow:hidden; }
 .sv-wl-fill { height:100%; display:flex; overflow:hidden; }
-.sv-wl-seg { height:100%; display:flex; align-items:center; justify-content:center; color:#fff; font-family:var(--font-medium); font-size:11.5px; min-width:0; }
+.sv-wl-seg { height:100%; display:flex; align-items:center; justify-content:center; color:var(--color-text-inverse); font-family:var(--font-medium); font-size:11.5px; min-width:0; }
 .sv-wl-seg--todo { background:var(--cat-new); } .sv-wl-seg--prog { background:var(--cat-prog); } .sv-wl-seg--done { background:var(--cat-done); }
 .sv-wl-num { text-align:right; font-size:12.5px; color:var(--text-2); }
 .sv-wl-num b { font-family:var(--font-medium); color:var(--text); }
@@ -3429,7 +3440,7 @@ table.users-table {
 .sv-menu-item.sel { color:var(--brand-strong); font-family:var(--font-medium); }
 .sv-mcheck { margin-left:auto; color:var(--brand); display:inline-flex; }
 .sv-mcheck svg { width:15px; height:15px; }
-.sv-cb { width:16px; height:16px; border:1.5px solid var(--border-input); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; flex:none; color:#fff; }
+.sv-cb { width:16px; height:16px; border:1.5px solid var(--border-input); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; flex:none; color:var(--color-text-inverse); }
 .sv-cb.on { background:var(--brand); border-color:var(--brand); }
 .sv-cb svg { width:11px; height:11px; }
 .sv-menu .sv-type-ic { width:16px; height:16px; }
@@ -3685,7 +3696,7 @@ table.users-table {
   padding: 5px 9px;
 }
 .wn-mini__btn--primary {
-  color: #fff;
+  color: var(--color-text-inverse);
   background: var(--brand);
   border-color: var(--brand);
 }
@@ -3803,7 +3814,7 @@ table.users-table {
 /* ---------- Unread markers — one localStorage key drives both ---------- */
 .wn-strip__new {
   background: var(--brand);
-  color: #fff;
+  color: var(--color-text-inverse);
   font-size: 10px;
   font-weight: 500;
   padding: 2px 8px;
@@ -4134,7 +4145,7 @@ html.sn-admin .side-nav #adminLink { display: block !important; }
   height: 22px;
   border-radius: 50%;
   background: var(--brand);
-  color: #fff;
+  color: var(--color-text-inverse);
   font-size: 10px;
   font-weight: 600;
   display: flex;
