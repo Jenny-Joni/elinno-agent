@@ -734,8 +734,27 @@
       renderLoadingShell();
 
       try {
-        // Step 1: GET /api/projects/:id (auth + project meta + role).
-        const projRes = await fetch('/api/projects/' + encodeURIComponent(projectId));
+        /* Steps 1-3.5 run CONCURRENTLY. They used to be four awaited
+           fetches in a row, and nothing rendered until the last one landed.
+           Measured against the preview on a real project: project 534ms,
+           conversations 384ms, members 85ms, connections 413ms — 1416ms
+           serial, where the slowest alone is 534ms. None of them depends on
+           another's result, so the wait was pure ordering.
+
+           Firing them together does mean conversations/members/connections
+           are requested for a project the caller may turn out not to be able
+           to see. That costs three requests that 403 harmlessly; it leaks
+           nothing, because each endpoint scopes to the session itself. The
+           project response is still the one that decides the redirect, and
+           it is still checked first below. */
+        const [projRes, convRes, memRes, connRes] = await Promise.all([
+          fetch('/api/projects/' + encodeURIComponent(projectId)),
+          fetch('/api/projects/' + encodeURIComponent(projectId) + '/conversations'),
+          fetch('/api/projects/' + encodeURIComponent(projectId) + '/members').catch(() => null),
+          fetch('/api/projects/' + encodeURIComponent(projectId) + '/connections').catch(() => null)
+        ]);
+
+        // Step 1: the project response gates everything else, unchanged.
         if (projRes.status === 401) { redirectToLogin(); return; }
         if (projRes.status === 403 || projRes.status === 404) {
           // 403-collapse from requireWorkspaceScope (v1.3 successor to
@@ -754,8 +773,7 @@
           sprintName: (projData.suggestion_context && projData.suggestion_context.active_sprint_name) || null,
         };
 
-        // Step 2: GET conversations (decision AC: server scopes to session user).
-        const convRes = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/conversations');
+        // Step 2: conversations (decision AC: server scopes to session user).
         if (convRes.status === 401) { redirectToLogin(); return; }
         if (convRes.status === 403) { location.replace('/projects.html'); return; }
         if (!convRes.ok) { renderBootError(); return; }
@@ -763,7 +781,8 @@
         conversations = Array.isArray(convData.conversations) ? convData.conversations : [];
 
         // Step 3 (decision G): auto-create one if user has zero conversations
-        // in this project. Lower friction than an empty state.
+        // in this project. Lower friction than an empty state. Still serial —
+        // it can only be decided once conversations has come back.
         if (conversations.length === 0) {
           const createRes = await fetch(
             '/api/projects/' + encodeURIComponent(projectId) + '/conversations',
@@ -777,35 +796,36 @@
           conversations = [createData.conversation];
         }
 
-        // Sub-task 2.6: eager members fetch so the Members tab's count pill
-        // (decision Y) renders from initial paint, not after first tab open.
-        // Latency cost is one additional GET on every project.html boot
-        // (~50ms typical). On non-OK we leave members=null/memberCount=null —
-        // boot doesn't fail just because the count is unknown; the Members
-        // tab will retry the fetch on first open.
+        // Sub-task 2.6: members feeds the Members tab's count pill (decision
+        // Y) from first paint. Non-OK leaves members/memberCount null — boot
+        // does not fail over an unknown count, and the tab retries on open.
+        // NOTE: this endpoint currently 404s in production; the swallow below
+        // is why that has gone unnoticed.
         try {
-          const memRes = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/members');
-          if (memRes.status === 401) { redirectToLogin(); return; }
-          if (memRes.status === 403) { location.replace('/projects.html'); return; }
-          if (memRes.ok) {
-            const memData = await memRes.json().catch(() => ({}));
-            members = Array.isArray(memData.members) ? memData.members : [];
-            memberCount = members.length;
+          if (memRes) {
+            if (memRes.status === 401) { redirectToLogin(); return; }
+            if (memRes.status === 403) { location.replace('/projects.html'); return; }
+            if (memRes.ok) {
+              const memData = await memRes.json().catch(() => ({}));
+              members = Array.isArray(memData.members) ? memData.members : [];
+              memberCount = members.length;
+            }
           }
         } catch {
           // Swallow — Members tab open will retry. Chat still works.
         }
 
-        // Step 3.5 (Block 4 commit 8): eager connections load (paralleling
-        // members). Same swallow-on-failure pattern — Connections tab will
-        // re-fetch on first open if this fails. Chat + Members still work.
+        // Step 3.5 (Block 4 commit 8): connections. Same swallow-on-failure
+        // pattern — Connections tab will re-fetch on first open if this
+        // fails. Chat + Members still work.
         try {
-          const connRes = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/connections');
-          if (connRes.status === 401) { redirectToLogin(); return; }
-          if (connRes.status === 403) { location.replace('/projects.html'); return; }
-          if (connRes.ok) {
-            const connData = await connRes.json().catch(() => ({}));
-            connections = Array.isArray(connData.connections) ? connData.connections : [];
+          if (connRes) {
+            if (connRes.status === 401) { redirectToLogin(); return; }
+            if (connRes.status === 403) { location.replace('/projects.html'); return; }
+            if (connRes.ok) {
+              const connData = await connRes.json().catch(() => ({}));
+              connections = Array.isArray(connData.connections) ? connData.connections : [];
+            }
           }
         } catch {
           // Swallow — Connections tab open will retry.
