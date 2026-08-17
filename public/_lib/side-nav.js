@@ -50,7 +50,6 @@
      sort_position, so an admin reordering projects would otherwise silently
      expand a different one than the user left open. */
   var SECTION_KEY = 'elinno.sidenav.projectsOpen';
-  var OPEN_KEY = 'elinno.sidenav.openProjects';
   var TREE_KEY = 'elinno.sidenav.treeHtml';
   var PROJECT_CAP = 5;
 
@@ -124,17 +123,19 @@
      outside it — so a taller tree scrolls instead of pushing Log out off
      the screen. G2 was a second, cruder guard on the same problem, and it
      cost the user the ability to compare two projects side by side. */
+  /* Which project is open follows the PAGE, not storage. Opening Rain and
+     then clicking Members used to leave Rain expanded under a Members
+     highlight — the menu described where you had been, not where you were.
+
+     Derived from the URL so it matches what the inline boot and restore
+     blocks already painted. In-page toggling still works; it just does not
+     survive a navigation, because the next page derives its own state. */
   var openProjects = Object.create(null);
-  (function () {
-    var saved = readStore(OPEN_KEY, []);
-    if (Object.prototype.toString.call(saved) !== '[object Array]') return;
-    // Only one project is open at a time. Anyone who used the build where
-    // they toggled independently still has several slugs saved, and
-    // restoring all of them would contradict the rule on their first load
-    // — and could not be undone by one click. Take the first and drop the
-    // rest; the next toggle rewrites the key.
-    if (saved.length) openProjects[saved[0]] = true;
+  var pageSlug = (function () {
+    var m = location.pathname.match(/^\/(?:project|project_settings)\/([^\/]+)/);
+    try { return m ? decodeURIComponent(m[1]) : null; } catch (e) { return m ? m[1] : null; }
   })();
+  if (pageSlug) openProjects[pageSlug] = true;
 
   // The boot script already added sn-boot before first paint. Re-add it so
   // the rail still lays out if that script was stripped or failed.
@@ -452,8 +453,10 @@
     sectionBtn.addEventListener('click', function () {
       toggleSection();
     });
-    // Restore the section exactly as it was left, on every page.
-    setSection(readStore(SECTION_KEY, false) === true, false);
+    // The boot script already opened or closed the section from the URL,
+    // before paint. Mirror that here so aria-expanded agrees, without
+    // re-deriving it: whatever <html> says is authoritative.
+    setSection(root.classList.contains('sn-section-open'), false);
   }
 
   /* Toggling flips classes IN PLACE — it deliberately does not call
@@ -501,7 +504,9 @@
         delete openProjects[slug];
       }
       setProjectOpen(btn, open);
-      writeStore(OPEN_KEY, Object.keys(openProjects));
+      // Deliberately NOT persisted any more: the open project is derived
+      // from the URL on every page, so a stored copy could only ever
+      // disagree with it. The tree cache below is what the next page reads.
       // The cache feeds the next page's pre-paint restore, so it has to
       // capture the state as it is NOW, after the class flip.
       try { sessionStorage.setItem(TREE_KEY, childBox.innerHTML); } catch (err) { /* quota */ }
