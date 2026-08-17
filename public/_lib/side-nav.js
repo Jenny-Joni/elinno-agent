@@ -352,7 +352,29 @@
   function effectivePath() {
     var here = location.pathname;
     var m = here.match(/^\/project\/([^\/]+)\/?$/);
-    if (!m) return here;
+    if (!m) return here;   // an explicit /sprint, /members, settings, anything else
+
+    /* /project/<slug> is genuinely ambiguous: it is what a fresh visit looks
+       like (meaning "the default tab"), AND what the URL is rewritten to
+       after the user picks Chat, since the page strips ?tab=chat back off.
+       The URL alone cannot separate those, so ask, in order of certainty: */
+
+    // 1. The page's own tab control, once it exists. It is the truth about
+    //    what is on screen, and it is what makes clicking Chat — from the
+    //    menu or from the screen — highlight Chat rather than Sprint View.
+    var seg = document.querySelector('#segControl [data-tab].active');
+    if (seg) {
+      var t = seg.getAttribute('data-tab');
+      return t && t !== 'chat' ? '/project/' + m[1] + '/' + t : here;
+    }
+
+    // 2. Before that control renders, an explicit ?tab= in the URL. This is
+    //    how the rail's own Chat link arrives, and reading it here is what
+    //    stops Chat flashing as Sprint View for the length of the page boot.
+    var q = (location.search.match(/[?&]tab=([^&]+)/) || [])[1];
+    if (q) return q !== 'chat' ? '/project/' + m[1] + '/' + q : here;
+
+    // 3. Otherwise mirror decision C: a Jira project defaults to Sprint View.
     var slug = decodeURIComponent(m[1]);
     var p = null;
     for (var i = 0; projects && i < projects.length; i++) {
