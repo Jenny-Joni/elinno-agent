@@ -304,16 +304,32 @@
         return;
       }
 
-      /* The action rows are ALWAYS in the DOM, inside a wrapper whose height
-         animates. They used to be rendered only while open, which meant a
-         toggle replaced the markup and there was nothing for a transition to
-         act on. The chevron is one element rotated by CSS, not two icon
-         classes swapped, for the same reason. */
+      /* The row is a LINK plus a separate chevron, not one button.
+         Clicking the project name goes into the project — straight to
+         Sprint View where there is one, which is what a project name is
+         expected to do. The chevron still expands in place, so you can
+         look at another project's tabs without leaving this page.
+
+         data-sn-project stays on the ROW, not the chevron: the inline
+         restore block in each page finds rows by that attribute and takes
+         .nextElementSibling to get the group, and the chevron is nested
+         one level deeper. is-open lives on the row too, which is what
+         rotates the chevron and opens the group.
+
+         The action rows are ALWAYS in the DOM, inside a wrapper whose
+         height animates — rendering them only while open meant a toggle
+         replaced the markup and left nothing for a transition to act on. */
       var open = !!openProjects[p.slug];
-      html += '<button class="sn-l2' + (open ? ' is-open' : '') + '" type="button"'
+      var nameHref = p.has_jira ? '/project/' + esc(p.slug) + '/sprint'
+                                : '/project/' + esc(p.slug);
+      html += '<div class="sn-l2' + (open ? ' is-open' : '') + '"'
             + ' data-sn-project="' + esc(p.slug) + '" aria-expanded="' + open + '">'
-            + '<span class="sn-l2__label">' + name + '</span>'
-            + '<i class="ti ti-chevron-right sn-chev"></i></button>';
+            + '<a class="sn-l2__link" href="' + nameHref + '">'
+            +   '<span class="sn-l2__label">' + name + '</span></a>'
+            + '<button class="sn-l2__chev" type="button" data-sn-chev'
+            +   ' aria-label="Show tabs for ' + name + '" tabindex="-1">'
+            +   '<i class="ti ti-chevron-right sn-chev"></i></button>'
+            + '</div>';
 
       html += '<div class="sn-l3-group' + (open ? ' is-open' : '') + '"><div class="sn-l3-group__inner">';
       acts.forEach(function (a) {
@@ -524,10 +540,10 @@
      asked for again once the animation existed. The two requests are not in
      conflict: without a transition, auto-closing looked like rows
      disappearing; with one, it reads as the menu tidying up after itself. */
-  function setProjectOpen(btn, open) {
-    var group = btn.nextElementSibling;
-    btn.classList.toggle('is-open', open);
-    btn.setAttribute('aria-expanded', String(open));
+  function setProjectOpen(row, open) {
+    var group = row.nextElementSibling;
+    row.classList.toggle('is-open', open);
+    row.setAttribute('aria-expanded', String(open));
     if (group && group.classList.contains('sn-l3-group')) {
       group.classList.toggle('is-open', open);
     }
@@ -535,6 +551,9 @@
 
   if (childBox) {
     childBox.addEventListener('click', function (e) {
+      // Only the chevron toggles. A click on the project name is a link and
+      // is left alone, so it navigates into the project.
+      if (!e.target.closest('[data-sn-chev]')) return;
       var btn = e.target.closest('[data-sn-project]');
       if (!btn) return;
       var slug = btn.getAttribute('data-sn-project');
