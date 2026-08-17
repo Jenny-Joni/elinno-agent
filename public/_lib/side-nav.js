@@ -340,8 +340,29 @@
 
   // Mark the level-3 row matching the current URL, so a project's own
   // page highlights the action you are on rather than just the project.
-  function markActiveChild() {
+  /* Which path the rail should highlight — which is NOT always the path in
+     the address bar. A bare /project/<slug> means "the default tab", and
+     project.html resolves that to Sprint View whenever the project has Jira
+     (decision C) and then rewrites the URL to match.
+
+     Highlighting Chat and waiting to be corrected is what made returning
+     from Settings flash: Chat lit for the length of the page's own boot
+     fetch, then jumped to Sprint View. Resolving it the same way the page
+     does means the rail is right on the first paint and never moves. */
+  function effectivePath() {
     var here = location.pathname;
+    var m = here.match(/^\/project\/([^\/]+)\/?$/);
+    if (!m) return here;
+    var slug = decodeURIComponent(m[1]);
+    var p = null;
+    for (var i = 0; projects && i < projects.length; i++) {
+      if (projects[i].slug === slug) { p = projects[i]; break; }
+    }
+    return (p && p.has_jira) ? '/project/' + m[1] + '/sprint' : here;
+  }
+
+  function markActiveChild() {
+    var here = effectivePath();
     var links = childBox.querySelectorAll('.sn-l3, .sn-l2[href]');
     for (var i = 0; i < links.length; i++) {
       // Compare the PATH only. Chat's href carries ?tab=chat, and the page
