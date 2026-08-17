@@ -273,7 +273,14 @@
     if (p.has_jira) {
       out.push({ icon: 'layout-board', label: 'Sprint View', href: '/project/' + esc(p.slug) + '/sprint' });
     }
-    out.push({ icon: 'message-circle', label: 'Chat', href: '/project/' + esc(p.slug) });
+    /* ?tab=chat is required, not decoration. project.html defaults to Sprint
+       View whenever Jira is connected and the URL pins no tab (Block 16
+       decision C, project.html:833-838) — so a bare /project/<slug> means
+       "the default tab", which for a Jira project is Sprint View, not Chat.
+       The rail was labelling that URL "Chat" and landing people on Sprint.
+       The page reads ?tab= at boot and then rewrites the URL back to the
+       clean slug form, exactly as the on-screen Chat button does. */
+    out.push({ icon: 'message-circle', label: 'Chat', href: '/project/' + esc(p.slug) + '?tab=chat' });
     if (isAdmin()) {
       out.push({ icon: 'settings', label: 'Settings', href: '/project_settings/' + esc(p.slug) });
     }
@@ -337,7 +344,10 @@
     var here = location.pathname;
     var links = childBox.querySelectorAll('.sn-l3, .sn-l2[href]');
     for (var i = 0; i < links.length; i++) {
-      if (links[i].getAttribute('href') === here) {
+      // Compare the PATH only. Chat's href carries ?tab=chat, and the page
+      // strips that back to the clean slug once it has booted — so a whole-
+      // string compare would never match and Chat would never highlight.
+      if (links[i].getAttribute('href').split('?')[0] === here) {
         links[i].setAttribute('aria-current', 'page');
         /* Exactly one aria-current="page" per document. The Projects section
            is marked by markActive() so the four Projects-mapped pages are not
