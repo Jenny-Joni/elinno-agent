@@ -292,18 +292,23 @@
         return;
       }
 
+      /* The action rows are ALWAYS in the DOM, inside a wrapper whose height
+         animates. They used to be rendered only while open, which meant a
+         toggle replaced the markup and there was nothing for a transition to
+         act on. The chevron is one element rotated by CSS, not two icon
+         classes swapped, for the same reason. */
       var open = !!openProjects[p.slug];
       html += '<button class="sn-l2' + (open ? ' is-open' : '') + '" type="button"'
             + ' data-sn-project="' + esc(p.slug) + '" aria-expanded="' + open + '">'
             + '<span class="sn-l2__label">' + name + '</span>'
-            + '<i class="ti ti-chevron-' + (open ? 'down' : 'right') + ' sn-chev"></i></button>';
+            + '<i class="ti ti-chevron-right sn-chev"></i></button>';
 
-      if (open) {
-        acts.forEach(function (a) {
-          html += '<a class="sn-l3" href="' + a.href + '">'
-                + '<i class="ti ti-' + a.icon + '"></i>' + a.label + '</a>';
-        });
-      }
+      html += '<div class="sn-l3-group' + (open ? ' is-open' : '') + '"><div class="sn-l3-group__inner">';
+      acts.forEach(function (a) {
+        html += '<a class="sn-l3" href="' + a.href + '">'
+              + '<i class="ti ti-' + a.icon + '"></i>' + a.label + '</a>';
+      });
+      html += '</div></div>';
     });
 
     html += '<a class="sn-util" href="/projects.html"><i class="ti ti-arrow-right"></i>All projects</a>';
@@ -447,17 +452,35 @@
     setSection(readStore(SECTION_KEY, false) === true, false);
   }
 
-  // Each project toggles independently — opening one does not close any
-  // other. Delegated, because the rows are re-rendered on every toggle.
+  /* Toggling flips classes IN PLACE — it deliberately does not call
+     renderProjects(). Re-rendering replaced the markup, so the browser saw
+     a brand-new element already at its final height and had nothing to
+     animate between. Keeping the DOM is what makes the transition possible.
+
+     Each project still toggles independently: opening one does not close
+     another (the G2 reversal). What animates is the row you clicked. */
+  function setProjectOpen(btn, open) {
+    var group = btn.nextElementSibling;
+    btn.classList.toggle('is-open', open);
+    btn.setAttribute('aria-expanded', String(open));
+    if (group && group.classList.contains('sn-l3-group')) {
+      group.classList.toggle('is-open', open);
+    }
+  }
+
   if (childBox) {
     childBox.addEventListener('click', function (e) {
       var btn = e.target.closest('[data-sn-project]');
       if (!btn) return;
       var slug = btn.getAttribute('data-sn-project');
-      if (openProjects[slug]) delete openProjects[slug];
-      else openProjects[slug] = true;
+      var open = !openProjects[slug];
+      if (open) openProjects[slug] = true;
+      else delete openProjects[slug];
+      setProjectOpen(btn, open);
       writeStore(OPEN_KEY, Object.keys(openProjects));
-      renderProjects();
+      // The cache feeds the next page's pre-paint restore, so it has to
+      // capture the state as it is NOW, after the class flip.
+      try { sessionStorage.setItem(TREE_KEY, childBox.innerHTML); } catch (err) { /* quota */ }
     });
   }
 

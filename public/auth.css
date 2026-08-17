@@ -4075,7 +4075,41 @@ html.sn-admin .side-nav #adminLink { display: block !important; }
 .sn-util i { font-size: 13px; flex-shrink: 0; }
 .sn-util:hover { background: var(--brand-soft); color: var(--text-2); }
 
-.sn-chev { margin-left: auto; font-size: 12px; color: var(--text-faint); flex-shrink: 0; }
+/* ---------- Animated project children ----------
+   The action rows live in a wrapper that animates between closed and open.
+
+   grid-template-rows 0fr → 1fr, not max-height: a max-height transition has
+   to guess a ceiling, and the guess either clips a long list or spends the
+   first part of the animation travelling through empty space, which reads as
+   lag. 0fr → 1fr animates to the content's real height with no magic number.
+   The inner element carries overflow:hidden — the grid row is what resizes,
+   so the content has to be clipped by its own box. */
+.sn-l3-group {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+.sn-l3-group.is-open { grid-template-rows: 1fr; }
+.sn-l3-group__inner { overflow: hidden; min-height: 0; }
+
+.sn-chev {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  transition: transform 0.22s ease;
+}
+/* One chevron rotated, rather than swapping ti-chevron-right for -down:
+   a class swap cannot be transitioned. */
+.sn-l2.is-open > .sn-chev { transform: rotate(90deg); }
+
+/* The rail itself still has no motion — this animation is scoped to the
+   children opening and closing, which is the one place movement carries
+   meaning. Honour a reduced-motion preference regardless. */
+@media (prefers-reduced-motion: reduce) {
+  .sn-l3-group,
+  .sn-chev { transition: none; }
+}
 .sn-divider { height: 1px; background: var(--border-soft); margin: 8px 5px; }
 
 /* The avatar keeps #navUserAvatar's existing look so page boot code that
