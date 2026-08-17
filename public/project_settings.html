@@ -827,7 +827,11 @@
         ? '/project/' + escHtml(project.slug)
         : '/project.html?id=' + escHtml(projectId);
       return ''
-        + '<a href="' + backHref + '" class="ps-back-link"><i class="ti ti-arrow-left"></i> Back to ' + escHtml(project.name) + ' chat</a>'
+        // "Back to <name>", not "<name> chat". backHref is the bare
+        // /project/<slug>, which resolves to whichever tab the project
+        // defaults to — Sprint View when Jira is connected (decision C), not
+        // chat. The old label named a destination the link did not go to.
+        + '<a href="' + backHref + '" class="ps-back-link"><i class="ti ti-arrow-left"></i> Back to ' + escHtml(project.name) + '</a>'
         + '<div class="ps-head">'
         +   '<div>'
         +     '<p class="ps-head-eyebrow">Project · ' + escHtml(project.name) + '</p>'
