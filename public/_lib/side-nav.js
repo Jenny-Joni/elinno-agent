@@ -127,9 +127,13 @@
   var openProjects = Object.create(null);
   (function () {
     var saved = readStore(OPEN_KEY, []);
-    if (Object.prototype.toString.call(saved) === '[object Array]') {
-      saved.forEach(function (slug) { openProjects[slug] = true; });
-    }
+    if (Object.prototype.toString.call(saved) !== '[object Array]') return;
+    // Only one project is open at a time. Anyone who used the build where
+    // they toggled independently still has several slugs saved, and
+    // restoring all of them would contradict the rule on their first load
+    // — and could not be undone by one click. Take the first and drop the
+    // rest; the next toggle rewrites the key.
+    if (saved.length) openProjects[saved[0]] = true;
   })();
 
   // The boot script already added sn-boot before first paint. Re-add it so
@@ -455,10 +459,15 @@
   /* Toggling flips classes IN PLACE — it deliberately does not call
      renderProjects(). Re-rendering replaced the markup, so the browser saw
      a brand-new element already at its final height and had nothing to
-     animate between. Keeping the DOM is what makes the transition possible.
+     animate between. Keeping the DOM is what makes the transition possible,
+     and it is also what lets the project being CLOSED animate rather than
+     vanish: both rows are still in the document, so both transition.
 
-     Each project still toggles independently: opening one does not close
-     another (the G2 reversal). What animates is the row you clicked. */
+     One project open at a time — opening one closes the rest. This restores
+     the plan's original decision G2, which was reversed mid-block and then
+     asked for again once the animation existed. The two requests are not in
+     conflict: without a transition, auto-closing looked like rows
+     disappearing; with one, it reads as the menu tidying up after itself. */
   function setProjectOpen(btn, open) {
     var group = btn.nextElementSibling;
     btn.classList.toggle('is-open', open);
@@ -474,8 +483,23 @@
       if (!btn) return;
       var slug = btn.getAttribute('data-sn-project');
       var open = !openProjects[slug];
-      if (open) openProjects[slug] = true;
-      else delete openProjects[slug];
+
+      if (open) {
+        // Close every other project first, so only one is open at a time.
+        // These animate shut for the same reason the clicked row animates
+        // open — their markup stays put and only the class changes.
+        var others = childBox.querySelectorAll('[data-sn-project]');
+        for (var i = 0; i < others.length; i++) {
+          if (others[i] === btn) continue;
+          var otherSlug = others[i].getAttribute('data-sn-project');
+          if (!openProjects[otherSlug]) continue;
+          delete openProjects[otherSlug];
+          setProjectOpen(others[i], false);
+        }
+        openProjects[slug] = true;
+      } else {
+        delete openProjects[slug];
+      }
       setProjectOpen(btn, open);
       writeStore(OPEN_KEY, Object.keys(openProjects));
       // The cache feeds the next page's pre-paint restore, so it has to

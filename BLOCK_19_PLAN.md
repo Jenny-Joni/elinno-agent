@@ -89,9 +89,18 @@ Settled in plan-mode Q&A on 2026-08-16.
   and the `chatUrl` / `?ids=` fallback shape that caused the reload loop in
   `fdf25be` never enters this feature. Both chat surfaces already carry their
   own conversations sidebar; the rail was duplicating it.
-- **G2. ~~Only one project is expanded at a time.~~ REVERSED by Jenny on
-  2026-08-16, during execute.** Projects expand and collapse independently;
-  opening one never closes another.
+- **G2. Only one project is expanded at a time.** Reversed by Jenny mid-block,
+  then **restored** later the same day once the open/close transition existed.
+
+  The two requests are not in conflict, and the reason is worth keeping:
+  without an animation, auto-closing looked like rows silently disappearing,
+  which is what made it worth removing. With a 0.22s transition the same
+  behaviour reads as the menu tidying up after itself. The behaviour did not
+  become right — the feedback did.
+
+  On restore, a saved list carrying several slugs (from the independent-toggle
+  build) is trimmed to its first entry; restoring all of them would break the
+  rule on first load and could not be undone in one click.
 
   The reversal is safe because **G2b, not G2, is what actually solves the
   height problem.** `.side-nav__scroll` is the only scrolling part, with the
@@ -408,7 +417,7 @@ Original matrix follows, with results.
 | 12 | Accordion, level 2 | Expanding Projects renders **≤5** project rows + "All projects" (+ "New project" for admins only); each href returns **200** for the role that can see it |
 | 12b | Accordion, level 3 (G3 matrix) | On a Jira project as admin: exactly **3** actions (Sprint View · Chat · Settings). As member: **2**, Settings absent from the DOM. On a Jira-less project as admin: **2** (Chat · Settings). As member: the row is an `<a>` to `/project/<slug>` with **0** child rows and no chevron |
 | 12c | `has_jira` parity | For every project, `has_jira` from `GET /api/projects` **equals** `has_jira` from `GET /api/dashboard` — the two must not diverge the way `dashboard.js`'s sprint rule diverged from `_lib/jira-sprint.js` |
-| 12d | Independent toggles (G2 reversed) | Expanding a second project leaves **both** open; expanding a third leaves **3**; collapsing the middle one leaves the other **2** untouched. **PASS** locally |
+| 12d | One at a time (G2 restored) | Opening a project closes any other that was open, and it animates shut rather than vanishing. **At most 1** open at any time, and the stored list never holds more than **1**. Clicking the open one closes it, leaving **0**. **PASS** locally |
 | 12f | Rail fits the screen (G2b) | At **768px** viewport height, admin account, with **every** project expanded (G2 no longer caps this): the Log out row's `getBoundingClientRect().bottom` is **within** the viewport and `.side-nav__scroll` absorbs the overflow. **PASS** locally — 718px of content in a 585px scroller, footer pinned 641–768px, Log out at 760px. This item carries the whole height guarantee now that G2 is gone |
 | 12g | No chat fetch (G1b) | Across all 11 pages, **0** requests to `/api/cross-project/conversations` originate from the rail, and Cross-project chats has **0** child rows and no chevron |
 | 12e | Sprint View lands | `/project/<slug>/sprint` for a `has_jira` project renders the Sprint View with the segmented control **visible** — i.e. the rail never links to a surface the page hides |
