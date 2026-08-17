@@ -7088,3 +7088,86 @@ cache-bust sweep, the `pickActiveSprint` extraction, `data-suggestion-id`,
 and all doc changes. The cross-project loop fix is arguably user-visible but
 was never announced in a prior entry as working, so there is nothing to
 correct.
+
+## Session closeout — 2026-08-16 (Block 19 → v2.0 SHIPPED; Block 20 started)
+
+Baseline at session start: `main` at `f6a1bfa`, clean. Ended with `main` and
+`origin/main` at `4406b33` — **Block 19 is fully shipped and live** — and a
+`block-20-dark-mode` branch two commits in, not pushed.
+
+### Block 19 — the persistent left side menu, shipped as v2.0
+
+Replaced `.app-nav` on all 11 authed pages with a fixed left rail. The top
+bar and `_lib/sticky-topbar.js` are retired. `v2.0` is published in What's
+New; the rail is on production and verified there.
+
+The starting problem is worth keeping: the top bar had drifted across the 11
+pages (four were missing "What's new"), `/workspace_settings.html` was in no
+page's navigation at all, and `/projects.html` was reachable only via the
+brand mark. Those are fixed by construction now — one block, byte-identical
+in every page.
+
+**Decisions that moved during execute, and why.** G2 (one project open at a
+time) was reversed, then restored once the open/close transition existed —
+without an animation, auto-closing read as rows vanishing; with one it reads
+as the menu tidying up. The rail also went from collapsible to
+always-expanded, which removed decision D's ≤1100px overlay rule and, with
+it, the guard that kept the chat pane above 500px between 700–1100px. That
+cost is recorded in `BLOCK_19_PLAN.md` and is unmeasured on a real narrow
+window.
+
+**A bug class worth remembering.** Three separate strings assumed "a project"
+means "chat": the rail's Chat link, the settings back-link, and the project
+loader. All three were wrong because decision C makes a Jira project open on
+Sprint View, and a bare `/project/<slug>` means *the default tab*, not chat.
+There may be more; the assumption predates this block.
+
+**Also fixed here:** `/api/projects` gained `has_jira`; the project page boots
+with concurrent fetches and prefetches the sprint (~1.4s faster, second
+loading screen gone); `_lib/*.js` includes now carry `?v=` stamps, which they
+never had — on production the zone rewrites `Cache-Control` to four hours, so
+a JS fix was previously uncacheable-busting.
+
+### ⚠️ Open from Block 19
+
+1. **The member rail has never been rendered.** Gate item 2b. Everything was
+   verified as an admin. Needs a non-admin session; now spans two blocks.
+2. **`/api/projects/<id>/members` returns 404 in production.** Pre-existing,
+   swallowed by a `catch`, so the Members count pill has been silently absent.
+3. **`var(--radius-pill)` is used 5× with no fallback and defined nowhere** —
+   an undefined `var()` without a fallback invalidates the declaration, so
+   those elements are square where they should be pills. Live visual bug.
+4. **project.html's failure branches are untested** after the boot rewrite: a
+   403 project, a soft-deleted one, zero-conversation auto-create, a failing
+   sprint API. Reasoned through, not exercised.
+
+### Block 20 — dark mode, in progress
+
+`BLOCK_20_PLAN.md` is committed and approved. Palette agreed: `#9b7dff` for
+brand text and borders, `#6234fc` kept for fills, `#121215` for the page.
+
+**The shape of the work:** ~283 colour declarations bypass the token system,
+and two namespaces coexist — the 11 pages are v1.4 while `auth.css` drives
+243 declarations off the legacy `--color-*` names. Dark mode is a token
+migration; the switch is the last 5%. **Nothing dark exists yet** — no
+`prefers-color-scheme`, no `[data-theme]`, no toggle.
+
+Committed: `f056ed9`, the mechanical half of 20.1 (`#fff` and the black
+washes). Light mode verified unchanged by resolving every token.
+
+**STASHED, and do not apply it blind: `stash@{0}` carries the second half and
+HAS A REGRESSION.** It tokenises the remaining literals but changes ~10
+light-mode declarations, because several `--color-*` names were referenced
+with DIFFERENT fallbacks at different call sites —
+`var(--color-success-bg, #e6f4ea)` in one place and
+`var(--color-success-bg, rgba(77,211,136,0.15))` in another. Defining the
+token collapses them onto one value. The fix is to give the differing call
+sites distinct tokens rather than one shared name. The comparison script that
+caught it resolves every `var()` and diffs the 854 colour declarations
+against `origin/main`; it is worth rebuilding as the standing check for 20.2.
+
+### What's New notice
+
+v2.0 is published and covers the rail. The boot-performance work, the
+`_lib` cache stamps and all of Block 20 are unannounced — performance is
+arguably user-visible and could earn a line in a later entry.
