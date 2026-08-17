@@ -594,8 +594,21 @@
         return r;
       };
     });
-    window.addEventListener('sn:urlchange', refreshActive);
-    window.addEventListener('popstate', refreshActive);
+    /* Deferred by one task, deliberately. project.html rewrites the URL
+       BEFORE it repaints its tab control, so reading #segControl straight
+       out of the replaceState call returns the tab you just left — which
+       left the menu on Sprint View after a click on Chat. setTimeout lets
+       the page finish its synchronous work first.
+       Not requestAnimationFrame: that does not fire in a backgrounded tab,
+       and this has to survive a tab switch. */
+    var queued = false;
+    function queueRefresh() {
+      if (queued) return;
+      queued = true;
+      setTimeout(function () { queued = false; refreshActive(); }, 0);
+    }
+    window.addEventListener('sn:urlchange', queueRefresh);
+    window.addEventListener('popstate', queueRefresh);
   })();
 
   markActive();
