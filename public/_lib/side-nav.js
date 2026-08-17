@@ -523,5 +523,37 @@
     });
   }
 
+  /* ─── Keep the highlight in step with the URL ────────────────────────
+     The rail used to mark the active item once, at load. project.html
+     rewrites the URL AFTER it boots — land on /project/<slug> with Jira
+     connected and it resolves to Sprint View, then replaceState's the path
+     to /project/<slug>/sprint. The rail had already matched Chat against
+     the pre-rewrite path and never looked again, so the menu said Chat
+     while the screen showed Sprint View.
+
+     replaceState fires no event of its own, so it is wrapped to emit one.
+     The wrapper calls through and returns the original's value — it adds a
+     notification, it does not change history behaviour. */
+  function refreshActive() {
+    var marked = rail.querySelectorAll('[aria-current="page"]');
+    for (var i = 0; i < marked.length; i++) marked[i].removeAttribute('aria-current');
+    markActive();
+    if (childBox && childBox.querySelector('.sn-l3')) markActiveChild();
+  }
+
+  (function () {
+    ['pushState', 'replaceState'].forEach(function (name) {
+      var orig = history[name];
+      if (typeof orig !== 'function') return;
+      history[name] = function () {
+        var r = orig.apply(this, arguments);
+        try { window.dispatchEvent(new Event('sn:urlchange')); } catch (e) { /* older engines */ }
+        return r;
+      };
+    });
+    window.addEventListener('sn:urlchange', refreshActive);
+    window.addEventListener('popstate', refreshActive);
+  })();
+
   markActive();
 })();
