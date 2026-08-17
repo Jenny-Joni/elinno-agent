@@ -459,7 +459,7 @@
              (renderLoadingShell on retry, renderShell on success, etc).
              Mirrors cross-project chat's <div class="xc-loading"> body
              pre-render. -->
-        <div class="chat-boot-loading" aria-busy="true">Loading chat…</div>
+        <div class="chat-boot-loading" aria-busy="true">Loading…</div>
       </div>
     </div>
   </main>
@@ -691,11 +691,17 @@
     // state-card overlay was jarring on click — full-card icon +
     // heading flashed for the duration of the boot fetches. Mirror
     // cross-project's quieter pattern (.xc-loading): a small muted
-    // "Loading chat…" line in place, no card chrome. The CSS for
+    // "Loading…" line in place, no card chrome. The CSS for
     // .chat-boot-loading lives in the page-local style block.
+    //
+    // The word "chat" came off this in Block 19: the loader paints before
+    // the tab is resolved, so it was announcing Chat while Sprint View was
+    // what actually loaded — decision C means a Jira project opens on
+    // Sprint View. Same fix as the settings back-link, which named a
+    // destination it did not go to.
     function renderLoadingShell() {
       document.getElementById('shellRoot').innerHTML =
-        '<div class="chat-boot-loading" aria-busy="true">Loading chat…</div>';
+        '<div class="chat-boot-loading" aria-busy="true">Loading…</div>';
     }
 
     function renderBootError() {
