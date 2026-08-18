@@ -25,9 +25,27 @@ import { TOOL_DEFINITIONS, executeTool } from './tools.js';
 import { computeCostUsd } from './pricing.js';
 
 const ITERATION_CAP = 6;
-const ANTHROPIC_MODEL = 'claude-sonnet-4-5';
-const MODEL_ID = 'anthropic/claude-sonnet-4-5';
-const MAX_TOKENS = 1024;
+const ANTHROPIC_MODEL = 'claude-opus-5';
+const MODEL_ID = 'anthropic/claude-opus-5';
+/* Block 22: 1024 -> 8000. Opus 5 thinks by default when `thinking` is
+   omitted, and max_tokens caps thinking PLUS response text together — 1024
+   truncated mid-sentence. 8000 leaves room to reason over a full sprint
+   while staying clear of a non-streaming HTTP timeout in the Worker. */
+const MAX_TOKENS = 8000;
+/* The API default is already 'high'; stated explicitly so the setting is
+   visible at the call site rather than implied. 'medium' is the cost lever. */
+const EFFORT = 'high';
+/* Decision F: a declined request re-runs on Opus 4.8 server-side instead of
+   returning nothing. Header-gated — see createMessage's options.betas. */
+const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
+
+/* PROPOSED COPY — Jenny's to approve or rewrite (user-facing string).
+   Shown only when the model declines a request and returns no text at all,
+   which is otherwise an empty chat bubble. Deliberately says nothing about
+   why: the refusal category is not something to surface to an end user. */
+const REFUSAL_TEXT =
+  "I can't help with that one. Try rephrasing it, or ask me about this "
+  + 'project\u2019s Slack or Jira data.';
 
 /**
  * D11 system prompt, locked verbatim per the commit-9 review pass
@@ -437,6 +455,8 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let lastTextResponse = '';
+  // Decision E: which model actually served the most recent turn.
+  let lastServedModelId = MODEL_ID;
   let iterations = 0;
 
   const availableSourcesText = isCrossProject
@@ -452,10 +472,22 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
     const response = await createMessage(env, {
       model: ANTHROPIC_MODEL,
       max_tokens: MAX_TOKENS,
+      output_config: { effort: EFFORT },
+      fallbacks: 'default',
       system,
       tools: TOOL_DEFINITIONS,
       messages,
-    });
+    }, { betas: [FALLBACK_BETA] });
+
+    /* Decision E: attribute cost to the model that ACTUALLY served this turn.
+       With fallbacks enabled a declined request is re-run on Opus 4.8, and
+       billing it at MODEL_ID's rates would silently overstate spend. The API
+       returns a bare id ('claude-opus-4-8'); the price table is keyed by
+       provider/model, hence the prefix. */
+    const servedModelId = typeof response.model === 'string' && response.model
+      ? 'anthropic/' + response.model
+      : MODEL_ID;
+    lastServedModelId = servedModelId;
 
     const turnInput = response.usage?.input_tokens || 0;
     const turnOutput = response.usage?.output_tokens || 0;
@@ -466,9 +498,18 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
 
     const textBlocks = (response.content || []).filter((b) => b.type === 'text');
     const toolUseBlocks = (response.content || []).filter((b) => b.type === 'tool_use');
-    const turnText = textBlocks.length > 0
+    let turnText = textBlocks.length > 0
       ? textBlocks.map((b) => b.text).join('\n')
       : null;
+
+    /* Opus 5 runs safety classifiers that can decline a request outright, and
+       with decision F's fallback the whole chain can still decline. `content`
+       is empty in that case, so turnText is null and the user would get an
+       empty bubble with no explanation — it does not throw, it just says
+       nothing. Give them a sentence instead. */
+    if (response.stop_reason === 'refusal' && !turnText) {
+      turnText = REFUSAL_TEXT;
+    }
 
     if (turnText) {
       lastTextResponse = turnText;
@@ -482,13 +523,13 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
         : null,
       tool_result: null,
       citations: null,
-      model: MODEL_ID,
+      model: servedModelId,
       input_tokens: turnInput,
       output_tokens: turnOutput,
       // Block 10.2 decision I: per-turn cost in USD, computed from the
-      // pricing constants. Null if the model isn't in the price map
-      // (defensive — should never happen for MODEL_ID under v1.1).
-      cost_usd: computeCostUsd(MODEL_ID, turnInput, turnOutput),
+      // pricing constants. Null if the model isn't in the price map.
+      // Block 22: keyed on the SERVED model, not the requested one.
+      cost_usd: computeCostUsd(servedModelId, turnInput, turnOutput),
       iteration: iterations,
     });
 
@@ -552,7 +593,7 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
   return {
     text: lastTextResponse,
     citations,
-    model: MODEL_ID,
+    model: lastServedModelId,
     input_tokens: totalInputTokens,
     output_tokens: totalOutputTokens,
     iterations,

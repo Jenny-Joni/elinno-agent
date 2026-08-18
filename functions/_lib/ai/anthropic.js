@@ -25,24 +25,34 @@ export class AnthropicError extends Error {
  *
  * @param {object} env - Pages env; reads env.ANTHROPIC_API_KEY
  * @param {object} body - Anthropic Messages request body
+ * @param {{betas?: string[]}} [options] - Block 22: beta features are gated by
+ *   the `anthropic-beta` HEADER on the REST API. The SDKs accept a `betas`
+ *   field in the request body, but that is a client-side convenience which
+ *   does not exist on the wire — sent as body JSON it is silently ignored.
+ *   This is a raw fetch, so the header is the only route.
  * @returns {Promise<object>} parsed JSON on 2xx
  * @throws {AnthropicError}
  */
-export async function createMessage(env, body) {
+export async function createMessage(env, body, options = {}) {
   const apiKey = env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new AnthropicError('ANTHROPIC_API_KEY missing', { retryable: false });
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': ANTHROPIC_VERSION,
+  };
+  if (Array.isArray(options.betas) && options.betas.length > 0) {
+    headers['anthropic-beta'] = options.betas.join(',');
   }
 
   let attempt = 0;
   while (true) {
     const response = await fetch(`${ANTHROPIC_API_BASE}/v1/messages`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
