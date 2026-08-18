@@ -39,7 +39,7 @@
 
        Keep it tiny and dependency-free: it blocks the parser by design. -->
   <script>(function(){var d=document.documentElement,p=location.pathname,k='';if(p==='/'||p.indexOf('/dashboard')===0)k='dashboard';else if(p.indexOf('/projects')===0||p.indexOf('/project/')===0||p.indexOf('/project.html')===0||p.indexOf('/project_settings')===0)k='projects';else if(p.indexOf('/cross-project')===0)k='cross-project';else if(p.indexOf('/workspace_settings')===0)k='workspace-settings';else if(p.indexOf('/admin')===0)k='members';else if(p.indexOf('/whats-new')===0)k='whats-new';d.classList.add('sn-boot');if(k)d.classList.add('sn-at-'+k);if(k==='projects')d.classList.add('sn-section-open');try{if(localStorage.getItem('elinno.sidenav.admin')==='1')d.classList.add('sn-admin');}catch(e){}})();</script>
-  <link rel="stylesheet" href="/auth.css?v=2026-08-18-1" />
+  <link rel="stylesheet" href="/auth.css?v=2026-08-18-2" />
   <style>
     /* v1.4 (Block 13.5): per-row ⋯ menu on conversation sidebar.
        The legacy .conv-item rule in auth.css styles the row text; this
@@ -2409,21 +2409,35 @@
     }
 
     function svBoardCardHtml(d) {
-      const rows = d.board_status || [];
+      /* Prefer the team's real board columns (Block 21) and fall back to the
+         per-status rows. board_columns is absent for sprints synced before
+         Block 21, for Kanban boards, and for boards the token cannot read. */
+      const usingColumns = Array.isArray(d.board_columns) && d.board_columns.length > 0;
+      const rows = usingColumns ? d.board_columns : (d.board_status || []);
       if (!rows.length) return '';
       const max = Math.max(1, ...rows.map(r => Number(r.count) || 0));
       const cols = rows.map(r => {
         const n = Number(r.count) || 0, pts = Number(r.points) || 0;
         const h = Math.max(4, Math.round((n / max) * 100));
         const color = svCat(r.status_category).color;
+        /* Decision E: a status mapped to no column is still shown, so the
+           card's total reconciles against the bars — but it is marked, because
+           it is not somewhere the board can actually put an issue. */
+        const offBoard = usingColumns && r.on_board === false;
+        const lbl = escapeHtml(r.status || '') + (offBoard ? ' <span class="sv-bar-off">· not on board</span>' : '');
         return '<div class="sv-col"><div class="sv-bar-val">' + n + '</div>'
           + '<div class="sv-bartrack"><div class="sv-bar" style="height:' + h + '%;background:' + color + '"></div></div>'
-          + '<div class="sv-bar-lbl">' + escapeHtml(r.status || '') + '</div>'
+          + '<div class="sv-bar-lbl">' + lbl + '</div>'
           + '<div class="sv-bar-sub">' + pts + ' pts</div></div>';
       }).join('');
+      /* The "workflow columns" claim is only true when we actually have them;
+         otherwise these are statuses and the card should say so. */
+      const sub = usingColumns
+        ? 'Your team’s workflow columns · colors match the categories above'
+        : 'Grouped by issue status · colors match the categories above';
       return '<div class="sv-card"><div class="sv-card-head">'
         + '<h3 class="sv-card-title">Issues by board status</h3>'
-        + '<span class="sv-card-sub">Your team’s workflow columns · colors match the categories above</span></div>'
+        + '<span class="sv-card-sub">' + sub + '</span></div>'
         + '<div class="sv-chart">' + cols + '</div></div>';
     }
 

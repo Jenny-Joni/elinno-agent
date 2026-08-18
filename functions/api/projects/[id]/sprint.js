@@ -56,6 +56,60 @@ import { pickActiveSprint } from '../../../_lib/jira-sprint.js';
 const ISSUE_LIST_MAX = 500; // == the sync ceiling; uncapped vs the agent's 50.
 const DAY_MS = 86_400_000;
 
+/* Pre-Block-21 ordering, kept verbatim as the fallback: category rank, then
+   alphabetical. Used when a sprint has no stored board columns — every sprint
+   synced before Block 21, plus Kanban boards and any board this token cannot
+   read. Its alphabetical tiebreak is exactly why Block 21 exists (a status
+   named "Done on Staging" sorted ahead of "In Progress"), so it is a fallback,
+   not a preference. */
+const CAT_RANK = { new: 0, indeterminate: 1, done: 2, unknown: 3 };
+function sortStatusesByCategory(rows) {
+  return rows.slice().sort(
+    (a, b) =>
+      (CAT_RANK[a.status_category] ?? 9) - (CAT_RANK[b.status_category] ?? 9) ||
+      String(a.status).localeCompare(String(b.status))
+  );
+}
+
+// A column's colour follows whichever category holds most of its issues.
+// Empty columns have no issues to judge, so they stay 'unknown' (grey).
+function dominantCategory(members) {
+  const tally = new Map();
+  for (const m of members) tally.set(m.status_category, (tally.get(m.status_category) || 0) + m.count);
+  let best = 'unknown';
+  let bestN = -1;
+  for (const [cat, n] of tally) if (n > bestN) { best = cat; bestN = n; }
+  return best;
+}
+
+/* The board's columns, in the board's order (BLOCK_21_PLAN decisions D and E).
+   Each column sums every status mapped into it, so a two-status column renders
+   as ONE bar exactly as it does on the board.
+   D: a column with no issues this sprint still renders, at 0 — Jira shows it,
+      and a column that silently vanishes reads as a bug.
+   E: statuses belonging to no column are appended rather than dropped. Jira
+      hides those issues entirely; doing the same here would leave the card's
+      own total unreconcilable against the bars beneath it. They carry
+      on_board:false so the UI can mark them. */
+function groupRowsIntoBoardColumns(rows, boardColumns) {
+  const claimed = new Set();
+  const columns = boardColumns.map((col) => {
+    const names = Array.isArray(col.statuses) ? col.statuses : [];
+    const members = rows.filter((r) => names.includes(r.status));
+    for (const m of members) claimed.add(m.status);
+    return {
+      status: col.name,
+      status_category: dominantCategory(members),
+      count: members.reduce((n, m) => n + m.count, 0),
+      points: members.reduce((n, m) => n + m.points, 0),
+      on_board: true,
+    };
+  });
+  const unmapped = sortStatusesByCategory(rows.filter((r) => !claimed.has(r.status)))
+    .map((r) => ({ ...r, on_board: false }));
+  return columns.concat(unmapped);
+}
+
 export async function onRequestGet({ request, env, params }) {
   const { error: errResp } = await requireWorkspaceScope(
     request,
@@ -116,7 +170,7 @@ export async function onRequestGet({ request, env, params }) {
     // ── Step 4: aggregates (project_id server-injected; sprint_id threaded) ─
     const whereSprint = { sprint_id: { eq: sprintId } };
 
-    const [typeAgg, statusAgg, workloadAgg] = await Promise.all([
+    const [typeAgg, statusAgg, workloadAgg, boardColRows] = await Promise.all([
       runAggregateJira(sql, projectId, {
         select: ['issue_type', 'COUNT(*)'],
         group_by: ['issue_type'],
@@ -132,6 +186,20 @@ export async function onRequestGet({ request, env, params }) {
         group_by: ['assignee_display_name', 'status_category'],
         where: whereSprint,
       }),
+      /* Block 21: the board's columns as stored by the sync. Read here rather
+         than through runListJiraSprints because that executor is also an AGENT
+         tool — adding this array there would push a JSON blob into every model
+         context that lists sprints. Scoped by project_id as well as sprint_id,
+         like every other read in this file. */
+      sql`
+        SELECT metadata->'board_columns' AS board_columns
+          FROM entities
+         WHERE project_id = ${projectId}
+           AND source = 'jira'
+           AND source_type = 'jira_sprint'
+           AND metadata->>'sprint_id' = ${String(sprintId)}
+         LIMIT 1
+      `,
     ]);
 
     // ── Step 5: uncapped issue list — direct read, project_id AND sprint_id ─
@@ -179,20 +247,30 @@ export async function onRequestGet({ request, env, params }) {
       // Epic/Sub-task/etc. fold into Total only (dec. step 4).
     }
 
-    // ── Shape: board-status columns (status colored by category) ───────
-    const catRank = { new: 0, indeterminate: 1, done: 2, unknown: 3 };
-    const boardStatus = (statusAgg?.rows || [])
-      .map((row) => ({
-        status: row.status,
-        status_category: row.status_category || 'unknown',
-        count: Number(row.count) || 0,
-        points: Number(row.sum_story_points) || 0,
-      }))
-      .sort(
-        (a, b) =>
-          (catRank[a.status_category] ?? 9) - (catRank[b.status_category] ?? 9) ||
-          String(a.status).localeCompare(String(b.status))
-      );
+    // ── Shape: board columns, in the board's own order ─────────────────
+    const statusRows = (statusAgg?.rows || []).map((row) => ({
+      status: row.status,
+      status_category: row.status_category || 'unknown',
+      count: Number(row.count) || 0,
+      points: Number(row.sum_story_points) || 0,
+    }));
+
+    /* board_status stays per-STATUS, and its shape is unchanged. Two consumers
+       in project.html depend on exactly that: the Status FILTER builds its set
+       from these names and matches them against each issue's own it.status,
+       and the group/chip colour lookups find a status here by name.
+       Redefining these rows as board columns would compare column names
+       against issue statuses and silently break every Status filter match. */
+    const boardStatus = sortStatusesByCategory(statusRows);
+
+    /* board_columns is additive and chart-only: the team's real columns, in
+       the board's order, summing every status mapped into each. Null when this
+       sprint has no stored configuration — the chart then falls back to
+       board_status, which is the pre-Block-21 rendering. */
+    const storedColumns = boardColRows && boardColRows[0] && boardColRows[0].board_columns;
+    const boardColumns = Array.isArray(storedColumns) && storedColumns.length > 0
+      ? groupRowsIntoBoardColumns(statusRows, storedColumns)
+      : null;
 
     // ── Shape: assignee workload (stacked by category; null = Unassigned) ─
     const workloadMap = new Map();
@@ -239,6 +317,7 @@ export async function onRequestGet({ request, env, params }) {
         completed: Number(summary.completed_story_points) || 0,
       },
       board_status: boardStatus,
+      board_columns: boardColumns,
       workload,
       issues,
       as_of: asOf,

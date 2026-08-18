@@ -355,7 +355,7 @@ function mapIssueToEntity(issue, projectKey, siteUrl) {
   };
 }
 
-function mapSprintToEntity(sprint, boardId, projectKey, siteUrl) {
+function mapSprintToEntity(sprint, boardId, projectKey, siteUrl, boardColumns) {
   // Sprint URL pinned at commit 5 coding time per BLOCK_6_PLAN.md decision H.
   // Verified shape against rain-labs.atlassian.net's project boards. If a
   // future Atlassian UI rev breaks this format, mapSprintToEntity is the
@@ -363,6 +363,25 @@ function mapSprintToEntity(sprint, boardId, projectKey, siteUrl) {
   const sourceUrl = `https://${siteUrl}/jira/software/projects/${projectKey}/boards/${boardId}?sprint=${sprint.id}`;
   const name = sprint.name || `Sprint ${sprint.id}`;
   const goal = typeof sprint.goal === 'string' ? sprint.goal.trim() : '';
+
+  const metadata = {
+    sprint_id: sprint.id,
+    board_id: boardId,
+    sprint_name: name,
+    state: sprint.state || null,
+    start_date: sprint.startDate || null,
+    end_date: sprint.endDate || null,
+    complete_date: sprint.completeDate || null,
+    goal: goal || null,
+    jira_project_key: projectKey,
+  };
+
+  /* Written only when the board actually answered. Omitted rather than stored
+     as null, so boards without a configuration keep their existing
+     content_hash and do not churn a rewrite on every sync. */
+  if (Array.isArray(boardColumns) && boardColumns.length > 0) {
+    metadata.board_columns = boardColumns;
+  }
 
   return {
     source: 'jira',
@@ -376,17 +395,7 @@ function mapSprintToEntity(sprint, boardId, projectKey, siteUrl) {
     source_updated_at:
       sprint.completeDate || sprint.endDate || sprint.startDate || null,
     source_url: sourceUrl,
-    metadata: {
-      sprint_id: sprint.id,
-      board_id: boardId,
-      sprint_name: name,
-      state: sprint.state || null,
-      start_date: sprint.startDate || null,
-      end_date: sprint.endDate || null,
-      complete_date: sprint.completeDate || null,
-      goal: goal || null,
-      jira_project_key: projectKey,
-    },
+    metadata,
     raw: sprint,
   };
 }
@@ -394,6 +403,91 @@ function mapSprintToEntity(sprint, boardId, projectKey, siteUrl) {
 // ---------------------------------------------------------------------------
 // Sync helpers — Atlassian REST endpoints used by _doSync (decision B).
 // ---------------------------------------------------------------------------
+
+/* Block 21 — the board's own column layout.
+   Column identity, order and status membership exist ONLY here. Without them
+   Sprint View could only group by issue status and guess an order, and its
+   guess (category rank, then alphabetical) sorted a team's LAST workflow stage
+   second because the name began with D. See BLOCK_21_PLAN.md.
+
+   Returns [{ name, statusIds }] in board order, or null when the board has no
+   usable configuration. Null is an ordinary outcome, not a failure: Kanban
+   boards, boards this token cannot read, and any response not matching the
+   documented shape all land here, and leave Sprint View on its old ordering. */
+async function fetchBoardConfiguration(siteUrl, email, apiToken, boardId) {
+  let response;
+  try {
+    response = await jiraGet(
+      siteUrl,
+      `/rest/agile/${ATLASSIAN_AGILE_API_VERSION}/board/${boardId}/configuration`,
+      email,
+      apiToken
+    );
+  } catch (err) {
+    // Same treatment listSprintsForBoard gives a Kanban board: not every board
+    // answers this endpoint, and none of those cases may fail a sync.
+    if (
+      err instanceof JiraApiError &&
+      (err.status === 400 || err.status === 403 || err.status === 404)
+    ) {
+      return null;
+    }
+    throw err;
+  }
+
+  /* The response contract is Atlassian's documented one, NOT one verified
+     against this tenant — the Agile API rejects browser sessions, so it could
+     not be inspected without handling an API token. Validate rather than
+     trust: anything unexpected degrades to the previous ordering instead of
+     rendering a wrong board. */
+  const columns = response && response.columnConfig && response.columnConfig.columns;
+  if (!Array.isArray(columns) || columns.length === 0) return null;
+
+  const out = [];
+  for (const col of columns) {
+    if (!col || typeof col.name !== 'string' || col.name.length === 0) continue;
+    const statusIds = Array.isArray(col.statuses)
+      ? col.statuses
+          .map((st) => (st && st.id != null ? String(st.id) : null))
+          .filter((id) => id !== null)
+      : [];
+    out.push({ name: col.name, statusIds });
+  }
+  return out.length > 0 ? out : null;
+}
+
+/* The configuration identifies statuses by ID; entities store them by NAME
+   (mapIssueToEntity). Resolving here — once per sync run, not per board —
+   keeps the stored columns name-keyed, so Sprint View groups by column without
+   the aggregate_jira compiler having to learn a status_id field. */
+async function fetchStatusNamesById(siteUrl, email, apiToken) {
+  const response = await jiraGet(
+    siteUrl,
+    `/rest/api/${ATLASSIAN_API_VERSION}/status`,
+    email,
+    apiToken
+  );
+  const byId = new Map();
+  if (Array.isArray(response)) {
+    for (const st of response) {
+      if (st && st.id != null && typeof st.name === 'string') byId.set(String(st.id), st.name);
+    }
+  }
+  return byId;
+}
+
+/* Stored form: column names in board order, each carrying its status NAMES.
+   A column whose statuses only partly resolve keeps the ones that did — a
+   partially-resolved column still orders correctly, which still beats
+   alphabetical. */
+function resolveBoardColumns(rawColumns, statusNamesById) {
+  return rawColumns.map((col) => ({
+    name: col.name,
+    statuses: col.statusIds
+      .map((id) => statusNamesById.get(id))
+      .filter((name) => typeof name === 'string'),
+  }));
+}
 
 async function listBoardsForProject(siteUrl, email, apiToken, projectKey) {
   const collected = [];
@@ -536,6 +630,10 @@ async function _doSync(ctx, connection, options = {}) {
       creds.api_token,
       selectedProjectKey
     );
+    // Block 21: resolved at most once per sync run, and only if some board
+    // actually returns a column configuration.
+    let statusNamesById = null;
+
     for (const board of boards) {
       const sprints = await listSprintsForBoard(
         creds.site_url,
@@ -544,8 +642,43 @@ async function _doSync(ctx, connection, options = {}) {
         board.id
       );
       if (sprints.length === 0) continue;
+
+      /* Columns are an enhancement, never a precondition. Any failure here
+         leaves boardColumns null and the sprint renders in the pre-Block-21
+         order — the sync must not fail over presentation data. 429 is the one
+         exception: it means the whole run should back off, so it propagates
+         to the handler below that already translates it. */
+      let boardColumns = null;
+      try {
+        const rawColumns = await fetchBoardConfiguration(
+          creds.site_url,
+          creds.account_email,
+          creds.api_token,
+          board.id
+        );
+        if (rawColumns) {
+          if (statusNamesById === null) {
+            statusNamesById = await fetchStatusNamesById(
+              creds.site_url,
+              creds.account_email,
+              creds.api_token
+            );
+          }
+          boardColumns = resolveBoardColumns(rawColumns, statusNamesById);
+        }
+      } catch (err) {
+        if (err instanceof JiraApiError && err.status === 429) throw err;
+        console.warn(JSON.stringify({
+          level: 'warn',
+          event: 'jira_board_columns_failed',
+          connection_id: connection.id,
+          board_id: board.id,
+          error: err && err.message ? String(err.message).slice(0, 200) : 'unknown',
+        }));
+      }
+
       const sprintEntities = sprints.map((sprint) =>
-        mapSprintToEntity(sprint, board.id, selectedProjectKey, creds.site_url)
+        mapSprintToEntity(sprint, board.id, selectedProjectKey, creds.site_url, boardColumns)
       );
       const results = await writeEntitiesWithEmbeddingsBatch(
         ctx.env,
