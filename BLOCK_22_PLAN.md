@@ -91,8 +91,14 @@ Settled with Jenny, 2026-08-18.
 - **Modified:** `functions/_lib/ai/loop.js` (model constants, `max_tokens`,
   `effort`, `fallbacks`, refusal branch, cost attribution),
   `functions/_lib/ai/pricing.js` (three table rows)
-- **Reused:** `createMessage` in `anthropic.js` — it forwards an arbitrary
-  body, so `effort`, `fallbacks`, and the beta header need no transport change
+- **Also modified (correction to this plan's first draft):**
+  `functions/_lib/ai/anthropic.js` — gains an optional `options.betas` that
+  sets the `anthropic-beta` header. The draft claimed no transport change was
+  needed; that was wrong. `effort` and `fallbacks` are body fields and do ride
+  the existing path, but beta features are **header**-gated on the REST API.
+  The SDKs' `betas` body field is a client-side convenience that does not
+  exist on the wire, and this is a raw `fetch` with hardcoded headers, so
+  decision F is unreachable without it. Not a carve-out file
 - **Untouched:** the D11 `SYSTEM_PROMPT` (decision D), `tools.js` and every
   executor's project scoping, `ITERATION_CAP`
 
