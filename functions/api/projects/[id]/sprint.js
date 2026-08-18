@@ -95,8 +95,9 @@ export async function onRequestGet({ request, env, params }) {
       const active = pickActiveSprint(sprintList?.results);
       if (!active || active.sprint_id == null) {
         // No active sprint → empty state. No closed-sprint fallback (dec. C).
-        // pickActiveSprint also drops stale/completed sprints whose Jira close
-        // never synced, so a long-ended sprint no longer shows as "active".
+        // pickActiveSprint drops only sprints Jira has closed (complete_date).
+        // A sprint that is merely past its end date IS returned, and renders
+        // through the `overdue` path below — see jira-sprint.js (2026-08-18).
         return json({ ok: true, active: false, as_of: await freshness(sql, projectId) });
       }
       sprintId = active.sprint_id;
