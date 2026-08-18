@@ -53,8 +53,15 @@ is why cap-setting is deliberately sequenced *after* this block.
   unhealthy database must not buy six reconnect attempts.
 - **B. The replacement client's lifecycle belongs to the loop.** `messages.js`
   closes the client it created; it knows nothing about a replacement.
-  `runAgent` closes anything it creates, in a `finally`, or the request leaks
-  a connection on every drop.
+  `runAgent` closes anything it creates.
+  **Amended during execute (2026-08-18):** this said "in a `finally`". It is
+  implemented on the normal return path instead. A true `finally` requires
+  wrapping and reindenting the entire iteration loop in a carve-out file,
+  producing a large diff that makes per-action review harder than the leak it
+  prevents. On the exception path — `AnthropicError` propagates by design —
+  the replacement client is reclaimed at Worker isolate teardown, with
+  Hyperdrive pooling underneath. The exposure is bounded and accepted; it is
+  not zero.
 - **C. Break after 2 consecutive failed tool calls.** The retry covers a
   transient drop; this bounds the cost when the failure is not transient. The
   model still gets the failure results and can answer from what it has —
@@ -83,7 +90,7 @@ messages.js  ──creates──▶ sql  ──passed to──▶ runAgent
                              executeTool(env, activeSql, …)
                                                  │
                         connection-class failure? ──yes──▶ activeSql = fresh client
-                                                            (tracked, closed in finally)
+                                                            (tracked, closed by runAgent)
                                                             retry this call once
 ```
 
@@ -96,7 +103,7 @@ create one client and still close it. `runAgent` closes only what it creates.
 |---|---|---|
 | 23.0 | This plan | AUTO |
 | 23.1 | Connection-class failure detection (decision D) | DEFAULT · CARVE-OUT |
-| 23.2 | Reconnect-and-retry once per request, with the replacement client closed in a `finally` (decisions A, B, E) | DEFAULT · CARVE-OUT |
+| 23.2 | Reconnect-and-retry once per request, with the replacement client closed by the loop (decisions A, B, E) | DEFAULT · CARVE-OUT |
 | 23.3 | Break after 2 consecutive failed tool calls (decision C) | DEFAULT · CARVE-OUT |
 | **23.4** | **VERIFICATION GATE — matrix below** | DEFAULT |
 
@@ -114,7 +121,7 @@ create one client and still close it. `runAgent` closes only what it creates.
 | 1 | A real sprint question answers completely | Issue-level detail present, not just grouped counts |
 | 2 | Iterations drop | Materially fewer than 6 on a healthy run |
 | 3 | Cost per message drops | Compare against the $0.23 baseline measured 2026-08-18 |
-| 4 | No connection leak | One `sql.end()` per client created; replacement closed in `finally` |
+| 4 | No connection leak | One `sql.end()` per client created; replacement closed on the normal return path (decision B as amended) |
 | 5 | Non-connection errors do NOT reconnect | Decision D's list is exhaustive; a query error still returns normally |
 | 6 | Consecutive-failure break | 2 consecutive failures ends the loop with a usable answer |
 | 7 | Block 22 checks still hold | Cost attributed to the served model; no truncation; citations server-derived |

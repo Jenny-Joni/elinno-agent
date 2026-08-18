@@ -20,6 +20,7 @@
 // literally returned to it.
 // =========================================================================
 
+import postgres from 'postgres';
 import { createMessage } from './anthropic.js';
 import { TOOL_DEFINITIONS, executeTool } from './tools.js';
 import { computeCostUsd } from './pricing.js';
@@ -38,6 +39,42 @@ const EFFORT = 'high';
 /* Decision F: a declined request re-runs on Opus 4.8 server-side instead of
    returning nothing. Header-gated — see createMessage's options.betas. */
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
+
+/* Block 23 decision D — a DEAD SOCKET, not a bad query.
+   Deliberately narrow. executeTool swallows every failure into a result
+   payload rather than throwing, so this string match is the only signal
+   available; widening it would make a permission error or a malformed query
+   trigger a pointless reconnect. Observed signatures, 2026-08-18:
+     iteration 3  "Network connection lost."
+     iteration 4  "write CONNECTION_CLOSED ...hyperdrive.local:5432"  */
+const SQL_DEAD_PATTERNS = [
+  'CONNECTION_CLOSED',
+  'Network connection lost',
+  'CONNECT_TIMEOUT',
+  'ECONNRESET',
+];
+
+// Block 23 decision C: a transient drop gets one retry; a database that is
+// actually down should not buy six iterations of retrying.
+const MAX_CONSECUTIVE_TOOL_FAILURES = 2;
+
+/* executeTool returns { content: [{ text }] } where text is JSON that may
+   carry { error, error_message }. Read it defensively — a parse failure here
+   must never mask the tool result itself. */
+function toolResultErrorMessage(result) {
+  try {
+    const parsed = JSON.parse(result?.content?.[0]?.text ?? '');
+    return typeof parsed?.error_message === 'string' ? parsed.error_message : null;
+  } catch {
+    return null;
+  }
+}
+
+function isDeadConnectionResult(result) {
+  const msg = toolResultErrorMessage(result);
+  if (!msg) return false;
+  return SQL_DEAD_PATTERNS.some((p) => msg.includes(p));
+}
 
 /* PROPOSED COPY — Jenny's to approve or rewrite (user-facing string).
    Shown only when the model declines a request and returns no text at all,
@@ -457,6 +494,11 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
   let lastTextResponse = '';
   // Decision E: which model actually served the most recent turn.
   let lastServedModelId = MODEL_ID;
+  /* Block 23: the loop's CURRENT client. Starts as the one messages.js
+     created and closes; becomes a replacement we own if the socket drops. */
+  let activeSql = sql;
+  let replacementSql = null;
+  let consecutiveToolFailures = 0;
   let iterations = 0;
 
   const availableSourcesText = isCrossProject
@@ -540,7 +582,38 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
 
     const toolResults = [];
     for (const toolUse of toolUseBlocks) {
-      const result = await executeTool(env, sql, urlContext, toolUse);
+      let result = await executeTool(env, activeSql, urlContext, toolUse);
+
+      /* Block 23 decision A. One dropped socket used to poison every
+         remaining iteration: messages.js opens a single client per request
+         and the loop reuses it, so after the first "Network connection lost"
+         every later call failed with CONNECTION_CLOSED and the model burned
+         the iteration cap retrying something that could never succeed.
+         Replace the client once per request and retry the call that failed.
+         Once per REQUEST, not per call — decision A — so an unhealthy
+         database cannot buy six reconnects. */
+      if (isDeadConnectionResult(result) && !replacementSql) {
+        console.warn(JSON.stringify({
+          level: 'warn',
+          event: 'agent_sql_reconnect',
+          iteration: iterations,
+          tool_name: toolUse.name,
+          error_message: toolResultErrorMessage(result),
+        }));
+        replacementSql = postgres(env.HYPERDRIVE.connectionString, {
+          max: 5,
+          fetch_types: false,
+        });
+        activeSql = replacementSql;
+        result = await executeTool(env, activeSql, urlContext, toolUse);
+      }
+
+      // Decision C: bound the cost when the failure is not transient.
+      if (toolResultErrorMessage(result)) {
+        consecutiveToolFailures += 1;
+      } else {
+        consecutiveToolFailures = 0;
+      }
 
       try {
         const parsed = JSON.parse(result.content[0].text);
@@ -588,6 +661,40 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
     }
 
     messages.push({ role: 'user', content: toolResults });
+
+    /* Block 23 decision C. The reconnect above handles a transient drop; this
+       bounds the cost when the failure is not transient. The model keeps the
+       failure results and answers from whatever it did reach — which it does
+       well, and says so plainly. Better a fast partial answer than six
+       iterations of the same error at Opus 5 rates. */
+    if (consecutiveToolFailures >= MAX_CONSECUTIVE_TOOL_FAILURES) {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        event: 'agent_tool_failures_exhausted',
+        iteration: iterations,
+        consecutive_failures: consecutiveToolFailures,
+      }));
+      break;
+    }
+  }
+
+  /* Block 23 decision B. messages.js closes the client IT created and knows
+     nothing about a replacement, so anything opened above is ours to close.
+     Best-effort: a cleanup failure must never mask the agent's result.
+
+     Normal path only, not a finally. A finally would mean wrapping and
+     reindenting the whole iteration loop in this carve-out file — a large
+     diff that makes per-action review harder than the leak it prevents. On
+     the exception path (AnthropicError propagates by design, see the header)
+     the replacement is reclaimed when the Worker isolate tears down, and
+     Hyperdrive pools underneath. Bounded, not free — revisit if this file is
+     ever restructured for another reason. */
+  if (replacementSql) {
+    try {
+      await replacementSql.end({ timeout: 5 });
+    } catch (_) {
+      // already gone; nothing to reclaim
+    }
   }
 
   return {
