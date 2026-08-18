@@ -35,8 +35,20 @@
  * @type {Record<string, { input: number, output: number }>}
  */
 export const TOKEN_PRICES_USD_PER_MILLION = {
+  // Block 22: chat's model. Priced per Anthropic's published rates.
+  'anthropic/claude-opus-5':     { input: 5.00, output: 25.00 },
+  // Opus 4.8 is the server-side fallback target (decision F). A declined
+  // request is re-run on it and the row is attributed to whichever model
+  // actually served the turn, so it needs a price of its own.
+  'anthropic/claude-opus-4-8':   { input: 5.00, output: 25.00 },
+  // Retained, not stale: every message row written before Block 22 carries
+  // this id, and computeCostUsd is what re-prices history.
   'anthropic/claude-sonnet-4-5': { input: 3.00, output: 15.00 },
-  'anthropic/claude-haiku-4-5':  { input: 0.25, output: 1.25 },
+  // Block 22: was { 0.25, 1.25 } — the retired Haiku 3.5 rate, understating
+  // Haiku 4.5 by 4x. No call site today, so nothing was mispriced in
+  // practice; corrected rather than deleted because computeCostUsd returns
+  // null for an unpriced model, and a null cost hides more than a wrong one.
+  'anthropic/claude-haiku-4-5':  { input: 1.00, output: 5.00 },
   'openai/text-embedding-3-small': { input: 0.02, output: 0 },
 };
 
