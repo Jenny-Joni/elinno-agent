@@ -2645,11 +2645,14 @@
          collapses (None) the document can end up shorter than the current
          scroll offset, and the browser clamps scrollTop. The page lurches
          upward and the menu slides out from under the cursor mid-click.
-         So while a menu is open, hold the card at the height it had when the
-         first action landed: the document never shrinks, nothing clamps, and
-         All/None swap in place. Released on close, when the user has stopped
-         interacting and a settle is expected. */
-      if (svUi._open && svUi._lockH == null) svUi._lockH = card.offsetHeight;
+         So while a menu is open, reserve the TALLEST height the card has had
+         during this menu session: the container never shrinks, nothing
+         clamps, and All/None swap in place. Max rather than first-seen —
+         opening a menu on an already-filtered list would otherwise reserve
+         only the collapsed height, and a later All → scroll → None inside the
+         same session would clamp again. Released on close, when the user has
+         stopped interacting and a settle is expected. */
+      if (svUi._open) svUi._lockH = Math.max(svUi._lockH || 0, card.offsetHeight);
       card.innerHTML = svIssuesCardInner();
       if (svUi._open) {
         const w = card.querySelector('.sv-filterwrap[data-menu="' + svUi._open + '"]');
