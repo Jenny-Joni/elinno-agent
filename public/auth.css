@@ -3427,6 +3427,15 @@ table.users-table {
 .sv-menu-item { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:7px; font-size:13px; color:var(--text); cursor:pointer; }
 .sv-menu-item:hover { background:var(--brand-soft,#f7f5ff); }
 .sv-menu-item.sel { color:var(--brand-strong); font-family:var(--font-medium); }
+/* All / None row above each filter menu's checkboxes. Actions, not options —
+   no checkbox, and set apart by a rule so they don't read as selectable
+   values. */
+.sv-menu-acts { display:flex; gap:6px; padding:1px 8px 7px; margin-bottom:5px; border-bottom:1px solid var(--border-soft); }
+.sv-menu-act { font-family:var(--font-medium); font-size:11.5px; color:var(--brand); cursor:pointer; padding:3px 8px; border-radius:6px; }
+.sv-menu-act:hover { background:var(--brand-soft); }
+/* A chip whose selection is not the full set — including the empty set left
+   by None — so an active filter is legible without opening the menu. */
+.sv-chip.is-filtered { background:var(--brand-tint); border-color:var(--brand-soft-border); color:var(--brand-strong); }
 .sv-mcheck { margin-left:auto; color:var(--brand); display:inline-flex; }
 .sv-mcheck svg { width:15px; height:15px; }
 .sv-cb { width:16px; height:16px; border:1.5px solid var(--border-input); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; flex:none; color:#fff; }
