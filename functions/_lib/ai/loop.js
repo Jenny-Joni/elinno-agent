@@ -499,6 +499,11 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
   let activeSql = sql;
   let replacementSql = null;
   let consecutiveToolFailures = 0;
+  /* Block 23: set when tool calls keep failing. The next turn runs with
+     tool_choice 'none' so the model MUST answer in text from whatever it
+     already retrieved, instead of the loop ending on a tool failure and
+     returning nothing. */
+  let forceFinalAnswer = false;
   let iterations = 0;
 
   const availableSourcesText = isCrossProject
@@ -518,6 +523,10 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
       fallbacks: 'default',
       system,
       tools: TOOL_DEFINITIONS,
+      /* tools stay declared — the history contains tool_use/tool_result pairs
+         and dropping the definitions would invalidate it. 'none' forbids new
+         calls without rewriting the conversation. */
+      ...(forceFinalAnswer ? { tool_choice: { type: 'none' } } : {}),
       messages,
     }, { betas: [FALLBACK_BETA] });
 
@@ -575,7 +584,7 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
       iteration: iterations,
     });
 
-    if (response.stop_reason !== 'tool_use' || toolUseBlocks.length === 0) {
+    if (forceFinalAnswer || response.stop_reason !== 'tool_use' || toolUseBlocks.length === 0) {
       dbTurns[dbTurns.length - 1].citations = citations.length > 0 ? citations : null;
       break;
     }
@@ -674,7 +683,13 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
         iteration: iterations,
         consecutive_failures: consecutiveToolFailures,
       }));
-      break;
+      /* NOT a break. Breaking here ends the loop on a tool failure, so the
+         last assistant turn is a tool call and the user gets an empty answer
+         — observed on the preview, 2026-08-18, and strictly worse than the
+         six-iteration cascade this was meant to fix. Take one more turn with
+         tools forbidden so the model states what it found and what it could
+         not reach. */
+      forceFinalAnswer = true;
     }
   }
 

@@ -62,10 +62,15 @@ is why cap-setting is deliberately sequenced *after* this block.
   the replacement client is reclaimed at Worker isolate teardown, with
   Hyperdrive pooling underneath. The exposure is bounded and accepted; it is
   not zero.
-- **C. Break after 2 consecutive failed tool calls.** The retry covers a
-  transient drop; this bounds the cost when the failure is not transient. The
-  model still gets the failure results and can answer from what it has —
-  which it demonstrably does well.
+- **C. After 2 consecutive failed tool calls, take one final turn with
+  `tool_choice: 'none'`.** The retry covers a transient drop; this bounds the
+  cost when the failure is not transient.
+  **Corrected during execute (2026-08-18):** first implemented as a bare
+  `break`. That ended the loop *on a tool failure*, so the last assistant
+  turn was a tool call and the user got an **empty answer** — observed on the
+  preview and strictly worse than the six-iteration cascade it replaced. The
+  model needs a turn to speak. Tools stay declared (the history holds
+  tool_use/tool_result pairs) and `tool_choice: 'none'` forbids new calls.
 - **D. Detection is by error-message match**, on a narrow list:
   `CONNECTION_CLOSED`, `Network connection lost`, `CONNECT_TIMEOUT`,
   `ECONNRESET`. Deliberately narrow: a query error, a permission error, or an
