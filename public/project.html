@@ -2291,6 +2291,7 @@
         asgOrder: asgList,
         typeOrder: typeList,
         _open: null,
+        _lockH: null,
       };
 
       body.innerHTML = projectFromRowHtml() + svDashboardHtml(data);
@@ -2639,11 +2640,33 @@
     function svRerenderIssuesCard() {
       const card = document.getElementById('svIssuesCard');
       if (!card) return;
+      /* Filtering changes the list's height. Nothing ABOVE the filter row
+         moves, so the row's document offset is constant — but when the list
+         collapses (None) the document can end up shorter than the current
+         scroll offset, and the browser clamps scrollTop. The page lurches
+         upward and the menu slides out from under the cursor mid-click.
+         So while a menu is open, hold the card at the height it had when the
+         first action landed: the document never shrinks, nothing clamps, and
+         All/None swap in place. Released on close, when the user has stopped
+         interacting and a settle is expected. */
+      if (svUi._open && svUi._lockH == null) svUi._lockH = card.offsetHeight;
       card.innerHTML = svIssuesCardInner();
       if (svUi._open) {
         const w = card.querySelector('.sv-filterwrap[data-menu="' + svUi._open + '"]');
         if (w) w.classList.add('open');
+        if (svUi._lockH != null) card.style.minHeight = svUi._lockH + 'px';
+      } else {
+        svReleaseCardHeight();
       }
+    }
+
+    /* Drop the height hold. Every path that closes a filter menu calls this —
+       a re-render with no menu open, the chip toggling itself shut, and the
+       document-level outside click, which does not re-render at all. */
+    function svReleaseCardHeight() {
+      if (svUi) svUi._lockH = null;
+      const card = document.getElementById('svIssuesCard');
+      if (card) card.style.minHeight = '';
     }
     function svOnCardClick(e) {
       /* All / None. Checked before the row handler below because these are
@@ -2684,7 +2707,7 @@
         const key = wrap.getAttribute('data-menu');
         const wasOpen = wrap.classList.contains('open');
         document.querySelectorAll('.sv-filterwrap.open').forEach(w => w.classList.remove('open'));
-        if (wasOpen) { wrap.classList.remove('open'); svUi._open = null; }
+        if (wasOpen) { wrap.classList.remove('open'); svUi._open = null; svReleaseCardHeight(); }
         else { wrap.classList.add('open'); svUi._open = key; }
         return;
       }
@@ -2697,7 +2720,7 @@
       document.addEventListener('click', function (e) {
         if (e.target.closest('.sv-filterwrap')) return;
         document.querySelectorAll('.sv-filterwrap.open').forEach(w => w.classList.remove('open'));
-        if (svUi) svUi._open = null;
+        if (svUi) { svUi._open = null; svReleaseCardHeight(); }
       });
     }
 
