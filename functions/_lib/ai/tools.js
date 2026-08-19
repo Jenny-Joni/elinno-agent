@@ -580,7 +580,13 @@ export async function runQueryJiraIssues(sql, projectId, input, crossProjectIds)
     SELECT id, project_id::text AS project_id_text,
            source_id, title, status, status_category, issue_type, priority,
            assignee_display_name, assignee_external_id,
-           reporter_display_name, reporter_external_id,
+           /* reporter_external_id is NOT a column on the jira_issues view -
+              it has assignee_external_id but never had the reporter twin.
+              Selecting it made every query_jira_issues call fail with
+              SQLSTATE 42703, surfaced to the agent as "Network connection
+              lost", since this query was written. Nothing read it: the row
+              mapper below only uses reporter_display_name. */
+           reporter_display_name,
            sprint_id, sprint_name, story_points, project_key,
            source_url, source_created_at, source_updated_at,
            /* Block 23.5: truncate in SQL, not in JS. This used to select the
