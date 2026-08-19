@@ -58,6 +58,15 @@ const SQL_DEAD_PATTERNS = [
 // actually down should not buy six iterations of retrying.
 const MAX_CONSECUTIVE_TOOL_FAILURES = 2;
 
+/* Wait before the reconnect retry. The drop is Neon scale-to-zero: the
+   compute suspends after an idle period and the pooled connection dies with
+   it. Waking it took 333ms-4s across 180 logged starts (typically ~450ms), so
+   an immediate retry can hit a still-waking endpoint and fail for the same
+   reason the first attempt did. Diagnosed 2026-08-19; the autosuspend delay
+   was raised 5min -> 30min the same day, which makes this path rare rather
+   than unnecessary. */
+const SQL_RECONNECT_DELAY_MS = 1500;
+
 /* executeTool returns { content: [{ text }] } where text is JSON that may
    carry { error, error_message }. Read it defensively — a parse failure here
    must never mask the tool result itself. */
@@ -614,6 +623,8 @@ export async function runAgent(env, sql, urlContext, priorMessages) {
           fetch_types: false,
         });
         activeSql = replacementSql;
+        // Give the compute time to finish waking before asking it again.
+        await new Promise((r) => setTimeout(r, SQL_RECONNECT_DELAY_MS));
         result = await executeTool(env, activeSql, urlContext, toolUse);
       }
 

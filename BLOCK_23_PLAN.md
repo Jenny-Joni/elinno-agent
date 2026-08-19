@@ -47,10 +47,15 @@ is why cap-setting is deliberately sequenced *after* this block.
 
 ## Locked decisions
 
-- **A. Retry once, on a fresh client.** A tool result carrying a
-  connection-class failure triggers exactly one retry of that call against a
-  newly-created client. Once per request, not once per call — a genuinely
-  unhealthy database must not buy six reconnect attempts.
+- **A. Retry once, on a fresh client, after a 1.5s wait.** A tool result
+  carrying a connection-class failure triggers exactly one retry of that call
+  against a newly-created client. Once per request, not once per call — a
+  genuinely unhealthy database must not buy six reconnect attempts.
+  **The wait was added 2026-08-19**, once the root cause was identified as
+  Neon scale-to-zero: the compute takes 333ms–4s to wake (180 logged starts,
+  typically ~450ms), so an immediate retry can hit a still-waking endpoint
+  and fail for exactly the reason the first attempt did — which is what the
+  preview showed.
 - **B. The replacement client's lifecycle belongs to the loop.** `messages.js`
   closes the client it created; it knows nothing about a replacement.
   `runAgent` closes anything it creates.
@@ -137,6 +142,23 @@ evidence, and decision E's log line is how the retry path gets confirmed for
 real — read `agent_sql_reconnect` from production logs after a few days of
 traffic. Item 5 is verified by inspection of the match list. Stated here so
 the gate is not later read as stronger than it was.
+
+## Root cause, found after this plan was written (2026-08-19)
+
+The drop is **Neon scale-to-zero**, not connection reuse. The project ran on
+the Free plan with a fixed **5-minute autosuspend**; the operations log showed
+**17 suspend/start cycles on 18 August alone**, every one of which kills the
+connections Hyperdrive is holding. Sonnet 4.5 answered fast enough to stay
+inside a wake window; Opus 5 holds one connection across a conversation with
+long thinking pauses, so it straddles suspend boundaries — which is why Block
+22 appeared to cause a bug it merely exposed.
+
+**Fixed at source:** the project was upgraded to the Scale plan (the only tier
+with a configurable scale-to-zero — Launch keeps the fixed 5 minutes) and the
+autosuspend delay raised to **30 minutes**.
+
+That makes this block's retry path *rare rather than unnecessary*: a suspend
+still happens after 30 idle minutes, and the loop should survive it.
 
 ## Risks worth naming
 
