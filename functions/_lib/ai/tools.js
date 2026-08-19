@@ -582,7 +582,17 @@ export async function runQueryJiraIssues(sql, projectId, input, crossProjectIds)
            assignee_display_name, assignee_external_id,
            reporter_display_name, reporter_external_id,
            sprint_id, sprint_name, story_points, project_key,
-           source_url, source_created_at, source_updated_at, content_text
+           source_url, source_created_at, source_updated_at,
+           /* Block 23.5: truncate in SQL, not in JS. This used to select the
+              whole of content_text — the full issue body, the same field that
+              feeds the FTS index and the embedding model — for up to 50 rows,
+              then throw all but 600 characters of each away below. The
+              payload was large enough to kill the subrequest: every
+              query_jira_issues call failed with "Network connection lost"
+              while aggregate_jira succeeded on the SAME connection in the
+              SAME turn, which is what ruled out a connection fault.
+              Identical output, a fraction of the bytes. */
+           LEFT(content_text, ${TOOL_RESULT_TEXT_TRIM}) AS content_text
       FROM jira_issues
      WHERE ${projectScope}
        AND (${statusCategory}::text IS NULL OR status_category = ${statusCategory})
