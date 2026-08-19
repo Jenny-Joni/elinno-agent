@@ -7171,3 +7171,159 @@ against `origin/main`; it is worth rebuilding as the standing check for 20.2.
 v2.0 is published and covers the rail. The boot-performance work, the
 `_lib` cache stamps and all of Block 20 are unannounced — performance is
 arguably user-visible and could earn a line in a later entry.
+
+## Session closeout — 2026-08-18/19 (Blocks 21–23 shipped; three live fixes; two wrong diagnoses)
+
+Baseline at session start: `main` at `4406b33`, on `block-20-dark-mode`, tree
+clean. Ended with `main` and `origin/main` at `385b610` — everything below is
+shipped and live.
+
+**Read this first if you are chasing a Jira tool failure.** "Network
+connection lost" from `query_jira_issues` was **a missing column**, not a
+database problem. See "Two wrong diagnoses" below before touching Neon or
+Hyperdrive.
+
+### What shipped
+
+**Sprint staleness fix (`04763dc`).** `pickActiveSprint`'s 30-day
+`end_date` grace hid Gems Launchpad's `23/02-09/03` — 163 days overdue but
+genuinely the open sprint on the board, syncing daily. `complete_date`
+(Jira's own close signal) is now the sole exclusion, and a merely-overdue
+sprint renders through the existing `overdue` path. The helper is no longer
+time-dependent. Also lights up the chat sprint chip, which shares it.
+**Note:** `jira-sprint.js`'s header claimed a predicate change was a
+WORKFLOW.md re-lock trigger. It is not — WORKFLOW's re-lock list does not
+cover it. It is a carve-out (default mode), which is how it was executed.
+
+**Sprint View filters: All / None (`ee1d8f1`).** Status, Assignee and Type
+gained an All/None pair, keyed by `data-action` so a status literally named
+"All" cannot collide. Chips show a count (`Status · 3`) when the selection is
+not the full set — without it, None empties the list and every chip still
+looks untouched. `Group:` deliberately untouched (single-select; its "None"
+already means "do not group"). `svSetFor` folded three copies of the
+key→(set, order) ternary into one.
+
+**Scroll-jump fix, same block.** Emptying the list shrank the scroll
+container below the current offset, the browser clamped `scrollTop`, and the
+menu slid out from under the cursor. The card now holds its tallest height
+while a menu is open. **The scroll container is NOT the window** — it is an
+unclassed `overflow-y:auto` div inside `.project-main`; `window.scrollY`
+reads 0 on that page regardless of position. Cost one bogus "verified" before
+it was caught.
+
+**Block 21 — real Jira board columns (`9486809`).** Sprint View showed
+`To Do · Done on Staging · In Progress · IN QA · Done`; the board shows
+`To Do · In Progress · IN QA · Done on Staging · Done on Production`. Cause:
+the sync never called `/board/{id}/configuration`, so `sprint.js` grouped
+issue statuses and sorted by category rank then **alphabetically** — which is
+why the team's last workflow stage sorted second. "Done" is also a *status*;
+"Done on Production" is the *column*. Now synced, resolved id→name once per
+run, stored on the sprint entity's `metadata` JSONB (**no schema
+migration**), and **no new decryption call site** (still 3).
+`board_columns` is **additive** — `board_status` keeps its per-status shape
+because the Status *filter* builds from it and matches against each issue's
+own status. Redefining it would have silently broken every filter match.
+
+**Blocks 22 + 23 — chat on Claude Opus 5 (`385b610`).** Model swap plus
+`max_tokens` 1024 → 8000 (Opus 5 thinks by default and shares that budget
+with the answer), explicit `effort: high`, `fallbacks: "default"` to Opus 4.8,
+and a `stop_reason: "refusal"` branch so a decline never renders as an empty
+bubble. Cost is attributed to the **served** model read from `response.model`,
+not the hardcoded `MODEL_ID` — a precondition for fallbacks, not a companion
+to it. `anthropic.js` gained `options.betas`: beta features are **header**-
+gated on the REST API, and the SDKs' `betas` body field does not exist on the
+wire. `pricing.js` gained Opus 5 and Opus 4.8 rows and corrected Haiku 4.5
+from `{0.25, 1.25}` (the retired Haiku 3.5 rate, 4× under) to `{1.00, 5.00}`.
+The D11 system prompt is **untouched** per the file's own re-lock rule.
+
+**The most valuable fix of the session (`385b610`).**
+`query_jira_issues` selected `reporter_external_id`, which **is not a column
+on the `jira_issues` view** (it has `assignee_external_id` but never had the
+reporter twin). Every call failed with SQLSTATE 42703, surfaced to the agent
+as "Network connection lost". **This has been broken since the query was
+written** — every Jira question any user ever asked came back without the
+ticket list. Not a Block 22 regression; Opus 5 merely *said so* instead of
+quietly working around it. After the fix: 42,561 bytes returned, 0 tool
+errors, 47 citations, 6 iterations → 4.
+
+### Two wrong diagnoses, and what actually found it
+
+Recorded because the failure signature is misleading and the next person will
+otherwise repeat this.
+
+1. **"Neon scale-to-zero is dropping pooled connections."** The evidence was
+   real — Free plan, fixed 5-minute autosuspend, **17 suspend/start cycles on
+   18 Aug alone** — and Jenny **upgraded to the Neon Scale plan on this
+   recommendation** (autosuspend then raised 5 → 30 min). It was not the
+   cause. Ruled out by: `query_jira_issues` failing while `aggregate_jira`
+   succeeded **on the same connection in the same turn**. A dead socket
+   cannot do that.
+2. **"The `content_text` payload is too large."** Ruled out by measurement:
+   the whole sprint is 137 rows, **44 kB** of text, largest row 2,405 bytes.
+
+**What found it:** running the query in Neon's SQL Editor, which returned
+`ERROR: column "reporter_external_id" does not exist`. Two theories, ~$1 of
+test messages and a recurring bill later. **Measure before theorising** when a
+tool fails 100% of the time — a consistent failure is a bug, not flakiness.
+
+### Cost — the number that matters now
+
+**~26¢ per chat message** on a healthy Opus 5 run (39k input, 1.4k output,
+4 iterations). Roughly 2–4× Sonnet 4.5.
+
+**The caps are now incoherent and were deliberately left alone:**
+`projects.daily_message_limit` is 100 and `ai_monthly_cap_usd` is $50 — a
+single day at the daily limit is ~$26, so three busy days exhaust the monthly
+cap. Both were sized when chat was Sonnet 4.5. Jenny's to set.
+
+The in-app spend figure is an **estimate** from `pricing.js`, not Anthropic's
+number, and the caps are enforced against that estimate. Reconcile
+`SUM(cost_usd)` against the Anthropic Console after a week — if they diverge,
+the guardrail is not where it appears to be.
+
+### ⚠️ Open — Jenny's
+
+1. **Neon plan decision.** Scale (~$8–13/mo at the 30-min delay) was bought on
+   a mistaken diagnosis. The 17-suspends-a-day fragility was real, so it is
+   defensible on its own merits — but nothing depends on it. Keep or
+   downgrade.
+2. **Max autoscale is 8 CU** (was 2 before the upgrade). A ceiling, not a
+   commitment, but at $0.222/CU-hour that is $1.78/hour of theoretical
+   exposure. Recommend dropping to 2 CU — the slider resisted automation.
+3. **Cap numbers** — see Cost above.
+4. **`REFUSAL_TEXT` in `loop.js` shipped as PROPOSED COPY**, marked as such in
+   the file. Jenny's to approve or rewrite.
+5. **What's New** — four user-visible changes this session (overdue sprints
+   appearing, All/None filters, real board columns, Jira ticket lists working)
+   plus Opus 5. Unannounced.
+6. **`BLOCK_24_PLAN.md` is untracked** in the working folder — 15 KB, marked
+   "DRAFT v0, not approved, not committed". Not written this session and left
+   alone deliberately. It exists on one machine only.
+
+### Open — engineering
+
+- **`search.js` selects full `content_text`** at lines 50 and 99, the same
+  pattern trimmed in `tools.js`. Bounded to 10 rows and the full text may
+  matter for ranking, so flagged rather than changed.
+- **The Block 23 reconnect path is unverified.** It was written against a
+  connection-drop theory that turned out to be wrong, and the real bug never
+  exercised it. It logs `agent_sql_reconnect`; if that event never appears in
+  production, consider removing it rather than carrying dead resilience.
+- **`ITERATION_CAP = 6` untested against Opus 5 under load** — a healthy run
+  now uses 4.
+- **`replacementSql` is closed on the normal return path, not in a `finally`**
+  (BLOCK_23_PLAN decision B, amended during execute). On the exception path it
+  is reclaimed at isolate teardown. Bounded, not zero.
+- Everything still open from Block 19/20 above — the member rail never
+  rendered, `/api/projects/<id>/members` 404 (the whole feature is dead: API
+  and table dropped in Block 12.1, ~250 lines of UI survive, and a
+  guaranteed-404 fires on **every project page load**), `var(--radius-pill)`
+  undefined (5 chat chips render square; `--r-pill: 50px` already exists),
+  `--bg-soft` undefined in `dashboard.html:193` (latent), and
+  `/project/<slug>/chat` 302ing to the default tab.
+- **~90 stale local branches.** `git branch --merged main` to survey.
+
+### What's New notice
+
+Nothing published this session. Four user-visible changes are live and
+unannounced; copy is Jenny's.
