@@ -96,3 +96,19 @@ id = "78af00bbf464468cb902e35099aa0dfe"
 [[r2_buckets]]
 binding = "LOGOS"
 bucket_name = "elinno-agent-logos"
+
+# Block 25 (decision A) — R2 bucket for Finance datasets. One JSON object per
+# dataset (`reap/current.json`, plus `reap/previous.json` as the single-step
+# undo per decision I); an upload full-replaces.
+#
+# DELIBERATELY PRIVATE — no custom domain, unlike LOGOS above. LOGOS is
+# public-read via logos.elinnoagent.com because logos are meant to be fetched
+# straight from the CDN by URL. This bucket holds company card spend: every
+# read goes through the Worker in functions/api/finance/, which gates on a
+# session. Attaching a custom domain to this bucket would publish that data
+# with no auth at all. Don't.
+#
+# Shared by Production + Preview, same as every other binding in this file.
+[[r2_buckets]]
+binding = "FINANCE"
+bucket_name = "elinno-agent-finance"
