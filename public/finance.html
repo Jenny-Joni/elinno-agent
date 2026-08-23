@@ -1,0 +1,2382 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <script src="/_lib/no-zoom.js?v=2026-08-16-2" defer></script>
+  <title>Finance — Elinno Agent</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600&display=swap" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" />
+  <!-- Block 19 rail boot. BYTE-IDENTICAL in all 11 authed pages, like the
+       rail block in <body>; verification item 3b diffs them.
+
+       This MUST be inline and synchronous, and it must stay in <head>.
+       /_lib/side-nav.js is deferred, so it runs only after the document is
+       parsed. Anything the rail needs at FIRST PAINT has to be decided here,
+       or it visibly changes a moment later — which is what made moving
+       between rail items look like a glitch rather than a page change.
+
+       Settled before paint, as classes on <html>:
+         sn-boot          layout is active (page gets its left offset)
+         sn-section-open  Projects is open — derived from the PAGE, not from
+                          storage, so the menu follows where you are: open on
+                          a Projects page, shut everywhere else
+         sn-at-<key>      which rail item is the current page
+         sn-admin         reveal the admin group (a display hint, never a
+                          permission — every link behind it is gated
+                          server-side, and /api/me corrects it on load)
+
+       sn-at-<key> duplicates activeKey() in /_lib/side-nav.js. That is a
+       real drift risk and a deliberate trade: the alternative is the
+       highlight appearing a frame late on every navigation. If you change
+       one, change both — verification item 4 compares them.
+
+       Keep it tiny and dependency-free: it blocks the parser by design. -->
+  <script>(function(){var d=document.documentElement,p=location.pathname,k='';if(p.indexOf('/finance')===0)k='finance';else if(p==='/'||p.indexOf('/dashboard')===0)k='dashboard';else if(p.indexOf('/projects')===0||p.indexOf('/project/')===0||p.indexOf('/project.html')===0||p.indexOf('/project_settings')===0)k='projects';else if(p.indexOf('/cross-project')===0)k='cross-project';else if(p.indexOf('/workspace_settings')===0)k='workspace-settings';else if(p.indexOf('/admin')===0)k='members';else if(p.indexOf('/whats-new')===0)k='whats-new';d.classList.add('sn-boot');if(k)d.classList.add('sn-at-'+k);if(k==='projects')d.classList.add('sn-section-open');if(k==='finance'){try{if(localStorage.getItem('elinno.sidenav.finance')!=='0')d.classList.add('sn-finance-open');}catch(e){d.classList.add('sn-finance-open');}}try{if(localStorage.getItem('elinno.sidenav.admin')==='1')d.classList.add('sn-admin');}catch(e){}})();</script>
+  <link rel="stylesheet" href="/auth.css?v=2026-08-18-2" />
+  <style>
+    /* ===================================================================
+       Finance dashboard. Data comes from GET /api/finance/<dataset>, which
+       gates on a session — the page itself is a static asset and carries no
+       payment data, so it is safe to serve from the CDN.
+
+       Layout only — brand tokens, .surface/.eyebrow/.pill/.btn all come
+       from auth.css. No SVG anywhere: every mark is a positioned div,
+       which also sidesteps the Cloudflare inline-SVG-in-JS 500.
+       =================================================================== */
+
+    /* Categorical series palette. Six slots, fixed order, assigned by
+       ENTITY not by rank, so filtering never repaints a survivor.
+       Validated (lightness band / chroma floor / CVD separation /
+       normal-vision floor / contrast) against a white surface — all pass.
+       Deliberately clear of the reserved status hues (--success,
+       --danger, --amber-*), which never encode a series. */
+    :root {
+      --fin-c1: #6234fc;         /* brand — every bar in a single-series chart */
+      --fin-other: #959595;      /* a project with no colour of its own */
+      --fin-grid: #eeeef1;       /* solid hairline, one shade off the surface */
+      --fin-track: #f4f4f7;
+    }
+
+    /* ---- rail: Finance as a second section ---------------------------
+       auth.css keys BOTH the open state and the chevron rotation off ONE
+       global html.sn-section-open class (auth.css:4014-4016), which was
+       fine while Projects was the only section. A second one opens and
+       rotates in lockstep with it. These rules give Finance its own state;
+       shipping this means generalising those three auth.css rules to a
+       per-section key instead of adding a second special case. */
+    html.sn-section-open .side-nav [data-sn-section="finance"] .sn-chev { transform: none; }
+    /* Open state is a class on <html>, set by the boot script before first
+       paint — same reason auth.css does it for Projects: an open section has
+       to PAINT open rather than animate open a frame into the page. */
+    html.sn-finance-open .side-nav [data-sn-subnav="finance"] { grid-template-rows: 1fr; }
+    html.sn-finance-open .side-nav [data-sn-section="finance"] .sn-chev { transform: rotate(90deg); }
+    html.sn-at-finance .side-nav [data-sn-section="finance"] {
+      background: var(--brand-tint); color: var(--brand-strong); font-weight: 500;
+    }
+    html.sn-at-finance .side-nav [data-sn-section="finance"] > i:first-child { color: var(--brand); }
+    /* auth.css styles .sn-l3[aria-current="page"] but has no level-2
+       equivalent — the Projects tree never needed one. */
+    .side-nav .sn-l2.is-current { background: var(--brand-tint); }
+    .side-nav .sn-l2.is-current .sn-l2__link { color: var(--brand-strong); font-weight: 500; }
+
+    /* ---- in-page tabs ------------------------------------------------- */
+    .fin-tabs {
+      display: flex; gap: 2px; margin: 0 0 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .fin-tab {
+      font-family: var(--font); font-size: 13.5px; font-weight: 500;
+      color: var(--text-2); background: none; border: none; cursor: pointer;
+      padding: 9px 14px; border-radius: var(--r-sm) var(--r-sm) 0 0;
+      position: relative; top: 1px; border-bottom: 2px solid transparent;
+      transition: color var(--t-fast), background var(--t-fast);
+    }
+    .fin-tab:hover { background: var(--brand-soft); color: var(--text); }
+    .fin-tab[aria-selected="true"] {
+      color: var(--brand-strong); border-bottom-color: var(--brand);
+    }
+    .fin-tab:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: -2px; }
+    .fin-placeholder {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--r-lg); padding: 48px 24px; text-align: center;
+      font-family: var(--font); font-size: 13.5px; color: var(--text-3);
+    }
+
+    .fin-shell { max-width: 1100px; margin: 0 auto; padding: 28px 20px 96px; }
+
+    .fin-h1 {
+      font-family: var(--font); font-size: 28px; font-weight: 500;
+      color: var(--text); margin: 0 0 6px; letter-spacing: -0.01em;
+    }
+    .fin-meta { margin: 0 0 22px; }
+    .fin-meta p {
+      font-family: var(--font); font-size: 13.5px; color: var(--text-2);
+      margin: 0 0 3px; line-height: 1.5;
+    }
+    .fin-meta p:last-child { margin-bottom: 0; }
+    .fin-meta strong { color: var(--text); font-weight: 500; }
+
+
+    /* ---- one filter row, above everything it scopes ----------------- */
+    .fin-filters {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 14px 16px; margin: 0 0 8px;
+    }
+    .fin-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .fin-field label {
+      font-family: var(--font); font-size: 11px; font-weight: 500;
+      letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3);
+    }
+    .fin-field select {
+      font-family: var(--font); font-size: 13px; color: var(--text);
+      background: var(--bg-subtle); border: 1px solid var(--border-input);
+      border-radius: var(--r-sm); padding: 7px 10px; min-width: 132px;
+      max-width: 190px; cursor: pointer;
+    }
+    .fin-field select:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: 1px; }
+
+    /* ---- multi-select filters ------------------------------------------
+       The menu, the All/None actions and the checkbox are auth.css's
+       .sv-* components, shipped for the Sprint View filters — reused rather
+       than reinvented so both surfaces stay one control.
+
+       One substitution: the Sprint View draws its tick as inline SVG inside
+       a JS template literal (project.html SV_CHECK). That is the exact
+       pattern that 500'd Cloudflare Pages in Block 13.3. A Tabler glyph is
+       a font character and carries no such risk. */
+    .fin-ms { position: relative; display: inline-flex; }
+    .fin-ms .fin-dr__trigger { gap: 10px; padding-right: 9px; min-width: 148px; }
+    .fin-ms .fin-dr__trigger > span { flex: 1; text-align: left; }
+    .fin-ms .fin-dr__trigger > i { margin-left: auto; font-size: 14px; color: var(--text-3); }
+    .fin-ms .fin-dr__trigger.is-filtered {
+      background: var(--brand-tint); border-color: var(--brand-soft-border); color: var(--brand-strong);
+    }
+    .fin-ms .fin-dr__trigger.is-filtered > i { color: var(--brand-strong); }
+    /* A long vendor list scrolls inside the menu rather than off the page.
+       padding:0 on the scroll container is load-bearing — auth.css's 6px of
+       menu padding sat ABOVE a sticky top:0 header, and .sv-menu-acts adds
+       5px of margin BELOW it, so rows scrolled through two transparent
+       strips and appeared to overlap the All/None row. The header is now one
+       opaque block with no gap on either side of it. */
+    .fin-ms .sv-menu { min-width: 250px; max-height: 300px; overflow-y: auto; padding: 0; }
+    .fin-ms__head {
+      position: sticky; top: 0; z-index: 2; background: var(--bg);
+      padding: 6px 0 0; border-bottom: 1px solid var(--border-soft);
+      border-radius: 11px 11px 0 0;
+    }
+    .fin-ms .sv-menu-acts { border-bottom: none; margin-bottom: 0; }
+    .fin-ms__list { padding: 5px 6px 6px; }
+    .fin-ms .sv-menu-item { justify-content: flex-start; }
+    /* Flipped by JS when the menu would run off the right edge. */
+    .fin-ms .sv-menu.is-right { left: auto; right: 0; }
+    .fin-ms .sv-cb i { font-size: 11px; line-height: 1; }
+    .fin-ms .sv-menu-item.is-capped { opacity: .4; cursor: default; }
+    .fin-ms .sv-menu-item.is-capped:hover { background: none; }
+    .fin-ms__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fin-ms__name.is-blank { color: var(--text-3); font-style: italic; }
+    .fin-ms__n {
+      margin-left: auto; padding-left: 10px; color: var(--text-3); font-size: 11.5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ---- period: one range picker -------------------------------------
+       Two <input type="date"> fields could not express "a range" — they let
+       you build a backwards one and never show the two dates in relation to
+       each other. A calendar shows the span itself, which is the thing being
+       chosen. No library, and no inline SVG: the chevrons are Tabler glyphs. */
+    .fin-dr { position: relative; }
+    .fin-dr__trigger {
+      display: flex; align-items: center; gap: 8px;
+      font-family: var(--font); font-size: 13px; color: var(--text);
+      background: var(--bg-subtle); border: 1px solid var(--border-input);
+      border-radius: var(--r-sm); padding: 7px 12px 7px 10px; cursor: pointer;
+      white-space: nowrap;
+    }
+    .fin-dr__trigger i { font-size: 15px; color: var(--text-3); flex: none; }
+    /* Narrow widths shrink the field below the label's width; ellipsise
+       rather than clipping the last characters off "(all)". */
+    .fin-dr__trigger { min-width: 0; }
+    .fin-dr__trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .fin-dr__trigger:hover { border-color: var(--brand-hair); }
+    .fin-dr__trigger[aria-expanded="true"] { border-color: var(--brand); color: var(--brand-strong); }
+    .fin-dr__trigger:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: 1px; }
+
+    .fin-dr__pop {
+      position: absolute; z-index: 40; top: calc(100% + 6px); left: 0;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--r-md); padding: 14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.12);
+    }
+    .fin-dr__months { display: flex; gap: 22px; }
+    .fin-dr__cal { width: 210px; }
+    .fin-dr__head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin: 0 0 8px; height: 24px;
+    }
+    .fin-dr__title {
+      font-family: var(--font); font-size: 12.5px; font-weight: 600; color: var(--text);
+    }
+    .fin-dr__nav {
+      background: none; border: none; cursor: pointer; padding: 3px 5px;
+      color: var(--text-3); border-radius: var(--r-sm); line-height: 1;
+    }
+    .fin-dr__nav:hover:not(:disabled) { background: var(--brand-soft); color: var(--brand-strong); }
+    .fin-dr__nav:disabled { opacity: .3; cursor: default; }
+    .fin-dr__nav i { font-size: 15px; }
+    .fin-dr__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
+    .fin-dr__dow {
+      font-family: var(--font); font-size: 10px; font-weight: 500; color: var(--text-3);
+      text-align: center; padding: 4px 0; letter-spacing: .02em;
+    }
+    .fin-dr__day {
+      font-family: var(--font); font-size: 12px; color: var(--text-2);
+      background: none; border: none; cursor: pointer; padding: 6px 0;
+      border-radius: var(--r-sm); font-variant-numeric: tabular-nums;
+    }
+    .fin-dr__day:hover:not(:disabled) { background: var(--brand-soft); color: var(--text); }
+    .fin-dr__day:disabled { color: var(--text-faint); cursor: default; }
+    .fin-dr__day.is-blank { visibility: hidden; }
+    /* The span reads as one block: square-cornered middles, rounded ends. */
+    .fin-dr__day.is-in { background: var(--brand-tint); color: var(--brand-strong); border-radius: 0; }
+    .fin-dr__day.is-end, .fin-dr__day.is-start {
+      background: var(--brand); color: #fff; font-weight: 600;
+    }
+    .fin-dr__day.is-start { border-radius: var(--r-sm) 0 0 var(--r-sm); }
+    .fin-dr__day.is-end { border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+    .fin-dr__day.is-start.is-end { border-radius: var(--r-sm); }
+    .fin-dr__day:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: -1px; }
+    .fin-dr__foot {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      margin: 12px 0 0; padding: 10px 0 0; border-top: 1px solid var(--border-soft);
+      font-family: var(--font); font-size: 11.5px; color: var(--text-3);
+    }
+    .fin-dr__all {
+      font-family: var(--font); font-size: 11.5px; color: var(--brand-strong);
+      background: none; border: none; cursor: pointer; padding: 2px;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    @media (max-width: 640px) {
+      .fin-dr__months { flex-direction: column; gap: 14px; }
+      .fin-dr__cal { width: 100%; }
+    }
+    .fin-filters__spacer { flex: 1 1 auto; }
+    .fin-reset {
+      font-family: var(--font); font-size: 12.5px; color: var(--brand-strong);
+      background: none; border: none; cursor: pointer; padding: 8px 4px;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    /* ---- chart cards ------------------------------------------------ */
+    .fin-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--r-lg); padding: 18px 20px 20px; margin: 0 0 16px;
+    }
+    .fin-card__head {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      margin: 0 0 4px;
+    }
+    .fin-card__title {
+      font-family: var(--font); font-size: 15px; font-weight: 600;
+      color: var(--text); margin: 0;
+    }
+    .fin-card__tools { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+    /* segmented control — mirrors auth.css .seg, kept local so the mockup
+       does not depend on a class that may move */
+    .fin-seg { display: inline-flex; background: var(--fin-track); border-radius: var(--r-pill); padding: 3px; }
+    .fin-seg button {
+      font-family: var(--font); font-size: 12.5px; font-weight: 500;
+      color: var(--text-2); background: none; border: none; cursor: pointer;
+      padding: 5px 12px; border-radius: var(--r-pill); white-space: nowrap;
+      transition: background var(--t-fast), color var(--t-fast);
+    }
+    .fin-seg button[aria-pressed="true"] { background: var(--bg); color: var(--brand-strong); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+    .fin-seg button:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: 1px; }
+
+    /* ---- vertical columns (the month card) ---------------------------
+       Months run along an axis, so they are read left-to-right as a series,
+       not top-down as a ranking. The container grows to include the axis
+       band -- a fixed height that fits only the plot gives the card its own
+       little scrollbar. */
+    .fin-cols { padding: 26px 0 0; }
+    .fin-cols__plot {
+      position: relative; height: 200px; display: flex; align-items: flex-end;
+      justify-content: center; gap: 28px; padding-left: 54px;
+      border-bottom: 1px solid var(--fin-grid);
+    }
+    .fin-gridline {
+      position: absolute; left: 54px; right: 0; height: 0;
+      border-top: 1px solid var(--fin-grid); pointer-events: none;
+    }
+    .fin-gridline span {
+      position: absolute; right: 100%; top: -7px; padding-right: 10px;
+      font-family: var(--font); font-size: 10.5px; color: var(--text-3);
+      font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+    .fin-col {
+      flex: 1 1 0; max-width: 120px; min-width: 0; height: 100%;
+      display: flex; align-items: flex-end; cursor: default;
+    }
+    .fin-col__bar {
+      position: relative; width: 100%; background: var(--fin-c1);
+      border-radius: 4px 4px 0 0;        /* rounded data-end, anchored to the baseline */
+      min-height: 2px; transition: opacity var(--t-fast);
+    }
+    /* A month the period only partly covers is not comparable to a full one. */
+    .fin-col--partial .fin-col__bar { background: var(--brand-hair); }
+    .fin-col__tag {
+      position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+      margin-bottom: 6px; font-family: var(--font); font-size: 11.5px;
+      font-weight: 600; color: var(--text); white-space: nowrap;
+      font-variant-numeric: tabular-nums; pointer-events: none;
+    }
+    .fin-cols__axis {
+      display: flex; justify-content: center; gap: 28px; padding: 9px 0 0 54px;
+    }
+    .fin-cols__axis span {
+      flex: 1 1 0; max-width: 120px; min-width: 0; text-align: center;
+      font-family: var(--font); font-size: 11.5px; color: var(--text-2);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .fin-cols__axis .fin-cols__pct { color: var(--text-3); }
+
+    /* ---- horizontal bars (breakdown) -------------------------------- */
+    .fin-bars { display: flex; flex-direction: column; gap: 9px; }
+    .fin-bar { display: grid; grid-template-columns: 148px 1fr 92px; gap: 12px; align-items: center; }
+    .fin-bar__name {
+      font-family: var(--font); font-size: 12.5px; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .fin-bar__name.is-blank { color: var(--text-3); font-style: italic; }
+    .fin-bar__track { background: var(--fin-track); border-radius: 4px; height: 20px; position: relative; }
+    .fin-bar__fill {
+      height: 100%; background: var(--fin-c1); border-radius: 4px;
+      min-width: 2px; transition: opacity var(--t-fast);
+    }
+    .fin-bar:hover .fin-bar__fill { opacity: .78; }
+    /* Chart and Table are genuinely different heights -- the table carries a
+       header and a Total row the chart has none of. Padding the short one to
+       match left ~165px of dead space under the chart, so the card animates
+       between the two instead. */
+    .fin-views { transition: height 0.22s ease; }
+    .fin-views.is-sizing { overflow: hidden; }
+    @media (prefers-reduced-motion: reduce) { .fin-views { transition: none; } }
+
+    /* The comparison card carries its own two pickers. They narrow WITHIN
+       whatever the filter row above has already selected -- a second filter
+       bar that silently ignored the first would be a trap. */
+    .fin-pace__picks { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 18px; }
+    /* Grouped columns: one bar per selected project inside each month.
+       Only for 2-5 selections -- past that the bars get too thin to compare
+       and the colour list stops being readable, so the card falls back to a
+       single combined bar. */
+    /* Reserve two rows for the pace legend. One project fits on a line and
+       five wrap to two, and letting the card grow by that row is the same
+       jump the empty-state height was fixed for. */
+    #bd-pace-chart .fin-legend { min-height: 50px; align-content: flex-start; }
+
+    /* Clicking a bar opens the payments behind it, under the chart. */
+    .fin-col[data-bar], .fin-colgroup > div[data-bar] { cursor: pointer; }
+    .fin-col[data-bar]:hover .fin-col__bar, .fin-colgroup > div[data-bar]:hover { opacity: .8; }
+    .fin-pace__detail {
+      margin: 14px 0 0; padding: 12px 14px;
+      background: var(--bg-subtle); border: 1px solid var(--border-soft);
+      border-radius: var(--r-md);
+    }
+    /* The list scrolls inside the panel rather than stretching the page.
+       August is 87 payments -- roughly 3,000px -- and closing that while
+       scrolled to the bottom shrinks the document by more than the scroll
+       range left to compensate with, so the page lurches however carefully
+       the anchor is held. Capping it removes the cause. */
+    .fin-pace__detailbody { max-height: 420px; overflow-y: auto; }
+    .fin-pace__detailhead {
+      display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px;
+      font-family: var(--font); font-size: 12px; color: var(--text-2);
+    }
+    .fin-pace__detailhead strong { color: var(--text); font-weight: 600; }
+    .fin-pace__close {
+      margin-left: auto; background: none; border: none; cursor: pointer;
+      font-family: var(--font); font-size: 11.5px; color: var(--brand-strong);
+      text-decoration: underline; text-underline-offset: 2px; padding: 2px;
+    }
+
+    .fin-colgroup { display: flex; align-items: flex-end; gap: 3px; width: 100%; height: 100%; }
+    .fin-colgroup > div { flex: 1 1 0; min-width: 2px; border-radius: 4px 4px 0 0; transition: opacity var(--t-fast); }
+
+    .fin-more {
+      display: block; width: 100%; margin: 14px 0 0; padding: 9px 0;
+      font-family: var(--font); font-size: 12.5px; font-weight: 500;
+      color: var(--brand-strong); background: none; cursor: pointer;
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      transition: background var(--t-fast), border-color var(--t-fast);
+    }
+    .fin-more:hover { background: var(--brand-soft); border-color: var(--brand-soft-border); }
+    .fin-more:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: 1px; }
+
+    .fin-bar__val {
+      font-family: var(--font); font-size: 12.5px; color: var(--text);
+      font-variant-numeric: tabular-nums; text-align: right; font-weight: 500;
+    }
+    .fin-bar__pct { color: var(--text-3); font-weight: 400; font-size: 11.5px; }
+
+    /* ---- project drill-down ------------------------------------------
+       A project bar opens its own vendor split underneath it. The panels are
+       rendered populated and CLOSED, and clicking only toggles classes --
+       re-rendering would hand the browser a brand-new element already at its
+       final height, with nothing to animate between. Same reason
+       /_lib/side-nav.js keeps its project tree in the DOM. */
+    /* One flex item per project, holding its bar and its panel. With
+       display:contents the bar and the collapsed panel became separate items
+       in .fin-bars, so every row paid the 9px container gap twice and the
+       list fell apart vertically. */
+    /* min-height:0 on both: a flex item's automatic minimum is content-based,
+       which reserved one line-box under every collapsed panel and pushed the
+       rows 22px apart. The 0fr collapse only works if nothing above it keeps
+       an auto minimum. */
+    .fin-drill { display: flex; flex-direction: column; min-height: 0; }
+    .fin-bar--drill { grid-template-columns: 148px 1fr 92px 20px; cursor: pointer; }
+    .fin-bar--drill:hover .fin-bar__name { color: var(--brand-strong); }
+    .fin-bar__chev {
+      display: inline-flex; justify-content: center; color: var(--text-faint);
+      font-size: 13px; transition: transform 0.22s ease;
+    }
+    .fin-bar--drill.is-open .fin-bar__chev { transform: rotate(90deg); color: var(--brand); }
+    .fin-bar--drill:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: 2px; border-radius: var(--r-sm); }
+
+    /* 0fr -> 1fr rather than max-height: no ceiling to guess, so a project
+       with two vendors and one with eight both animate to their real size. */
+    .fin-drill__panel { display: grid; grid-template-rows: 0fr; min-height: 0; transition: grid-template-rows 0.22s ease; }
+    .fin-drill__panel.is-open { grid-template-rows: 1fr; }
+    .fin-drill__inner { overflow: hidden; min-height: 0; }
+    /* A rail in the project's own colour, so the rows read as belonging to
+       the bar above them rather than as more rows in the same list. */
+    .fin-drill__pad {
+      margin: 6px 0 10px; padding: 10px 0 12px 16px;
+      border-left: 2px solid currentColor;
+      background: var(--bg-subtle); border-radius: 0 8px 8px 0;
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .fin-drill__head {
+      font-family: var(--font); font-size: 10.5px; font-weight: 500;
+      letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3);
+      margin: 0 0 3px; padding-left: 2px;
+    }
+    .fin-drill__row { display: grid; grid-template-columns: 132px 1fr 96px 20px; gap: 12px; align-items: center; }
+    .fin-drill__rowname {
+      font-family: var(--font); font-size: 11.5px; color: var(--text-2);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .fin-drill__rowname.is-blank { color: var(--text-3); font-style: italic; }
+    /* Shorter and lighter than a project row: subordinate at a glance, and
+       on the SAME scale as the bars above, so a vendor can never draw longer
+       than the project that contains it. */
+    .fin-drill__rowtrack { background: var(--fin-track); border-radius: 3px; height: 10px; }
+    .fin-drill__rowfill { height: 100%; border-radius: 3px; min-width: 2px; opacity: .8; }
+    .fin-drill__rowval {
+      font-family: var(--font); font-size: 11.5px; color: var(--text-2);
+      font-variant-numeric: tabular-nums; text-align: right;
+    }
+    .fin-drill__rowpct { color: var(--text-3); font-size: 10.5px; }
+    /* ---- level 3: the transactions behind one vendor -------------------
+       Names checked against the stylesheet before use -- the last nesting
+       level collided with a leftover .fin-sub rule and inherited a stray
+       22px margin. */
+    .fin-vend { display: flex; flex-direction: column; min-height: 0; }
+    .fin-drill__row--open { cursor: pointer; }
+    .fin-drill__row--open:hover .fin-drill__rowname { color: var(--brand-strong); }
+    .fin-drill__row--open:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: 2px; border-radius: var(--r-sm); }
+    .fin-drill__rowchev {
+      display: inline-flex; justify-content: center; color: var(--text-faint);
+      font-size: 11px; transition: transform 0.22s ease;
+    }
+    .fin-drill__row--open.is-open .fin-drill__rowchev { transform: rotate(90deg); color: currentColor; }
+
+    /* ---- level 4: one account owner's charges --------------------------
+       Owners are summed first because "who is this card actually paying
+       for" is the question at this depth; the individual charges sit one
+       click further in. */
+    .fin-own { display: flex; flex-direction: column; min-height: 0; }
+    /* Levels 3 and 4 share this geometry with the vendor rows above them, so
+       every amount in the tree lands in one column. The middle column used to
+       be dead space between a name at the far left and a figure at the far
+       right; it now carries the owner's share of the vendor. */
+    .fin-ownrow {
+      display: grid; grid-template-columns: 140px 1fr 96px 20px; gap: 12px; align-items: center;
+      font-family: var(--font); font-size: 11px; color: var(--text-2);
+      padding: 3px 0; cursor: pointer; border-radius: 5px;
+    }
+    .fin-ownrow__track { background: var(--fin-track); border-radius: 3px; height: 8px; }
+    .fin-ownrow__fill { height: 100%; border-radius: 3px; min-width: 2px; opacity: .55; }
+    .fin-ownrow:hover { color: var(--text); }
+    .fin-ownrow:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: 2px; }
+    .fin-ownrow__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fin-ownrow__name.is-blank { color: var(--text-3); font-style: italic; }
+    .fin-ownrow__amt { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 500; }
+    .fin-ownrow__n { color: var(--text-faint); font-weight: 400; font-size: 10px; }
+    .fin-ownrow__chev {
+      display: inline-flex; justify-content: center; color: var(--text-faint);
+      font-size: 10px; transition: transform 0.22s ease;
+    }
+    .fin-ownrow.is-open .fin-ownrow__chev { transform: rotate(90deg); color: var(--text-2); }
+
+    .fin-opanel { display: grid; grid-template-rows: 0fr; min-height: 0; transition: grid-template-rows 0.22s ease; }
+    .fin-opanel.is-open { grid-template-rows: 1fr; }
+    .fin-opanel__inner { overflow: hidden; min-height: 0; }
+    .fin-opanel__pad {
+      margin: 2px 0 6px 8px; padding: 5px 0 5px 10px;
+      border-left: 1px solid var(--border-soft);
+      display: flex; flex-direction: column; gap: 2px;
+    }
+
+    .fin-txns { display: grid; grid-template-rows: 0fr; min-height: 0; transition: grid-template-rows 0.22s ease; }
+    .fin-txns.is-open { grid-template-rows: 1fr; }
+    .fin-txns__inner { overflow: hidden; min-height: 0; }
+    .fin-txns__pad {
+      margin: 4px 0 8px 12px; padding: 8px 0 8px 12px;
+      border-left: 1px solid var(--border); background: var(--bg);
+      border-radius: 0 6px 6px 0; display: flex; flex-direction: column; gap: 3px;
+    }
+    /* Date, the account the card belongs to, amount. Date leads because the
+       list is ordered by it -- reading a history down a column of dates is
+       the whole point of this level. */
+    .fin-txn {
+      display: grid; grid-template-columns: 140px 1fr 96px 20px; gap: 12px; align-items: baseline;
+      font-family: var(--font); font-size: 10.5px; color: var(--text-3);
+      padding: 1px 0;
+    }
+    .fin-txn__date { font-variant-numeric: tabular-nums; padding-left: 14px; }
+    .fin-txn__amt { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
+    .fin-txn__head {
+      font-family: var(--font); font-size: 9.5px; font-weight: 500; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--text-faint); padding-bottom: 3px;
+      border-bottom: 1px solid var(--border-soft); margin-bottom: 3px;
+    }
+    .fin-txn__head .fin-txn__date { padding-left: 0; }
+
+    .fin-drill__more {
+      font-family: var(--font); font-size: 11px; color: var(--text-3); margin: 0;
+    }
+
+
+    /* Legend. The rules for these classes were removed along with the old
+       composition card; the burn-up reuses the markup, so they come back. */
+    .fin-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+    .fin-legend__item {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-family: var(--font); font-size: 12px; color: var(--text-2);
+    }
+    .fin-legend__dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+    .fin-legend__val { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+    /* ---- tooltip ----------------------------------------------------- */
+    .fin-tip {
+      position: fixed; z-index: 60; pointer-events: none; opacity: 0;
+      background: var(--text); color: #fff; border-radius: var(--r-sm);
+      padding: 8px 11px; font-family: var(--font); font-size: 12px;
+      line-height: 1.45; max-width: 260px; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+      transition: opacity var(--t-fast);
+    }
+    .fin-tip.is-on { opacity: 1; }
+    .fin-tip b { font-weight: 600; }
+    .fin-tip .fin-tip__v { font-variant-numeric: tabular-nums; }
+    .fin-tip .fin-tip__m { color: rgba(255,255,255,.66); }
+
+    /* ---- tables ------------------------------------------------------ */
+    .fin-tbl-wrap { overflow-x: auto; }
+    .fin-tbl { width: 100%; border-collapse: collapse; font-family: var(--font); font-size: 12.5px; }
+    .fin-tbl th {
+      text-align: left; font-weight: 500; color: var(--text-3); font-size: 11px;
+      letter-spacing: 0.04em; text-transform: uppercase; padding: 8px 10px;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .fin-tbl th.is-num, .fin-tbl td.is-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .fin-tbl td {
+      padding: 8px 10px; border-bottom: 1px solid var(--border-soft);
+      color: var(--text-2); white-space: nowrap;
+    }
+    .fin-tbl td.is-strong { color: var(--text); font-weight: 500; }
+    .fin-tbl td.is-blank { color: var(--text-faint); font-style: italic; }
+    .fin-tbl tbody tr:hover td { background: var(--brand-soft); }
+    .fin-tbl__foot td { border-bottom: none; color: var(--text); font-weight: 600; padding-top: 11px; }
+
+    /* ---- expandable table rows ----------------------------------------
+       The same tree as the chart view, in the table. Rows are shown and
+       hidden rather than animated: a <tr> cannot be transitioned to a height
+       the way a grid row can, and a half-drawn table row looks broken. */
+    .fin-trow--open { cursor: pointer; }
+    .fin-trow--open:hover td { background: var(--brand-soft); }
+    .fin-trow--open:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: -2px; }
+    .fin-tchev {
+      display: inline-block; width: 12px; color: var(--text-faint);
+      transition: transform 0.15s ease; font-size: 11px;
+    }
+    .fin-trow--open.is-open .fin-tchev { transform: rotate(90deg); color: var(--brand); }
+    /* A project cell is its own target inside the month row. */
+    .fin-tcell { cursor: pointer; }
+    .fin-tcell:hover { background: var(--brand-soft); color: var(--brand-strong); }
+    .fin-tcell.is-open { background: var(--brand-tint); color: var(--brand-strong); font-weight: 600; }
+    .fin-tcell:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: -2px; }
+
+    .fin-trow--l2 > td:first-child { padding-left: 26px; }
+    .fin-trow--l3 > td:first-child { padding-left: 46px; }
+    .fin-trow--l4 > td:first-child { padding-left: 66px; }
+    .fin-trow--l2 > td { font-size: 12px; }
+    .fin-trow--l3 > td, .fin-trow--l4 > td { font-size: 11.5px; color: var(--text-3); }
+    .fin-trow--l4 > td { font-variant-numeric: tabular-nums; }
+    .fin-trow[hidden] { display: none; }
+
+    /* The pace card's empty state holds the chart's footprint. Collapsing
+       from 631px to 257px shortens the document, and once the page is
+       shorter than the current scroll position the browser clamps -- no
+       amount of scroll correction can hold a row still when there is no
+       scroll range left to give back. Keeping the box is the actual fix. */
+    #bd-pace-chart .fin-empty, #bd-pace-table .fin-empty {
+      /* Mirrors the rendered height of .fin-cols (26px top padding + a 200px
+         plot + the axis band), measured rather than derived -- the derived
+         figure was 8px short and the card still moved. Re-measure if the
+         plot height or the axis type size changes. */
+      min-height: 257px; display: flex; align-items: center; justify-content: center;
+    }
+
+    .fin-empty {
+      font-family: var(--font); font-size: 13px; color: var(--text-2);
+      padding: 34px 0; text-align: center;
+    }
+    .fin-note {
+      font-family: var(--font); font-size: 11.5px; color: var(--text-3);
+      margin: 12px 0 0; line-height: 1.5;
+    }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 640px) {
+      .fin-shell { padding: 20px 14px 72px; }
+      .fin-bar { grid-template-columns: 104px 1fr 78px; gap: 8px; }
+      .fin-field select { min-width: 0; width: 100%; }
+      .fin-field { flex: 1 1 140px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===================================================================
+       Block 19 side rail. This block is BYTE-IDENTICAL in all 11 authed
+       pages and is diffed across them by verification item 3. Do not edit
+       one copy — edit every copy, or the drift this rail exists to fix
+       starts over. Behavior: /_lib/side-nav.js. Styles: auth.css .side-nav*.
+       =================================================================== -->
+  <div class="side-nav-head">
+    <button class="side-nav-head__toggle" type="button" data-sn-mobile-toggle aria-label="Open navigation" aria-expanded="false"><i class="ti ti-menu-2" aria-hidden="true"></i></button>
+    <a class="side-nav-head__brand" href="/dashboard.html"><span class="brandmark"></span><span class="wordmark" style="font-size:14px;">Elinno&nbsp;Agent</span></a>
+  </div>
+  <div class="side-nav-backdrop" data-sn-backdrop></div>
+  <aside class="side-nav" aria-label="Main">
+    <div class="side-nav__brand">
+      <a class="side-nav__lockup" href="/dashboard.html"><span class="brandmark"></span><span class="wordmark" style="font-size:15px;">Elinno&nbsp;Agent</span></a>
+    </div>
+    <div class="side-nav__scroll">
+      <a class="sn-item" href="/dashboard.html" data-sn-nav="dashboard" title="Dashboard"><i class="ti ti-layout-dashboard" aria-hidden="true"></i><span class="sn-item__label">Dashboard</span></a>
+      <button class="sn-item" type="button" data-sn-section="finance" aria-expanded="false" title="Finance"><i class="ti ti-chart-histogram" aria-hidden="true"></i><span class="sn-item__label">Finance</span><i class="ti ti-chevron-right sn-chev" aria-hidden="true"></i></button>
+      <div class="sn-l3-group" data-sn-subnav="finance"><div class="sn-l3-group__inner">
+        <div class="sn-l2"><a class="sn-l2__link" href="/finance.html?tab=reap" data-fin-tab="reap"><span class="sn-l2__label">Reap</span></a></div>
+        <div class="sn-l2"><a class="sn-l2__link" href="/finance.html?tab=fiat" data-fin-tab="fiat"><span class="sn-l2__label">Fiat</span></a></div>
+        <div class="sn-l2"><a class="sn-l2__link" href="/finance.html?tab=crypto" data-fin-tab="crypto"><span class="sn-l2__label">Crypto</span></a></div>
+      </div></div>
+      <button class="sn-item" type="button" data-sn-section="projects" aria-expanded="false" title="Projects"><i class="ti ti-folders" aria-hidden="true"></i><span class="sn-item__label">Projects</span><i class="ti ti-chevron-right sn-chev" aria-hidden="true"></i></button>
+      <div data-sn-children="projects"></div>
+      <a class="sn-item" href="/cross-project/index.html" data-sn-nav="cross-project" title="Cross-project chats"><i class="ti ti-messages" aria-hidden="true"></i><span class="sn-item__label">Cross-project chats</span></a>
+      <div id="adminLink" style="display:none;">
+        <div class="sn-divider"></div>
+        <a class="sn-item" href="/workspace_settings.html" data-sn-nav="workspace-settings" title="Workspace settings"><i class="ti ti-settings" aria-hidden="true"></i><span class="sn-item__label">Workspace settings</span></a>
+        <a class="sn-item" href="/admin.html" data-sn-nav="members" title="Members"><i class="ti ti-shield" aria-hidden="true"></i><span class="sn-item__label">Members</span></a>
+      </div>
+    </div>
+    <div class="side-nav__foot">
+      <a class="sn-item wn-navlink" href="/whats-new.html" data-sn-nav="whats-new" title="What's new"><i class="ti ti-sparkles" aria-hidden="true"></i><span class="sn-item__label">What's new</span><span class="wn-navlink__dot" style="display:none;"></span></a>
+      <div class="sn-item sn-item--static" data-sn-user><span id="navUserAvatar" class="sn-avatar" title=""></span><span class="sn-item__label" data-sn-username>Account</span></div>
+      <button class="sn-item" type="button" id="logoutBtn" title="Log out"><i class="ti ti-logout" aria-hidden="true"></i><span class="sn-item__label">Log out</span></button>
+    </div>
+  </aside>
+  <!-- Block 19 rail tree restore. BYTE-IDENTICAL in all 11 authed pages.
+       Runs during parse, right after the rail exists and before first paint.
+
+       Three jobs, all so the menu arrives correct rather than being corrected:
+         1. paint the avatar letter
+         2. paint the Projects tree from the last page's render, so an open
+            section is not empty while /api/projects is in flight
+         3. NORMALISE that tree to the CURRENT page — the cache carries
+            whichever project was open on the previous screen, so it is
+            re-pointed at the project in this URL, or closed entirely when
+            this page is not a project. Without this, opening Rain and then
+            clicking Members left Rain expanded under a Members highlight.
+       Order matters: the tree must exist before scrollTop means anything,
+       so the scroll restore is last.
+       The markup came from the previous page's own render (escaped there)
+       and the live render replaces it moments later. -->
+  <script>(function(){try{var d=document.documentElement,p=location.pathname,i=localStorage.getItem('elinno.sidenav.initial'),a=document.getElementById('navUserAvatar');if(a&&i)a.textContent=i;if(d.classList.contains('sn-section-open')){var s=document.querySelector('[data-sn-section="projects"]');if(s)s.setAttribute('aria-expanded','true');var b=document.querySelector('[data-sn-children="projects"]'),h=sessionStorage.getItem('elinno.sidenav.treeHtml');if(b&&h)b.innerHTML=h;}var m=p.match(/^\/(?:project|project_settings)\/([^\/]+)/),slug=m?decodeURIComponent(m[1]):null,rows=document.querySelectorAll('[data-sn-project]');for(var j=0;j<rows.length;j++){var on=slug!==null&&rows[j].getAttribute('data-sn-project')===slug;rows[j].classList.toggle('is-open',on);rows[j].setAttribute('aria-expanded',String(on));var g=rows[j].nextElementSibling;if(g&&g.classList.contains('sn-l3-group'))g.classList.toggle('is-open',on);}var c=document.querySelector('.side-nav__scroll'),y=sessionStorage.getItem('elinno.sidenav.scrollTop');if(c&&y)c.scrollTop=+y;}catch(e){}})();</script>
+
+  <main style="background:var(--bg-subtle);min-height:100vh;">
+    <div class="fin-shell">
+
+      <div class="eyebrow"><span class="eyebrow__label">Finance</span><span class="eyebrow__rule"></span></div>
+
+      <div class="fin-tabs" role="tablist" aria-label="Finance sources">
+        <button class="fin-tab" type="button" role="tab" id="tab-reap" data-tab="reap" aria-controls="panel-reap" aria-selected="true">Reap</button>
+        <button class="fin-tab" type="button" role="tab" id="tab-fiat" data-tab="fiat" aria-controls="panel-fiat" aria-selected="false" tabindex="-1">Fiat</button>
+        <button class="fin-tab" type="button" role="tab" id="tab-crypto" data-tab="crypto" aria-controls="panel-crypto" aria-selected="false" tabindex="-1">Crypto</button>
+      </div>
+
+      <section id="panel-reap" role="tabpanel" aria-labelledby="tab-reap" tabindex="0">
+      <h1 class="fin-h1">Reap</h1>
+      <div class="fin-meta">
+        <p>Last updated: <strong id="metaUpdated">—</strong></p>
+      </div>
+
+      <!-- One filter row, above everything it scopes. Every card below
+           re-renders against the same slice — no per-card filters. -->
+      <div class="fin-filters">
+        <div class="fin-field">
+          <label id="lbl-project">Projects</label>
+          <span class="sv-filterwrap fin-ms" data-ms="project">
+            <button class="fin-dr__trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-labelledby="lbl-project">
+              <span data-ms-label>All</span><i class="ti ti-chevron-down" aria-hidden="true"></i>
+            </button>
+            <div class="sv-menu" data-ms-menu role="group"></div>
+          </span>
+        </div>
+        <div class="fin-field">
+          <label id="lbl-vendor">Vendors</label>
+          <span class="sv-filterwrap fin-ms" data-ms="vendor">
+            <button class="fin-dr__trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-labelledby="lbl-vendor">
+              <span data-ms-label>All</span><i class="ti ti-chevron-down" aria-hidden="true"></i>
+            </button>
+            <div class="sv-menu" data-ms-menu role="group"></div>
+          </span>
+        </div>
+        <div class="fin-field fin-dr">
+          <label for="fPeriod">Dates</label>
+          <button class="fin-dr__trigger" type="button" id="fPeriod" aria-haspopup="dialog" aria-expanded="false">
+            <i class="ti ti-calendar-event" aria-hidden="true"></i><span id="fPeriodLabel">—</span>
+          </button>
+          <div class="fin-dr__pop" id="fPeriodPop" role="dialog" aria-label="Choose a date range" hidden>
+            <div class="fin-dr__months" id="fPeriodMonths"></div>
+            <div class="fin-dr__foot">
+              <span id="fPeriodHint">Pick a start date.</span>
+              <button type="button" class="fin-dr__all" id="fPeriodAll">Full period</button>
+            </div>
+          </div>
+        </div>
+        <div class="fin-field">
+          <label id="lbl-card">Cards</label>
+          <span class="sv-filterwrap fin-ms" data-ms="card">
+            <button class="fin-dr__trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-labelledby="lbl-card">
+              <span data-ms-label>All</span><i class="ti ti-chevron-down" aria-hidden="true"></i>
+            </button>
+            <div class="sv-menu" data-ms-menu role="group"></div>
+          </span>
+        </div>
+        <div class="fin-filters__spacer"></div>
+        <button class="fin-reset" type="button" id="fReset">Reset filters</button>
+      </div>
+
+      <!-- ---- breakdown, one card per dimension ---- -->
+      <!-- All three read the SAME filtered slice; only the grouping differs. -->
+      <section class="fin-card">
+        <div class="fin-card__head">
+          <h2 class="fin-card__title">by PROJECT</h2>
+          <div class="fin-card__tools">
+            <div class="fin-seg" role="group" aria-label="View as">
+              <button type="button" data-view="project" data-mode="chart" aria-pressed="true">Chart</button>
+              <button type="button" data-view="project" data-mode="table" aria-pressed="false">Table</button>
+            </div>
+          </div>
+        </div>
+        <div class="fin-views" id="bd-project-views">
+          <div id="bd-project-chart"></div>
+          <div id="bd-project-table" hidden></div>
+        </div>
+        <p class="fin-note" id="bd-project-note"></p>
+      </section>
+
+      <section class="fin-card">
+        <div class="fin-card__head">
+          <h2 class="fin-card__title">by VENDOR</h2>
+          <div class="fin-card__tools">
+            <div class="fin-seg" role="group" aria-label="View as">
+              <button type="button" data-view="vendor" data-mode="chart" aria-pressed="true">Chart</button>
+              <button type="button" data-view="vendor" data-mode="table" aria-pressed="false">Table</button>
+            </div>
+          </div>
+        </div>
+        <div class="fin-views" id="bd-vendor-views">
+          <div id="bd-vendor-chart"></div>
+          <div id="bd-vendor-table" hidden></div>
+        </div>
+        <p class="fin-note" id="bd-vendor-note"></p>
+      </section>
+
+      <section class="fin-card">
+        <div class="fin-card__head">
+          <h2 class="fin-card__title">by MONTH</h2>
+          <div class="fin-card__tools">
+            <div class="fin-seg" role="group" aria-label="View as">
+              <button type="button" data-view="pace" data-mode="chart" aria-pressed="true">Chart</button>
+              <button type="button" data-view="pace" data-mode="table" aria-pressed="false">Table</button>
+            </div>
+          </div>
+        </div>
+        <div class="fin-pace__picks">
+          <div class="fin-field">
+            <label id="lbl-pace-project">Projects</label>
+            <span class="sv-filterwrap fin-ms" data-ms="pace-project">
+              <button class="fin-dr__trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-labelledby="lbl-pace-project">
+                <span data-ms-label>All</span><i class="ti ti-chevron-down" aria-hidden="true"></i>
+              </button>
+              <div class="sv-menu" data-ms-menu role="group"></div>
+            </span>
+          </div>
+          <div class="fin-field">
+            <label id="lbl-pace-vendor">Vendor</label>
+            <span class="sv-filterwrap fin-ms" data-ms="pace-vendor">
+              <button class="fin-dr__trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lbl-pace-vendor">
+                <span data-ss-label>All vendors</span><i class="ti ti-chevron-down" aria-hidden="true"></i>
+              </button>
+              <div class="sv-menu" data-ss-menu role="listbox"></div>
+            </span>
+          </div>
+        </div>
+        <div class="fin-views" id="bd-pace-views">
+          <div id="bd-pace-chart"></div>
+          <div id="bd-pace-table" hidden></div>
+        </div>
+      </section>
+
+      </section>
+
+      <section id="panel-fiat" role="tabpanel" aria-labelledby="tab-fiat" tabindex="0" hidden>
+        <h1 class="fin-h1">Fiat</h1>
+        <p class="fin-drill__panel">Not connected yet.</p>
+        <div class="fin-placeholder">Nothing here yet.</div>
+      </section>
+
+      <section id="panel-crypto" role="tabpanel" aria-labelledby="tab-crypto" tabindex="0" hidden>
+        <h1 class="fin-h1">Crypto</h1>
+        <p class="fin-drill__panel">Not connected yet.</p>
+        <div class="fin-placeholder">Nothing here yet.</div>
+      </section>
+
+    </div>
+  </main>
+
+  <div class="fin-tip" id="finTip" role="status" aria-live="polite"></div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    /* Filled by boot() from the endpoint before initFilters()/render() run.
+       Reassigned wholesale, never mutated, so every closure below reads the
+       current dataset through these bindings. */
+    var DATA = { rows: [] };
+    var ROWS = [];
+
+    /* Series palette, read from CSS so the tokens have one home. Assigned by
+       ENTITY (a stable sort of every value in the whole dataset), never by
+       rank in the current slice — filtering must not repaint a survivor. */
+    var BLANK = '(not set)';
+    /* Joins the parts of a drill key. Never U+0000: an HTML parser rewrites
+       that to U+FFFD inside an attribute, so a key built in JS stopped
+       matching the same key read back from the DOM. */
+    var KEYSEP = '|~|';
+
+    /* Project colours, lifted from the cell fills in the Reap export so a
+       project reads the same here as it does in the spreadsheet. Keyed by
+       NAME, so a filter can never repaint a survivor.
+
+       Seven of the ten were shifted darker along their own hue: they are
+       cell fills, drawn as pale grounds behind dark text, and as marks on a
+       white card they landed at 1.5-2.8:1. Each is the same colour at the
+       minimum lightness that clears 3:1 -- Rain is still gold, Gems Trade
+       still green -- rather than a different colour that happens to pass.
+       Excel originals, in order: DF2F4A BDA8F9 FFCB00 00C875 9CD326 579BFC
+       4ECCC6 FF007F 333333 C4C4C4. */
+    var PROJECT_COLOR = {
+      'Joni': '#DF2F4A',
+      'Elinnovation': '#A082F6',
+      'Rain': '#B69100',
+      'Gems Trade': '#00AB64',
+      'Gems Launchpad': '#78A21D',
+      'Olympus AI': '#4D95FC',
+      'Mezada': '#30A59F',
+      'TOMI': '#FF007F',
+      'DOP': '#333333',
+      '(not set)': '#959595'
+    };
+    var LIMIT = 10;                    /* rows shown before "Show all" */
+
+    var usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+    var usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+    function money(n) { return usd.format(n); }
+    function money0(n) { return usd0.format(n); }
+    function pct(n, t) { return t ? (100 * n / t).toFixed(1) + '%' : '0%'; }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function val(r, k) { return (r[k] || '').trim() || BLANK; }
+    function sum(a) { var t = 0; for (var i = 0; i < a.length; i++) t += a[i].amount; return t; }
+
+    /* ---- dates: parse as plain calendar days, no timezone drift -------- */
+    function ymd(s) { var p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+    var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    var P_START = '', P_END = '';   /* set by boot(), from the dataset's own span */
+
+
+    /* ---- state -------------------------------------------------------- */
+    var state = {
+      from: '', to: '', sel: {},
+      view: { project: 'chart', vendor: 'chart', pace: 'chart' },
+      expanded: { project: false, vendor: false },
+      cmp: { project: '', vendor: '' },
+      paceBar: null, paceChild: null, paceOwner: null,
+      drill: {}, child: {}, owner: {},
+      sort: { key: 'date', dir: 'desc' }
+    };
+
+    function filtered() {
+      return ROWS.filter(function (r) {
+        if (state.from && r.date < state.from) return false;
+        if (state.to && r.date > state.to) return false;
+        for (var i = 0; i < MULTI.length; i++) {
+          if (!state.sel[MULTI[i].key].has(val(r, MULTI[i].key))) return false;
+        }
+        return true;
+      });
+    }
+
+    /* ---- tooltip ------------------------------------------------------ */
+    var tipEl = document.getElementById('finTip');
+    function tipOn(e, html) {
+      tipEl.innerHTML = html;
+      tipEl.classList.add('is-on');
+      moveTip(e);
+    }
+    function moveTip(e) {
+      var pad = 14, w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+      var x = e.clientX + pad, y = e.clientY + pad;
+      if (x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+      if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+      tipEl.style.left = Math.max(8, x) + 'px';
+      tipEl.style.top = Math.max(8, y) + 'px';
+    }
+    function tipOff() { tipEl.classList.remove('is-on'); }
+    /* Hold the clicked row still while a panel opens or closes. Collapsing
+       something above the fold otherwise yanks the whole page upward under
+       the pointer, and with four nestable levels that happens constantly.
+
+       Corrected every frame for the length of the transition rather than
+       once at the end: the height changes gradually, so a single adjustment
+       fixes the destination and leaves the 220ms in between sliding. */
+
+    function holdScroll(el, mutate) {
+      /* auth.css sets html { scroll-behavior: smooth }. Left on, every
+         correction animates, so each frame measures a scroll position still
+         travelling from the last one and the row drifts anyway. Corrections
+         are instant; the restore puts smooth back for ordinary navigation. */
+      var root = document.documentElement;
+      var prevBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
+      var before = el.getBoundingClientRect().top;
+      mutate();
+      var t0 = null;
+      requestAnimationFrame(function step(ts) {
+        if (t0 === null) t0 = ts;
+        var drift = el.getBoundingClientRect().top - before;
+        if (drift) window.scrollBy(0, drift);
+        if (ts - t0 < 320) requestAnimationFrame(step);
+        else root.style.scrollBehavior = prevBehavior;
+      });
+    }
+
+    /* Department and description are per-PAYMENT fields, so a vendor's are
+       the distinct values across its payments. A vendor filed under two
+       departments should say both rather than have one picked for it. Empty
+       fields are dropped, not shown blank. */
+    function vendorTipHtml(rows, name) {
+      var mine = rows.filter(function (r) { return val(r, 'vendor') === name; });
+      function distinctOf(key) {
+        var seen = {}, out = [];
+        mine.forEach(function (r) {
+          var v = (r[key] || '').trim();
+          if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+        });
+        return out;
+      }
+      var dept = distinctOf('department'), desc = distinctOf('description');
+      var tip = '<b>' + esc(name) + '</b>';
+      if (dept.length) tip += '<br>' + esc(dept.join(' \u00b7 '));
+      if (desc.length) tip += '<br><span class="fin-tip__m">' + esc(desc.join(' ')) + '</span>';
+      if (!dept.length && !desc.length) {
+        tip += '<br><span class="fin-tip__m">No department or description recorded.</span>';
+      }
+      return tip;
+    }
+
+    function bindTip(el, html) {
+      el.addEventListener('mouseenter', function (e) { tipOn(e, html); });
+      el.addEventListener('mousemove', moveTip);
+      el.addEventListener('mouseleave', tipOff);
+    }
+
+    /* ---- filters ------------------------------------------------------
+       Options come from the FULL dataset, not the current slice, so the
+       lists never reshuffle underneath a click. Selection is a Set per
+       dimension seeded with everything, so "all selected" and "no filter"
+       are the same state and filtered() needs no special case. */
+    /* msId namespaces a menu; key says which column it reads. The pace card
+       gets its own project menu over the same column, with its own selection
+       and its own re-render. */
+    var MULTI = [
+      { msId: 'project', key: 'project', noun: 'projects', menu: 'Filter by project' },
+      { msId: 'vendor', key: 'vendor', noun: 'vendors', menu: 'Filter by vendor', noCount: true },
+      { msId: 'card', key: 'card', noun: 'cards', menu: 'Filter by card' }
+    ];
+    /* Re-rendering this card changes its height -- the headline gains a line
+       when one month overtakes the other, the legend loses an entry when a
+       month drops out. Left alone, the page jumps under a menu the reader is
+       still clicking. Pin the control, animate the height. */
+    function repaintPace(anchor) {
+      holdScroll(anchor || document.querySelector('[data-ms="pace-project"]'), function () {
+        animateViewSwitch({ id: 'pace' }, function () { renderPace(filtered()); });
+      });
+    }
+    /* No All/None and a hard cap: this picker drives a grouped chart that
+       only reads at up to five series, so "all ten" is not a state it can
+       draw. Starting empty makes the first action an explicit choice rather
+       than a de-selection of nine things. */
+    var PACE_MULTI = { msId: 'pace-project', key: 'project', noun: 'projects', menu: 'Projects in this chart',
+                       noActions: true, startEmpty: true, max: 5, emptyLabel: 'Select projects (maximum 5)',
+                       onChange: repaintPace };
+    var ORDER = {}, COUNTS = {};
+
+    function distinct(key) {
+      var c = {};
+      ROWS.forEach(function (r) { var v = val(r, key); c[v] = (c[v] || 0) + 1; });
+      /* Biggest first, but the blank bucket always last regardless of size —
+         it is the absence of a value, not a value, and on Projects it
+         outranks four real ones. Sorting it into the list would put a gap in
+         the source data above things people are actually looking for. */
+      var names = Object.keys(c).sort(function (a, b) {
+        if (a === BLANK) return 1;
+        if (b === BLANK) return -1;
+        return c[b] - c[a] || a.localeCompare(b);
+      });
+      return { names: names, counts: c };
+    }
+
+    function msLabel(m) {
+      var set = state.sel[m.msId], all = ORDER[m.msId].length;
+      if (set.size === 0 && m.emptyLabel) return m.emptyLabel;
+      if (set.size === all) return 'All ' + m.noun;
+      if (set.size === 0) return 'No ' + m.noun;
+      if (set.size === 1) return Array.from(set)[0];
+      return set.size + ' ' + m.noun;
+    }
+
+    function paintMulti(m) {
+      var wrap = document.querySelector('[data-ms="' + m.msId + '"]');
+      var set = state.sel[m.msId], all = set.size === ORDER[m.msId].length;
+      wrap.querySelector('[data-ms-label]').textContent = msLabel(m);
+      wrap.querySelector('.fin-dr__trigger').classList.toggle('is-filtered', !all);
+
+      /* Rows are re-styled in place, never rebuilt: replacing the menu on
+         every tick would detach the row under the pointer — the same bug
+         the date picker had. */
+      var capped = m.max && set.size >= m.max;
+      wrap.querySelectorAll('.sv-menu-item').forEach(function (el) {
+        var on = set.has(el.getAttribute('data-value'));
+        var cb = el.querySelector('.sv-cb');
+        cb.classList.toggle('on', on);
+        cb.innerHTML = on ? '<i class="ti ti-check" aria-hidden="true"></i>' : '';
+        el.setAttribute('aria-checked', String(on));
+        /* At the cap the unchecked rows are inert -- greying them says so
+           before the click that would do nothing. */
+        el.classList.toggle('is-capped', !!capped && !on);
+        el.setAttribute('aria-disabled', String(!!capped && !on));
+      });
+    }
+
+    function buildMulti(m) {
+      var d = distinct(m.key);
+      ORDER[m.msId] = d.names; COUNTS[m.msId] = d.counts;
+      state.sel[m.msId] = new Set(m.startEmpty ? [] : d.names);
+
+      var wrap = document.querySelector('[data-ms="' + m.msId + '"]');
+      var menu = wrap.querySelector('[data-ms-menu]');
+      menu.innerHTML = '<div class="fin-ms__head">' +
+          '<div class="sv-menu-label">' + esc(m.menu) + '</div>' +
+          (m.noActions ? '' :
+            '<div class="sv-menu-acts">' +
+              '<span class="sv-menu-act" data-action="all" role="button" tabindex="0">All</span>' +
+              '<span class="sv-menu-act" data-action="none" role="button" tabindex="0">None</span>' +
+            '</div>') +
+        '</div><div class="fin-ms__list">' +
+        d.names.map(function (n) {
+          return '<div class="sv-menu-item" role="checkbox" aria-checked="true" data-value="' + esc(n) + '">' +
+            '<span class="sv-cb on"><i class="ti ti-check" aria-hidden="true"></i></span>' +
+            '<span class="fin-ms__name' + (n === BLANK ? ' is-blank' : '') + '" title="' + esc(n) + '">' + esc(n) + '</span>' +
+            (m.noCount ? '' : '<span class="fin-ms__n">' + d.counts[n] + '</span>') + '</div>';
+        }).join('') + '</div>';
+
+      wrap.querySelector('.fin-dr__trigger').addEventListener('click', function () {
+        openMulti(m.msId, !wrap.classList.contains('open'));
+      });
+
+      menu.addEventListener('click', function (e) {
+        var act = e.target.closest('.sv-menu-act');
+        if (act) {
+          /* Clearing a set is not a toggle, so All/None are handled before
+             the row click. The menu stays open either way — you are usually
+             about to tick two or three back on. */
+          state.sel[m.msId] = act.getAttribute('data-action') === 'all' ? new Set(ORDER[m.msId]) : new Set();
+          paintMulti(m); if (m.onChange) m.onChange(wrap); else render();
+          return;
+        }
+        var item = e.target.closest('.sv-menu-item');
+        if (!item) return;
+        var v = item.getAttribute('data-value');
+        var set = state.sel[m.msId];
+        if (set.has(v)) set.delete(v);
+        else if (!m.max || set.size < m.max) set.add(v);
+        else return;                                   /* at the cap: ignore */
+        paintMulti(m); if (m.onChange) m.onChange(wrap); else render();
+      });
+      paintMulti(m);
+    }
+
+    /* One menu open at a time — two overlapping panels in a single filter
+       row is just a stack of rectangles. */
+    function openMulti(key, on) {
+      document.querySelectorAll('[data-ms]').forEach(function (w) {
+        var open = on && w.getAttribute('data-ms') === key;
+        w.classList.toggle('open', open);
+        w.querySelector('.fin-dr__trigger').setAttribute('aria-expanded', String(open));
+        if (!open) return;
+        /* Measured after it is visible, not guessed from position in the
+           row: the rightmost filter changes with the viewport. */
+        /* Both hooks: the multi-selects use [data-ms-menu], the pace card's
+           single-select [data-ss-menu]. They share this wrapper, so the
+           edge check has to know about both. */
+        var menu = w.querySelector('[data-ms-menu], [data-ss-menu]');
+        if (!menu) return;
+        menu.classList.remove('is-right');
+        /* Skip the flip when the viewport reports no width -- a hidden or
+           zero-sized frame makes every menu look like it overflows, and the
+           "fix" then throws it off the left edge instead. */
+        var vw = document.documentElement.clientWidth || window.innerWidth || 0;
+        if (vw > 0 && menu.getBoundingClientRect().right > vw - 8) {
+          menu.classList.add('is-right');
+        }
+      });
+    }
+
+    function initFilters() {
+      initPeriodPicker();
+      MULTI.forEach(buildMulti);
+      buildMulti(PACE_MULTI);
+      initPace();
+
+      document.getElementById('fReset').addEventListener('click', function () {
+        /* the pace card's own menu resets too -- "Reset filters" that left a
+           control selected somewhere down the page would be a lie */
+        MULTI.concat([PACE_MULTI]).forEach(function (m) {
+          state.sel[m.msId] = new Set(m.startEmpty ? [] : ORDER[m.msId]); paintMulti(m);
+        });
+        setPeriod(P_START, P_END);
+        openMulti(null, false);
+        render();
+      });
+
+      document.addEventListener('mousedown', function (e) {
+        if (!e.target.closest('[data-ms]')) openMulti(null, false);
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') openMulti(null, false);
+      });
+
+      document.querySelectorAll('[data-view]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var v = b.getAttribute('data-view');
+          var dim = DIMENSIONS.filter(function (d) { return d.id === v; })[0];
+          state.view[v] = b.getAttribute('data-mode');
+          document.querySelectorAll('[data-view="' + v + '"]').forEach(function (o) {
+            o.setAttribute('aria-pressed', String(o === b));
+          });
+          if (dim) animateViewSwitch(dim, function () { renderBreakdown(filtered(), dim); });
+          else if (v === 'pace') animateViewSwitch({ id: 'pace' }, function () { renderPace(filtered()); });
+          else render();
+        });
+      });
+    }
+
+    /* ---- period: one range picker --------------------------------------
+       Two date inputs could not express a RANGE — they let you build a
+       backwards one, and they never show the span in relation to itself.
+       Here the span is the thing on screen. Two months side by side because
+       the loaded period crosses a month boundary; forcing a nav click
+       halfway through picking a range is the usual way these go wrong. */
+    var DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    var dr = { pendingStart: null, hover: null, view: null };
+
+    function isoOf(d) {
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function firstOfMonth(s) { var d = ymd(s); return new Date(d.getFullYear(), d.getMonth(), 1); }
+    function shiftMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1); }
+
+    function setPeriod(from, to) {
+      state.from = from; state.to = to;
+      dr.pendingStart = null; dr.hover = null;
+      document.getElementById('fPeriodLabel').textContent =
+        (from === P_START && to === P_END) ? dmy(from) + ' – ' + dmy(to) + ' (all)'
+                                           : dmy(from) + ' – ' + dmy(to);
+      paintDays();
+    }
+
+    function dayClasses(iso) {
+      /* While a range is half-made, the hovered day stands in for the end —
+         so the span you are about to commit is the span you can see. */
+      var a = dr.pendingStart || state.from;
+      var b = dr.pendingStart ? (dr.hover || dr.pendingStart) : state.to;
+      var lo = a < b ? a : b, hi = a < b ? b : a;
+      if (iso < lo || iso > hi) return '';
+      var c = [];
+      if (iso === lo) c.push('is-start');
+      if (iso === hi) c.push('is-end');
+      if (!c.length) c.push('is-in');
+      return ' ' + c.join(' ');
+    }
+
+    function monthHtml(base, showPrev, showNext) {
+      var y = base.getFullYear(), m = base.getMonth();
+      var lead = (new Date(y, m, 1).getDay() + 6) % 7;          /* Monday-first */
+      var days = new Date(y, m + 1, 0).getDate();
+      var minM = firstOfMonth(P_START), maxM = firstOfMonth(P_END);
+      var h = '<div class="fin-dr__cal"><div class="fin-dr__head">' +
+        (showPrev
+          ? '<button class="fin-dr__nav" type="button" data-nav="-1"' +
+            (shiftMonths(dr.view, -1) < minM ? ' disabled' : '') +
+            ' aria-label="Previous month"><i class="ti ti-chevron-left"></i></button>'
+          : '<span style="width:25px"></span>') +
+        '<span class="fin-dr__title">' + MON[m] + ' ' + y + '</span>' +
+        (showNext
+          ? '<button class="fin-dr__nav" type="button" data-nav="1"' +
+            (shiftMonths(dr.view, 1) > maxM ? ' disabled' : '') +
+            ' aria-label="Next month"><i class="ti ti-chevron-right"></i></button>'
+          : '<span style="width:25px"></span>') +
+        '</div><div class="fin-dr__grid">';
+      DOW.forEach(function (d) { h += '<div class="fin-dr__dow">' + d + '</div>'; });
+      for (var i = 0; i < lead; i++) h += '<button class="fin-dr__day is-blank" type="button" disabled></button>';
+      for (var day = 1; day <= days; day++) {
+        var iso = isoOf(new Date(y, m, day));
+        var out = iso < P_START || iso > P_END;   /* outside the loaded file */
+        h += '<button class="fin-dr__day' + (out ? '' : dayClasses(iso)) + '" type="button" data-d="' + iso + '"' +
+          (out ? ' disabled' : '') + '>' + day + '</button>';
+      }
+      return h + '</div></div>';
+    }
+
+    /* Two functions, deliberately. buildCalendar() replaces the grid — month
+       navigation only. paintDays() re-styles the buttons that are already
+       there, and is what hover and selection use.
+
+       They were one function, and rebuilding innerHTML on every hover
+       detached the button being clicked: the event then bubbled to document
+       with a target that was no longer in the popover, so the outside-click
+       handler read it as a click elsewhere and dismissed the picker halfway
+       through a range. Keep the DOM; change only the classes. */
+    function buildCalendar() {
+      var host = document.getElementById('fPeriodMonths');
+      if (!host || !dr.view) return;
+      host.innerHTML = monthHtml(dr.view, true, false) + monthHtml(shiftMonths(dr.view, 1), false, true);
+      paintDays();
+    }
+
+    function paintDays() {
+      var pop = document.getElementById('fPeriodPop');
+      if (!pop) return;
+      pop.querySelectorAll('[data-d]').forEach(function (el) {
+        el.className = 'fin-dr__day' + (el.disabled ? '' : dayClasses(el.getAttribute('data-d')));
+      });
+      document.getElementById('fPeriodHint').textContent =
+        dr.pendingStart ? 'Now pick an end date.' : 'Pick a start date.';
+    }
+
+    function initPeriodPicker() {
+      var btn = document.getElementById('fPeriod'), pop = document.getElementById('fPeriodPop');
+      dr.view = firstOfMonth(P_START);
+      setPeriod(P_START, P_END);
+
+      function open(on) {
+        pop.hidden = !on;
+        btn.setAttribute('aria-expanded', String(on));
+        if (on) { dr.pendingStart = null; dr.hover = null; buildCalendar(); }
+      }
+      btn.addEventListener('click', function () { open(pop.hidden); });
+
+      pop.addEventListener('click', function (e) {
+        var nav = e.target.closest('[data-nav]');
+        if (nav) { dr.view = shiftMonths(dr.view, +nav.getAttribute('data-nav')); buildCalendar(); return; }
+        var day = e.target.closest('[data-d]');
+        if (!day || day.disabled) return;
+        var iso = day.getAttribute('data-d');
+        if (!dr.pendingStart) { dr.pendingStart = iso; dr.hover = iso; paintDays(); return; }
+        /* Clicking backwards is a legitimate way to pick a range, not an
+           error — order the two and commit rather than refusing. */
+        var a = dr.pendingStart;
+        setPeriod(a < iso ? a : iso, a < iso ? iso : a);
+        open(false);
+        render();
+      });
+      pop.addEventListener('mouseover', function (e) {
+        if (!dr.pendingStart) return;
+        var day = e.target.closest('[data-d]');
+        if (day && !day.disabled && day.getAttribute('data-d') !== dr.hover) {
+          dr.hover = day.getAttribute('data-d'); paintDays();
+        }
+      });
+      document.getElementById('fPeriodAll').addEventListener('click', function () {
+        setPeriod(P_START, P_END); open(false); render();
+      });
+
+      /* mousedown, not click: the decision has to be made against the DOM as
+         it was when the pointer went down, before any handler re-renders it.
+         Dismissing must not half-commit — a pending start is dropped. */
+      document.addEventListener('mousedown', function (e) {
+        if (!pop.hidden && !pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) open(false);
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !pop.hidden) { open(false); btn.focus(); }
+      });
+    }
+
+    /* ---- breakdown: one renderer, three dimensions ---------------------
+       Nominal categories get one hue for every bar: darkening by value would
+       double-encode bar length and burn the only free channel. The folded
+       tail gets neutral grey because it is an aggregate, not a series.
+
+       Month is the odd one out — it has a natural order, so it is NOT ranked
+       by size and never folds into "Other". */
+    var DIMENSIONS = [
+      { id: 'project', key: 'project', label: 'Project', drillBy: 'vendor' },
+      { id: 'vendor', key: 'vendor', label: 'Vendor', drillBy: 'project' }
+    ];
+
+    function monthLabel(date) { var d = ymd(date + '-01'); return MON[d.getMonth()] + ' ' + d.getFullYear(); }
+    function keyOf(r, dim) { return dim.key === 'month' ? monthLabel(r.date.slice(0, 7)) : val(r, dim.key); }
+
+    function groupBy(rows, dim) {
+      var m = {}, order = [];
+      rows.forEach(function (r) {
+        var k = keyOf(r, dim);
+        if (!m[k]) { m[k] = { name: k, total: 0, n: 0, sortKey: dim.key === 'month' ? r.date.slice(0, 7) : k }; order.push(k); }
+        m[k].total += r.amount; m[k].n++;
+      });
+      var out = order.map(function (k) { return m[k]; });
+      if (dim.key === 'month') out.forEach(function (x) { x.partial = partialMonth(x.sortKey); });
+      /* Ranked by size, except the blank bucket which is pinned last however
+         big it is — same rule the filter menus use. It is a gap in the source
+         data, not a project or a vendor, so it should not outrank real ones. */
+      return dim.ordered
+        ? out.sort(function (a, b) { return a.sortKey < b.sortKey ? -1 : 1; })
+        : out.sort(function (a, b) {
+            if (a.name === BLANK) return 1;
+            if (b.name === BLANK) return -1;
+            return b.total - a.total || a.name.localeCompare(b.name);
+          });
+    }
+
+    /* Round the axis ceiling to something a reader can divide by eye. The
+       steps are fine-grained on purpose: a coarse 1/2/5/10 ladder rounds a
+       $51k peak up to $100k and spends half the plot on empty space. Every
+       step divides evenly by four, so the gridlines land on round numbers. */
+    var NICE = [1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10];
+    function niceMax(v) {
+      if (v <= 0) return 1;
+      var mag = Math.pow(10, Math.floor(Math.log10(v))), r = v / mag;
+      for (var i = 0; i < NICE.length; i++) if (r <= NICE[i]) return NICE[i] * mag;
+      return 10 * mag;
+    }
+
+    /* True when the loaded period covers only part of the month, so the bar
+       is not comparable to a full one. */
+    function partialMonth(ym) {
+      var d = ymd(ym + '-01');
+      var last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      return ym + '-01' < P_START || iso2(last) > P_END;
+    }
+    function iso2(d) {
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function columnsHtml(shown, max, total) {
+      var grid = '';
+      for (var g = 4; g >= 0; g--) {
+        grid += '<div class="fin-gridline" style="top:' + ((4 - g) * 25) + '%"><span>' +
+          tickLabel(max * g / 4) + '</span></div>';
+      }
+      var cols = shown.map(function (d, i) {
+        return '<div class="fin-col' + (d.partial ? ' fin-col--partial' : '') + '" data-i="' + i + '"' +
+          (d.sortKey ? ' data-bar="' + esc(d.sortKey) + '"' : '') + '>' +
+          '<div class="fin-col__bar" style="height:' + (max ? d.total / max * 100 : 0).toFixed(2) + '%">' +
+          '<span class="fin-col__tag">' + esc(money0(d.total)) + '</span></div></div>';
+      }).join('');
+      var axis = shown.map(function (d) {
+        return '<span>' + esc(d.name) + ' <span class="fin-cols__pct">' + esc(pct(d.total, total)) + '</span></span>';
+      }).join('');
+      return '<div class="fin-cols"><div class="fin-cols__plot">' + grid + cols +
+             '</div><div class="fin-cols__axis">' + axis + '</div></div>';
+    }
+    function tickLabel(n) {
+      if (n >= 1000) return '$' + (n / 1000).toFixed(n % 1000 === 0 ? 0 : 1) + 'k';
+      return '$' + Math.round(n);
+    }
+
+    /* The vendor split for one project, rendered closed. Bars are scaled
+       within the project, not against the whole slice -- a project's biggest
+       vendor should fill its row whatever the project's own size. */
+    /* Works in either direction: the project card drills into vendors, the
+       vendor card into projects. Only the two keys change -- the owner and
+       transaction levels underneath are the same question whichever way in
+       you came. */
+    function drillHtml(rows, dim, parentName, colour) {
+      var childKey = dim.drillBy;
+      var mine = rows.filter(function (r) { return val(r, dim.key) === parentName; });
+      var vendors = groupBy(mine, { key: childKey });
+      var subtotal = sum(mine);
+
+      /* Scaled against the PARENT's total, so a child bar is exactly the
+         percentage printed beside it and the children of one row are read
+         against each other. On the card's own scale a small project's
+         vendors all collapsed into invisible slivers -- Rain's largest was
+         1.6% of the track -- which made the panel useless for the projects
+         most likely to need reading. The trade is that lengths are no longer
+         comparable ACROSS parents; the figures still are. */
+      var body = vendors.map(function (v) {
+        /* Oldest first: at this level you are reading a history, and a
+           history runs forwards. The cards above rank by size; this does not. */
+        var txns = mine.filter(function (r) { return val(r, childKey) === v.name; })
+                       .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+        var key = dim.id + KEYSEP + parentName + KEYSEP + v.name;
+        var childColour = childKey === 'project' ? (PROJECT_COLOR[v.name] || 'var(--fin-other)') : colour;
+        return '<div class="fin-vend">' +
+          '<div class="fin-drill__row fin-drill__row--open" role="button" tabindex="0" aria-expanded="false" data-child="' + esc(key) + '">' +
+            '<div class="fin-drill__rowname' + (v.name === BLANK ? ' is-blank' : '') + '" title="' + esc(v.name) + '">' + esc(v.name) + '</div>' +
+            '<div class="fin-drill__rowtrack"><div class="fin-drill__rowfill" style="width:' +
+              (subtotal ? v.total / subtotal * 100 : 0).toFixed(2) + '%;background:' + childColour + '"></div></div>' +
+            '<div class="fin-drill__rowval">' + esc(money0(v.total)) +
+              ' <span class="fin-drill__rowpct">' + esc(pct(v.total, subtotal)) + '</span></div>' +
+            '<i class="fin-drill__rowchev ti ti-chevron-right" aria-hidden="true"></i>' +
+          '</div>' +
+          '<div class="fin-txns"><div class="fin-txns__inner"><div class="fin-txns__pad">' +
+            '<div class="fin-txn fin-txn__head"><span class="fin-txn__date">Account owner</span><span></span>' +
+              '<span style="text-align:right">Amount</span><span></span></div>' +
+            groupBy(txns, { key: 'accountOwner' }).map(function (o) {
+              var his = txns.filter(function (t) { return val(t, 'accountOwner') === o.name; });
+              var okey = key + KEYSEP + o.name;
+              return '<div class="fin-own">' +
+                '<div class="fin-ownrow" role="button" tabindex="0" aria-expanded="false" data-owner="' + esc(okey) + '">' +
+                  '<span class="fin-ownrow__name' + (o.name === BLANK ? ' is-blank' : '') + '" title="' + esc(o.name) + '">' + esc(o.name) + '</span>' +
+                  '<span class="fin-ownrow__track"><span class="fin-ownrow__fill" style="display:block;width:' +
+                    (v.total ? o.total / v.total * 100 : 0).toFixed(2) + '%;background:' + childColour + '"></span></span>' +
+                  '<span class="fin-ownrow__amt">' + esc(money(o.total)) +
+                    ' <span class="fin-ownrow__n">\u00d7' + o.n + '</span></span>' +
+                  '<i class="fin-ownrow__chev ti ti-chevron-right" aria-hidden="true"></i>' +
+                '</div>' +
+                '<div class="fin-opanel"><div class="fin-opanel__inner"><div class="fin-opanel__pad">' +
+                  his.map(function (t) {
+                    return '<div class="fin-txn">' +
+                      '<span class="fin-txn__date">' + esc(dmy(t.date)) + '</span>' +
+                      '<span></span>' +
+                      '<span class="fin-txn__amt">' + esc(money(t.amount)) + '</span>' +
+                      '<span></span>' +
+                      '</div>';
+                  }).join('') +
+                '</div></div></div>' +
+                '</div>';
+            }).join('') +
+          '</div></div></div>' +
+          '</div>';
+      }).join('');
+
+      var noun = childKey === 'vendor' ? 'vendor' : 'project';
+      var head = vendors.length
+        ? vendors.length + ' ' + noun + (vendors.length === 1 ? '' : 's') + ' \u00b7 ' + money0(subtotal)
+        : '';
+      return '<div class="fin-drill__panel"><div class="fin-drill__inner">' +
+             '<div class="fin-drill__pad" style="color:' + colour + '">' +
+             (head ? '<p class="fin-drill__head">' + esc(head) + '</p>' : '') +
+             (body || '<p class="fin-drill__more">No vendors in this slice.</p>') +
+             '</div></div></div>';
+    }
+
+    /* Animate the card between the two view heights on switch. Measured
+       from the live DOM rather than stored: a tree opened in one view changes
+       the other's height too. */
+    function animateViewSwitch(dim, paint) {
+      var wrap = document.getElementById('bd-' + dim.id + '-views');
+      if (!wrap) { paint(); return; }
+      var from = wrap.offsetHeight;
+      paint();
+      var to = wrap.scrollHeight;
+      if (from === to) return;
+      wrap.classList.add('is-sizing');
+      wrap.style.height = from + 'px';
+      void wrap.offsetHeight;                    /* commit the start height */
+      wrap.style.height = to + 'px';
+      var done = function () {
+        wrap.style.height = '';
+        wrap.classList.remove('is-sizing');
+        wrap.removeEventListener('transitionend', done);
+      };
+      wrap.addEventListener('transitionend', done);
+      setTimeout(done, 400);                     /* in case the event is missed */
+    }
+
+    function renderBreakdown(rows, dim) {
+      var host = document.getElementById('bd-' + dim.id + '-chart');
+      var tblHost = document.getElementById('bd-' + dim.id + '-table');
+      var noteEl = document.getElementById('bd-' + dim.id + '-note');
+      var chartOn = state.view[dim.id] === 'chart';
+      host.hidden = !chartOn; tblHost.hidden = chartOn;
+
+      var all = groupBy(rows, dim), total = sum(rows);
+      var over = all.length > LIMIT;
+      var shown = (over && !state.expanded[dim.id]) ? all.slice(0, LIMIT) : all;
+
+      /* Scaled to the largest value in the WHOLE group, not the largest one
+         currently visible — otherwise every bar resizes when you expand, and
+         the same vendor looks bigger in the short list than the long one. */
+      var max = all.length ? Math.max.apply(null, all.map(function (d) { return d.total; })) : 1;
+
+      /* The only note left is the one that changes how a number is read. */
+      noteEl.textContent = dim.key === 'month'
+        ? 'The period ends ' + P_END.slice(-2) + ' ' + monthLabel(P_END.slice(0, 7)).split(' ')[0] +
+          ', so the last month is partial and not comparable to a full one.'
+        : '';
+
+      if (!rows.length) { host.innerHTML = '<p class="fin-empty">No payments match these filters.</p>'; tblHost.innerHTML = ''; return; }
+
+      if (dim.columns) {
+        var cmax = niceMax(Math.max.apply(null, all.map(function (d) { return d.total; })));
+        host.innerHTML = columnsHtml(shown, cmax, total);
+        host.querySelectorAll('.fin-col').forEach(function (el) {
+          var d = shown[+el.getAttribute('data-i')];
+          bindTip(el, '<b>' + esc(d.name) + '</b>' + (d.partial ? ' <span class="fin-tip__m">partial</span>' : '') +
+            '<br><span class="fin-tip__v">' + esc(money(d.total)) + '</span>' +
+            '<span class="fin-tip__m"> \u00b7 ' + esc(pct(d.total, total)) + ' of slice \u00b7 ' +
+            d.n + ' payment' + (d.n === 1 ? '' : 's') + '</span>');
+        });
+        renderBreakdownTable(all, rows, total, dim, tblHost);
+        return;
+      }
+
+      host.innerHTML = '<div class="fin-bars">' + shown.map(function (d, i) {
+        /* Projects carry an identity colour from the spreadsheet. Vendors and
+           months have none, so they stay one hue -- inventing colours there
+           would encode nothing and re-say the bar length. */
+        var drill = !!dim.drillBy;
+        var fill = dim.key === 'project' ? (PROJECT_COLOR[d.name] || 'var(--fin-other)') : '';
+        return '<div class="fin-drill">' +
+          '<div class="fin-bar' + (drill ? ' fin-bar--drill' : '') + '" data-i="' + i + '"' +
+            (drill ? ' data-drill="' + esc(d.name) + '" role="button" tabindex="0" aria-expanded="false"' : '') + '>' +
+          '<div class="fin-bar__name' + (d.name === BLANK ? ' is-blank' : '') + '" title="' + esc(d.name) + '">' + esc(d.name) + '</div>' +
+          '<div class="fin-bar__track"><div class="fin-bar__fill" style="width:' + (d.total / max * 100).toFixed(2) + '%' +
+            (fill ? ';background:' + fill : '') + '"></div></div>' +
+          '<div class="fin-bar__val">' + esc(money0(d.total)) + ' <span class="fin-bar__pct">' + esc(pct(d.total, total)) + '</span></div>' +
+          (drill ? '<i class="fin-bar__chev ti ti-chevron-right" aria-hidden="true"></i>' : '') +
+          '</div>' +
+          (drill ? drillHtml(rows, dim, d.name, fill || 'var(--fin-c1)') : '') +
+          '</div>';
+      }).join('') + '</div>' +
+      (over
+        ? '<button class="fin-more" type="button" data-more="' + dim.id + '">' +
+            (state.expanded[dim.id] ? 'Show top ' + LIMIT : 'Show all ' + all.length) + '</button>'
+        : '');
+
+      /* Project bars carry no tooltip: the name, amount and share are already
+         on the row, and the drill-down answers anything further. Vendor rows
+         carry what the row cannot -- what the vendor IS -- wherever the name
+         appears: this card, the project card's drill, and both tables. */
+      if (dim.key === 'vendor') {
+        host.querySelectorAll('.fin-bar').forEach(function (el) {
+          bindTip(el, vendorTipHtml(rows, shown[+el.getAttribute('data-i')].name));
+        });
+      }
+      if (dim.drillBy === 'vendor') {
+        host.querySelectorAll('[data-child]').forEach(function (el) {
+          bindTip(el, vendorTipHtml(rows, el.querySelector('.fin-drill__rowname').getAttribute('title')));
+        });
+      }
+
+      /* One project open at a time: several expanded splits stacked in one
+         card stop being a comparison and start being a list. */
+      host.querySelectorAll('[data-drill]').forEach(function (el) {
+        function toggle() { holdScroll(el, function () {
+          var open = el.getAttribute('aria-expanded') !== 'true';
+          host.querySelectorAll('[data-drill]').forEach(function (o) {
+            var on = o === el && open;
+            o.setAttribute('aria-expanded', String(on));
+            o.classList.toggle('is-open', on);
+            o.nextElementSibling.classList.toggle('is-open', on);
+          });
+          state.drill[dim.id] = open ? el.getAttribute('data-drill') : null;
+        }); }
+        el.addEventListener('click', toggle);
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+        });
+        /* Survive a re-render: filters redraw the card, and an open row that
+           still exists in the new slice stays open. */
+        if (state.drill[dim.id] === el.getAttribute('data-drill')) {
+          el.setAttribute('aria-expanded', 'true');
+          el.classList.add('is-open');
+          el.nextElementSibling.classList.add('is-open');
+        }
+      });
+
+      /* Level 3: one child's owner split. Same one-open-at-a-time rule and
+         the same class-toggle-not-re-render approach as the level above. */
+      host.querySelectorAll('[data-child]').forEach(function (el) {
+        function toggle() { holdScroll(el, function () {
+          var open = el.getAttribute('aria-expanded') !== 'true';
+          host.querySelectorAll('[data-child]').forEach(function (o) {
+            var on = o === el && open;
+            o.setAttribute('aria-expanded', String(on));
+            o.classList.toggle('is-open', on);
+            o.nextElementSibling.classList.toggle('is-open', on);
+          });
+          state.child[dim.id] = open ? el.getAttribute('data-child') : null;
+        }); }
+        el.addEventListener('click', toggle);
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+        });
+        if (state.child[dim.id] === el.getAttribute('data-child')) {
+          el.setAttribute('aria-expanded', 'true');
+          el.classList.add('is-open');
+          el.nextElementSibling.classList.add('is-open');
+        }
+      });
+
+      /* Level 4: one owner's individual charges, oldest first. */
+      host.querySelectorAll('[data-owner]').forEach(function (el) {
+        function toggle() { holdScroll(el, function () {
+          var open = el.getAttribute('aria-expanded') !== 'true';
+          host.querySelectorAll('[data-owner]').forEach(function (o) {
+            var on = o === el && open;
+            o.setAttribute('aria-expanded', String(on));
+            o.classList.toggle('is-open', on);
+            o.nextElementSibling.classList.toggle('is-open', on);
+          });
+          state.owner[dim.id] = open ? el.getAttribute('data-owner') : null;
+        }); }
+        el.addEventListener('click', toggle);
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+        });
+        if (state.owner[dim.id] === el.getAttribute('data-owner')) {
+          el.setAttribute('aria-expanded', 'true');
+          el.classList.add('is-open');
+          el.nextElementSibling.classList.add('is-open');
+        }
+      });
+
+      var more = host.querySelector('[data-more]');
+      if (more) {
+        more.addEventListener('click', function () {
+          state.expanded[dim.id] = !state.expanded[dim.id];
+          renderBreakdown(filtered(), dim);
+        });
+      }
+
+      renderBreakdownTable(all, rows, total, dim, tblHost);
+    }
+
+    function renderBreakdownTable(all, rows, total, dim, tblHost) {
+      /* Mirrors the chart tree exactly, and shares its state -- expand a row
+         here and it is expanded when you switch back to Chart. */
+      function cells(name, n, amount, share, cls, chev, blank) {
+        return '<td class="' + (cls || '') + (blank ? ' is-blank' : '') + '">' +
+                 (chev ? '<i class="fin-tchev ti ti-chevron-right" aria-hidden="true"></i>' : '') + esc(name) + '</td>' +
+               '<td class="is-num">' + (n === null ? '' : n) + '</td>' +
+               '<td class="is-num">' + esc(amount) + '</td>' +
+               '<td class="is-num">' + (share === null ? '' : esc(share)) + '</td>';
+      }
+
+      /* Same LIMIT and the same state key as the chart view, so the two
+         cannot disagree about how much of the list is showing. Only the top
+         level is capped -- an expanded row shows all of its children. */
+      var over = all.length > LIMIT;
+      var top = (over && !state.expanded[dim.id]) ? all.slice(0, LIMIT) : all;
+
+      var body = top.map(function (d) {
+        var open = dim.drillBy && state.drill[dim.id] === d.name;
+        var html = '<tr class="fin-trow' + (dim.drillBy ? ' fin-trow--open' : '') + (open ? ' is-open' : '') + '"' +
+          (dim.drillBy ? ' data-tdrill="' + esc(d.name) + '" role="button" tabindex="0" aria-expanded="' + open + '"' : '') + '>' +
+          cells(d.name + (d.partial ? ' (partial)' : ''), d.n, money(d.total), pct(d.total, total),
+                'is-strong', !!dim.drillBy, d.name === BLANK) + '</tr>';
+        if (!dim.drillBy) return html;
+
+        var mine = rows.filter(function (r) { return val(r, dim.key) === d.name; });
+        groupBy(mine, { key: dim.drillBy }).forEach(function (c) {
+          var ckey = dim.id + KEYSEP + d.name + KEYSEP + c.name;
+          var copen = state.child[dim.id] === ckey;
+          html += '<tr class="fin-trow fin-trow--l2 fin-trow--open' + (copen ? ' is-open' : '') + '"' +
+            ' data-tchild="' + esc(ckey) + '" role="button" tabindex="0" aria-expanded="' + copen + '"' +
+            (open ? '' : ' hidden') + '>' +
+            cells(c.name, c.n, money(c.total), pct(c.total, d.total), '', true, c.name === BLANK) + '</tr>';
+
+          var theirs = mine.filter(function (r) { return val(r, dim.drillBy) === c.name; });
+          groupBy(theirs, { key: 'accountOwner' }).forEach(function (o) {
+            var okey = ckey + KEYSEP + o.name;
+            var oopen = state.owner[dim.id] === okey;
+            html += '<tr class="fin-trow fin-trow--l3 fin-trow--open' + (oopen ? ' is-open' : '') + '"' +
+              ' data-towner="' + esc(okey) + '" role="button" tabindex="0" aria-expanded="' + oopen + '"' +
+              (open && copen ? '' : ' hidden') + '>' +
+              cells(o.name, o.n, money(o.total), pct(o.total, c.total), '', true, o.name === BLANK) + '</tr>';
+
+            theirs.filter(function (r) { return val(r, 'accountOwner') === o.name; })
+              .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; })
+              .forEach(function (t) {
+                html += '<tr class="fin-trow fin-trow--l4" data-tof="' + esc(okey) + '"' +
+                  (open && copen && oopen ? '' : ' hidden') + '>' +
+                  cells(dmy(t.date), null, money(t.amount), null, '', false, false) + '</tr>';
+              });
+          });
+        });
+        return html;
+      }).join('');
+
+      tblHost.innerHTML = '<div class="fin-tbl-wrap"><table class="fin-tbl"><thead><tr><th>' + esc(dim.label) +
+        '</th><th class="is-num">Payments</th><th class="is-num">Amount</th><th class="is-num">Share</th></tr></thead><tbody>' +
+        body + '</tbody><tfoot class="fin-tbl__foot"><tr><td>Total</td><td class="is-num">' + rows.length +
+        '</td><td class="is-num">' + esc(money(total)) + '</td><td class="is-num">100%</td></tr></tfoot></table></div>' +
+        (over
+          ? '<button class="fin-more" type="button" data-tmore="' + esc(dim.id) + '">' +
+              (state.expanded[dim.id] ? 'Show top ' + LIMIT : 'Show all ' + all.length) + '</button>'
+          : '');
+
+      /* The footer total stays the total of the whole slice, not of the rows on
+         screen -- a "Total" that changed when you paged the list would be a
+         different number every time you looked at it. */
+      var more = tblHost.querySelector('[data-tmore]');
+      if (more) {
+        more.addEventListener('click', function () {
+          state.expanded[dim.id] = !state.expanded[dim.id];
+          renderBreakdown(filtered(), dim);
+        });
+      }
+
+      /* Same tooltip on the table rows that name a vendor. The title
+         attribute holds the unescaped name; the cell text may be truncated. */
+      if (dim.key === 'vendor') {
+        tblHost.querySelectorAll('[data-tdrill]').forEach(function (r) {
+          bindTip(r, vendorTipHtml(rows, r.getAttribute('data-tdrill')));
+        });
+      }
+      if (dim.drillBy === 'vendor') {
+        tblHost.querySelectorAll('[data-tchild]').forEach(function (r) {
+          var parts = r.getAttribute('data-tchild').split(KEYSEP);
+          bindTip(r, vendorTipHtml(rows, parts[parts.length - 1]));
+        });
+      }
+
+      if (dim.drillBy) wireTableTree(tblHost, dim);
+    }
+
+    /* Visibility is recomputed from the three open keys rather than toggled
+       row by row -- with four levels interleaved in one <tbody>, walking
+       siblings to find "the rows that belong to this one" is where this goes
+       wrong. Each row already knows its own key. */
+    function wireTableTree(tblHost, dim) {
+      function apply() {
+        var p = state.drill[dim.id], c = state.child[dim.id], o = state.owner[dim.id];
+        tblHost.querySelectorAll('[data-tdrill]').forEach(function (r) {
+          var on = r.getAttribute('data-tdrill') === p;
+          r.classList.toggle('is-open', on); r.setAttribute('aria-expanded', String(on));
+        });
+        tblHost.querySelectorAll('[data-tchild]').forEach(function (r) {
+          var k = r.getAttribute('data-tchild');
+          r.hidden = k.split(KEYSEP)[1] !== p;
+          var on = k === c;
+          r.classList.toggle('is-open', on); r.setAttribute('aria-expanded', String(on));
+        });
+        tblHost.querySelectorAll('[data-towner]').forEach(function (r) {
+          var k = r.getAttribute('data-towner');
+          r.hidden = !(k.split(KEYSEP)[1] === p && k.slice(0, k.lastIndexOf(KEYSEP)) === c);
+          var on = k === o;
+          r.classList.toggle('is-open', on); r.setAttribute('aria-expanded', String(on));
+        });
+        tblHost.querySelectorAll('[data-tof]').forEach(function (r) {
+          r.hidden = r.getAttribute('data-tof') !== o;
+        });
+      }
+      function bind(sel, set) {
+        tblHost.querySelectorAll(sel).forEach(function (r) {
+          function toggle() { holdScroll(r, function () { set(r); apply(); }); }
+          r.addEventListener('click', toggle);
+          r.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+          });
+        });
+      }
+      bind('[data-tdrill]', function (r) {
+        var k = r.getAttribute('data-tdrill');
+        var open = state.drill[dim.id] !== k;
+        state.drill[dim.id] = open ? k : null;
+        if (!open) { state.child[dim.id] = null; state.owner[dim.id] = null; }
+      });
+      bind('[data-tchild]', function (r) {
+        var k = r.getAttribute('data-tchild');
+        var open = state.child[dim.id] !== k;
+        state.child[dim.id] = open ? k : null;
+        if (!open) state.owner[dim.id] = null;
+      });
+      bind('[data-towner]', function (r) {
+        var k = r.getAttribute('data-towner');
+        state.owner[dim.id] = state.owner[dim.id] !== k ? k : null;
+      });
+      tblHost._applyTree = apply;
+      apply();
+    }
+
+    /* ---- month comparison ----------------------------------------------
+       One project and one vendor at a time, compared across months. The
+       month dimension used to be a third breakdown card; as a breakdown it
+       only ever said "August is bigger", which the filter row could already
+       tell you. Choosing the pair is what makes the months worth comparing. */
+
+    /* A native <select> puts its popup where the OS wants it -- over the
+       control, with the current row under the pointer. Beside the Projects
+       menu, which opens below its trigger, the two behaved differently for
+       no reason a reader could see. Same components, single-select
+       semantics: click a row and it picks and closes. */
+    var paceVendorNames = [];
+
+    function initPace() {
+      var wrap = document.querySelector('[data-ms="pace-vendor"]');
+      var menu = wrap.querySelector('[data-ss-menu]');
+
+      /* Delegated, and bound once: the row list is rebuilt whenever the
+         project selection changes, so a listener per row would not survive. */
+      menu.addEventListener('click', function (e) {
+        var row = e.target.closest('[data-ss-value]');
+        if (!row) return;
+        state.cmp.vendor = row.getAttribute('data-ss-value');
+        openMulti(null, false);
+        repaintPace(wrap);
+      });
+      wrap.querySelector('.fin-dr__trigger').addEventListener('click', function () {
+        openMulti('pace-vendor', !wrap.classList.contains('open'));
+      });
+    }
+
+    /* Only vendors that actually appear in the chosen projects. Offering a
+       vendor with nothing behind it produces an empty chart and no
+       explanation -- the reader is left wondering whether it is a bug.
+       Ordered by spend, not by payment count: counting puts Cursor AI (24
+       small charges) above OpenRouter (8 charges, more than half the bill),
+       the wrong end of the list for a card about how much is being spent. */
+    function paintPaceVendors(base) {
+      var wrap = document.querySelector('[data-ms="pace-vendor"]');
+      var menu = wrap.querySelector('[data-ss-menu]');
+      var labelEl = wrap.querySelector('[data-ss-label]');
+
+      var totals = {};
+      base.forEach(function (r) { var v = val(r, 'vendor'); totals[v] = (totals[v] || 0) + r.amount; });
+      var names = Object.keys(totals).sort(function (a, b) {
+        if (a === BLANK) return 1;
+        if (b === BLANK) return -1;
+        return totals[b] - totals[a] || a.localeCompare(b);
+      });
+
+      /* A vendor that just dropped out of range cannot stay selected -- it
+         would show an empty chart with no way back except Reset. */
+      if (state.cmp.vendor && names.indexOf(state.cmp.vendor) < 0) state.cmp.vendor = '';
+      paceVendorNames = names;
+
+      menu.innerHTML = '<div class="sv-menu-label">Filter by vendor</div>' +
+        '<div class="fin-ms__list">' +
+        [''].concat(names).map(function (n) {
+          return '<div class="sv-menu-item" role="option" aria-selected="' +
+            (n === state.cmp.vendor) + '" data-ss-value="' + esc(n) + '">' +
+            '<span class="fin-ms__name' + (n === BLANK ? ' is-blank' : '') + '" title="' + esc(n || 'All vendors') + '">' +
+            esc(n || 'All vendors') + '</span></div>';
+        }).join('') + '</div>';
+
+      labelEl.textContent = state.cmp.vendor || 'All vendors';
+      wrap.querySelector('.fin-dr__trigger').classList.toggle('is-filtered', !!state.cmp.vendor);
+    }
+
+    function renderPace(rows) {
+      var host = document.getElementById('bd-pace-chart');
+      var tblHost = document.getElementById('bd-pace-table');
+      var chartOn = state.view.pace === 'chart';
+      host.hidden = !chartOn; tblHost.hidden = chartOn;
+
+      var pset = state.sel['pace-project'];
+      /* Projects first: the vendor list is derived from what survives them,
+         so the menu can never offer a vendor this card has no data for. */
+      var base = rows.filter(function (r) { return !pset || pset.has(val(r, 'project')); });
+      paintPaceVendors(base);
+      /* Drop a bar selection whose month is no longer in range. */
+      if (state.paceBar && !base.some(function (r) { return r.date.slice(0, 7) === state.paceBar.month; })) {
+        state.paceBar = null;
+      }
+      var sel = base.filter(function (r) {
+        return !state.cmp.vendor || val(r, 'vendor') === state.cmp.vendor;
+      });
+      var nAll = ORDER['pace-project'] ? ORDER['pace-project'].length : 0;
+      var pLabel = !pset || pset.size === 0 ? 'no projects yet'
+                 : pset.size === nAll ? 'All projects'
+                 : pset.size === 1 ? Array.from(pset)[0]
+                 : pset.size + ' projects';
+      var label = pLabel + ' \u00b7 ' + (state.cmp.vendor || 'All vendors');
+      if (!sel.length) {
+        /* Same scaffold as a populated card -- plot box, legend row, delta
+           box. An empty state that is 135px shorter shrinks the document,
+           and at the bottom of the page there is no scroll range left to
+           hold anything still with. */
+        var msg = (!pset || pset.size === 0)
+          ? 'Choose up to five projects to chart.'
+          : 'No payments for ' + label + ' in this slice.';
+        host.innerHTML = '<p class="fin-empty">' + esc(msg) + '</p>' +
+          '<div class="fin-legend" style="margin-top:12px">' +
+            '<span class="fin-legend__item" style="visibility:hidden">' +
+              '<span class="fin-legend__dot"></span>placeholder</span>' +
+          '</div>';
+        tblHost.innerHTML = '<p class="fin-empty">' + esc(msg) + '</p>';
+        return;
+      }
+      /* 2-5 projects get a bar each; one, or more than five, stays a single
+         combined bar. Past five the bars are too thin to compare and the
+         colour list stops being readable. */
+      var chosen = pset ? Array.from(pset) : [];
+      if (chosen.length >= 2 && chosen.length <= 5 && chosen.length < nAll) {
+        var order = chosen.map(function (n) {
+          return { n: n, t: sum(sel.filter(function (r) { return val(r, 'project') === n; })) };
+        }).sort(function (a, b) { return b.t - a.t; }).map(function (x) { return x.n; });
+        return paceGrouped(sel, host, tblHost, order);
+      }
+      return paceByMonth(sel, label, host, tblHost);
+    }
+
+    /* The payments behind one bar, as the same tree the project card uses:
+       vendor -> account owner -> individual charges, oldest first.
+
+       The vendor level is skipped when the card's vendor picker already
+       names one -- a tree whose every branch is the same single value is a
+       row you have to click through to learn nothing. */
+    function paceOwnerBlock(rows, parentTotal, keyPrefix, colour) {
+      return groupBy(rows, { key: 'accountOwner' }).map(function (o) {
+        var his = rows.filter(function (r) { return val(r, 'accountOwner') === o.name; })
+                      .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+        var okey = keyPrefix + KEYSEP + o.name;
+        var oopen = state.paceOwner === okey;
+        return '<div class="fin-own">' +
+          '<div class="fin-ownrow' + (oopen ? ' is-open' : '') + '" role="button" tabindex="0"' +
+            ' aria-expanded="' + oopen + '" data-powner="' + esc(okey) + '">' +
+            '<span class="fin-ownrow__name' + (o.name === BLANK ? ' is-blank' : '') + '" title="' + esc(o.name) + '">' + esc(o.name) + '</span>' +
+            '<span class="fin-ownrow__track"><span class="fin-ownrow__fill" style="display:block;width:' +
+              (parentTotal ? o.total / parentTotal * 100 : 0).toFixed(2) + '%;background:' + colour + '"></span></span>' +
+            '<span class="fin-ownrow__amt">' + esc(money(o.total)) +
+              ' <span class="fin-ownrow__n">\u00d7' + o.n + '</span></span>' +
+            '<i class="fin-ownrow__chev ti ti-chevron-right" aria-hidden="true"></i>' +
+          '</div>' +
+          '<div class="fin-opanel' + (oopen ? ' is-open' : '') + '"><div class="fin-opanel__inner"><div class="fin-opanel__pad">' +
+            his.map(function (t) {
+              return '<div class="fin-txn"><span class="fin-txn__date">' + esc(dmy(t.date)) + '</span>' +
+                '<span></span><span class="fin-txn__amt">' + esc(money(t.amount)) + '</span><span></span></div>';
+            }).join('') +
+          '</div></div></div></div>';
+      }).join('');
+    }
+
+    function paceDetailHtml(sel, bar) {
+      var rows = sel.filter(function (r) {
+        if (r.date.slice(0, 7) !== bar.month) return false;
+        if (bar.project && val(r, 'project') !== bar.project) return false;
+        return true;
+      });
+      if (!rows.length) return '';
+
+      var subtotal = sum(rows);
+      var colour = bar.project ? (PROJECT_COLOR[bar.project] || 'var(--fin-other)') : 'var(--fin-c1)';
+      var prefix = bar.month + KEYSEP + (bar.project || '');
+      var title = monthLabel(bar.month) + (bar.project ? ' \u00b7 ' + bar.project : '') +
+                  (state.cmp.vendor ? ' \u00b7 ' + state.cmp.vendor : '');
+      var body, count;
+
+      if (state.cmp.vendor) {
+        /* One vendor already: owners are the top level. */
+        body = paceOwnerBlock(rows, subtotal, prefix, colour);
+        count = '';
+      } else {
+        var vendors = groupBy(rows, { key: 'vendor' });
+        count = vendors.length + ' vendor' + (vendors.length === 1 ? '' : 's') + ' \u00b7 ';
+        body = vendors.map(function (v) {
+          var mine = rows.filter(function (r) { return val(r, 'vendor') === v.name; });
+          var vkey = prefix + KEYSEP + v.name;
+          var vopen = state.paceChild === vkey;
+          return '<div class="fin-vend">' +
+            '<div class="fin-drill__row fin-drill__row--open' + (vopen ? ' is-open' : '') + '"' +
+              ' role="button" tabindex="0" aria-expanded="' + vopen + '" data-pchild="' + esc(vkey) + '">' +
+              '<div class="fin-drill__rowname' + (v.name === BLANK ? ' is-blank' : '') + '" title="' + esc(v.name) + '">' + esc(v.name) + '</div>' +
+              '<div class="fin-drill__rowtrack"><div class="fin-drill__rowfill" style="width:' +
+                (subtotal ? v.total / subtotal * 100 : 0).toFixed(2) + '%;background:' + colour + '"></div></div>' +
+              '<div class="fin-drill__rowval">' + esc(money0(v.total)) +
+                ' <span class="fin-drill__rowpct">' + esc(pct(v.total, subtotal)) + '</span></div>' +
+              '<i class="fin-drill__rowchev ti ti-chevron-right" aria-hidden="true"></i>' +
+            '</div>' +
+            '<div class="fin-txns' + (vopen ? ' is-open' : '') + '"><div class="fin-txns__inner"><div class="fin-txns__pad">' +
+              '<div class="fin-txn fin-txn__head"><span class="fin-txn__date">Account owner</span><span></span>' +
+                '<span style="text-align:right">Amount</span><span></span></div>' +
+              paceOwnerBlock(mine, v.total, vkey, colour) +
+            '</div></div></div>' +
+            '</div>';
+        }).join('');
+      }
+
+      return '<div class="fin-pace__detail">' +
+        '<p class="fin-pace__detailhead"><strong>' + esc(title) + '</strong>' +
+          '<span>' + count + rows.length + ' payment' + (rows.length === 1 ? '' : 's') + ' \u00b7 ' +
+          esc(money(subtotal)) + '</span>' +
+          '<button class="fin-pace__close" type="button" data-pace-close>Close</button></p>' +
+        '<div class="fin-pace__detailbody">' + body + '</div></div>';
+    }
+
+    /* One bar open at a time. Clicking the open one closes it. */
+    function wirePaceBars(host, sel) {
+      host.querySelectorAll('[data-bar]').forEach(function (el) {
+        el.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var month = el.getAttribute('data-bar');
+          var project = el.getAttribute('data-p') || null;
+          var same = state.paceBar && state.paceBar.month === month && state.paceBar.project === project;
+          state.paceBar = same ? null : { month: month, project: project };
+          state.paceChild = null; state.paceOwner = null;   /* a new bar opens closed */
+          /* No anchor: this element is inside the host about to be replaced,
+             and a detached node measures as zero -- the correction would then
+             chase a rectangle at the top of the document. repaintPace falls
+             back to the card's own picker, which survives the re-render. */
+          repaintPace();
+        });
+      });
+      var close = host.querySelector('[data-pace-close]');
+      if (close) {
+        close.addEventListener('click', function () {
+          state.paceBar = null; state.paceChild = null; state.paceOwner = null;
+          repaintPace();
+        });
+      }
+    }
+
+    /* One vendor and one owner open at a time, toggled in place. The panels
+       are already in the DOM, so they animate; re-rendering would hand the
+       browser a new element at its final height with nothing to travel. */
+    function wirePaceTree(host) {
+      function bind(sel, read, write) {
+        host.querySelectorAll(sel).forEach(function (el) {
+          function toggle() {
+            holdScroll(el, function () {
+              var key = el.getAttribute(read);
+              var open = write(key);
+              host.querySelectorAll(sel).forEach(function (o) {
+                var on = o === el && open;
+                o.classList.toggle('is-open', on);
+                o.setAttribute('aria-expanded', String(on));
+                o.nextElementSibling.classList.toggle('is-open', on);
+              });
+            });
+          }
+          el.addEventListener('click', function (e) { e.stopPropagation(); toggle(); });
+          el.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggle(); }
+          });
+        });
+      }
+      bind('[data-pchild]', 'data-pchild', function (k) {
+        var open = state.paceChild !== k;
+        state.paceChild = open ? k : null;
+        if (!open) state.paceOwner = null;
+        return open;
+      });
+      bind('[data-powner]', 'data-powner', function (k) {
+        var open = state.paceOwner !== k;
+        state.paceOwner = open ? k : null;
+        return open;
+      });
+    }
+
+    /* Two to five projects: a bar each, inside every month. Colours are the
+       spreadsheet's project colours, so a project reads the same here as on
+       the breakdown card. */
+    function paceGrouped(sel, host, tblHost, names) {
+      var ms = groupBy(sel, { key: 'month', ordered: true });
+      var total = sum(sel);
+      var byMonth = {};
+      ms.forEach(function (m) { byMonth[m.sortKey] = {}; });
+      sel.forEach(function (r) {
+        var k = r.date.slice(0, 7), p = val(r, 'project');
+        byMonth[k][p] = (byMonth[k][p] || 0) + r.amount;
+      });
+      var max = niceMax(Math.max.apply(null, ms.map(function (m) {
+        return Math.max.apply(null, names.map(function (n) { return byMonth[m.sortKey][n] || 0; }));
+      })));
+
+      var grid = '';
+      for (var g = 4; g >= 0; g--) {
+        grid += '<div class="fin-gridline" style="top:' + ((4 - g) * 25) + '%"><span>' + tickLabel(max * g / 4) + '</span></div>';
+      }
+      var cols = ms.map(function (m, i) {
+        return '<div class="fin-col" data-i="' + i + '"><div class="fin-colgroup">' +
+          names.map(function (n) {
+            var v = byMonth[m.sortKey][n] || 0;
+            return '<div data-p="' + esc(n) + '" data-bar="' + esc(m.sortKey) + '" style="height:' +
+                   (max ? v / max * 100 : 0).toFixed(2) +
+                   '%;background:' + (PROJECT_COLOR[n] || 'var(--fin-other)') + '"></div>';
+          }).join('') + '</div></div>';
+      }).join('');
+      var axis = ms.map(function (m) { return '<span>' + esc(m.name) + '</span>'; }).join('');
+
+      host.innerHTML = '<div class="fin-cols"><div class="fin-cols__plot">' + grid + cols +
+        '</div><div class="fin-cols__axis">' + axis + '</div></div>' +
+        '<div class="fin-legend" style="margin-top:12px">' +
+          names.map(function (n) {
+            var t = sum(sel.filter(function (r) { return val(r, 'project') === n; }));
+            return '<span class="fin-legend__item"><span class="fin-legend__dot" style="background:' +
+              (PROJECT_COLOR[n] || 'var(--fin-other)') + '"></span>' + esc(n) +
+              ' <span class="fin-legend__val">' + esc(money0(t)) + '</span></span>';
+          }).join('') +
+        '</div>' +
+        (state.paceBar ? paceDetailHtml(sel, state.paceBar) : '');
+      wirePaceBars(host, sel);
+      wirePaceTree(host);
+
+      tblHost.innerHTML = '<div class="fin-tbl-wrap"><table class="fin-tbl"><thead><tr><th>Month</th>' +
+        '<th class="is-num">Total</th>' +
+        names.map(function (n) { return '<th class="is-num">' + esc(n) + '</th>'; }).join('') +
+        '</tr></thead><tbody>' +
+        ms.map(function (m) {
+          var open = state.paceBar && state.paceBar.month === m.sortKey && !state.paceBar.project;
+          return '<tr class="fin-trow fin-trow--open' + (open ? ' is-open' : '') + '" data-bar="' + esc(m.sortKey) + '"' +
+            ' role="button" tabindex="0" aria-expanded="' + !!open + '">' +
+            '<td class="is-strong"><i class="fin-tchev ti ti-chevron-right" aria-hidden="true"></i>' +
+            esc(m.name) + '</td>' +
+            /* Total leads, ahead of the projects that make it up: the row reads
+               Month -> Total -> selected projects. */
+            '<td class="is-num">' + esc(money(m.total)) + '</td>' +
+            /* Each project cell opens that project in that month -- the table
+               equivalent of clicking its bar. A zero cell has nothing behind
+               it, so it stays inert rather than opening an empty panel. */
+            names.map(function (n) {
+              var v = byMonth[m.sortKey][n] || 0;
+              var cellOpen = state.paceBar && state.paceBar.month === m.sortKey && state.paceBar.project === n;
+              if (!v) return '<td class="is-num">' + esc(money(0)) + '</td>';
+              return '<td class="is-num fin-tcell' + (cellOpen ? ' is-open' : '') + '"' +
+                ' data-bar="' + esc(m.sortKey) + '" data-p="' + esc(n) + '"' +
+                ' role="button" tabindex="0" aria-expanded="' + !!cellOpen + '">' + esc(money(v)) + '</td>';
+            }).join('') + '</tr>';
+        }).join('') + '</tbody><tfoot class="fin-tbl__foot"><tr><td>Total</td>' +
+        '<td class="is-num">' + esc(money(total)) + '</td>' +
+        names.map(function (n) {
+          return '<td class="is-num">' + esc(money(sum(sel.filter(function (r) { return val(r, 'project') === n; })))) + '</td>';
+        }).join('') + '</tr></tfoot></table></div>' +
+        (state.paceBar ? paceDetailHtml(sel, state.paceBar) : '');
+      wirePaceBars(tblHost, sel);
+      wirePaceTree(tblHost);
+    }
+
+    /* ---- spend pace: one column per month --------------------------------
+       Columns, not a cumulative area: a bar per month answers "how much did
+       that month cost" directly, where a running total only ever climbs and
+       makes every month look like an increase. The running total is still
+       the table's last column. */
+    function paceByMonth(sel, label, host, tblHost) {
+      var ms = groupBy(sel, { key: 'month', ordered: true });
+      var total = sum(sel);
+      var max = niceMax(Math.max.apply(null, ms.map(function (m) { return m.total; })));
+
+      host.innerHTML = columnsHtml(ms, max, total) +
+        '<div class="fin-legend" style="margin-top:12px">' +
+          '<span class="fin-legend__item"><span class="fin-legend__dot" style="background:var(--fin-c1)"></span>' +
+            esc(label) + ' <span class="fin-legend__val">' + esc(money0(total)) + '</span></span>' +
+          (ms[ms.length - 1].partial
+            ? '<span class="fin-legend__item"><span class="fin-legend__dot" style="background:var(--brand-hair)"></span>' +
+              'partial month</span>' : '') +
+        '</div>' +
+        (state.paceBar ? paceDetailHtml(sel, state.paceBar) : '');
+      wirePaceBars(host, sel);
+      wirePaceTree(host);
+
+      var runT = 0;
+      tblHost.innerHTML = '<div class="fin-tbl-wrap"><table class="fin-tbl"><thead><tr><th>Month</th>' +
+        '<th class="is-num">Payments</th><th class="is-num">Amount</th><th class="is-num">Running total</th></tr></thead><tbody>' +
+        ms.map(function (m) {
+          runT += m.total;
+          var open = state.paceBar && state.paceBar.month === m.sortKey && !state.paceBar.project;
+          return '<tr class="fin-trow fin-trow--open' + (open ? ' is-open' : '') + '" data-bar="' + esc(m.sortKey) + '"' +
+            ' role="button" tabindex="0" aria-expanded="' + !!open + '">' +
+            '<td class="is-strong"><i class="fin-tchev ti ti-chevron-right" aria-hidden="true"></i>' +
+            esc(m.name) +
+            '</td><td class="is-num">' + m.n + '</td><td class="is-num">' + esc(money(m.total)) +
+            '</td><td class="is-num">' + esc(money(runT)) + '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        (state.paceBar ? paceDetailHtml(sel, state.paceBar) : '');
+      wirePaceBars(tblHost, sel);
+      wirePaceTree(tblHost);
+    }
+
+    /* ---- render --------------------------------------------------------- */
+    function render() {
+      var rows = filtered();
+      DIMENSIONS.forEach(function (d) { renderBreakdown(rows, d); });
+      renderPace(rows);
+    }
+
+    /* ---- tabs, and the rail children that mirror them ------------------
+       The three sources are one page, so the tab is a query param and the
+       rail children point at it — the same ?tab= convention the project
+       rows already use. */
+    var TABS = ['reap', 'fiat', 'crypto'];
+    var root = document.documentElement;
+
+    function setTab(name, syncUrl) {
+      if (TABS.indexOf(name) < 0) name = 'reap';
+      TABS.forEach(function (t) {
+        var btn = document.getElementById('tab-' + t);
+        var panel = document.getElementById('panel-' + t);
+        var on = t === name;
+        btn.setAttribute('aria-selected', String(on));
+        btn.tabIndex = on ? 0 : -1;
+        panel.hidden = !on;
+      });
+      document.querySelectorAll('[data-fin-tab]').forEach(function (a) {
+        var on = a.getAttribute('data-fin-tab') === name;
+        if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+        a.parentNode.classList.toggle('is-current', on);
+      });
+      document.title = name.charAt(0).toUpperCase() + name.slice(1) + ' — Finance — Elinno Agent';
+      if (syncUrl) history.replaceState(null, '', '?tab=' + name);
+    }
+
+    var tabStrip = document.querySelector('.fin-tabs');
+    tabStrip.addEventListener('click', function (e) {
+      var b = e.target.closest('.fin-tab');
+      if (b) setTab(b.getAttribute('data-tab'), true);
+    });
+    /* Roving arrow keys — a tablist that only answers to the mouse is not one. */
+    tabStrip.addEventListener('keydown', function (e) {
+      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!d) return;
+      e.preventDefault();
+      var cur = TABS.findIndex(function (t) {
+        return document.getElementById('tab-' + t).getAttribute('aria-selected') === 'true';
+      });
+      var next = TABS[(cur + d + TABS.length) % TABS.length];
+      setTab(next, true);
+      document.getElementById('tab-' + next).focus();
+    });
+
+    /* ---- rail section open/close ---------------------------------------
+       Mirrors setSection() in /_lib/side-nav.js: the class lives on <html>,
+       the animation is .sn-l3-group's grid-template-rows 0fr → 1fr, and the
+       choice is remembered. */
+    var finBtn = document.querySelector('[data-sn-section="finance"]');
+    function setFinanceSection(open, persist) {
+      finBtn.setAttribute('aria-expanded', String(open));
+      root.classList.toggle('sn-finance-open', open);
+      if (persist) { try { localStorage.setItem('elinno.sidenav.finance', open ? '1' : '0'); } catch (e) {} }
+    }
+    finBtn.addEventListener('click', function () {
+      setFinanceSection(finBtn.getAttribute('aria-expanded') !== 'true', true);
+    });
+    setFinanceSection(root.classList.contains('sn-finance-open'), false);
+
+    setTab(new URLSearchParams(location.search).get('tab') || 'reap', false);
+
+    function longDate(s) { var d = ymd(s); return MON[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }
+    /* dd/mm/yy for the range control. Deliberately NOT used for "Last
+       updated": 01/07/26 is read as 1 July by half the world and 7 January by
+       the other half, which is tolerable next to a calendar that just showed
+       you the span, and not tolerable on a lone date with no context. */
+    function dmy(s) {
+      var d = ymd(s);
+      return String(d.getDate()).padStart(2, '0') + '/' +
+             String(d.getMonth() + 1).padStart(2, '0') + '/' +
+             String(d.getFullYear()).slice(-2);
+    }
+    /* ---- boot ------------------------------------------------------------
+       The page is a static asset with no data in it; everything comes from
+       GET /api/finance/<dataset>, which gates on a session. Only Reap has a
+       data path — Fiat and Crypto are static empty states (decision K), so
+       switching to them needs no fetch.
+
+       cache:'no-store' on the client pairs with the endpoint's
+       `private, no-store`. Decision J: during the prototype session a stale
+       data file was served three separate times after the file changed, and
+       an upload nobody can see is worse than no upload. */
+
+    var metaEl = document.getElementById('metaUpdated');
+
+    function gotoLogin() {
+      location.replace('/?next=' + encodeURIComponent(location.pathname + location.search));
+    }
+
+    function applyDataset(payload) {
+      DATA = payload || { rows: [] };
+      ROWS = DATA.rows || [];
+      /* An empty dataset has no span of its own. Fall back to today so the
+         range picker still has a valid month to open on rather than
+         rendering Invalid Date. */
+      var today = new Date().toISOString().slice(0, 10);
+      P_START = DATA.periodStart || today;
+      P_END = DATA.periodEnd || today;
+      metaEl.textContent = DATA.uploadedAt ? longDate(DATA.uploadedAt) : '—';
+      initFilters();
+      render();
+    }
+
+    function boot() {
+      metaEl.textContent = 'Loading…';
+      fetch('/api/finance/reap', { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) {
+          if (r.status === 401) { gotoLogin(); return null; }
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (payload) {
+          if (payload === null) return;          /* redirecting */
+          applyDataset(payload);
+        })
+        .catch(function () {
+          /* Deliberately renders the empty state rather than a blank page:
+             the cards, filters and rail stay in place and the meta line
+             carries the failure, so a transient outage looks like "no data
+             right now" instead of a broken page. */
+          applyDataset({ rows: [] });
+          metaEl.textContent = 'Could not load — reload to try again';
+        });
+    }
+
+    boot();
+  })();
+  </script>
+  <script src="/_lib/side-nav.js?v=2026-08-16-2" defer></script>
+</body>
+</html>
