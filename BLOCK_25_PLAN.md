@@ -4,9 +4,8 @@
 time and locked below. This commit is the artifact recording "plan approved at
 this version," per WORKFLOW Phase 2.
 
-Uncertainty 2 (the xlsx library) is explicitly *not* covered by this approval —
-the library's name, version and byte size come back to Jenny before anything is
-vendored.
+Uncertainty 2 (the xlsx library) was carved out of the original approval and
+resolved separately on 2026-08-23; see decision L.
 
 ---
 
@@ -102,6 +101,20 @@ the prototype session the browser twice served a stale `finance-data.js` after t
 file changed. A real upload that nobody can see is worse than no upload.
 
 **K — Fiat and Crypto are titles and an empty state only**, per the closeout.
+
+**L — xlsx parser: `read-excel-file` 9.3.10** (added 2026-08-23, resolving
+uncertainty 2). Vendored as a single pinned file with its version and source URL
+in a header comment — no npm dependency, no build step. 47,996 bytes minified,
+MIT, zero known advisories, published 2026-08-10. Its UMD bundle exposes
+`readXlsxFile` as a browser global, so it loads from a plain `<script>` tag,
+which PROJECT.md section 11's "no bundlers, no frameworks" requires.
+
+Not SheetJS, which is the obvious pick and the wrong one here: SheetJS moved
+distribution off npm, so the npm `xlsx` package is frozen at 0.18.5 (2022) and
+carries two live advisories — GHSA-4r6h-8v6p-xvw6 (prototype pollution) and
+GHSA-5pgg-2g8v-p4x9 (ReDoS), confirmed against OSV 2026-08-23. The fixed 0.20.3
+exists only on cdn.sheetjs.com and is 951,904 bytes, twenty times the chosen
+library, with no `npm audit` path.
 
 ---
 
@@ -205,7 +218,11 @@ This is the scope contract. Anything outside it stops execute.
   proven R2-write endpoint — MIME/shape allowlist, size cap, orphan-safe write
   ordering.
 - `public/finance.html` — the real page, ported from the prototype.
-- `public/_lib/xlsx-parse.js` — the vendored parser plus the shape-trap handling.
+- `public/_lib/read-excel-file.min.js` — the vendored parser (decision L), pinned,
+  unmodified, with version and source URL in a header comment.
+- `public/_lib/finance-xlsx.js` — our wrapper: the shape-trap handling (header on
+  row 3, titles above it, totals footer skipped, `Catrgory`) and the mapping to
+  the payload shape the endpoint expects.
 
 **Modified**
 - `wrangler.toml` — second `[[r2_buckets]]` block for `FINANCE`.
@@ -256,10 +273,9 @@ ones written in before the check runs — not after.
 1. **Decision I (one previous version) is proposed, not locked.** It costs one
    extra R2 write per upload and gives a bad upload an undo. Say if you would
    rather keep more history, or none.
-2. **The xlsx parser is a vendored third-party dependency** — the first in the
-   repo beyond `postgres`. I have not picked a library or checked its size yet;
-   I will bring the name, version and byte size for approval before vendoring it
-   rather than choosing unilaterally. It would load only on `finance.html`.
+2. ~~**The xlsx parser is a vendored third-party dependency.**~~ **RESOLVED
+   2026-08-23** — measured three candidates and approved `read-excel-file`
+   9.3.10. See decision L.
 3. **V9's 12px threshold is my number, not a measured one.** Current spread is
    roughly 130px (320–450). If 12px turns out to be unreachable without changing
    the design, I will report the measured floor rather than quietly widening it.
