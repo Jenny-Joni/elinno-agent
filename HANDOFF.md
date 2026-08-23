@@ -7327,3 +7327,159 @@ the guardrail is not where it appears to be.
 
 Nothing published this session. Four user-visible changes are live and
 unannounced; copy is Jenny's.
+
+---
+
+## Session closeout — 2026-08-20/21 (Finance dashboard prototyped in `_dev/`; nothing shipped)
+
+### Production state at session end
+
+**Unchanged.** No commits, no pushes, no deploys. `main` is level with
+`origin/main` and the working tree is clean apart from `BLOCK_24_PLAN.md`,
+which was already untracked before this session.
+
+Everything built this session lives in **`public/_dev/`, which is gitignored**
+(Block 16.9). That is deliberate, not an oversight: the prototype carries the
+real 122 payments inline, and `public/` is the Pages build output — committing
+it would serve the company's card spend unauthenticated, which is exactly the
+exposure that fix closed.
+
+### What exists on disk
+
+| File | What it is |
+|---|---|
+| `public/_dev/finance-mockup.html` | The working prototype, ~295 KB. Uses the real `auth.css` and the real byte-identical side rail. |
+| `public/_dev/finance-data.js` | 122 payments as `window.FINANCE_FIXTURE`, generated from the spreadsheet. |
+
+A build script in the session scratchpad derived a self-contained copy for
+publishing (inlines `auth.css`, swaps Tabler glyphs for inline SVG, escapes to
+ASCII). **It is not in the repo** — rewrite it or re-derive by hand if the
+artifact needs regenerating.
+
+**Published artifact** (outside the repo, private to Jenny's account):
+`https://claude.ai/code/artifact/bd07507e-ab5d-44ac-a71f-48c98f68d2af`
+It carries the real payment data. Note: a publish conflict during the session
+showed **another session can write to that URL** — re-read before overwriting.
+
+### Source data
+
+`Reap_NEW_1787263383.xlsx` (Jenny's Downloads, 2026-08-21). 122 payment rows,
+**$65,716.91**, 2026-07-01 → 2026-08-15. Header is on row 3; rows 1–2 are
+titles and the last row is a totals footer that must be skipped. The `Category`
+column is misspelled `Catrgory` in the file.
+
+Per-project colours come from the **cell fill colours** in the Project column,
+not from anything invented: Joni `DF2F4A`, Gems Launchpad `9CD326`, Rain
+`FFCB00`, Elinnovation `BDA8F9`, TOMI `FF007F`, Gems Trade `00C875`, DOP
+`333333`, Mezada `4ECCC6`, Olympus AI `579BFC`, blank `C4C4C4`. Seven were
+darkened along their own hue to clear 3:1 on white — they are cell fills
+designed as pale grounds, and Rain measured 1.52:1 as a bar. The shifted values
+are in the mockup's `PROJECT_COLOR` map with the originals in a comment.
+
+An earlier export (`...1787225781` / `...1787225976`) had `???` account owners
+and `Business Development & Partnerships`; the current file is a cleanup pass —
+same 122 rows and same total.
+
+### Decisions Jenny locked
+
+- **Uploads full-replace.** Each upload wipes and replaces; the export always
+  covers the full history.
+- **Data shown as-is**, nothing inferred or merged. (The data-quality banner
+  that reported the gaps was built and then removed at her request.)
+- **Nav:** Finance sits above Projects as an expandable section with children
+  Reap / Fiat / Crypto.
+- **Tabs:** Reap is built; Fiat and Crypto are titles and an empty state only.
+- **Dates** display `dd/mm/yy` in the range picker; "Last updated" keeps the
+  long form deliberately, since a lone `20/08/26` is ambiguous.
+- **Filter row:** Projects, Vendors, Dates, Cards — multi-selects with
+  All/None, no per-vendor counts.
+- **by MONTH card's own pickers:** Projects has no All/None, starts empty, caps
+  at five, and reads "Select projects (maximum 5)"; Vendor is single-select.
+
+### What the prototype does
+
+Three cards — **by PROJECT**, **by VENDOR**, **by MONTH** — over one filter row.
+
+- Project and vendor cards drill four levels (project → vendor → account owner
+  → payments, and the reverse on the vendor card), in **both** Chart and Table
+  views, sharing one open state. Top 10 with "Show all N".
+- Child bars are proportional to their parent's total, so the bar length equals
+  the percentage printed beside it.
+- by MONTH draws a column per month, or a bar per project when 2–5 projects are
+  chosen. Clicking a bar — or a table row, or a project cell in the table —
+  opens the payments behind it as the same vendor → owner → date tree. The
+  vendor level is skipped when a single vendor is already selected.
+- Vendor names carry a tooltip (department + description) everywhere they
+  appear; project bars have none.
+
+### ⚠️ What shipping actually requires — none of it is done
+
+1. **`public/finance.html`** — the real page, fetching the fixture's shape from
+   an endpoint instead of an inlined file.
+2. **Storage + the admin upload path**, implementing the full-replace decision.
+3. **An admin-gated API** for the rows, with the role check server-side. The
+   hidden nav item is a display hint, never a permission.
+4. **The rail edit in all 11 authenticated pages**, plus two `auth.css`
+   changes below.
+
+Items 3 and 4 are security carve-outs (admin gating, project-scoping) and per
+WORKFLOW.md run in **default mode, not auto**.
+
+### Traps found the hard way — do not rediscover these
+
+- **`auth.css:4014-4016` assumes Projects is the only expandable rail section.**
+  Open state and chevron rotation are keyed to one global `html.sn-section-open`
+  class, so a second section opens and rotates in lockstep with Projects. The
+  prototype scopes Finance around it in page-local CSS; shipping means
+  generalising those three rules per-section, plus `setSection()` in
+  `_lib/side-nav.js` and the boot script in all 11 pages.
+- **`.sn-l2[aria-current="page"]` has no style in auth.css** — the Projects tree
+  never needed one because project names are not destinations. Finance's
+  children are. The prototype uses a local `.sn-l2.is-current`.
+- **`html { scroll-behavior: smooth }`** (auth.css) fights per-frame scroll
+  corrections: each `scrollBy` animates and the next frame measures a position
+  still travelling. Set `scroll-behavior: auto` for the duration of a
+  correction and restore it after.
+- **`U+0000` cannot be used to join keys in an HTML attribute** — the parser
+  rewrites it to `U+FFFD`, so a key built in JS stops matching the same key read
+  back from the DOM. The prototype joins with `|~|`.
+- **Inline SVG inside a JS template literal still 500s Cloudflare Pages**
+  (Block 13.3). Tabler glyphs are font characters and are safe.
+  `project.html`'s `SV_CHECK` is a live instance of the risky pattern.
+- **A menu's off-screen edge check must guard against a zero-width viewport** —
+  in a hidden or collapsed frame `clientWidth` reads 0, every menu looks like it
+  overflows, and the flip throws it off the left edge instead.
+- **The data file needs a cache-busting version** on its URL. During the session
+  the browser twice served a stale `finance-data.js` after the file changed;
+  a real upload would not appear for anyone holding the old copy.
+
+### Open — engineering
+
+- **Regression: the by MONTH Week/Month granularity toggle was built and then
+  lost** in a later rewrite of the card. The card is month-columns only now.
+  Jenny asked for that choice; it needs restoring.
+- **The by MONTH card's height still varies by mode** (roughly 320–450px across
+  1 / 2 / 3 / 5 projects and combined). Mid-page interactions hold at 0px, but
+  at the very bottom of the document the browser clamps and the page moves.
+  The empty state and legend are height-matched; the grouped chart is not.
+- **The "partial month" legend entry survives** even though the `(partial)`
+  labels were removed from the chart axis and both tables. It explains the
+  lighter August fill; removing one without the other leaves that fill
+  unexplained.
+- **Six spreadsheet columns are carried but never displayed** — Category,
+  Department, Requested by, Account owner (outside the drill-downs), Merchant,
+  and Name. Category is blank on 50 of 122 rows and nothing surfaces that now.
+- `renderBreakdownTable` still has a dead `(partial)` branch; no dimension sets
+  the flag any more.
+
+### Open — Jenny's
+
+1. **Where the data lives** — the storage decision behind item 2 above.
+2. **The artifact carries real payment data** at a URL outside the repo. Decide
+   whether it stays, and note the git-history caveat does not apply here since
+   nothing was committed.
+3. Everything still open from the Blocks 21–23 closeout above.
+
+### What's New notice
+
+Nothing shipped, nothing to announce.
