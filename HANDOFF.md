@@ -6122,6 +6122,14 @@ Twelve commits on `main`, all landed on prod:
   Does NOT push to git; just uploads `public/` + functions straight to
   CF Pages prod. Doesn't bump the deployment commit hash to match git
   (it shows up with the hash of the upload bundle, e.g. `ad19b6f1`).
+
+  **Superseded 2026-08-23 (Block 25) — do not run this form.** It uploads
+  `public/` from disk, and `wrangler pages deploy` honours neither
+  `.gitignore` nor `.assetsignore`: its walk in `src/pages/validate.ts`
+  uses a hardcoded ignore list. `public/_dev/` is gitignored, so the
+  git-based deploy never sees it — but this command would publish every
+  mockup in it, unauthenticated. Use the staged-copy form now documented
+  in PROJECT.md section 10.
 - **Deploy-hook fallback** (not set up this session): Settings → Deploy
   hooks → `+` lets you create a `curl -X POST <url>` trigger that
   forces a build of `main`. Worth adding next session as a third

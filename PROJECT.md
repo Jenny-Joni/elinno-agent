@@ -218,6 +218,37 @@ https://dash.cloudflare.com → Workers & Pages → `elinno-agent` → Deploymen
 `abc1234.elinno-agent.pages.dev`. From the Deployments tab, click the
 `...` menu next to any past deploy → "Rollback to this deployment".
 
+**Escape hatch — when the GitHub → Pages webhook drops a commit.** It has
+happened twice (2026-05-27, 2026-05-28): a commit reached `origin/main` and
+never produced a deployment, and "Retry deployment" only rebuilt the same
+stale hash. Deploy straight from disk instead, **from the repo root**:
+
+```bash
+rsync -a --delete --exclude '_dev/' public/ /tmp/elinno-agent-deploy/
+npx wrangler pages deploy /tmp/elinno-agent-deploy --project-name=elinno-agent --branch=main --commit-dirty=true
+```
+
+Why the staged copy, and not `wrangler pages deploy public` as recorded in the
+2026-05-27 HANDOFF entry: `wrangler pages deploy` uploads the directory **from
+disk** and honours neither `.gitignore` nor `.assetsignore`. Its walk
+(`src/pages/validate.ts`) uses a hardcoded ignore list — `_worker.js`,
+`_redirects`, `_headers`, `_routes.json`, `functions`, `**/.DS_Store`,
+`**/node_modules`, `**/.git`, `.wrangler`. `public/_dev/` is gitignored, so it
+never reaches the repo and the normal git-based deploy never sees it. The
+escape hatch would publish every mockup in it, unauthenticated.
+
+Two things the staged copy does **not** break — both checked against the
+wrangler in use here, 4.125.0:
+
+- **Functions still deploy.** They resolve from `process.cwd()/functions`, not
+  from the asset directory. This is why the command must be run from the repo
+  root.
+- **`_headers` still applies.** It is read from the asset directory, and the
+  `rsync` copies it.
+
+As before, this does not push to git, and the deployment carries the hash of the
+upload bundle rather than a git commit.
+
 ---
 
 ## 11. Conventions for this repo
