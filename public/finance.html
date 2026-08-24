@@ -1503,7 +1503,11 @@
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
 
-    function columnsHtml(shown, max, total) {
+    /* `colour` is optional. Partial columns deliberately do NOT take it: their
+       lighter fill is what marks them as not comparable to a full month, and
+       an inline background would beat the .fin-col--partial rule and erase
+       that signal. */
+    function columnsHtml(shown, max, total, colour) {
       var grid = '';
       for (var g = 4; g >= 0; g--) {
         grid += '<div class="fin-gridline" style="top:' + ((4 - g) * 25) + '%"><span>' +
@@ -1512,7 +1516,8 @@
       var cols = shown.map(function (d, i) {
         return '<div class="fin-col' + (d.partial ? ' fin-col--partial' : '') + '" data-i="' + i + '"' +
           (d.sortKey ? ' data-bar="' + esc(d.sortKey) + '"' : '') + '>' +
-          '<div class="fin-col__bar" style="height:' + (max ? d.total / max * 100 : 0).toFixed(2) + '%">' +
+          '<div class="fin-col__bar" style="height:' + (max ? d.total / max * 100 : 0).toFixed(2) + '%' +
+            (colour && !d.partial ? ';background:' + colour : '') + '">' +
           '<span class="fin-col__tag">' + esc(money0(d.total)) + '</span></div></div>';
       }).join('');
       var axis = shown.map(function (d) {
@@ -2210,9 +2215,17 @@
       var total = sum(sel);
       var max = niceMax(Math.max.apply(null, ms.map(function (m) { return m.total; })));
 
-      host.innerHTML = columnsHtml(ms, max, total) +
+      /* One project selected: use its own colour, the same one it carries on
+         the by PROJECT card and in the grouped view, so a project reads the
+         same everywhere. Anything else stays the neutral series colour —
+         combined bars are not "a project". */
+      var pset = state.sel['pace-project'];
+      var only = pset && pset.size === 1 ? Array.from(pset)[0] : '';
+      var colour = only ? (PROJECT_COLOR[only] || 'var(--fin-other)') : 'var(--fin-c1)';
+
+      host.innerHTML = columnsHtml(ms, max, total, colour) +
         '<div class="fin-legend" style="margin-top:12px">' +
-          '<span class="fin-legend__item"><span class="fin-legend__dot" style="background:var(--fin-c1)"></span>' +
+          '<span class="fin-legend__item"><span class="fin-legend__dot" style="background:' + colour + '"></span>' +
             esc(label) + ' <span class="fin-legend__val">' + esc(money0(total)) + '</span></span>' +
           (ms[ms.length - 1].partial
             ? '<span class="fin-legend__item"><span class="fin-legend__dot" style="background:var(--brand-hair)"></span>' +
