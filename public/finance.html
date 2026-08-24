@@ -313,8 +313,6 @@
       border-radius: 4px 4px 0 0;        /* rounded data-end, anchored to the baseline */
       min-height: 2px; transition: opacity var(--t-fast);
     }
-    /* A month the period only partly covers is not comparable to a full one. */
-    .fin-col--partial .fin-col__bar { background: var(--brand-hair); }
     .fin-col__tag {
       position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
       margin-bottom: 6px; font-family: var(--font); font-size: 11.5px;
@@ -1458,7 +1456,6 @@
         m[k].total += r.amount; m[k].n++;
       });
       var out = order.map(function (k) { return m[k]; });
-      if (dim.key === 'month') out.forEach(function (x) { x.partial = partialMonth(x.sortKey); });
       /* Ranked by size, except the blank bucket which is pinned last however
          big it is — same rule the filter menus use. It is a gap in the source
          data, not a project or a vendor, so it should not outrank real ones. */
@@ -1483,13 +1480,6 @@
       return 10 * mag;
     }
 
-    /* True when the loaded period covers only part of the month, so the bar
-       is not comparable to a full one. */
-    function partialMonth(ym) {
-      var d = ymd(ym + '-01');
-      var last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-      return ym + '-01' < P_START || iso2(last) > P_END;
-    }
     /* The bucket key for a row. groupBy sets `sortKey` from the same rule, so
        the chart's buckets, the drill-down filter and the stale-selection check
        cannot disagree. Kept as a function though it is now one line: it was
@@ -1499,14 +1489,11 @@
       return r.date.slice(0, 7);
     }
 
-    function iso2(d) {
-      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    }
-
-    /* `colour` is optional. Partial columns deliberately do NOT take it: their
-       lighter fill is what marks them as not comparable to a full month, and
-       an inline background would beat the .fin-col--partial rule and erase
-       that signal. */
+    /* `colour` is optional; when given, every column takes it. Part-covered
+       months used to draw in a lighter fill with a legend entry explaining
+       it — removed 2026-08-24 at Jenny's request, so every month is drawn the
+       same way. The period the card covers is stated by the range picker
+       above it. */
     function columnsHtml(shown, max, total, colour) {
       var grid = '';
       for (var g = 4; g >= 0; g--) {
@@ -1514,10 +1501,10 @@
           tickLabel(max * g / 4) + '</span></div>';
       }
       var cols = shown.map(function (d, i) {
-        return '<div class="fin-col' + (d.partial ? ' fin-col--partial' : '') + '" data-i="' + i + '"' +
+        return '<div class="fin-col" data-i="' + i + '"' +
           (d.sortKey ? ' data-bar="' + esc(d.sortKey) + '"' : '') + '>' +
           '<div class="fin-col__bar" style="height:' + (max ? d.total / max * 100 : 0).toFixed(2) + '%' +
-            (colour && !d.partial ? ';background:' + colour : '') + '">' +
+            (colour ? ';background:' + colour : '') + '">' +
           '<span class="fin-col__tag">' + esc(money0(d.total)) + '</span></div></div>';
       }).join('');
       var axis = shown.map(function (d) {
@@ -1648,9 +1635,8 @@
          the same vendor looks bigger in the short list than the long one. */
       var max = all.length ? Math.max.apply(null, all.map(function (d) { return d.total; })) : 1;
 
-      /* Unreachable when it was a ternary on dim.key === 'month': DIMENSIONS
-         is project + vendor. The partial-period caveat belongs to the by MONTH
-         card and is carried by its legend, not here. */
+      /* Was a ternary on dim.key === 'month', which DIMENSIONS never sets —
+         project and vendor only — so the month sentence was unreachable. */
       noteEl.textContent = '';
 
       if (!rows.length) { host.innerHTML = '<p class="fin-empty">No payments match these filters.</p>'; tblHost.innerHTML = ''; return; }
@@ -1660,7 +1646,7 @@
         host.innerHTML = columnsHtml(shown, cmax, total);
         host.querySelectorAll('.fin-col').forEach(function (el) {
           var d = shown[+el.getAttribute('data-i')];
-          bindTip(el, '<b>' + esc(d.name) + '</b>' + (d.partial ? ' <span class="fin-tip__m">partial</span>' : '') +
+          bindTip(el, '<b>' + esc(d.name) + '</b>' +
             '<br><span class="fin-tip__v">' + esc(money(d.total)) + '</span>' +
             '<span class="fin-tip__m"> \u00b7 ' + esc(pct(d.total, total)) + ' of slice \u00b7 ' +
             d.n + ' payment' + (d.n === 1 ? '' : 's') + '</span>');
@@ -1812,10 +1798,8 @@
         var open = dim.drillBy && state.drill[dim.id] === d.name;
         var html = '<tr class="fin-trow' + (dim.drillBy ? ' fin-trow--open' : '') + (open ? ' is-open' : '') + '"' +
           (dim.drillBy ? ' data-tdrill="' + esc(d.name) + '" role="button" tabindex="0" aria-expanded="' + open + '"' : '') + '>' +
-          /* No `(partial)` suffix here: groupBy sets that flag only for
-             dim.key === 'month', and DIMENSIONS is project + vendor only, so
-             the branch was unreachable. The partial-month signal lives on the
-             by MONTH card, where it is real — see the legend in paceByMonth. */
+          /* A `(partial)` suffix sat here on an unreachable branch; the
+             partial-month concept is gone entirely as of 2026-08-24. */
           cells(d.name, d.n, money(d.total), pct(d.total, total),
                 'is-strong', !!dim.drillBy, d.name === BLANK) + '</tr>';
         if (!dim.drillBy) return html;
@@ -2227,9 +2211,6 @@
         '<div class="fin-legend" style="margin-top:12px">' +
           '<span class="fin-legend__item"><span class="fin-legend__dot" style="background:' + colour + '"></span>' +
             esc(label) + ' <span class="fin-legend__val">' + esc(money0(total)) + '</span></span>' +
-          (ms[ms.length - 1].partial
-            ? '<span class="fin-legend__item"><span class="fin-legend__dot" style="background:var(--brand-hair)"></span>' +
-              'partial month</span>' : '') +
         '</div>' +
         (state.paceBar ? paceDetailHtml(sel, state.paceBar) : '');
       wirePaceBars(host, sel);
