@@ -282,6 +282,18 @@
       .dash-greeting { font-size: 22px; }
     }
 
+    /* Finance cards reuse .pcard wholesale — same border, hover and radius as
+       a project card — so the section reads as part of the page rather than a
+       bolted-on panel. Only the figure and the muted line are new. */
+    .fincard__amount {
+      font-family: var(--font); font-size: 22px; font-weight: 600;
+      color: var(--text); font-variant-numeric: tabular-nums; margin-top: 10px;
+    }
+    .fincard__meta { font-family: var(--font); font-size: 12px; color: var(--text-2); margin-top: 4px; }
+    .fincard__meta--quiet { color: var(--text-faint); }
+    .finance-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    @media (max-width: 700px) { .finance-grid { grid-template-columns: 1fr; } }
+
     .pcard {
       background: var(--bg);
       border: 0.5px solid var(--border);
@@ -666,6 +678,50 @@
         + '</a>';
     }
 
+    /* Finance section. `finance` is the /api/finance/reap payload or null when
+       the fetch failed or returned nothing — the cards still render in that
+       case, because a section that vanishes on an empty dataset would make the
+       dashboard reflow and hide the entry point. Same reasoning as the What's
+       New strip above.
+
+       Fiat and Crypto have no data path at all yet (BLOCK_25_PLAN decision K),
+       so they are deliberately static. */
+    function renderFinanceSection(finance) {
+      const rows = finance && Array.isArray(finance.rows) ? finance.rows : null;
+      const total = rows ? rows.reduce((a, r) => a + (Number(r.amount) || 0), 0) : null;
+      const money = n => '$' + Math.round(n).toLocaleString('en-US');
+      const stamp = finance && finance.uploadedAt
+        ? new Date(finance.uploadedAt) : null;
+      const when = stamp && !isNaN(stamp.getTime())
+        ? String(stamp.getDate()).padStart(2, '0') + '/' +
+          String(stamp.getMonth() + 1).padStart(2, '0') + '/' +
+          String(stamp.getFullYear()).slice(-2)
+        : null;
+
+      const reap = ''
+        + '<a class="pcard" href="/finance.html?tab=reap">'
+        +   '<div class="pcard__name">Reap</div>'
+        +   (rows && rows.length
+              ? '<div class="fincard__amount">' + esc(money(total)) + '</div>'
+                + '<div class="fincard__meta">' + rows.length + ' payment' + (rows.length === 1 ? '' : 's')
+                + (when ? ' · updated ' + esc(when) : '') + '</div>'
+              : '<div class="fincard__meta fincard__meta--quiet" style="margin-top:14px;">No data uploaded yet</div>')
+        + '</a>';
+
+      const stub = name => ''
+        + '<a class="pcard" href="/finance.html?tab=' + name.toLowerCase() + '">'
+        +   '<div class="pcard__name">' + name + '</div>'
+        +   '<div class="fincard__meta fincard__meta--quiet" style="margin-top:14px;">Not connected yet</div>'
+        + '</a>';
+
+      return ''
+        + '<div class="projects-section">'
+        +   '<div class="eyebrow"><span class="eyebrow__label">Finance</span><span class="eyebrow__rule"></span></div>'
+        +   '<div class="projects-section-head"><span></span><a href="/finance.html?tab=reap">View all →</a></div>'
+        +   '<div class="finance-grid">' + reap + stub('Fiat') + stub('Crypto') + '</div>'
+        + '</div>';
+    }
+
     function renderProjectsSection(projects, isAdmin) {
       const gridCls = isAdmin ? 'projects-grid-admin' : 'projects-grid-member';
       const cards = projects.map(renderProjectCard).join('');
@@ -729,6 +785,8 @@
       // The cross-project chats section is omitted entirely when the user
       // has no cross-project chats yet.
       const projectsById = new Map((data.projects || []).map(p => [p.id, p]));
+      // Finance above Projects (Jenny 2026-08-24).
+      parts.push(renderFinanceSection(data.finance));
       parts.push(renderProjectsSection(data.projects, isAdmin));
       parts.push(renderCrossProjectChatsSection(data.conversations || [], projectsById));
       root.innerHTML = parts.join('');
@@ -747,9 +805,14 @@
         // Fetch dashboard + cross-project conversations in parallel.
         // Conversations failure is non-fatal — dashboard still renders
         // (the cp-chats section just stays empty / hidden).
-        const [dashRes, convRes] = await Promise.all([
+        // Finance is the third, and non-fatal for the same reason as
+        // conversations: a finance outage must not take the dashboard down.
+        // no-store pairs with the endpoint's own header — a stale total here
+        // would contradict the Finance page a click away.
+        const [dashRes, convRes, finRes] = await Promise.all([
           fetch('/api/dashboard', { credentials: 'same-origin' }),
           fetch('/api/cross-project/conversations', { credentials: 'same-origin' }).catch(() => null),
+          fetch('/api/finance/reap', { credentials: 'same-origin', cache: 'no-store' }).catch(() => null),
         ]);
         if (dashRes.status === 401) { gotoLogin(); return; }
         if (!dashRes.ok) throw new Error('HTTP ' + dashRes.status);
@@ -764,6 +827,11 @@
           }
         }
         data.conversations = conversations;
+        data.finance = null;
+        if (finRes && finRes.ok) {
+          const fin = await finRes.json().catch(() => null);
+          if (fin && !fin.empty) data.finance = fin;
+        }
         const av = $('#navUserAvatar');
         av.textContent = initial(data.user.display_name || data.user.email);
         av.title = (data.user.display_name || '') + (data.user.email ? ' · ' + data.user.email : '');
