@@ -96,6 +96,16 @@
     }
     .fin-meta p:last-child { margin-bottom: 0; }
     .fin-meta strong { color: var(--text); font-weight: 500; }
+    /* The upload control sits on the same line as "Last updated" and is
+       pushed to the far end, so it never competes with the heading for
+       attention — it is a monthly chore, not a primary action. */
+    .fin-meta--row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .fin-meta--row p { flex: 1 1 auto; }
+    .fin-upload { display: inline-flex; align-items: center; gap: 10px; }
+    .fin-upload__btn { font-size: 12.5px; padding: 5px 11px; }
+    .fin-upload__msg { font-family: var(--font); font-size: 12px; color: var(--text-2); }
+    .fin-upload__msg.is-err { color: var(--danger); }
+    .fin-upload__msg.is-ok { color: var(--success); }
 
 
     /* ---- one filter row, above everything it scopes ----------------- */
@@ -708,8 +718,17 @@
 
       <section id="panel-reap" role="tabpanel" aria-labelledby="tab-reap" tabindex="0">
       <h1 class="fin-h1">Reap</h1>
-      <div class="fin-meta">
+      <div class="fin-meta fin-meta--row">
         <p>Last updated: <strong id="metaUpdated">—</strong></p>
+        <!-- Admin-only, and a DISPLAY HINT ONLY: hidden markup is not a
+             permission. The gate is requireWorkspaceAdmin on the POST in
+             functions/api/finance/[dataset].js. Revealed after /api/me
+             answers, so it starts hidden and stays hidden for non-admins. -->
+        <div class="fin-upload" id="uploadWrap" hidden>
+          <input type="file" id="uploadInput" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden />
+          <button type="button" class="btn btn--ghost fin-upload__btn" id="uploadBtn">Replace data…</button>
+          <span class="fin-upload__msg" id="uploadMsg" role="status" aria-live="polite"></span>
+        </div>
       </div>
 
       <!-- One filter row, above everything it scopes. Every card below
@@ -854,6 +873,10 @@
 
   <div class="fin-tip" id="finTip" role="status" aria-live="polite"></div>
 
+  <!-- Upload path only. read-excel-file is vendored and pinned; see its
+       header comment and BLOCK_25_PLAN.md decision L. -->
+  <script src="/_lib/read-excel-file.min.js?v=2026-08-23-1"></script>
+  <script src="/_lib/finance-xlsx.js?v=2026-08-23-1"></script>
   <script>
   (function () {
     'use strict';
@@ -2408,6 +2431,82 @@
           metaEl.textContent = 'Could not load — reload to try again';
         });
     }
+
+    /* ---- admin upload -----------------------------------------------------
+       Reveal is a display hint; the POST is gated by requireWorkspaceAdmin
+       server-side. A non-admin who unhides this button gets a 403.
+
+       The upload FULL-REPLACES the dataset, so it confirms first and names
+       what is being destroyed. The endpoint keeps one previous version, but
+       an undo nobody knows about is not consent. */
+    var upWrap = document.getElementById('uploadWrap');
+    var upBtn = document.getElementById('uploadBtn');
+    var upInput = document.getElementById('uploadInput');
+    var upMsg = document.getElementById('uploadMsg');
+
+    function say(text, kind) {
+      upMsg.textContent = text;
+      upMsg.className = 'fin-upload__msg' + (kind ? ' is-' + kind : '');
+    }
+
+    fetch('/api/me', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && d.user && d.user.is_admin) upWrap.hidden = false; })
+      .catch(function () { /* stay hidden; the endpoint is the real gate */ });
+
+    upBtn.addEventListener('click', function () { upInput.click(); });
+
+    upInput.addEventListener('change', function () {
+      var file = upInput.files && upInput.files[0];
+      upInput.value = '';                     /* so re-picking the same file fires again */
+      if (!file) return;
+
+      say('Reading ' + file.name + '…');
+      var parsed;
+      parseFinanceWorkbook(file)
+        .then(function (payload) {
+          parsed = payload;
+          var had = (DATA.rows || []).length;
+          var msg = 'Replace the Reap dataset with ' + payload.rows.length +
+            ' payment' + (payload.rows.length === 1 ? '' : 's') +
+            ' from ' + file.name + '?';
+          if (had) {
+            msg += '\n\nThis removes the ' + had + ' payment' + (had === 1 ? '' : 's') +
+              ' currently stored. One previous version is kept.';
+          }
+          if (!window.confirm(msg)) { say(''); return null; }
+
+          say('Uploading…');
+          return fetch('/api/finance/reap', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(parsed)
+          });
+        })
+        .then(function (res) {
+          if (res === null) return null;       /* cancelled at the confirm */
+          return res.json().then(function (body) {
+            if (!res.ok) throw new Error(body && body.error ? body.error : 'HTTP ' + res.status);
+            return body;
+          });
+        })
+        .then(function (body) {
+          if (body === null) return;
+          say('Replaced — ' + body.rows + ' payments', 'ok');
+          /* Re-read rather than trusting what we just sent: the server is the
+             source of truth, and it rebuilt every row from its own whitelist. */
+          return fetch('/api/finance/reap', { credentials: 'same-origin', cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(applyDataset);
+        })
+        .catch(function (err) {
+          /* The parser's messages name the headers it actually saw, and the
+             endpoint's name the row that failed — both are more use to the
+             person holding the spreadsheet than "upload failed". */
+          say(err && err.message ? err.message : 'Upload failed', 'err');
+        });
+    });
 
     boot();
   })();
