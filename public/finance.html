@@ -2369,10 +2369,11 @@
     setTab(new URLSearchParams(location.search).get('tab') || 'reap', false);
 
     function longDate(s) { var d = ymd(s); return MON[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }
-    /* dd/mm/yy for the range control. Deliberately NOT used for "Last
-       updated": 01/07/26 is read as 1 July by half the world and 7 January by
-       the other half, which is tolerable next to a calendar that just showed
-       you the span, and not tolerable on a lone date with no context. */
+    /* dd/mm/yy for the range control and, since 2026-08-24 at Jenny's
+       request, for "Last updated" too. The 2026-08-20/21 closeout had locked
+       the long form there on the grounds that a lone 01/07/26 is ambiguous
+       between 1 July and 7 January; that decision is reversed — one date
+       format across the page won out over disambiguating a single line. */
     function dmy(s) {
       var d = ymd(s);
       return String(d.getDate()).padStart(2, '0') + '/' +
@@ -2405,7 +2406,12 @@
       var today = new Date().toISOString().slice(0, 10);
       P_START = DATA.periodStart || today;
       P_END = DATA.periodEnd || today;
-      metaEl.textContent = DATA.uploadedAt ? longDate(DATA.uploadedAt) : '—';
+      /* uploadedAt is a full ISO timestamp from the endpoint
+         (2026-08-24T13:05:22.123Z), not the bare YYYY-MM-DD the prototype's
+         fixture carried. ymd() splits on '-', so the untrimmed string parsed
+         as NaN and the line read "undefined NaN, NaN". Trim to the date part
+         before formatting. */
+      metaEl.textContent = DATA.uploadedAt ? dmy(String(DATA.uploadedAt).slice(0, 10)) : '—';
       initFilters();
       render();
     }
