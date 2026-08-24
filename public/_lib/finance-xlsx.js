@@ -151,6 +151,26 @@
     return String(v).trim();
   }
 
+  /* read-excel-file 9.3.10's bundle returns [{ data: [...rows], sheet: name }]
+     for every call shape, while its docs describe a bare array of rows. The
+     first real .xlsx put through this hit that difference: rows[0] was an
+     object, header detection found nothing, and the "could not find a header"
+     path then threw on .concat instead of reporting anything useful.
+
+     Accept both shapes so a library update cannot silently break uploads, and
+     take the sheet name from the same result rather than a second parse — the
+     `getSheets` call this replaces read `.name`, which does not exist on that
+     object either. */
+  function normaliseSheet(res) {
+    if (Array.isArray(res) && res.length && res[0] && Array.isArray(res[0].data)) {
+      return { rows: res[0].data, sheet: res[0].sheet || '' };
+    }
+    if (Array.isArray(res) && (!res.length || Array.isArray(res[0]))) {
+      return { rows: res, sheet: '' };
+    }
+    return { rows: [], sheet: '' };
+  }
+
   /**
    * @param {File|Blob} file  the .xlsx the admin picked
    * @returns {Promise<object>} payload for POST /api/finance/<dataset>
@@ -161,15 +181,16 @@
       throw new Error('read-excel-file.min.js has not loaded');
     }
 
-    var sheets = await global.readXlsxFile(file, { getSheets: true });
-    var sheetName = (sheets && sheets[0] && sheets[0].name) || '';
-    var rows = await global.readXlsxFile(file, { sheet: 1 });
+    var parsed = normaliseSheet(await global.readXlsxFile(file, { sheet: 1 }));
+    var rows = parsed.rows;
+    var sheetName = parsed.sheet;
 
-    if (!rows || !rows.length) throw new Error('That file has no rows in its first sheet.');
+    if (!rows.length) throw new Error('That file has no rows in its first sheet.');
 
     var found = findHeaderRow(rows);
     if (found.index === -1 || found.score < REQUIRED.length) {
-      var peek = (rows[0] || []).concat(rows[1] || [], rows[2] || [])
+      var peek = rows.slice(0, 3)
+        .reduce(function (acc, r) { return acc.concat(Array.isArray(r) ? r : [r]); }, [])
         .filter(function (c) { return c != null && String(c).trim() !== ''; })
         .slice(0, 12).join(', ');
       throw new Error(
@@ -182,7 +203,7 @@
     var map = buildColumnMap(rows[found.index]);
     var missing = REQUIRED.filter(function (f) { return map[f] === undefined; });
     if (missing.length) {
-      var headers = (rows[found.index] || [])
+      var headers = (Array.isArray(rows[found.index]) ? rows[found.index] : [])
         .filter(function (c) { return c != null && String(c).trim() !== ''; })
         .join(', ');
       throw new Error(
@@ -248,6 +269,7 @@
   parseFinanceWorkbook._internals = {
     norm: norm,
     buildColumnMap: buildColumnMap,
+    normaliseSheet: normaliseSheet,
     findHeaderRow: findHeaderRow,
     toIsoDate: toIsoDate,
     toAmount: toAmount,

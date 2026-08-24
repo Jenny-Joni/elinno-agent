@@ -35,7 +35,7 @@
 
        Keep it tiny and dependency-free: it blocks the parser by design. -->
   <script>(function(){var d=document.documentElement,p=location.pathname,k='';if(p.indexOf('/finance')===0)k='finance';else if(p==='/'||p.indexOf('/dashboard')===0)k='dashboard';else if(p.indexOf('/projects')===0||p.indexOf('/project/')===0||p.indexOf('/project.html')===0||p.indexOf('/project_settings')===0)k='projects';else if(p.indexOf('/cross-project')===0)k='cross-project';else if(p.indexOf('/workspace_settings')===0)k='workspace-settings';else if(p.indexOf('/admin')===0)k='members';else if(p.indexOf('/whats-new')===0)k='whats-new';d.classList.add('sn-boot');if(k)d.classList.add('sn-at-'+k);if(k==='projects')d.classList.add('sn-open-projects');else if(k==='finance')d.classList.add('sn-open-finance');try{if(localStorage.getItem('elinno.sidenav.admin')==='1')d.classList.add('sn-admin');}catch(e){}})();</script>
-  <link rel="stylesheet" href="/auth.css?v=2026-08-23-1" />
+  <link rel="stylesheet" href="/auth.css?v=2026-08-24-1" />
   <style>
     /* ===================================================================
        Finance dashboard. Data comes from GET /api/finance/<dataset>, which
@@ -875,8 +875,8 @@
 
   <!-- Upload path only. read-excel-file is vendored and pinned; see its
        header comment and BLOCK_25_PLAN.md decision L. -->
-  <script src="/_lib/read-excel-file.min.js?v=2026-08-23-1"></script>
-  <script src="/_lib/finance-xlsx.js?v=2026-08-23-1"></script>
+  <script src="/_lib/read-excel-file.min.js?v=2026-08-24-1"></script>
+  <script src="/_lib/finance-xlsx.js?v=2026-08-24-1"></script>
   <script>
   (function () {
     'use strict';
@@ -2511,6 +2511,6 @@
     boot();
   })();
   </script>
-  <script src="/_lib/side-nav.js?v=2026-08-23-1" defer></script>
+  <script src="/_lib/side-nav.js?v=2026-08-24-1" defer></script>
 </body>
 </html>
