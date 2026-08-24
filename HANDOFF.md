@@ -7491,3 +7491,100 @@ WORKFLOW.md run in **default mode, not auto**.
 ### What's New notice
 
 Nothing shipped, nothing to announce.
+
+## Session closeout — 2026-08-23/24 (Block 25 SHIPPED — Finance live in production)
+
+### Production state at session end
+
+`main` at `067fb78`, pushed and deployed. **21 commits.** Working tree clean
+apart from `BLOCK_24_PLAN.md`, untracked before this session and still untracked.
+
+`https://elinnoagent.com/finance` is live. Jenny uploaded the 2026-08-24 Reap
+export through the admin control: **164 payments, $71,840.39**, 01/07 → 22/08.
+
+### What shipped
+
+| Area | What |
+|---|---|
+| Page | `public/finance.html` — the prototype ported, fetching from an endpoint instead of an inlined fixture |
+| API | `functions/api/finance/[dataset].js` — session-gated read, admin-gated full-replace upload |
+| Storage | R2 bucket `elinno-agent-finance`, private, binding `FINANCE`. `reap/current.json` + `reap/previous.json` |
+| Parser | `read-excel-file` 9.3.10 vendored + `finance-xlsx.js` wrapper |
+| Rail | Finance section on all 11 authenticated pages; `auth.css` section state generalised per-section |
+| Dashboard | Finance section above Projects, showing Reap's total and upload date |
+
+### The two bugs that mattered, and why they were missed
+
+Both were found only when a real `.xlsx` met the parser — after the upload
+control had already shipped and Jenny had been asked to test it.
+
+1. **The parser had never worked.** `read-excel-file` returns
+   `[{ data: [...rows], sheet }]` from every call shape while its docs describe
+   a bare array of rows. The code followed the docs. Header detection therefore
+   scored zero on every row, and the "could not find a header" error path then
+   threw on `.concat` — a second bug concealing the first.
+
+2. **The totals footer was being stored as a payment.** Its date cell reads
+   `"2026-07-01 to 2026-08-22"`; the ISO matcher was unanchored and read that as
+   1 July. 164 real rows summing to 71,840.39 came out as 165 summing to
+   143,680.78 — the file counted twice. The integrity check built for exactly
+   this could not fire, because the footer had been eaten as data rather than
+   captured as the declared total.
+
+**The generalisable lesson:** every test written before that point exercised
+pure helpers — dates, amounts, the `Catrgory` alias, the payload validator —
+and **not one had opened a workbook**. The suite was green and the feature was
+broken. Jenny was asked to test an upload path that had never once run
+end to end.
+
+### Process notes worth keeping
+
+- **Eight locked decisions were reversed in a day.** All Jenny's, all recorded
+  in commit messages and now in `BLOCK_25_PLAN.md` §Reversals. The plan document
+  drifted far enough from the code that it was actively misleading for several
+  hours before being corrected; the fix was a header pointing at the reversals
+  rather than editing the original decisions away.
+- **The 0×0 browser viewport wasted real time, twice.** Measurements taken in a
+  collapsed pane produced an 89px card-height "variance" and a rail section that
+  appeared never to collapse. Neither was real. `auth.css` already carried a
+  comment about throttled transitions in a backgrounded tab, from an earlier
+  session, and it was hit anyway. **Check `window.innerWidth` and
+  `document.hidden` before believing any layout measurement.**
+- **A regex deleted `renderPace`, `initPace` and `paceGrouped`.** A pattern
+  meant to strip the pace card's table blocks matched from the project/vendor
+  table code instead and swallowed everything between the anchors. Caught
+  because the card rendered nothing; the file was reverted and the edit redone
+  bounded to each function by line number. Nothing broken was committed.
+  **Bound structural deletions to the function, not to a pattern that could
+  span it.**
+- **Cache stamps had drifted to six values** across the pages, so several were
+  already serving stale CSS before this block. Now uniform at `2026-08-24-1`.
+  The stale-asset trap also fired twice during development, once masking a fix
+  that had already worked.
+
+### ⚠️ Open — carried forward
+
+1. **V3 / V12 were never run.** No non-admin account exists, so "a non-admin
+   gets 403 and sees no upload control" is unproven against a real session. The
+   gate is `requireWorkspaceAdmin`, already load-bearing elsewhere, and it
+   rejects unauthenticated callers on production — but the
+   authenticated-not-admin case is untested and the upload full-replaces
+   company financial data. **Highest-priority follow-up.**
+2. **The dashboard downloads the full Reap payload (~40 KB) to show one total.**
+   Fine at 164 rows; add a summary mode to the endpoint before it grows.
+3. **Ten projects gives 9px bars** on the by MONTH card — the readability trade
+   the removed five-cap was protecting. Revisit if it grates in use.
+4. **The published artifact still carries real payment data** at
+   `claude.ai/code/artifact/bd07507e-...`, from the prototype session. Still
+   Jenny's decision.
+5. **The two deploy-pipeline faults remain unfixed** (`commit_refs` push
+   failures, the dropped webhook). Neither fired this session. The escape hatch
+   is now documented safely in `PROJECT.md` §10 — it excludes `_dev/`, which the
+   old recorded form did not, and which would have published the fixture.
+6. **Everything still open from the Blocks 21–23 closeout.**
+
+### What's New notice
+
+Block 25 shipped a user-visible feature — Finance in the rail on every page,
+a new dashboard section, a new page. It warrants a What's New entry, which
+Jenny authors (Block 17 revision 3). Not written this session.

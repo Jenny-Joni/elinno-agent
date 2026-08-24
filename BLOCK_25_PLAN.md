@@ -1,11 +1,17 @@
 # Block 25 — Finance ships: real page, storage, API, rail
 
-**Status: APPROVED 2026-08-23.** Decisions worked through with Jenny one at a
-time and locked below. This commit is the artifact recording "plan approved at
-this version," per WORKFLOW Phase 2.
+**Status: SHIPPED to production 2026-08-24** at `067fb78`. Approved
+2026-08-23; decisions worked through with Jenny one at a time.
 
 Uncertainty 2 (the xlsx library) was carved out of the original approval and
 resolved separately on 2026-08-23; see decision L.
+
+> **Read §Reversals and §What actually happened before trusting the rest of
+> this document.** Eight of the locked decisions below were reversed during
+> execute, and the verification plan as originally written contains items that
+> can no longer pass. The originals are left in place rather than rewritten,
+> because the point of this document is what was agreed and when — but do not
+> read the decisions above as a description of the shipped page.
 
 ---
 
@@ -284,6 +290,95 @@ ones written in before the check runs — not after.
    Say if you want Amount and Running total swapped for consistency.
 5. **Bucket name `elinno-agent-finance`** — matches the `elinno-agent-logos`
    convention, but you are creating it, so it is yours to name.
+
+---
+
+## Reversals during execute (all 2026-08-24, all Jenny's call)
+
+Locked decisions that the shipped page does not follow. Recorded here so this
+document and the code do not silently disagree.
+
+| # | Decision as locked | What shipped |
+|---|---|---|
+| 1 | by MONTH keeps a Chart/Table toggle | Chart only; the table view and its host are removed |
+| 2 | 25.8 restores the Week/Month toggle ("Jenny asked for that choice") | Removed again, along with all week bucketing |
+| 3 | by MONTH projects picker: no All/None, cap of five | All/None, no cap |
+| 4 | by MONTH vendor picker is single-select | Multi-select with All/None |
+| 5 | Both pace pickers start empty | Default to Joni and OpenRouter, falling back to the largest entry when absent |
+| 6 | Past five projects collapses to one combined bar | A bar per project at any count; ten projects gives 9px bars |
+| 7 | "Last updated" keeps the long form (a lone 01/07/26 is ambiguous) | `hh:mm dd/mm/yy`, local timezone |
+| 8 | Partial months draw in a lighter fill with a legend entry | Removed entirely, along with `partialMonth()` and `iso2()` |
+
+Two additions beyond the change list, both necessary rather than opportunistic:
+
+- **Cache stamps** on `auth.css` and `side-nav.js` across all 12 pages. Without
+  them a warm cache serves the old CSS and the rail renders broken. The stamps
+  had drifted to six different values, so several pages were already serving
+  stale CSS; they are now uniform at `2026-08-24-1`.
+- **A Finance section on the dashboard**, above Projects — asked for after the
+  plan was approved.
+
+---
+
+## What actually happened — verification, as run
+
+Replaces the plan's original matrix. Items that could not be run, or that no
+longer apply, say so.
+
+| # | Check | Result |
+|---|---|---|
+| V1 | Authenticated read returns the dataset | **PASS** — Jenny uploaded the 2026-08-24 export and the page rendered it |
+| V2 | Unauthenticated GET | **PASS** — 401 on production |
+| V3 | Non-admin gets 403 and sees no upload control | **NOT RUN** — no second account existed. See below. |
+| V4 | Upload full-replaces; `previous.json` keeps the prior | **PASS** in substance — the real upload worked end to end; rotation proved 14/14 against the real handler with an in-memory R2 |
+| V5 | Opening Finance leaves Projects closed | **PASS** — four-state matrix, transitions disabled |
+| V6 | Opening Projects leaves Finance closed; no flash | **PASS** |
+| V7 | Grouped table column order | **N/A** — that table no longer exists (reversal 1) |
+| V8 | Week/Month toggle bucketing | **N/A** — toggle removed (reversal 2) |
+| V9 | Card height variance ≤ 12px | **PASS** — measured **0px** at 1440×900; needed no code change |
+| V10 | Re-upload visible without a hard refresh | **PASS** |
+| V11 | Scrubbed fixture holds nothing real | **PASS** — 0 of 28 owners, 3 cards, 16 requesters, 106 amounts survive |
+| V12 | Non-admin sees data, no upload control | **NOT RUN** — same reason as V3 |
+
+Production, after the push: `/finance` 200 with **zero** payment data in the
+HTML, `POST` unauthenticated 401, unknown dataset 404, parser and wrapper 200,
+Finance in the rail on every page, dashboard section present. `/_dev/*` 301s to
+`/404.html` and serves nothing — the plan expected a bare 404, which was too
+literal about the status code.
+
+### V3 and V12 are the outstanding risk
+
+The upload full-replaces company financial data, and the only check that a
+non-admin cannot reach it has never been run against a real non-admin session.
+The gate is `requireWorkspaceAdmin`, the same helper `functions/api/admin/users.js`
+and the project-logo upload already depend on, and it was proved to reject an
+unauthenticated caller on production. What is unproven is specifically the
+authenticated-but-not-admin case. **Make a second non-admin account and run it.**
+
+---
+
+## Bugs found during execute that no synthetic test caught
+
+Both surfaced only when a real `.xlsx` met the parser, and both are recorded
+because the lesson generalises: every test written before them exercised pure
+helpers, and none had opened a workbook.
+
+1. **The parser never worked.** `read-excel-file` returns
+   `[{ data: [...rows], sheet }]` from every call shape while its docs describe
+   a bare array. The code followed the docs, so header detection scored zero and
+   the "could not find a header" path then threw on `.concat` — a second bug
+   hiding the first.
+2. **The totals footer was stored as a payment.** Its date cell reads
+   `"2026-07-01 to 2026-08-22"` and the ISO matcher was unanchored, so it read
+   1 July and kept the row: 164 rows summing to 71,840.39 came out as 165
+   summing to 143,680.78. The integrity check that exists to catch exactly this
+   could not fire, because the footer had been consumed as data rather than
+   captured as the declared total. Footer detection now needs two independent
+   signals — no usable date AND no name/project/vendor — because either alone is
+   fooled by a real file.
+
+A third, smaller: `"Amount in $"` did not match the alias list, which is what
+Jenny hit first.
 
 ---
 
