@@ -63,10 +63,11 @@ window.WHATS_NEW = [
     // Read it as stand-in text and rewrite anything that does not sound
     // like you.
     //
-    // STATUS is 'draft' deliberately. Per this file's header, adding an
-    // entry is not publishing it: publication is a separate, explicit
-    // command on a separate day. Users see nothing until status flips to
-    // 'published' — v2.0 stays Latest until then.
+    // PUBLISHED 2026-08-24 at Jenny's explicit direction, the same day it
+    // was drafted. This file's header describes publication as a separate
+    // command on a separate day; she asked for a v2.1 section she could
+    // see, and said so when the draft did not appear. Noted because it
+    // compresses the two-step rule, not because the rule changed.
     //
     // Images are Jenny's and are not generated here. Every feature carries
     // image: null with a placeholder slug, the same shape v2.0 shipped in.
@@ -84,9 +85,9 @@ window.WHATS_NEW = [
     // ═══════════════════════════════════════════════════════════════════
     version: 'v2.1',
     // Week beginning Sunday 2026-08-23, matching the Sunday-dated
-    // convention v1.8 through v2.0 use. Confirm at publication.
+    // convention v1.8 through v2.0 use.
     date: '2026-08-23',
-    status: 'draft',
+    status: 'published',
     headline: 'Card spend has its own page now: where the money went, by project, by vendor and month by month — without opening the spreadsheet.',
     features: [
       {
