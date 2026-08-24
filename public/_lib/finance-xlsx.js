@@ -59,7 +59,11 @@
     category: ['catrgory', 'category'],
     description: ['description', 'desc', 'vendordescription'],
     date: ['date', 'transactiondate', 'paymentdate'],
-    amount: ['amount', 'amountusd', 'total', 'value']
+    /* The real export reads "Amount in $" -> `amountin`. `total` and `value`
+       were guesses and are gone: a sheet with its own "Total" column would
+       have claimed this field on the exact pass and silently mapped amount to
+       the wrong column, which is worse than not matching at all. */
+    amount: ['amount', 'amountin', 'amountinusd', 'amountusd']
   };
 
   /* Without these four there is no usable payment record. Everything else
@@ -69,8 +73,10 @@
   function buildColumnMap(headerCells) {
     var map = {};
     var seen = {};
+    var keys = [];
     for (var i = 0; i < headerCells.length; i++) {
       var key = norm(headerCells[i]);
+      keys.push(key);
       if (!key || seen[key]) continue;
       seen[key] = true;
       for (var field in ALIASES) {
@@ -79,6 +85,28 @@
           map[field] = i;
           break;
         }
+      }
+    }
+
+    /* Second pass, prefix-only, for anything the exact list missed. Reap has
+       already produced "Amount in $" where an earlier export said "Amount",
+       and a header that gains a unit or a qualifier should not take the
+       upload down. Prefix rather than substring so "Vendor Name" cannot be
+       claimed by `name` — it is matched by `vendor`, whose stem it starts
+       with. Runs second so an exact hit always wins. */
+    for (var field2 in ALIASES) {
+      if (!Object.prototype.hasOwnProperty.call(ALIASES, field2)) continue;
+      if (map[field2] !== undefined) continue;
+      for (var j = 0; j < keys.length; j++) {
+        var k = keys[j];
+        if (!k) continue;
+        var taken = false;
+        for (var f3 in map) if (map[f3] === j) { taken = true; break; }
+        if (taken) continue;
+        for (var a = 0; a < ALIASES[field2].length; a++) {
+          if (k.indexOf(ALIASES[field2][a]) === 0) { map[field2] = j; break; }
+        }
+        if (map[field2] !== undefined) break;
       }
     }
     return map;
@@ -119,7 +147,11 @@
       return d.toISOString().slice(0, 10);
     }
     var s = String(v).trim();
-    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    /* Anchored deliberately. An unanchored prefix match read the totals
+       footer's "2026-07-01 to 2026-08-22" as 1 July and turned that row into
+       a payment, double-counting the whole file. Accept a bare date or a
+       date followed by a time, nothing else. */
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ]\d|$)/);
     if (m) return m[1] + '-' + m[2] + '-' + m[3];
     m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
     if (m) {
@@ -221,11 +253,14 @@
       var date = toIsoDate(row[map.date]);
       var amount = toAmount(row[map.amount]);
 
-      if (!date) {
-        /* Trap 2. No date but an amount is the totals footer — keep its
-           value so the server can check the row sum against it. A row with
-           neither is blank padding and is skipped silently. */
-        if (amount !== null) declaredTotal = amount;
+      /* Trap 2, two independent signals. A totals footer has no usable date
+         AND no identity — no name, project or vendor. Either test alone has
+         been fooled by a real file: the date test by a footer whose date cell
+         carries a period string, and an identity test alone would swallow a
+         genuine payment with a blank project (there are 23 of those). */
+      var identity = cell(row, map, 'name') || cell(row, map, 'project') || cell(row, map, 'vendor');
+      if (!date || !identity) {
+        if (amount !== null && !identity) declaredTotal = amount;
         continue;
       }
       if (amount === null) continue;
