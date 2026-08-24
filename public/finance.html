@@ -831,10 +831,10 @@
           <div class="fin-field">
             <label id="lbl-pace-vendor">Vendor</label>
             <span class="sv-filterwrap fin-ms" data-ms="pace-vendor">
-              <button class="fin-dr__trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lbl-pace-vendor">
-                <span data-ss-label>All vendors</span><i class="ti ti-chevron-down" aria-hidden="true"></i>
+              <button class="fin-dr__trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-labelledby="lbl-pace-vendor">
+                <span data-ms-label>Select vendors</span><i class="ti ti-chevron-down" aria-hidden="true"></i>
               </button>
-              <div class="sv-menu" data-ss-menu role="listbox"></div>
+              <div class="sv-menu" data-ms-menu role="group"></div>
             </span>
           </div>
         </div>
@@ -935,7 +935,7 @@
       from: '', to: '', sel: {},
       view: { project: 'chart', vendor: 'chart', pace: 'chart' },
       expanded: { project: false, vendor: false },
-      cmp: { project: '', vendor: '' },
+      cmp: { project: '' },
       paceBar: null, paceChild: null, paceOwner: null,
       drill: {}, child: {}, owner: {},
       sort: { key: 'date', dir: 'desc' }
@@ -1048,13 +1048,18 @@
         animateViewSwitch({ id: 'pace' }, function () { renderPace(filtered()); });
       });
     }
-    /* No All/None and a hard cap: this picker drives a grouped chart that
-       only reads at up to five series, so "all ten" is not a state it can
-       draw. Starting empty makes the first action an explicit choice rather
-       than a de-selection of nine things. */
+    /* Both of this card's pickers are plain multi-selects with All/None and
+       no cap, and both start empty (2026-08-24, Jenny). That reverses the
+       closeout, which had no All/None on projects, a hard cap of five, and a
+       single-select vendor. The cap is gone, not worked around: past five
+       projects the grouped chart already falls back to one combined bar, so
+       "all ten" is a state it can draw — just not as ten series. */
     var PACE_MULTI = { msId: 'pace-project', key: 'project', noun: 'projects', menu: 'Projects in this chart',
-                       noActions: true, startEmpty: true, max: 5, emptyLabel: 'Select projects (maximum 5)',
+                       startEmpty: true, emptyLabel: 'Select projects',
                        onChange: repaintPace };
+    var PACE_VENDOR = { msId: 'pace-vendor', key: 'vendor', noun: 'vendors', menu: 'Vendors in this chart',
+                        noCount: true, startEmpty: true, emptyLabel: 'Select vendors',
+                        onChange: repaintPace };
     var ORDER = {}, COUNTS = {};
 
     function distinct(key) {
@@ -1162,10 +1167,7 @@
         if (!open) return;
         /* Measured after it is visible, not guessed from position in the
            row: the rightmost filter changes with the viewport. */
-        /* Both hooks: the multi-selects use [data-ms-menu], the pace card's
-           single-select [data-ss-menu]. They share this wrapper, so the
-           edge check has to know about both. */
-        var menu = w.querySelector('[data-ms-menu], [data-ss-menu]');
+        var menu = w.querySelector('[data-ms-menu]');
         if (!menu) return;
         menu.classList.remove('is-right');
         /* Skip the flip when the viewport reports no width -- a hidden or
@@ -1182,12 +1184,12 @@
       initPeriodPicker();
       MULTI.forEach(buildMulti);
       buildMulti(PACE_MULTI);
-      initPace();
+      buildMulti(PACE_VENDOR);
 
       document.getElementById('fReset').addEventListener('click', function () {
         /* the pace card's own menu resets too -- "Reset filters" that left a
            control selected somewhere down the page would be a lie */
-        MULTI.concat([PACE_MULTI]).forEach(function (m) {
+        MULTI.concat([PACE_MULTI, PACE_VENDOR]).forEach(function (m) {
           state.sel[m.msId] = new Set(m.startEmpty ? [] : ORDER[m.msId]); paintMulti(m);
         });
         setPeriod(P_START, P_END);
@@ -1878,92 +1880,37 @@
        menu, which opens below its trigger, the two behaved differently for
        no reason a reader could see. Same components, single-select
        semantics: click a row and it picks and closes. */
-    var paceVendorNames = [];
-
-    function initPace() {
-      var wrap = document.querySelector('[data-ms="pace-vendor"]');
-      var menu = wrap.querySelector('[data-ss-menu]');
-
-      /* Delegated, and bound once: the row list is rebuilt whenever the
-         project selection changes, so a listener per row would not survive. */
-      menu.addEventListener('click', function (e) {
-        var row = e.target.closest('[data-ss-value]');
-        if (!row) return;
-        state.cmp.vendor = row.getAttribute('data-ss-value');
-        openMulti(null, false);
-        repaintPace(wrap);
-      });
-      wrap.querySelector('.fin-dr__trigger').addEventListener('click', function () {
-        openMulti('pace-vendor', !wrap.classList.contains('open'));
-      });
-    }
-
-    /* Only vendors that actually appear in the chosen projects. Offering a
-       vendor with nothing behind it produces an empty chart and no
-       explanation -- the reader is left wondering whether it is a bug.
-       Ordered by spend, not by payment count: counting puts Cursor AI (24
-       small charges) above OpenRouter (8 charges, more than half the bill),
-       the wrong end of the list for a card about how much is being spent. */
-    function paintPaceVendors(base) {
-      var wrap = document.querySelector('[data-ms="pace-vendor"]');
-      var menu = wrap.querySelector('[data-ss-menu]');
-      var labelEl = wrap.querySelector('[data-ss-label]');
-
-      var totals = {};
-      base.forEach(function (r) { var v = val(r, 'vendor'); totals[v] = (totals[v] || 0) + r.amount; });
-      var names = Object.keys(totals).sort(function (a, b) {
-        if (a === BLANK) return 1;
-        if (b === BLANK) return -1;
-        return totals[b] - totals[a] || a.localeCompare(b);
-      });
-
-      /* A vendor that just dropped out of range cannot stay selected -- it
-         would show an empty chart with no way back except Reset. */
-      if (state.cmp.vendor && names.indexOf(state.cmp.vendor) < 0) state.cmp.vendor = '';
-      paceVendorNames = names;
-
-      menu.innerHTML = '<div class="sv-menu-label">Filter by vendor</div>' +
-        '<div class="fin-ms__list">' +
-        [''].concat(names).map(function (n) {
-          return '<div class="sv-menu-item" role="option" aria-selected="' +
-            (n === state.cmp.vendor) + '" data-ss-value="' + esc(n) + '">' +
-            '<span class="fin-ms__name' + (n === BLANK ? ' is-blank' : '') + '" title="' + esc(n || 'All vendors') + '">' +
-            esc(n || 'All vendors') + '</span></div>';
-        }).join('') + '</div>';
-
-      labelEl.textContent = state.cmp.vendor || 'All vendors';
-      wrap.querySelector('.fin-dr__trigger').classList.toggle('is-filtered', !!state.cmp.vendor);
-    }
-
     function renderPace(rows) {
       var host = document.getElementById('bd-pace-chart');
 
       var pset = state.sel['pace-project'];
-      /* Projects first: the vendor list is derived from what survives them,
-         so the menu can never offer a vendor this card has no data for. */
+      var vset = state.sel['pace-vendor'];
       var base = rows.filter(function (r) { return !pset || pset.has(val(r, 'project')); });
-      paintPaceVendors(base);
       /* Drop a bar selection whose month is no longer in range. */
       if (state.paceBar && !base.some(function (r) { return bucketKeyOf(r) === state.paceBar.month; })) {
         state.paceBar = null;
       }
-      var sel = base.filter(function (r) {
-        return !state.cmp.vendor || val(r, 'vendor') === state.cmp.vendor;
-      });
-      var nAll = ORDER['pace-project'] ? ORDER['pace-project'].length : 0;
-      var pLabel = !pset || pset.size === 0 ? 'no projects yet'
-                 : pset.size === nAll ? 'All projects'
-                 : pset.size === 1 ? Array.from(pset)[0]
-                 : pset.size + ' projects';
-      var label = pLabel + ' \u00b7 ' + (state.cmp.vendor || 'All vendors');
+      var sel = base.filter(function (r) { return vset && vset.has(val(r, 'vendor')); });
+
+      function setLabel(set, key, noun) {
+        var all = ORDER[key] ? ORDER[key].length : 0;
+        if (!set || set.size === 0) return 'no ' + noun + ' yet';
+        if (set.size === all) return 'All ' + noun;
+        if (set.size === 1) return Array.from(set)[0];
+        return set.size + ' ' + noun;
+      }
+      var label = setLabel(pset, 'pace-project', 'projects') + ' \u00b7 ' +
+                  setLabel(vset, 'pace-vendor', 'vendors');
       if (!sel.length) {
         /* Same scaffold as a populated card -- plot box, legend row, delta
            box. An empty state that is 135px shorter shrinks the document,
            and at the bottom of the page there is no scroll range left to
            hold anything still with. */
-        var msg = (!pset || pset.size === 0)
-          ? 'Choose up to five projects to chart.'
-          : 'No payments for ' + label + ' in this slice.';
+        /* Both pickers start empty, so say which one is still waiting rather
+           than "no payments", which would read as "there is no data". */
+        var msg = (!pset || pset.size === 0) ? 'Choose projects to chart.'
+                : (!vset || vset.size === 0) ? 'Choose vendors to chart.'
+                : 'No payments for ' + label + ' in this slice.';
         host.innerHTML = '<p class="fin-empty">' + esc(msg) + '</p>' +
           '<div class="fin-legend" style="margin-top:12px">' +
             '<span class="fin-legend__item" style="visibility:hidden">' +
@@ -2026,11 +1973,16 @@
       var subtotal = sum(rows);
       var colour = bar.project ? (PROJECT_COLOR[bar.project] || 'var(--fin-other)') : 'var(--fin-c1)';
       var prefix = bar.month + KEYSEP + (bar.project || '');
+      /* The vendor level is skipped only when exactly ONE vendor is selected,
+         because then every payment shares it and a one-row vendor tier is
+         noise. With several selected the tier carries information again. */
+      var vsetD = state.sel['pace-vendor'];
+      var oneVendor = vsetD && vsetD.size === 1 ? Array.from(vsetD)[0] : '';
       var title = monthLabel(bar.month) + (bar.project ? ' \u00b7 ' + bar.project : '') +
-                  (state.cmp.vendor ? ' \u00b7 ' + state.cmp.vendor : '');
+                  (oneVendor ? ' \u00b7 ' + oneVendor : '');
       var body, count;
 
-      if (state.cmp.vendor) {
+      if (oneVendor) {
         /* One vendor already: owners are the top level. */
         body = paceOwnerBlock(rows, subtotal, prefix, colour);
         count = '';
