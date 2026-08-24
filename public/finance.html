@@ -1055,11 +1055,74 @@
        projects the grouped chart already falls back to one combined bar, so
        "all ten" is a state it can draw — just not as ten series. */
     var PACE_MULTI = { msId: 'pace-project', key: 'project', noun: 'projects', menu: 'Projects in this chart',
-                       startEmpty: true, emptyLabel: 'Select projects',
-                       onChange: repaintPace };
+                       defaultSel: ['Joni'], emptyLabel: 'Select projects',
+                       onChange: function (w) { refreshPaceVendors(); repaintPace(w); } };
     var PACE_VENDOR = { msId: 'pace-vendor', key: 'vendor', noun: 'vendors', menu: 'Vendors in this chart',
-                        noCount: true, startEmpty: true, emptyLabel: 'Select vendors',
+                        noCount: true, defaultSel: ['OpenRouter'], emptyLabel: 'Select vendors',
                         onChange: repaintPace };
+
+    /* Named defaults, with a fallback: the dataset is replaced wholesale every
+       upload, so "Joni" or "OpenRouter" may simply not be in the next file.
+       Falling back to the largest entry keeps the card useful instead of
+       opening on an empty state that looks like breakage. */
+    function initialSet(m, names) {
+      if (m.defaultSel) {
+        var picked = m.defaultSel.filter(function (n) { return names.indexOf(n) >= 0; });
+        if (picked.length) return new Set(picked);
+        return new Set(names.length ? [names[0]] : []);
+      }
+      return new Set(m.startEmpty ? [] : names);
+    }
+
+    /* Row markup for a multi-select option. Shared so the vendor list can be
+       rebuilt when the project selection narrows it, without drifting from
+       what buildMulti() produced. */
+    function msRowHtml(m, n, count) {
+      return '<div class="sv-menu-item" role="checkbox" aria-checked="false" data-value="' + esc(n) + '">' +
+        '<span class="sv-cb"></span>' +
+        '<span class="fin-ms__name' + (n === BLANK ? ' is-blank' : '') + '" title="' + esc(n) + '">' + esc(n) + '</span>' +
+        (m.noCount ? '' : '<span class="fin-ms__n">' + count + '</span>') + '</div>';
+    }
+
+    /* 3. Only vendors that actually appear in the chosen projects. Offering a
+       vendor with nothing behind it produces an empty chart and no
+       explanation. Ordered by spend, not payment count: counting puts a
+       vendor with 24 small charges above one with 8 charges worth half the
+       bill, which is the wrong end of the list for a card about spend.
+
+       Rebuilding rows here is safe even though paintMulti deliberately
+       restyles in place: this fires when the PROJECT menu changes, so the
+       pointer is never over the vendor rows being replaced. */
+    function refreshPaceVendors() {
+      var wrap = document.querySelector('[data-ms="pace-vendor"]');
+      if (!wrap) return;
+      var pset = state.sel['pace-project'];
+      var totals = {};
+      filtered().forEach(function (r) {
+        if (pset && pset.size && !pset.has(val(r, 'project'))) return;
+        var v = val(r, 'vendor');
+        totals[v] = (totals[v] || 0) + r.amount;
+      });
+      var names = Object.keys(totals).sort(function (a, b) {
+        if (a === BLANK) return 1;
+        if (b === BLANK) return -1;
+        return totals[b] - totals[a] || a.localeCompare(b);
+      });
+      ORDER['pace-vendor'] = names;
+
+      var keep = new Set();
+      (state.sel['pace-vendor'] || new Set()).forEach(function (v) {
+        if (names.indexOf(v) >= 0) keep.add(v);
+      });
+      /* Everything selected just dropped out of range. Rather than blank the
+         card, fall back the same way the initial default does. */
+      if (!keep.size) keep = initialSet(PACE_VENDOR, names);
+      state.sel['pace-vendor'] = keep;
+
+      wrap.querySelector('.fin-ms__list').innerHTML =
+        names.map(function (n) { return msRowHtml(PACE_VENDOR, n, 0); }).join('');
+      paintMulti(PACE_VENDOR);
+    }
     var ORDER = {}, COUNTS = {};
 
     function distinct(key) {
@@ -1112,7 +1175,7 @@
     function buildMulti(m) {
       var d = distinct(m.key);
       ORDER[m.msId] = d.names; COUNTS[m.msId] = d.counts;
-      state.sel[m.msId] = new Set(m.startEmpty ? [] : d.names);
+      state.sel[m.msId] = initialSet(m, d.names);
 
       var wrap = document.querySelector('[data-ms="' + m.msId + '"]');
       var menu = wrap.querySelector('[data-ms-menu]');
@@ -1185,13 +1248,19 @@
       MULTI.forEach(buildMulti);
       buildMulti(PACE_MULTI);
       buildMulti(PACE_VENDOR);
+      /* Narrow the vendor list to the default project straight away, so the
+         card opens in the same state a project click would produce. */
+      refreshPaceVendors();
 
       document.getElementById('fReset').addEventListener('click', function () {
         /* the pace card's own menu resets too -- "Reset filters" that left a
            control selected somewhere down the page would be a lie */
         MULTI.concat([PACE_MULTI, PACE_VENDOR]).forEach(function (m) {
-          state.sel[m.msId] = new Set(m.startEmpty ? [] : ORDER[m.msId]); paintMulti(m);
+          state.sel[m.msId] = initialSet(m, ORDER[m.msId]); paintMulti(m);
         });
+        /* The vendor list is a function of the project selection, so it has to
+           be rebuilt after the reset, not just repainted. */
+        refreshPaceVendors();
         setPeriod(P_START, P_END);
         openMulti(null, false);
         render();
@@ -1918,11 +1987,12 @@
           '</div>';
         return;
       }
-      /* 2-5 projects get a bar each; one, or more than five, stays a single
-         combined bar. Past five the bars are too thin to compare and the
-         colour list stops being readable. */
+      /* More than one project gets a bar each, however many. The old rule
+         collapsed anything past five (and "all projects") into one combined
+         bar on the grounds that thin bars stop being comparable; Jenny's call
+         on 2026-08-24 is that a bar per project matters more. */
       var chosen = pset ? Array.from(pset) : [];
-      if (chosen.length >= 2 && chosen.length <= 5 && chosen.length < nAll) {
+      if (chosen.length >= 2) {
         var order = chosen.map(function (n) {
           return { n: n, t: sum(sel.filter(function (r) { return val(r, 'project') === n; })) };
         }).sort(function (a, b) { return b.t - a.t; }).map(function (x) { return x.n; });
