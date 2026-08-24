@@ -2262,6 +2262,27 @@
        the long form there on the grounds that a lone 01/07/26 is ambiguous
        between 1 July and 7 January; that decision is reversed — one date
        format across the page won out over disambiguating a single line. */
+    /* "hh:mm dd/mm/yy" for "Last updated". The endpoint stores uploadedAt as
+       UTC; this renders it in the viewer's own timezone, because the question
+       that line answers is "how long ago did someone replace this", which is a
+       local one. A value with no clock in it (the old fixtures carried a bare
+       YYYY-MM-DD) shows the date alone rather than inventing 00:00. */
+    function stamp(v) {
+      var str = String(v);
+      /* Validate the date-only branch too. Without this a malformed value
+         reaches dmy() and prints "NaN/NaN/aN" — which is the shape of the bug
+         this line already had once. */
+      if (str.indexOf('T') === -1) {
+        return /^\d{4}-\d{2}-\d{2}$/.test(str.slice(0, 10)) ? dmy(str.slice(0, 10)) : '—';
+      }
+      var d = new Date(str);
+      if (isNaN(d.getTime())) return '—';
+      var p2 = function (n) { return String(n).padStart(2, '0'); };
+      return p2(d.getHours()) + ':' + p2(d.getMinutes()) + ' ' +
+             p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' +
+             String(d.getFullYear()).slice(-2);
+    }
+
     function dmy(s) {
       var d = ymd(s);
       return String(d.getDate()).padStart(2, '0') + '/' +
@@ -2299,7 +2320,7 @@
          fixture carried. ymd() splits on '-', so the untrimmed string parsed
          as NaN and the line read "undefined NaN, NaN". Trim to the date part
          before formatting. */
-      metaEl.textContent = DATA.uploadedAt ? dmy(String(DATA.uploadedAt).slice(0, 10)) : '—';
+      metaEl.textContent = DATA.uploadedAt ? stamp(DATA.uploadedAt) : '—';
       initFilters();
       render();
     }
