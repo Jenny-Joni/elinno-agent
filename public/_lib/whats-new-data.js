@@ -53,6 +53,82 @@
 window.WHATS_NEW = [
   {
     // ═══════════════════════════════════════════════════════════════════
+    // v2.1 — DRAFT. Not published.
+    //
+    // AUTHORSHIP, recorded because it departs from the normal division of
+    // labour, exactly as v2.0 below does: the copy was written by Claude
+    // Code at Jenny's explicit direction ("write what was added in this
+    // version"). This file's header says copy, images and version numbers
+    // are Jenny's. This entry is the exception, not a change to that rule.
+    // Read it as stand-in text and rewrite anything that does not sound
+    // like you.
+    //
+    // STATUS is 'draft' deliberately. Per this file's header, adding an
+    // entry is not publishing it: publication is a separate, explicit
+    // command on a separate day. Users see nothing until status flips to
+    // 'published' — v2.0 stays Latest until then.
+    //
+    // Images are Jenny's and are not generated here. Every feature carries
+    // image: null with a placeholder slug, the same shape v2.0 shipped in.
+    //
+    // Deliberately excluded per "What belongs in an entry": where the data
+    // is stored, the upload endpoint, the spreadsheet parser, the menu's
+    // internal rework, and the cache-stamp pass — none of it visible to a
+    // user. Also excluded are the two spreadsheet-reading bugs found and
+    // fixed before release: no user ever met them, the same reasoning v2.0
+    // applied to its own in-block fixes.
+    //
+    // No real figures appear here. The page is visible to every signed-in
+    // user, but an example total baked into release notes would age badly
+    // and would be company spend sitting in a static file.
+    // ═══════════════════════════════════════════════════════════════════
+    version: 'v2.1',
+    // Week beginning Sunday 2026-08-23, matching the Sunday-dated
+    // convention v1.8 through v2.0 use. Confirm at publication.
+    date: '2026-08-23',
+    status: 'draft',
+    headline: 'Card spend has its own page now: where the money went, by project, by vendor and month by month — without opening the spreadsheet.',
+    features: [
+      {
+        tag: 'New',
+        // NAMED: the Reap tab — three cards over one filter row, each
+        // drilling project -> vendor -> account owner -> payments.
+        title: 'Where the money actually went',
+        body: 'Three views of the same period: by project, by vendor, and month by month. Open any row to see what sits behind it — a project opens into the vendors it paid, a vendor into the people whose cards were used, and either into the individual payments. Narrow the whole page by project, vendor, date range or card, and all three views follow.',
+        image: null,
+        placeholder: 'finance-reap',
+        alt: 'Placeholder illustration: three cards showing spend by project, by vendor and by month, above a row of filters.'
+      },
+      {
+        tag: 'New',
+        // NAMED: dashboard section above Projects — total, payment count,
+        // upload date.
+        title: 'A running total when you open the app',
+        body: 'The dashboard now leads with Finance, above your projects: what has been spent in the current period, how many payments that covers, and when the figures were last updated.',
+        image: null,
+        placeholder: 'finance-dashboard',
+        alt: 'Placeholder illustration: a dashboard section headed Finance, showing a total and a payment count above the projects below it.'
+      },
+      {
+        tag: 'New',
+        // NAMED: admin-only upload control; full-replace with a
+        // confirmation naming the row counts, one previous version kept.
+        title: 'Keeping the figures current',
+        body: 'Admins can drop the latest export straight onto the page. It reads the file, says how many payments it found, and asks before replacing anything — and if a file turns out to be the wrong one, the previous version is kept.',
+        image: null,
+        placeholder: 'finance-upload',
+        alt: 'Placeholder illustration: a Replace data button beside the page heading, and a confirmation naming how many payments will be replaced.'
+      }
+    ],
+    fixes: [
+      {
+        tag: 'New',
+        text: 'Finance sits at the top of the menu on every screen, alongside Projects. Reap is there now; Fiat and Crypto are listed but not connected yet.'
+      }
+    ]
+  },
+  {
+    // ═══════════════════════════════════════════════════════════════════
     // v2.0 — PUBLISHED 2026-08-16.
     //
     // AUTHORSHIP, recorded because it departs from the normal division of
