@@ -24,7 +24,7 @@
 
        Settled before paint, as classes on <html>:
          sn-boot          layout is active (page gets its left offset)
-         sn-section-open  Projects is open — derived from the PAGE, not from
+         sn-open-projects Projects is open — derived from the PAGE, not from
                           storage, so the menu follows where you are: open on
                           a Projects page, shut everywhere else
          sn-at-<key>      which rail item is the current page
@@ -38,8 +38,8 @@
        one, change both — verification item 4 compares them.
 
        Keep it tiny and dependency-free: it blocks the parser by design. -->
-  <script>(function(){var d=document.documentElement,p=location.pathname,k='';if(p==='/'||p.indexOf('/dashboard')===0)k='dashboard';else if(p.indexOf('/projects')===0||p.indexOf('/project/')===0||p.indexOf('/project.html')===0||p.indexOf('/project_settings')===0)k='projects';else if(p.indexOf('/cross-project')===0)k='cross-project';else if(p.indexOf('/workspace_settings')===0)k='workspace-settings';else if(p.indexOf('/admin')===0)k='members';else if(p.indexOf('/whats-new')===0)k='whats-new';d.classList.add('sn-boot');if(k)d.classList.add('sn-at-'+k);if(k==='projects')d.classList.add('sn-section-open');try{if(localStorage.getItem('elinno.sidenav.admin')==='1')d.classList.add('sn-admin');}catch(e){}})();</script>
-  <link rel="stylesheet" href="/auth.css?v=2026-08-18-2" />
+  <script>(function(){var d=document.documentElement,p=location.pathname,k='';if(p==='/'||p.indexOf('/dashboard')===0)k='dashboard';else if(p.indexOf('/finance')===0)k='finance';else if(p.indexOf('/projects')===0||p.indexOf('/project/')===0||p.indexOf('/project.html')===0||p.indexOf('/project_settings')===0)k='projects';else if(p.indexOf('/cross-project')===0)k='cross-project';else if(p.indexOf('/workspace_settings')===0)k='workspace-settings';else if(p.indexOf('/admin')===0)k='members';else if(p.indexOf('/whats-new')===0)k='whats-new';d.classList.add('sn-boot');if(k)d.classList.add('sn-at-'+k);if(k==='projects')d.classList.add('sn-open-projects');else if(k==='finance')d.classList.add('sn-open-finance');try{if(localStorage.getItem('elinno.sidenav.admin')==='1')d.classList.add('sn-admin');}catch(e){}})();</script>
+  <link rel="stylesheet" href="/auth.css?v=2026-08-23-1" />
   <style>
     /* v1.4 (Block 13.5): per-row ⋯ menu on conversation sidebar.
        The legacy .conv-item rule in auth.css styles the row text; this
@@ -418,6 +418,12 @@
     </div>
     <div class="side-nav__scroll">
       <a class="sn-item" href="/dashboard.html" data-sn-nav="dashboard" title="Dashboard"><i class="ti ti-layout-dashboard" aria-hidden="true"></i><span class="sn-item__label">Dashboard</span></a>
+      <button class="sn-item" type="button" data-sn-section="finance" aria-expanded="false" title="Finance"><i class="ti ti-chart-histogram" aria-hidden="true"></i><span class="sn-item__label">Finance</span><i class="ti ti-chevron-right sn-chev" aria-hidden="true"></i></button>
+      <div class="sn-l3-group" data-sn-subnav="finance"><div class="sn-l3-group__inner">
+        <div class="sn-l2"><a class="sn-l2__link" href="/finance.html?tab=reap" data-fin-tab="reap"><span class="sn-l2__label">Reap</span></a></div>
+        <div class="sn-l2"><a class="sn-l2__link" href="/finance.html?tab=fiat" data-fin-tab="fiat"><span class="sn-l2__label">Fiat</span></a></div>
+        <div class="sn-l2"><a class="sn-l2__link" href="/finance.html?tab=crypto" data-fin-tab="crypto"><span class="sn-l2__label">Crypto</span></a></div>
+      </div></div>
       <button class="sn-item" type="button" data-sn-section="projects" aria-expanded="false" title="Projects"><i class="ti ti-folders" aria-hidden="true"></i><span class="sn-item__label">Projects</span><i class="ti ti-chevron-right sn-chev" aria-hidden="true"></i></button>
       <div data-sn-children="projects"></div>
       <a class="sn-item" href="/cross-project/index.html" data-sn-nav="cross-project" title="Cross-project chats"><i class="ti ti-messages" aria-hidden="true"></i><span class="sn-item__label">Cross-project chats</span></a>
@@ -449,7 +455,7 @@
        so the scroll restore is last.
        The markup came from the previous page's own render (escaped there)
        and the live render replaces it moments later. -->
-  <script>(function(){try{var d=document.documentElement,p=location.pathname,i=localStorage.getItem('elinno.sidenav.initial'),a=document.getElementById('navUserAvatar');if(a&&i)a.textContent=i;if(d.classList.contains('sn-section-open')){var s=document.querySelector('[data-sn-section="projects"]');if(s)s.setAttribute('aria-expanded','true');var b=document.querySelector('[data-sn-children="projects"]'),h=sessionStorage.getItem('elinno.sidenav.treeHtml');if(b&&h)b.innerHTML=h;}var m=p.match(/^\/(?:project|project_settings)\/([^\/]+)/),slug=m?decodeURIComponent(m[1]):null,rows=document.querySelectorAll('[data-sn-project]');for(var j=0;j<rows.length;j++){var on=slug!==null&&rows[j].getAttribute('data-sn-project')===slug;rows[j].classList.toggle('is-open',on);rows[j].setAttribute('aria-expanded',String(on));var g=rows[j].nextElementSibling;if(g&&g.classList.contains('sn-l3-group'))g.classList.toggle('is-open',on);}var c=document.querySelector('.side-nav__scroll'),y=sessionStorage.getItem('elinno.sidenav.scrollTop');if(c&&y)c.scrollTop=+y;}catch(e){}})();</script>
+  <script>(function(){try{var d=document.documentElement,p=location.pathname,i=localStorage.getItem('elinno.sidenav.initial'),a=document.getElementById('navUserAvatar');if(a&&i)a.textContent=i;if(d.classList.contains('sn-open-projects')){var s=document.querySelector('[data-sn-section="projects"]');if(s)s.setAttribute('aria-expanded','true');var b=document.querySelector('[data-sn-children="projects"]'),h=sessionStorage.getItem('elinno.sidenav.treeHtml');if(b&&h)b.innerHTML=h;}var m=p.match(/^\/(?:project|project_settings)\/([^\/]+)/),slug=m?decodeURIComponent(m[1]):null,rows=document.querySelectorAll('[data-sn-project]');for(var j=0;j<rows.length;j++){var on=slug!==null&&rows[j].getAttribute('data-sn-project')===slug;rows[j].classList.toggle('is-open',on);rows[j].setAttribute('aria-expanded',String(on));var g=rows[j].nextElementSibling;if(g&&g.classList.contains('sn-l3-group'))g.classList.toggle('is-open',on);}var c=document.querySelector('.side-nav__scroll'),y=sessionStorage.getItem('elinno.sidenav.scrollTop');if(c&&y)c.scrollTop=+y;}catch(e){}})();</script>
 
   <main class="app-main">
     <div class="custom-container">
@@ -3135,6 +3141,6 @@
   </script>
   <script src="/_lib/whats-new-data.js?v=2026-08-16-2" defer></script>
   <script src="/_lib/whats-new-badge.js?v=2026-08-16-2" defer></script>
-  <script src="/_lib/side-nav.js?v=2026-08-16-2" defer></script>
+  <script src="/_lib/side-nav.js?v=2026-08-23-1" defer></script>
 </body>
 </html>

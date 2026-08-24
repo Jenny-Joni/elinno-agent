@@ -3994,6 +3994,7 @@ html.sn-at-workspace-settings .side-nav [data-sn-nav="workspace-settings"],
 html.sn-at-members .side-nav [data-sn-nav="members"],
 html.sn-at-whats-new .side-nav [data-sn-nav="whats-new"],
 html.sn-at-projects .side-nav [data-sn-section="projects"],
+html.sn-at-finance .side-nav [data-sn-section="finance"],
 .sn-item[aria-current="page"],
 .sn-item.is-active {
   background: var(--brand-tint);
@@ -4006,14 +4007,38 @@ html.sn-at-workspace-settings .side-nav [data-sn-nav="workspace-settings"] > i:f
 html.sn-at-members .side-nav [data-sn-nav="members"] > i:first-child,
 html.sn-at-whats-new .side-nav [data-sn-nav="whats-new"] > i:first-child,
 html.sn-at-projects .side-nav [data-sn-section="projects"] > i:first-child,
+html.sn-at-finance .side-nav [data-sn-section="finance"] > i:first-child,
 .sn-item[aria-current="page"] > i:first-child,
 .sn-item.is-active > i:first-child { color: var(--brand); }
 
 /* Section open/closed is CSS, not an inline style set by JS, for the same
    reason: an open section has to paint open. */
 .side-nav [data-sn-children] { display: none; }
-html.sn-section-open .side-nav [data-sn-children] { display: block; }
-html.sn-section-open .side-nav [data-sn-section] .sn-chev { transform: rotate(90deg); }
+
+/* Block 25 decision D. This used to be ONE global `sn-section-open` class
+   matching `[data-sn-children]` and `[data-sn-section]` unqualified, which
+   worked only while Projects was the sole expandable section: a second
+   section opened and rotated its chevron in lockstep with Projects. The
+   state is now one class per section, `sn-open-<key>`, so sections are
+   independent. Adding a third means adding its two rules here and its key
+   to the boot script — not another special case.
+
+   Projects and Finance reveal their children differently and that is
+   deliberate: Projects' list is injected at runtime and can be any height,
+   so it toggles `display`; Finance's three children are static markup in an
+   .sn-l3-group, which animates 0fr -> 1fr and cannot animate from
+   display:none. */
+html.sn-open-projects .side-nav [data-sn-children="projects"] { display: block; }
+html.sn-open-finance  .side-nav [data-sn-subnav="finance"] { grid-template-rows: 1fr; }
+
+html.sn-open-projects .side-nav [data-sn-section="projects"] .sn-chev,
+html.sn-open-finance  .side-nav [data-sn-section="finance"] .sn-chev { transform: rotate(90deg); }
+
+/* auth.css styles .sn-l3[aria-current="page"] but never had a level-2
+   equivalent: the Projects tree never needed one, because project names are
+   not destinations. Finance's children are. */
+.side-nav .sn-l2.is-current { background: var(--brand-tint); }
+.side-nav .sn-l2.is-current .sn-l2__link { color: var(--brand-strong); font-weight: 500; }
 
 /* The admin group is two rows. Revealing it after /api/me answered pushed
    everything below it down, one frame into the page. !important is needed

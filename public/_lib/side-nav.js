@@ -73,7 +73,7 @@
   if (!rail) return;
 
   var body = document.body;
-  var root = document.documentElement;   // carries sn-boot / sn-section-open / sn-admin
+  var root = document.documentElement;   // carries sn-boot / sn-open-<section> / sn-admin
   var scroll = rail.querySelector('.side-nav__scroll');
 
   /* Keep the rail's own scroll position across navigation. Each page is a
@@ -509,10 +509,40 @@
     sectionBtn.setAttribute('aria-expanded', String(open));
     // Visibility and the chevron's direction are CSS, keyed to this class,
     // so an open section paints open instead of being opened a frame later.
-    root.classList.toggle('sn-section-open', open);
+    // Block 25 decision D: the class is per-section (`sn-open-projects`),
+    // not one global `sn-section-open` — a second section must not open in
+    // lockstep with this one.
+    root.classList.toggle('sn-open-projects', open);
     if (persist) writeStore(SECTION_KEY, open);
     if (open) ensureProjects();
   }
+
+  /* Any OTHER expandable section in the rail — currently Finance. These have
+     static children in the markup, so there is nothing to fetch and no cache
+     to prime; the whole behaviour is the class on <html> plus aria-expanded.
+     Written as a loop rather than a second hard-coded block so a third
+     section costs one markup change and nothing here. */
+  function wireStaticSections() {
+    var btns = rail.querySelectorAll('[data-sn-section]');
+    for (var i = 0; i < btns.length; i++) {
+      (function (btn) {
+        var key = btn.getAttribute('data-sn-section');
+        if (key === 'projects') return;          // handled above, it fetches
+        var cls = 'sn-open-' + key;
+        function set(open) {
+          btn.setAttribute('aria-expanded', String(open));
+          root.classList.toggle(cls, open);
+        }
+        btn.addEventListener('click', function () {
+          set(btn.getAttribute('aria-expanded') !== 'true');
+        });
+        // The boot script already decided this from the URL, before paint.
+        // Mirror it rather than re-deriving: whatever <html> says wins.
+        set(root.classList.contains(cls));
+      })(btns[i]);
+    }
+  }
+  wireStaticSections();
 
   function toggleSection() {
     setSection(sectionBtn.getAttribute('aria-expanded') !== 'true', true);
@@ -525,7 +555,7 @@
     // The boot script already opened or closed the section from the URL,
     // before paint. Mirror that here so aria-expanded agrees, without
     // re-deriving it: whatever <html> says is authoritative.
-    setSection(root.classList.contains('sn-section-open'), false);
+    setSection(root.classList.contains('sn-open-projects'), false);
   }
 
   /* Toggling flips classes IN PLACE — it deliberately does not call
