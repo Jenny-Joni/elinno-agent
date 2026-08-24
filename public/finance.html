@@ -799,6 +799,10 @@
         <div class="fin-card__head">
           <h2 class="fin-card__title">by MONTH</h2>
           <div class="fin-card__tools">
+            <div class="fin-seg" role="group" aria-label="Bucket by">
+              <button type="button" data-grain="week" aria-pressed="false">Week</button>
+              <button type="button" data-grain="month" aria-pressed="true">Month</button>
+            </div>
             <div class="fin-seg" role="group" aria-label="View as">
               <button type="button" data-view="pace" data-mode="chart" aria-pressed="true">Chart</button>
               <button type="button" data-view="pace" data-mode="table" aria-pressed="false">Table</button>
@@ -921,6 +925,7 @@
       expanded: { project: false, vendor: false },
       cmp: { project: '', vendor: '' },
       paceBar: null, paceChild: null, paceOwner: null,
+      paceGrain: 'month',        /* 'week' | 'month' — by MONTH card only */
       drill: {}, child: {}, owner: {},
       sort: { key: 'date', dir: 'desc' }
     };
@@ -1201,6 +1206,24 @@
       });
     }
 
+    /* Bucket-by toggle on the by MONTH card. Re-renders through the same
+       animateViewSwitch path the Chart/Table toggle uses, so the card's height
+       is reconciled by one mechanism rather than two. A grain change
+       invalidates any open bar: the drill key is a month or a Monday, and
+       neither survives a regroup. */
+    document.querySelectorAll('[data-grain]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var g = b.getAttribute('data-grain');
+        if (g === state.paceGrain) return;
+        state.paceGrain = g;
+        document.querySelectorAll('[data-grain]').forEach(function (o) {
+          o.setAttribute('aria-pressed', String(o === b));
+        });
+        state.paceBar = null; state.paceChild = null; state.paceOwner = null;
+        animateViewSwitch({ id: 'pace' }, function () { renderPace(filtered()); });
+      });
+    });
+
     /* ---- period: one range picker --------------------------------------
        Two date inputs could not express a RANGE — they let you build a
        backwards one, and they never show the span in relation to itself.
@@ -1355,17 +1378,27 @@
     ];
 
     function monthLabel(date) { var d = ymd(date + '-01'); return MON[d.getMonth()] + ' ' + d.getFullYear(); }
-    function keyOf(r, dim) { return dim.key === 'month' ? monthLabel(r.date.slice(0, 7)) : val(r, dim.key); }
+    function keyOf(r, dim) {
+      if (dim.key === 'month') return monthLabel(r.date.slice(0, 7));
+      if (dim.key === 'week') return weekLabel(mondayOf(r.date));
+      return val(r, dim.key);
+    }
 
     function groupBy(rows, dim) {
       var m = {}, order = [];
       rows.forEach(function (r) {
         var k = keyOf(r, dim);
-        if (!m[k]) { m[k] = { name: k, total: 0, n: 0, sortKey: dim.key === 'month' ? r.date.slice(0, 7) : k }; order.push(k); }
+        if (!m[k]) {
+          var sk = dim.key === 'month' ? r.date.slice(0, 7)
+                 : dim.key === 'week'  ? mondayOf(r.date)
+                 : k;
+          m[k] = { name: k, total: 0, n: 0, sortKey: sk }; order.push(k);
+        }
         m[k].total += r.amount; m[k].n++;
       });
       var out = order.map(function (k) { return m[k]; });
       if (dim.key === 'month') out.forEach(function (x) { x.partial = partialMonth(x.sortKey); });
+      if (dim.key === 'week') out.forEach(function (x) { x.partial = partialWeek(x.sortKey); });
       /* Ranked by size, except the blank bucket which is pinned last however
          big it is — same rule the filter menus use. It is a gap in the source
          data, not a project or a vendor, so it should not outrank real ones. */
@@ -1397,6 +1430,42 @@
       var last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
       return ym + '-01' < P_START || iso2(last) > P_END;
     }
+    /* ISO-8601 weeks: Monday start, and the week belongs to the year of its
+       Thursday. Keying on the Monday's own date rather than a week NUMBER
+       keeps the sort lexicographic and side-steps the 52/53-week and
+       year-boundary cases entirely — the last week of December and the first
+       of January are simply two different Mondays. */
+    function mondayOf(dateStr) {
+      var d = ymd(dateStr);
+      var dow = (d.getDay() + 6) % 7;          /* Mon=0 .. Sun=6 */
+      d.setDate(d.getDate() - dow);
+      return iso2(d);
+    }
+    function weekLabel(mondayIso) {
+      var a = ymd(mondayIso);
+      var b = new Date(a.getFullYear(), a.getMonth(), a.getDate() + 6);
+      var sameMonth = a.getMonth() === b.getMonth();
+      return a.getDate() + (sameMonth ? '' : ' ' + MON[a.getMonth()]) + '–' +
+             b.getDate() + ' ' + MON[b.getMonth()];
+    }
+    /* A week is partial when either end falls outside the loaded period —
+       same rule as partialMonth, so the lighter fill means the same thing at
+       both grains. */
+    /* The bucket key for a row at the current grain. groupBy sets `sortKey`
+       from the same rule, so the chart's buckets, the drill-down filter and
+       the stale-selection check all agree. These were three separate
+       `r.date.slice(0, 7)` expressions, which silently kept bucketing by
+       month after the grain toggle landed. */
+    function bucketKeyOf(r) {
+      return state.paceGrain === 'week' ? mondayOf(r.date) : r.date.slice(0, 7);
+    }
+
+    function partialWeek(mondayIso) {
+      var a = ymd(mondayIso);
+      var b = new Date(a.getFullYear(), a.getMonth(), a.getDate() + 6);
+      return mondayIso < P_START || iso2(b) > P_END;
+    }
+
     function iso2(d) {
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
@@ -1541,11 +1610,10 @@
          the same vendor looks bigger in the short list than the long one. */
       var max = all.length ? Math.max.apply(null, all.map(function (d) { return d.total; })) : 1;
 
-      /* The only note left is the one that changes how a number is read. */
-      noteEl.textContent = dim.key === 'month'
-        ? 'The period ends ' + P_END.slice(-2) + ' ' + monthLabel(P_END.slice(0, 7)).split(' ')[0] +
-          ', so the last month is partial and not comparable to a full one.'
-        : '';
+      /* Unreachable when it was a ternary on dim.key === 'month': DIMENSIONS
+         is project + vendor. The partial-period caveat belongs to the by MONTH
+         card and is carried by its legend, not here. */
+      noteEl.textContent = '';
 
       if (!rows.length) { host.innerHTML = '<p class="fin-empty">No payments match these filters.</p>'; tblHost.innerHTML = ''; return; }
 
@@ -1706,7 +1774,11 @@
         var open = dim.drillBy && state.drill[dim.id] === d.name;
         var html = '<tr class="fin-trow' + (dim.drillBy ? ' fin-trow--open' : '') + (open ? ' is-open' : '') + '"' +
           (dim.drillBy ? ' data-tdrill="' + esc(d.name) + '" role="button" tabindex="0" aria-expanded="' + open + '"' : '') + '>' +
-          cells(d.name + (d.partial ? ' (partial)' : ''), d.n, money(d.total), pct(d.total, total),
+          /* No `(partial)` suffix here: groupBy sets that flag only for
+             dim.key === 'month', and DIMENSIONS is project + vendor only, so
+             the branch was unreachable. The partial-month signal lives on the
+             by MONTH card, where it is real — see the legend in paceByMonth. */
+          cells(d.name, d.n, money(d.total), pct(d.total, total),
                 'is-strong', !!dim.drillBy, d.name === BLANK) + '</tr>';
         if (!dim.drillBy) return html;
 
@@ -1913,7 +1985,7 @@
       var base = rows.filter(function (r) { return !pset || pset.has(val(r, 'project')); });
       paintPaceVendors(base);
       /* Drop a bar selection whose month is no longer in range. */
-      if (state.paceBar && !base.some(function (r) { return r.date.slice(0, 7) === state.paceBar.month; })) {
+      if (state.paceBar && !base.some(function (r) { return bucketKeyOf(r) === state.paceBar.month; })) {
         state.paceBar = null;
       }
       var sel = base.filter(function (r) {
@@ -1987,7 +2059,7 @@
 
     function paceDetailHtml(sel, bar) {
       var rows = sel.filter(function (r) {
-        if (r.date.slice(0, 7) !== bar.month) return false;
+        if (bucketKeyOf(r) !== bar.month) return false;
         if (bar.project && val(r, 'project') !== bar.project) return false;
         return true;
       });
@@ -2105,12 +2177,12 @@
        spreadsheet's project colours, so a project reads the same here as on
        the breakdown card. */
     function paceGrouped(sel, host, tblHost, names) {
-      var ms = groupBy(sel, { key: 'month', ordered: true });
+      var ms = groupBy(sel, { key: state.paceGrain, ordered: true });
       var total = sum(sel);
       var byMonth = {};
       ms.forEach(function (m) { byMonth[m.sortKey] = {}; });
       sel.forEach(function (r) {
-        var k = r.date.slice(0, 7), p = val(r, 'project');
+        var k = bucketKeyOf(r), p = val(r, 'project');
         byMonth[k][p] = (byMonth[k][p] || 0) + r.amount;
       });
       var max = niceMax(Math.max.apply(null, ms.map(function (m) {
@@ -2146,7 +2218,7 @@
       wirePaceBars(host, sel);
       wirePaceTree(host);
 
-      tblHost.innerHTML = '<div class="fin-tbl-wrap"><table class="fin-tbl"><thead><tr><th>Month</th>' +
+      tblHost.innerHTML = '<div class="fin-tbl-wrap"><table class="fin-tbl"><thead><tr><th>' + (state.paceGrain === 'week' ? 'Week' : 'Month') + '</th>' +
         '<th class="is-num">Total</th>' +
         names.map(function (n) { return '<th class="is-num">' + esc(n) + '</th>'; }).join('') +
         '</tr></thead><tbody>' +
@@ -2186,7 +2258,7 @@
        makes every month look like an increase. The running total is still
        the table's last column. */
     function paceByMonth(sel, label, host, tblHost) {
-      var ms = groupBy(sel, { key: 'month', ordered: true });
+      var ms = groupBy(sel, { key: state.paceGrain, ordered: true });
       var total = sum(sel);
       var max = niceMax(Math.max.apply(null, ms.map(function (m) { return m.total; })));
 
@@ -2203,7 +2275,7 @@
       wirePaceTree(host);
 
       var runT = 0;
-      tblHost.innerHTML = '<div class="fin-tbl-wrap"><table class="fin-tbl"><thead><tr><th>Month</th>' +
+      tblHost.innerHTML = '<div class="fin-tbl-wrap"><table class="fin-tbl"><thead><tr><th>' + (state.paceGrain === 'week' ? 'Week' : 'Month') + '</th>' +
         '<th class="is-num">Payments</th><th class="is-num">Amount</th><th class="is-num">Running total</th></tr></thead><tbody>' +
         ms.map(function (m) {
           runT += m.total;
