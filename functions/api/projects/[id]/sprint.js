@@ -102,7 +102,18 @@ const ISSUE_LIST_MAX = 500; // == the sync ceiling; uncapped vs the agent's 50.
    Keyed by status NAME, lower-cased, because category is what we are
    overriding — matching on category would rewrite every To Do status. */
 const STATUS_CATEGORY_OVERRIDES = Object.freeze({
+  // To Do
+  'backlog': 'new',
+  'to do': 'new',
+  // In Progress
+  'in progress': 'indeterminate',
+  'ready for review': 'indeterminate',
+  'qa': 'indeterminate',
+  'qa staging': 'indeterminate',
+  'in qa': 'indeterminate',        // Joni's spelling of the same stage
+  // Done
   'ready for production': 'done',
+  'done': 'done',
 });
 
 function categoryOf(row) {
@@ -159,7 +170,15 @@ function groupRowsIntoBoardColumns(rows, boardColumns) {
     for (const m of members) claimed.add(m.status);
     return {
       status: col.name,
-      status_category: dominantCategory(members),
+      /* Prefer the explicit mapping, keyed by the COLUMN's name. Without this
+         an empty column has no members to derive a category from, so
+         dominantCategory returns 'unknown' and it renders in the neutral
+         colour — which is exactly what "Ready for review" and "QA Staging"
+         did while sitting at 0 issues. The mapping is what Jenny specified,
+         so it should hold whether or not anything is in the column. */
+      status_category:
+        STATUS_CATEGORY_OVERRIDES[String(col.name || '').trim().toLowerCase()]
+        || dominantCategory(members),
       count: members.reduce((n, m) => n + m.count, 0),
       points: members.reduce((n, m) => n + m.points, 0),
       on_board: true,
@@ -167,7 +186,12 @@ function groupRowsIntoBoardColumns(rows, boardColumns) {
   });
   const unmapped = sortStatusesByCategory(rows.filter((r) => !claimed.has(r.status)))
     .map((r) => ({ ...r, on_board: false }));
-  return columns.concat(unmapped);
+  /* Off-board statuses lead rather than trail (2026-08-25, Jenny). The only
+     one in practice is Backlog, and it is where work sits BEFORE the board's
+     first column — reading it after Done put the earliest stage at the end of
+     a left-to-right progression. They are still marked on_board:false, so the
+     chart keeps labelling them "not on board". */
+  return unmapped.concat(columns);
 }
 
 export async function onRequestGet({ request, env, params }) {
