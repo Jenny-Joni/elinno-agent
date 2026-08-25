@@ -84,6 +84,32 @@ const ISSUE_LIST_MAX = 500; // == the sync ceiling; uncapped vs the agent's 50.
    The issue list is the single source for every count below, so the list and
    the totals cannot disagree — which was a real risk while some counts came
    from SQL aggregates and others from the list. */
+/* STATUS CATEGORY OVERRIDES (2026-08-25, Jenny).
+
+   Jira assigns every status one of three fixed categories — To Do / In
+   Progress / Done — and this project's "Ready for Production" is categorised
+   `new` (To Do). Jenny's call is that work in that column is finished, so it
+   should read as Done here: the progress bar, the category split, the
+   assignee workload and completed story points all follow the category, and
+   43 finished issues sitting under "To Do" misrepresents the sprint.
+
+   THIS IS A DELIBERATE DIVERGENCE FROM JIRA and the only one in this file —
+   everything else here exists to make the two agree. The alternative is to
+   change the category on the status in Jira itself, which would fix Jira's
+   own burndown and velocity too and needs no code; that is the better fix if
+   the team agrees, and this override should be removed if that happens.
+
+   Keyed by status NAME, lower-cased, because category is what we are
+   overriding — matching on category would rewrite every To Do status. */
+const STATUS_CATEGORY_OVERRIDES = Object.freeze({
+  'ready for production': 'done',
+});
+
+function categoryOf(row) {
+  const key = String(row && row.status || '').trim().toLowerCase();
+  return STATUS_CATEGORY_OVERRIDES[key] || row.status_category || 'unknown';
+}
+
 function isSprintMember(row) {
   const t = String(row && row.issue_type || '').trim().toLowerCase();
   return t !== 'sub-task' && t !== 'subtask';
@@ -239,7 +265,13 @@ export async function onRequestGet({ request, env, params }) {
     `;
     /* Drop the rows Jira does not count as sprint members. Done here rather
        than in the query for the reason given at isSprintMember. */
-    const boardRows = issueRows.filter(isSprintMember);
+    const boardRows = issueRows
+      .filter(isSprintMember)
+      /* Apply the category override ONCE, here. Everything downstream — the
+         category bar, board_status, board_columns, workload, completed points
+         and the issue list the client filters on — reads status_category off
+         these rows, so overriding at the source keeps all six consistent. */
+      .map((r) => ({ ...r, status_category: categoryOf(r) }));
 
     const issues = boardRows.map((r) => ({
       issue_key: r.issue_key,
