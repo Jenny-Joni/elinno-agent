@@ -169,42 +169,40 @@
     // reopens the same gap between the PRD and the page. Flagged; the PRD
     // needs amending to match, or this needs reverting.
     const PLACEHOLDER = {
-      /* Finance, v2.1. VERBATIM style: the labels are the real shipped
-         strings. Project and vendor names are invented stand-ins and the
-         figures are invented too, per PRD 5.11.6's Contents rule — these
-         notes are visible to every signed-in user and real card spend has
-         no business sitting in a static file.
+      /* Finance, v2.1. VERBATIM style: labels are the real shipped strings.
+         Project and vendor names are invented stand-ins (Aurora, Beacon,
+         Meridian) and every figure is invented, per PRD 5.11.6's Contents
+         rule — these notes are readable by every signed-in user and real
+         card spend has no business in a static file.
 
-         Divs, never inline SVG: SVG inside a JS template literal still 500s
-         Cloudflare Pages (Block 13.3). */
-      'finance-reap':
+         Three illustrations, one per feature: where Finance lives, the
+         chart, the table. Divs, never inline SVG — SVG inside a JS template
+         literal still 500s Cloudflare Pages (Block 13.3). */
+      'finance-vertical':
         '<div class="wn-mini">'
-        + '<div class="wn-mini__eyebrow">Finance &middot; Reap</div>'
-        + '<div class="wn-mini__row"><span class="wn-mini__text"><strong>by PROJECT</strong></span><span class="wn-mini__pill">Chart</span></div>'
-        + '<div class="wn-mini__row"><span class="wn-mini__text">Aurora</span><span class="wn-mini__bar" style="background:#df2f4a;flex:none;width:58%;"></span><span class="wn-mini__text" style="flex:none;"><strong>$18,402</strong></span></div>'
-        + '<div class="wn-mini__row"><span class="wn-mini__text">Beacon</span><span class="wn-mini__bar" style="background:#9cd326;flex:none;width:26%;"></span><span class="wn-mini__text" style="flex:none;"><strong>$8,120</strong></span></div>'
-        + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__text">Meridian</span><span class="wn-mini__bar" style="background:#579bfc;flex:none;width:12%;"></span><span class="wn-mini__text" style="flex:none;"><strong>$3,640</strong></span></div>'
+        + '<div class="wn-mini__eyebrow">The menu, on every screen</div>'
+        + '<div class="wn-mini__row" style="border-color:var(--brand-soft-border);background:var(--brand-soft);"><span class="wn-mini__text"><strong>Finance</strong></span></div>'
+        + '<div class="wn-mini__row" style="margin-left:14px;"><span class="wn-mini__text">Reap</span><span class="wn-mini__tag" style="flex:none;">Live</span></div>'
+        + '<div class="wn-mini__row" style="margin-left:14px;"><span class="wn-mini__text">Fiat</span><span class="wn-mini__tag wn-mini__tag--grey" style="flex:none;">Soon</span></div>'
+        + '<div class="wn-mini__row" style="margin-left:14px;"><span class="wn-mini__text">Crypto</span><span class="wn-mini__tag wn-mini__tag--grey" style="flex:none;">Soon</span></div>'
+        + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__text">Projects</span></div>'
         + '</div>',
-      'finance-drill':
+      'finance-chart':
         '<div class="wn-mini">'
-        + '<div class="wn-mini__eyebrow">One project, opened up</div>'
-        + '<div class="wn-mini__row"><span class="wn-mini__text"><strong>Aurora</strong></span><span class="wn-mini__text" style="flex:none;">$18,402</span></div>'
-        + '<div class="wn-mini__row" style="margin-left:12px;"><span class="wn-mini__tag wn-mini__tag--grey">Vendor</span><span class="wn-mini__text">Cloud hosting</span><span class="wn-mini__text" style="flex:none;">$9,110</span></div>'
-        + '<div class="wn-mini__row" style="margin-left:24px;"><span class="wn-mini__tag wn-mini__tag--grey">Card</span><span class="wn-mini__text">ops@example.com</span><span class="wn-mini__text" style="flex:none;">$6,300</span></div>'
-        + '<div class="wn-mini__row" style="margin-left:36px;margin-bottom:0;"><span class="wn-mini__text">12 Aug &middot; single payment</span><span class="wn-mini__text" style="flex:none;">$1,050</span></div>'
+        + '<div class="wn-mini__eyebrow">Reap &middot; by project, as a chart</div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__text">PROJECTS</span><span class="wn-mini__pill">All</span><span class="wn-mini__text">DATES</span><span class="wn-mini__pill">01/07 &ndash; 22/08</span></div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__text" style="flex:none;width:54px;">Aurora</span><span class="wn-mini__bar" style="background:#df2f4a;flex:none;width:52%;"></span><span class="wn-mini__text" style="flex:none;"><strong>$18,402</strong></span></div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__text" style="flex:none;width:54px;">Beacon</span><span class="wn-mini__bar" style="background:#9cd326;flex:none;width:23%;"></span><span class="wn-mini__text" style="flex:none;"><strong>$8,120</strong></span></div>'
+        + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__text" style="flex:none;width:54px;">Meridian</span><span class="wn-mini__bar" style="background:#579bfc;flex:none;width:10%;"></span><span class="wn-mini__text" style="flex:none;"><strong>$3,640</strong></span></div>'
         + '</div>',
-      'finance-dashboard':
+      'finance-table':
         '<div class="wn-mini">'
-        + '<div class="wn-mini__eyebrow">Finance</div>'
-        + '<div class="wn-mini__row"><span class="wn-mini__text"><strong>Reap</strong><br>$30,162<br>164 payments &middot; updated 24/08/26</span></div>'
-        + '<div class="wn-mini__row"><span class="wn-mini__text">Fiat &middot; <span style="opacity:.6;">Not connected yet</span></span></div>'
-        + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__text">Crypto &middot; <span style="opacity:.6;">Not connected yet</span></span></div>'
-        + '</div>',
-      'finance-upload':
-        '<div class="wn-mini">'
-        + '<div class="wn-mini__eyebrow">Admins only</div>'
-        + '<div class="wn-mini--bar-row" style="margin-bottom:8px;"><span class="wn-mini__label">Reap</span><span class="wn-mini__btn wn-mini__btn--primary">Replace data&hellip;</span></div>'
-        + '<div class="wn-mini__row" style="margin-bottom:0;"><span class="wn-mini__text">Replace the Reap dataset with <strong>164 payments</strong> from this file? This removes the 164 currently stored. One previous version is kept.</span></div>'
+        + '<div class="wn-mini__eyebrow">Reap &middot; by vendor, as a table</div>'
+        + '<div class="wn-mini__row" style="background:#fafafa;"><span class="wn-mini__text" style="flex:1;"><strong>Vendor</strong></span><span class="wn-mini__text" style="flex:none;width:56px;text-align:right;"><strong>Payments</strong></span><span class="wn-mini__text" style="flex:none;width:58px;text-align:right;"><strong>Amount</strong></span></div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__text" style="flex:1;">Cloud hosting</span><span class="wn-mini__text" style="flex:none;width:56px;text-align:right;">18</span><span class="wn-mini__text" style="flex:none;width:58px;text-align:right;">$9,110</span></div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__text" style="flex:1;">Design tools</span><span class="wn-mini__text" style="flex:none;width:56px;text-align:right;">6</span><span class="wn-mini__text" style="flex:none;width:58px;text-align:right;">$4,528</span></div>'
+        + '<div class="wn-mini__row"><span class="wn-mini__text" style="flex:1;">Domains</span><span class="wn-mini__text" style="flex:none;width:56px;text-align:right;">4</span><span class="wn-mini__text" style="flex:none;width:58px;text-align:right;">$2,266</span></div>'
+        + '<div class="wn-mini__row" style="margin-bottom:0;background:#fafafa;"><span class="wn-mini__text" style="flex:1;"><strong>Total</strong></span><span class="wn-mini__text" style="flex:none;width:56px;text-align:right;"><strong>28</strong></span><span class="wn-mini__text" style="flex:none;width:58px;text-align:right;"><strong>$15,904</strong></span></div>'
         + '</div>',
       'whats-new':
         '<div class="wn-mini">'

@@ -88,56 +88,47 @@ window.WHATS_NEW = [
     // convention v1.8 through v2.0 use.
     date: '2026-08-23',
     status: 'published',
-    headline: 'Company card spend is now a page in the app: every payment from the Reap export, grouped by project, by vendor and by month, and openable down to the individual charge.',
+    headline: 'Finance is a new area of the app: every company expense in one place, broken down by project, by vendor and by month \u2014 filtered by date, card or vendor, and read as a chart or a table.',
     features: [
       {
         tag: 'New',
-        // NAMED: the Reap tab — three cards over one shared filter row.
-        title: 'Three ways to read the same spend',
-        body: 'Finance opens on Reap, which holds every payment in the current export. The same period is shown three ways at once: which projects the money went to, which vendors were paid, and how it split month by month. Project and vendor can each be read as a chart or as a table, whichever you find easier to scan.',
+        // NAMED: Finance as a top-level rail section on all 11 authenticated
+        // pages, above Projects, with three children. Reap live; Fiat and
+        // Crypto are titles + empty state only.
+        title: 'A new area of the app, alongside Projects',
+        body: 'Elinno Agent was organised entirely around projects until now. Finance sits beside that as an area of its own \u2014 in the menu on every screen, above Projects \u2014 and it is where the company\u2019s spending is tracked from now on. Not a report you generate or a spreadsheet someone circulates, but a permanent part of the app that is in the same place wherever you are. It holds three sources: Reap, live now, carrying every company card payment; and Fiat for bank and wire transfers and Crypto for on-chain spending, both in place and waiting to be connected, so you can see where they will appear before there is anything in them. Everyone signed in can read Finance.',
         image: null,
-        placeholder: 'finance-reap',
-        alt: 'Illustration: a by-project chart listing three projects with coloured bars and totals beside them.'
+        placeholder: 'finance-vertical',
+        alt: 'Illustration: the left-hand menu with Finance above Projects, showing Reap marked live and Fiat and Crypto marked coming soon.'
       },
       {
         tag: 'New',
-        // NAMED: four-level drill, both directions, plus the shared filter
-        // row (projects, vendors, date range, cards).
-        title: 'Open any figure to see what it is made of',
-        body: 'No total is a dead end. Open a project to see the vendors it paid, open a vendor to see whose card was used, and open that to reach the individual payments with their dates. It works from either end — start from a vendor and you can see which projects it was charged to instead. Above all of it, one row of filters for projects, vendors, dates and cards; set it once and all three views narrow together.',
+        // NAMED: by PROJECT / by VENDOR / by MONTH over one shared filter
+        // row; four-level drill in both directions.
+        title: 'Every expense, split the way you need to see it',
+        body: 'Reap holds every payment in the current export and shows the same period three ways at once: which projects the money went to, which vendors were paid, and how the spending split month by month. One row of filters sits above all of it \u2014 projects, vendors, date range and cards \u2014 so you can narrow to a single month, one card or one vendor and all three views follow together, never leaving you comparing one slice against another. Each project keeps its own colour throughout. And no total is a dead end: open a project to see the vendors behind it, open a vendor to see whose card was used, and keep going down to the individual payments with their dates.',
         image: null,
-        placeholder: 'finance-drill',
-        alt: 'Illustration: a project total expanded into a vendor, then a cardholder, then a single dated payment.'
+        placeholder: 'finance-chart',
+        alt: 'Illustration: a filter row above a by-project chart, three projects with coloured bars and their totals.'
       },
       {
         tag: 'New',
-        // NAMED: dashboard section above Projects — total, payment count,
-        // upload date. Reap only; Fiat and Crypto are static.
-        title: 'The headline figure without opening the page',
-        body: 'The dashboard now leads with Finance, above your projects. It carries the total for the loaded period, how many payments make it up, and the date the figures were last replaced — so you can tell at a glance whether what you are looking at is current.',
+        // NAMED: the Chart/Table toggle on the project and vendor cards.
+        title: 'The same figures as a table',
+        body: 'Bars are good for proportion and poor for exact numbers, so the project and vendor views each switch to a table with one click. Same data, same order, same drill-downs \u2014 payment counts and amounts in columns you can read straight down, total at the foot, when what you need is the figure rather than the shape of it.',
         image: null,
-        placeholder: 'finance-dashboard',
-        alt: 'Illustration: a dashboard section headed Finance, with a Reap total, a payment count and an updated date.'
-      },
-      {
-        tag: 'New',
-        // NAMED: admin-only upload; parses the sheet in the browser,
-        // confirms with counts, full-replaces, keeps one previous version.
-        title: 'Updating the numbers takes one file',
-        body: 'Admins keep Finance current by dropping the latest Reap export onto the page — no exporting to another format first. It reads the spreadsheet, tells you how many payments it found, and asks before it replaces anything, naming how many it is about to remove. If the file turns out to be the wrong one, the previous version is kept. Each upload replaces everything rather than adding to it, because the export always covers the full history.',
-        image: null,
-        placeholder: 'finance-upload',
-        alt: 'Illustration: a Replace data button beside the Reap heading, and a confirmation naming how many payments will be replaced.'
+        placeholder: 'finance-table',
+        alt: 'Illustration: a by-vendor table with vendor, payment count and amount columns, and a total row.'
       }
     ],
     fixes: [
       {
         tag: 'New',
-        text: 'Finance sits in the menu on every screen, above Projects, and opens to its three sources. Reap is live; Fiat and Crypto are listed but not connected to anything yet.'
+        text: 'The dashboard leads with Finance, above your projects: the total for the loaded period, how many payments it covers, and when the figures were last replaced.'
       },
       {
         tag: 'New',
-        text: 'Everyone signed in can read Finance. Replacing the data is limited to admins.'
+        text: 'Admins keep Reap current by dropping the latest export onto the page. It reads the spreadsheet, says how many payments it found, and asks before replacing anything \u2014 and the previous version is kept in case the wrong file goes in.'
       }
     ]
   },
