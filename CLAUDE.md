@@ -35,6 +35,8 @@ If any of the three turns up something unexpected, that's the conversation, not 
 - **One-fix rule.** In auto mode, try one fix for any failure; if it doesn't work, drop to default mode and report. Do not write a second fix commit in auto mode.
 - **Iteration cap.** End execute phase after 10 tool calls on a single sub-task without a successful commit or new passing check. Switch to default mode and report.
 - **Security carve-outs run in default mode**, never auto: crypto, OAuth callbacks, project-scoping enforcement, webhook handlers, schema migrations, rollback fixes when production is broken. See WORKFLOW.md for the full list.
+- **Never push a carve-out file straight to main.** On 2026-08-25 a change to `functions/api/projects/[id]/sprint.js` went to main without a preview and 500'd every project's Sprint View. "I can verify production quickly" is not a substitute for a preview — the quick check happens after users are affected.
+- **When app data disagrees with a source system, query the source's API — do not reason from a screenshot.** The same 2026-08-25 session produced two confident, wrong diagnoses from board images; one request to Jira's REST API settled it. Jenny's browser session can reach both Jira sites and the app's own API.
 
 ## Conflicts between docs
 

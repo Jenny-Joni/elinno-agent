@@ -7685,3 +7685,117 @@ Two things about that entry worth knowing before editing it:
 ### What's New notice
 
 Done — v2.1, published.
+
+## Session closeout — 2026-08-25 (Sprint View vs Jira: one production incident, one real defect found)
+
+Unplanned work. Jenny synced Jira on Joni, saw Sprint View disagree with her
+board, and asked for parity. What followed is worth reading before touching
+this area again.
+
+### Production state at session end
+
+`main` at `5e0890e`. Rain Trade's Sprint View is **identical to its Jira board**
+— all seven columns, total 88, verified against
+`/rest/agile/1.0/board/202/sprint/1207/issue` column by column.
+
+Joni is **not** fixed: 222 against Jira's 154. See "The open defect" below.
+
+### ⚠️ I broke Sprint View in production
+
+`89aa257` added a `not_in` operator to the aggregate compiler and a NOT-IN
+clause to the issue query. It 500'd **every project's** Sprint View. Reverted
+in `d37d0c9`.
+
+**The cause was never established, and could not be**: the endpoint caught
+every exception into `catch (_err)` and returned a bare 500 with no logging
+anywhere — not the response, not the Pages logs. `7f0ca3b` fixed that first,
+before any second attempt. If this endpoint 500s again, the exception is now
+in the Pages logs under `event: sprint_view_failed`.
+
+**It was pushed straight to main without a preview**, on the reasoning that
+production could be verified faster. That reasoning was backwards: the fast
+check came after users were already affected. The file is marked
+SECURITY-CARVE-OUT and the rule exists for this.
+
+### The diagnosis was wrong twice before it was right
+
+1. **"Sub-tasks and epics are not on a board."** Inferred from a screenshot.
+   Half right. Jira's API says all 14 epics ARE in Joni's sprint and in its
+   To Do count; excluding them pushed To Do from 68 to 55 against Jira's 69,
+   making that column worse.
+2. **"Sub-tasks are never sprint members."** Generalised from Joni. Wrong:
+
+     Joni  sprint 268   Jira 154 issues, ZERO sub-tasks;  ours 222 incl. 63
+     Rain  sprint 1207  Jira 91 issues, 26 sub-tasks;     ours 91 — exact
+
+   Sub-tasks are genuinely members in one project and not the other. The rule
+   fixed part of Joni by breaking Rain Trade, which had been correct, and Rain
+   Trade shipped showing 65 against 91 until it was removed in `763807e`.
+
+**What settled it in one request** was querying Jira directly through Jenny's
+browser session — `/rest/agile/1.0/sprint/{id}/issue` and
+`/board/{id}/configuration`. Every hour spent reasoning from screenshots was
+wasted. **Ask Jira; do not infer from a board image.**
+
+### What is actually true, and now encoded
+
+- **Jira's two endpoints differ.** `sprint/{id}/issue` returns everything in
+  the sprint; `board/{id}/sprint/{id}/issue` returns only what the board has a
+  column for. Rain Trade: 91 vs 88, the difference being status Backlog.
+  Sprint View mirrors the board, so `5e0890e` filters statuses with no column.
+- **Counts that look stale usually are.** Ours matched Jira's sprint endpoint
+  exactly as of the previous sync; a sync ran and both agreed. No code caused
+  it and none was needed.
+
+### Changes that shipped
+
+| Commit | What |
+|---|---|
+| `7f0ca3b` | structured error logging — the endpoint had none |
+| `3b44aad` | "Ready for Production" counts as Done |
+| `e2a039c` | Status category card removed |
+| `497bb77` | full status→category mapping, applied to all projects |
+| `763807e` | sub-task filter removed — it was wrong |
+| `5e0890e` | only statuses with a board column are shown |
+
+Every count in the response is now derived from ONE filtered array rather than
+three SQL aggregates plus the sprint summary. Before, the stat tiles, the
+category bar, the chart and the issue list each counted a different
+population.
+
+### ⚠️ THE OPEN DEFECT — Joni, 222 vs 154
+
+`functions/_lib/connectors/jira.js` infers sprint membership from each issue's
+own sprint field. **A sub-task carries its parent's sprint there whether or
+not it was ever added to the sprint**, so Joni's 63 sub-tasks inherit sprint
+268 from parents that are in it. Rain Trade's 26 were genuinely added, which
+is why that project was always correct.
+
+The same defect explains the rest of Joni's drift: our store has SCRUM-1140,
+1516, 1522, 2171 and 2215 as In Progress in the sprint when Jira's sprint does
+not contain them, and lacks SCRUM-397 which Jira has.
+
+**The fix is to take membership from Jira's authoritative endpoint,**
+`/rest/agile/1.0/sprint/{id}/issue`, which the sync never consults. That makes
+every project identical by construction, with no per-project rules. NOT
+attempted this session — it is the credential-handling sync path, and after
+one production incident it deserves to be written against both projects' real
+data and reviewed as a diff before it goes near main.
+
+### Also open
+
+1. **V3 / V12 from Block 25 still not run** — no non-admin account exists, and
+   the Finance upload full-replaces company financial data.
+2. The Sprint View chart no longer reconciles against every issue in the
+   sprint — 3 Backlog issues exist but are not shown. A deliberate trade for
+   board parity, reversing "Decision E".
+3. The status-category map in `sprint.js` is a deliberate divergence from
+   Jira, which categorises Ready for Production and QA Staging as To Do.
+   Changing them on the statuses in Jira would let the whole map be deleted
+   and would fix Jira's own burndown too.
+4. Everything from the 2026-08-24/25 Block 25 closeout above.
+
+### What's New notice
+
+Nothing user-facing worth an entry: this was a correctness fix to an existing
+view. v2.1 (Finance) remains the published issue.
