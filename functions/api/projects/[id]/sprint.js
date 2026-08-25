@@ -322,7 +322,32 @@ export async function onRequestGet({ request, env, params }) {
       issues,
       as_of: asOf,
     });
-  } catch (_err) {
+  } catch (err) {
+    /* 2026-08-25. This catch used to swallow the exception whole and return a
+       bare 500. When the board-parity filter (89aa257) broke this endpoint in
+       production, there was nothing to read anywhere — not in the response,
+       not in the Pages logs — and the change had to be reverted undiagnosed.
+
+       Structured shape matches the connector's convention (see
+       jira-connector `jira_board_columns_failed`), so Pages logs stay
+       greppable by `event`.
+
+       Nothing sensitive: this endpoint handles no credentials. The message is
+       truncated and the stack capped at a few frames so a pathological error
+       cannot flood the log. The RESPONSE is unchanged — still a bare
+       'Internal error', because the client has no business seeing internals. */
+    console.error(JSON.stringify({
+      level: 'error',
+      event: 'sprint_view_failed',
+      project_id: projectId,
+      /* No sprint_id here on purpose: it is `let`-declared INSIDE the try, so
+         referencing it from this catch throws a ReferenceError inside the
+         error handler and destroys the original exception — the exact failure
+         this logging exists to prevent. project_id plus the stack is enough to
+         locate the sprint. */
+      error: err && err.message ? String(err.message).slice(0, 300) : 'unknown',
+      stack: err && err.stack ? String(err.stack).split('\n').slice(0, 4).join(' | ').slice(0, 500) : null,
+    }));
     return error('Internal error', 500);
   } finally {
     try {
