@@ -2379,7 +2379,6 @@
         + '</div>' + daysTile + '</div>'
         + progress
         + stats
-        + svCategoryCardHtml(d)
         + svBoardCardHtml(d)
         + svWorkloadCardHtml(d)
         + svIssuesCardShell(d)
@@ -2394,24 +2393,6 @@
       return '<div class="sv-stat"><span class="sv-stat-ic sv-stat-ic--' + kind + '">' + icons[kind] + '</span>'
         + '<div class="sv-stat-num">' + escapeHtml(String(n == null ? 0 : n)) + '</div>'
         + '<div class="sv-stat-lbl">' + escapeHtml(label) + '</div></div>';
-    }
-
-    function svCategoryCardHtml(d) {
-      const cats = d.categories || {};
-      const order = ['new', 'indeterminate', 'done', 'unknown'];
-      const present = order.filter(c => (Number(cats[c]) || 0) > 0);
-      if (!present.length) return '';
-      let segs = '', keys = '';
-      present.forEach(c => {
-        const n = Number(cats[c]) || 0, m = svCat(c);
-        segs += '<div class="sv-catseg" style="flex:' + n + ';background:' + m.color + '">' + n + '</div>';
-        keys += '<span><span class="sv-sw" style="background:' + m.color + '"></span> ' + escapeHtml(m.label) + ' · ' + n + '</span>';
-      });
-      return '<div class="sv-card"><div class="sv-card-head">'
-        + '<h3 class="sv-card-title">Status category</h3>'
-        + '<span class="sv-card-sub">Grouped by Jira’s fixed status categories</span></div>'
-        + '<div class="sv-catbar">' + segs + '</div>'
-        + '<div class="sv-catkey">' + keys + '</div></div>';
     }
 
     function svBoardCardHtml(d) {

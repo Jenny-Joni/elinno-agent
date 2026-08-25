@@ -3344,14 +3344,6 @@ table.users-table {
 .sv-card-sub { font-family:var(--font-regular); font-size:12px; color:var(--text-3); }
 
 /* status-CATEGORY segmented bar */
-.sv-catbar { display:flex; height:30px; border-radius:8px; overflow:hidden; border:1px solid var(--border); }
-.sv-catseg { display:flex; align-items:center; justify-content:center; color:#fff; font-family:var(--font-medium); font-size:12.5px; }
-.sv-catseg--todo { background:var(--cat-new); } .sv-catseg--prog { background:var(--cat-prog); } .sv-catseg--done { background:var(--cat-done); }
-.sv-catseg + .sv-catseg { box-shadow:inset 1.5px 0 0 rgba(255,255,255,.6); }
-.sv-catkey { display:flex; gap:18px; margin-top:10px; flex-wrap:wrap; }
-.sv-catkey span { color:var(--text-2); font-size:12.5px; }
-.sv-sw { width:11px; height:11px; border-radius:3px; display:inline-block; }
-.sv-sw--todo { background:var(--cat-new); } .sv-sw--prog { background:var(--cat-prog); } .sv-sw--done { background:var(--cat-done); }
 
 /* raw board-status column chart */
 .sv-chart { display:flex; align-items:flex-start; gap:18px; padding:0 4px; }
@@ -3471,7 +3463,6 @@ table.users-table {
   .sv-card { padding:16px 16px 14px; }
   .sv-card-head { flex-direction:column; align-items:flex-start; gap:4px; }
   .sv-card-sub { font-size:11.5px; }
-  .sv-catkey { flex-wrap:wrap; gap:8px 14px; }
   .sv-chart { gap:10px; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch; }
   .sv-col { flex:0 0 54px; }
   .sv-bartrack { height:130px; max-width:46px; }
