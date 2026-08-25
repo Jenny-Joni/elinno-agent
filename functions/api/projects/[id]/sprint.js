@@ -20,15 +20,15 @@
 //        - runListJiraSprints / runGetJiraSprintSummary filter
 //          `WHERE project_id = $` (and the summary additionally matches
 //          sprint_id — its cross-project sprint-id-collision guard).
-//        - runAggregateJira server-injects project_id (the DSL has no
-//          where-slot for it; project_id-in-where is rejected by the
-//          compiler).
 //        - the direct issue-list read below filters
-//          `WHERE project_id = $ AND sprint_id = $` explicitly.
+//          `WHERE project_id = $ AND sprint_id = $` explicitly, and every
+//          count in the response is derived from ITS rows (2026-08-25) —
+//          so there is now exactly one scoped read of issue data, not four.
+//        - the board_columns read filters project_id AND sprint_id.
 //
 // ?sprint_id IS ATTACKER-CONTROLLED. The sprint is resolved EXACTLY ONCE
-// here and the same integer is threaded into the summary executor, every
-// aggregate DSL, and the issue-list read — no downstream call re-resolves
+// here and the same integer is threaded into the summary executor and the
+// issue-list read — no downstream call re-resolves
 // "active sprint" (prevents counts/list drift). Because every consumer
 // scopes by project_id AS WELL AS sprint_id, a valid-but-foreign sprint_id
 // cannot leak another project's data: runGetJiraSprintSummary returns
@@ -48,12 +48,36 @@ import {
   runListJiraSprints,
   runGetJiraSprintSummary,
 } from '../../../_lib/ai/tools.js';
-import { runAggregateJira } from '../../../_lib/ai/aggregate_jira_compiler.js';
 // Block 18.1: pickActiveSprint moved to _lib so the suggestion context can
 // resolve the same sprint this endpoint does. Predicate unchanged by the move.
 import { pickActiveSprint } from '../../../_lib/jira-sprint.js';
 
 const ISSUE_LIST_MAX = 500; // == the sync ceiling; uncapped vs the agent's 50.
+
+/* BOARD PARITY (2026-08-25). A Jira board renders neither of these as a card:
+   a sub-task appears nested inside its parent, an epic lives in the epic panel.
+   Sprint View counted both, so Joni's sprint read 222 issues against a board
+   showing 140 — In Progress 69 against 9, because that sprint holds 63
+   sub-tasks and 14 epics.
+
+   Case-insensitive and both spellings: Jira's built-in type is "Sub-task",
+   this instance reports "Subtask".
+
+   THIS FILTERS IN JAVASCRIPT, NOT IN SQL, DELIBERATELY. The first attempt at
+   this (89aa257) added a `not_in` operator to the aggregate compiler and a
+   NOT-IN clause to the issue query; it 500'd every Sprint View in production
+   and had to be reverted. The cause was never established — the endpoint
+   swallowed its own exception (fixed separately in 7f0ca3b). Every query here
+   is therefore left EXACTLY as it was, and the filtering happens on rows that
+   have already come back. Nothing new can fail in the database.
+
+   The issue list is the single source for every count below, so the list and
+   the totals cannot disagree — which was a real risk while some counts came
+   from SQL aggregates and others from the list. */
+function isOnBoard(row) {
+  const t = String(row && row.issue_type || '').trim().toLowerCase();
+  return t !== 'sub-task' && t !== 'subtask' && t !== 'epic';
+}
 const DAY_MS = 86_400_000;
 
 /* Pre-Block-21 ordering, kept verbatim as the fallback: category rank, then
@@ -168,24 +192,15 @@ export async function onRequestGet({ request, env, params }) {
     }
 
     // ── Step 4: aggregates (project_id server-injected; sprint_id threaded) ─
-    const whereSprint = { sprint_id: { eq: sprintId } };
+    /* The three per-issue aggregates that stood here — issue types, statuses,
+       assignee workload — are gone. They could not see the board-parity
+       filter, so they would have reported one set of numbers while the issue
+       list below reported another. All three are now derived from the filtered
+       list, which also removes three database round-trips.
 
-    const [typeAgg, statusAgg, workloadAgg, boardColRows] = await Promise.all([
-      runAggregateJira(sql, projectId, {
-        select: ['issue_type', 'COUNT(*)'],
-        group_by: ['issue_type'],
-        where: whereSprint,
-      }),
-      runAggregateJira(sql, projectId, {
-        select: ['status', 'status_category', 'COUNT(*)', 'SUM(story_points)'],
-        group_by: ['status', 'status_category'],
-        where: whereSprint,
-      }),
-      runAggregateJira(sql, projectId, {
-        select: ['assignee_display_name', 'status_category', 'COUNT(*)'],
-        group_by: ['assignee_display_name', 'status_category'],
-        where: whereSprint,
-      }),
+       board_columns stays: it is the board's stored column CONFIGURATION, not
+       a count over issues, so the filter does not apply to it. */
+    const [boardColRows] = await Promise.all([
       /* Block 21: the board's columns as stored by the sync. Read here rather
          than through runListJiraSprints because that executor is also an AGENT
          tool — adding this array there would push a JSON blob into every model
@@ -212,7 +227,11 @@ export async function onRequestGet({ request, env, params }) {
        ORDER BY status_category, status, issue_key
        LIMIT ${ISSUE_LIST_MAX}
     `;
-    const issues = issueRows.map((r) => ({
+    /* Board parity: drop the rows a Jira board does not render as cards. Done
+       here rather than in the query for the reason given at isOnBoard. */
+    const boardRows = issueRows.filter(isOnBoard);
+
+    const issues = boardRows.map((r) => ({
       issue_key: r.issue_key,
       sprint_id: r.sprint_id,
       issue_type: r.issue_type,
@@ -235,25 +254,56 @@ export async function onRequestGet({ request, env, params }) {
       summary.state
     );
 
-    // ── Shape: issue-type stats (Total / Tasks / Bugs / Stories) ───────
-    const stats = { total: 0, tasks: 0, bugs: 0, stories: 0 };
-    for (const row of typeAgg?.rows || []) {
-      const n = Number(row.count) || 0;
-      stats.total += n;
-      const t = (row.issue_type || '').toLowerCase();
-      if (t === 'task') stats.tasks += n;
-      else if (t === 'bug') stats.bugs += n;
-      else if (t === 'story') stats.stories += n;
-      // Epic/Sub-task/etc. fold into Total only (dec. step 4).
+    /* ── Shape: everything below is derived from boardRows ──────────────
+       These four used to come from three SQL aggregates plus the sprint
+       summary, none of which knew about the board-parity filter. Deriving
+       them from the one filtered array is what makes the stat tiles, the
+       category bar, the column chart and the issue list agree. */
+
+    // Issue-type stats (Total / Tasks / Bugs / Stories)
+    const stats = { total: boardRows.length, tasks: 0, bugs: 0, stories: 0 };
+    for (const r of boardRows) {
+      const t = String(r.issue_type || '').toLowerCase();
+      if (t === 'task') stats.tasks += 1;
+      else if (t === 'bug') stats.bugs += 1;
+      else if (t === 'story') stats.stories += 1;
+      // Anything else folds into Total only, as before.
     }
 
-    // ── Shape: board columns, in the board's own order ─────────────────
-    const statusRows = (statusAgg?.rows || []).map((row) => ({
-      status: row.status,
-      status_category: row.status_category || 'unknown',
-      count: Number(row.count) || 0,
-      points: Number(row.sum_story_points) || 0,
-    }));
+    // Per-status counts and points, in the shape board_status/board_columns want
+    const statusMap = new Map();
+    for (const r of boardRows) {
+      const key = r.status || null;
+      if (!statusMap.has(key)) {
+        statusMap.set(key, {
+          status: key,
+          status_category: r.status_category || 'unknown',
+          count: 0,
+          points: 0,
+        });
+      }
+      const bucket = statusMap.get(key);
+      bucket.count += 1;
+      bucket.points += Number(r.story_points) || 0;
+    }
+    const statusRows = [...statusMap.values()];
+
+    // Status-category rollup, replacing the sprint summary's own counts —
+    // those are computed over every issue and would contradict the chart.
+    const categories = { new: 0, indeterminate: 0, done: 0, unknown: 0 };
+    for (const r of boardRows) {
+      const c = r.status_category || 'unknown';
+      if (c in categories) categories[c] += 1;
+      else categories.unknown += 1;
+    }
+
+    // Story points, same reasoning as categories.
+    const pointsTotals = { total: 0, completed: 0 };
+    for (const r of boardRows) {
+      const pts = Number(r.story_points) || 0;
+      pointsTotals.total += pts;
+      if ((r.status_category || '') === 'done') pointsTotals.completed += pts;
+    }
 
     /* board_status stays per-STATUS, and its shape is unchanged. Two consumers
        in project.html depend on exactly that: the Status FILTER builds its set
@@ -274,8 +324,8 @@ export async function onRequestGet({ request, env, params }) {
 
     // ── Shape: assignee workload (stacked by category; null = Unassigned) ─
     const workloadMap = new Map();
-    for (const row of workloadAgg?.rows || []) {
-      const key = row.assignee_display_name || null;
+    for (const r of boardRows) {
+      const key = r.assignee_display_name || null;
       if (!workloadMap.has(key)) {
         workloadMap.set(key, {
           assignee: key,
@@ -284,11 +334,10 @@ export async function onRequestGet({ request, env, params }) {
         });
       }
       const bucket = workloadMap.get(key);
-      const cat = row.status_category || 'unknown';
-      const n = Number(row.count) || 0;
-      if (cat in bucket.counts) bucket.counts[cat] += n;
-      else bucket.counts.unknown += n;
-      bucket.total += n;
+      const cat = r.status_category || 'unknown';
+      if (cat in bucket.counts) bucket.counts[cat] += 1;
+      else bucket.counts.unknown += 1;
+      bucket.total += 1;
     }
     const workload = [...workloadMap.values()].sort(
       (a, b) => b.total - a.total
@@ -311,11 +360,12 @@ export async function onRequestGet({ request, env, params }) {
         progress,
       },
       stats,
-      categories: summary.by_status_category, // {new,indeterminate,done,unknown}
-      points: {
-        total: Number(summary.total_story_points) || 0,
-        completed: Number(summary.completed_story_points) || 0,
-      },
+      /* Both were read off the sprint summary, which counts every issue in
+         the sprint. Left alone they would contradict the chart directly
+         beneath them. Now derived from the same filtered rows as everything
+         else. */
+      categories,
+      points: pointsTotals,
       board_status: boardStatus,
       board_columns: boardColumns,
       workload,
