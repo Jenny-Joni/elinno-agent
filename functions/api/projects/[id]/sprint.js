@@ -54,11 +54,21 @@ import { pickActiveSprint } from '../../../_lib/jira-sprint.js';
 
 const ISSUE_LIST_MAX = 500; // == the sync ceiling; uncapped vs the agent's 50.
 
-/* BOARD PARITY (2026-08-25). A Jira board renders neither of these as a card:
-   a sub-task appears nested inside its parent, an epic lives in the epic panel.
-   Sprint View counted both, so Joni's sprint read 222 issues against a board
-   showing 140 — In Progress 69 against 9, because that sprint holds 63
-   sub-tasks and 14 epics.
+/* SPRINT MEMBERSHIP (2026-08-25). Sub-tasks are not sprint members in Jira.
+   Asked directly, /rest/agile/1.0/sprint/268/issue returns 154 issues for
+   Joni's sprint — Task 59, Story 10, Epic 14, Bug 71, and ZERO sub-tasks —
+   while our own store held 222 for the same sprint, 63 of them sub-tasks.
+
+   Our sync tags them because a sub-task's sprint field is populated from its
+   parent, so the issue search returns a sprint id for rows Jira does not treat
+   as sprint members. Dropping them here is what reconciles the two.
+
+   EPICS ARE NOT EXCLUDED. An earlier version of this filter dropped them too,
+   on the reasoning that a board shows epics in a panel rather than a column.
+   Jira disagrees: all 14 epics are in the sprint and in its To Do count, and
+   excluding them pushed To Do from 68 to 55 against Jira's 69 — the filter
+   made that column worse. Verified against the Jira API, not inferred from a
+   screenshot.
 
    Case-insensitive and both spellings: Jira's built-in type is "Sub-task",
    this instance reports "Subtask".
@@ -74,9 +84,9 @@ const ISSUE_LIST_MAX = 500; // == the sync ceiling; uncapped vs the agent's 50.
    The issue list is the single source for every count below, so the list and
    the totals cannot disagree — which was a real risk while some counts came
    from SQL aggregates and others from the list. */
-function isOnBoard(row) {
+function isSprintMember(row) {
   const t = String(row && row.issue_type || '').trim().toLowerCase();
-  return t !== 'sub-task' && t !== 'subtask' && t !== 'epic';
+  return t !== 'sub-task' && t !== 'subtask';
 }
 const DAY_MS = 86_400_000;
 
@@ -227,9 +237,9 @@ export async function onRequestGet({ request, env, params }) {
        ORDER BY status_category, status, issue_key
        LIMIT ${ISSUE_LIST_MAX}
     `;
-    /* Board parity: drop the rows a Jira board does not render as cards. Done
-       here rather than in the query for the reason given at isOnBoard. */
-    const boardRows = issueRows.filter(isOnBoard);
+    /* Drop the rows Jira does not count as sprint members. Done here rather
+       than in the query for the reason given at isSprintMember. */
+    const boardRows = issueRows.filter(isSprintMember);
 
     const issues = boardRows.map((r) => ({
       issue_key: r.issue_key,
