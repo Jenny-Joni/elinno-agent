@@ -8,7 +8,7 @@ Before suggesting changes, read these in order:
 
 1. **HANDOFF.md** — current project state. The last section is "what's actually done as of the most recent session." Always check this first.
 2. **WORKFLOW.md** — binding working agreement. Three phases (Plan → Approval → Execute), Phase 0 session-start ritual, hard limits (enforced via `.claude/settings.json`), security carve-outs, scope-expansion and iteration-cap rules, rollback playbook. Non-negotiable.
-3. **BLOCK_N_PLAN.md** for the current block — locked design decisions. Block 18 (chat suggested questions) shipped as v1.9 on 2026-08-10; `BLOCK_18_PLAN.md` is the most recent. No block is in progress — the next one gets its plan drafted in a fresh plan-mode session. Check the latest HANDOFF closeout for the open queue before assuming what's next.
+3. **BLOCK_N_PLAN.md** for the current block — locked design decisions. Block 25 (Finance) shipped as v2.1 on 2026-08-24; `BLOCK_25_PLAN.md` is the most recent. Read its **§Reversals** and **§What actually happened** before the locked decisions above them — eight were reversed during execute, and the original verification matrix contains items that can no longer pass. No block is in progress; the next one gets its plan drafted in a fresh plan-mode session. Check the latest HANDOFF closeout for the open queue before assuming what's next.
 4. **PROJECT.md** — stack, repo layout, IDs (Cloudflare account, D1 db, Neon project, Hyperdrive config), conventions.
 
 PRD.md and BUILD_PLAN.md are reference docs; read them when scope or block ordering is in question.

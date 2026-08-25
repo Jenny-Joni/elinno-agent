@@ -7588,3 +7588,100 @@ end to end.
 Block 25 shipped a user-visible feature — Finance in the rail on every page,
 a new dashboard section, a new page. It warrants a What's New entry, which
 Jenny authors (Block 17 revision 3). Not written this session.
+
+## Session closeout — 2026-08-24/25 (Block 25 continuation: design iteration + v2.1 published)
+
+Continues the closeout above, which was written at the first push to main.
+Everything below happened after Finance was already live.
+
+### Production state at session end
+
+`main` at `fbb2378`, pushed and deployed. Working tree clean apart from
+`BLOCK_24_PLAN.md`, untracked before either session.
+
+Finance is live and carrying real data: **164 payments, $71,840.39**,
+01/07 → 22/08, uploaded by Jenny through the admin control.
+
+### What changed after the first push
+
+The by MONTH card was reworked substantially, all at Jenny's direction:
+
+| | |
+|---|---|
+| Chart/Table toggle | removed — chart only |
+| Week/Month toggle | removed, along with all week bucketing |
+| Projects picker | All/None added, cap of five removed |
+| Vendor picker | single-select → multi-select with All/None |
+| Defaults | Joni and OpenRouter, falling back to the largest entry when absent |
+| Vendor list | narrowed to vendors present in the selected projects |
+| Grouped bars | a bar per project at any count (ten projects → 9px bars) |
+| Single project | draws in that project's own colour |
+| Partial months | treatment removed entirely — every month renders the same |
+| "Last updated" | `hh:mm dd/mm/yy`, local timezone |
+
+Plus: a **Finance section on the dashboard** above Projects, showing Reap's
+total, payment count and upload date; and **What's New v2.1**, published.
+
+### Where the reversals are recorded
+
+`BLOCK_25_PLAN.md` §Reversals carries all eight, with the original decisions
+left intact above them and a header pointing down. The plan describes what was
+agreed; the reversals section describes what shipped. Do not read one without
+the other.
+
+### What's New v2.1
+
+Published 2026-08-24, week of August 23. Three features, one illustration
+each: where Finance lives in the menu, the by-project chart, the by-vendor
+table. Written by Claude Code at Jenny's explicit direction and approved by
+her against a rendered preview — a departure from the rule that copy is
+Jenny's, recorded in a comment on the entry itself, exactly as v2.0 records
+its own.
+
+Two things about that entry worth knowing before editing it:
+
+- **The illustrations are entries in `whats-new.html`'s `PLACEHOLDER` map**,
+  not image files. A feature whose `placeholder` slug is missing from that map
+  renders a **blank** block with no error — which is exactly what happened on
+  the first publish of v2.1, and was only caught when Jenny asked why there
+  were no images. **Adding a feature means adding its illustration.**
+- They are HTML divs, never inline SVG. SVG inside a JS template literal still
+  500s Cloudflare Pages (Block 13.3).
+
+### Process notes
+
+- **Eight locked decisions reversed inside two days.** Not a problem in itself
+  — the card is better for it — but the plan document was actively misleading
+  for several hours before being corrected. If a block turns into a design
+  conversation, the plan needs updating as the conversation goes, not at the
+  end.
+- **Verification against a stubbed API caught nothing the real page didn't.**
+  The dashboard section, the rail matrix and the by MONTH behaviours were all
+  verified in a browser against real render paths. What that could not cover
+  was the one thing that mattered most — a real `.xlsx` — and that is where
+  both genuine bugs were.
+- **Publishing rules were compressed.** `whats-new-data.js` describes
+  publication as a separate command on a separate day; v2.1 was drafted and
+  published the same day at Jenny's direction. Noted on the entry.
+
+### ⚠️ Open — carried forward
+
+1. **V3 / V12 still not run.** No non-admin account exists. "A non-admin gets
+   403 and sees no upload control" remains unproven against a real session,
+   and the upload full-replaces company financial data. **Still the
+   highest-priority follow-up.**
+2. **The dashboard downloads the full Reap payload (~40 KB) for one total.**
+   Add a summary mode to the endpoint before the dataset grows.
+3. **Ten projects gives 9px bars** on by MONTH — the readability trade the
+   removed five-cap was protecting.
+4. **The v2.1 copy is Claude Code's.** Jenny's to rewrite whenever; entries can
+   be corrected after publication as a deliberate edit.
+5. **The published artifact still carries real payment data** at
+   `claude.ai/code/artifact/bd07507e-...`, from the prototype session.
+6. **Both deploy-pipeline faults remain unfixed** — neither fired across either
+   session. The escape hatch in `PROJECT.md` §10 now excludes `_dev/`.
+7. **Everything still open from the Blocks 21–23 closeout.**
+
+### What's New notice
+
+Done — v2.1, published.

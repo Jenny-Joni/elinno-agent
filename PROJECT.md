@@ -57,12 +57,15 @@ elinno-agent/
 ├── public/                  ← static site, deployed as-is
 │   ├── index.html           ← welcome page
 │   ├── login.html, etc.
+│   ├── finance.html         ← Finance dashboard (Block 25); data comes from the API, never inlined
+│   ├── _dev/                ← GITIGNORED mockups and verify harnesses (Block 16.9). Never deployed
 │   └── styles.css
 ├── functions/               ← Cloudflare Pages Functions (auth endpoints deployed; /api/db-health added in Block 1 Task 2)
 │   └── api/
 │       ├── login.js, logout.js, me.js
 │       ├── forgot-password.js, reset-password.js
 │       ├── admin/users.js, admin/users/[id].js
+│       ├── finance/[dataset].js  ← Finance read (any session) + upload (admin). SECURITY CARVE-OUT
 │       └── db-health.js     ← Hyperdrive → Neon health check (Block 1)
 ├── scripts/                 ← admin/maintenance scripts
 │   └── seed-admin.mjs
@@ -117,8 +120,16 @@ Cloudflare. Nothing to manage manually.
 |---|---|---|
 | D1 database | `DB` | `elinno-agent-db` (auth tables) |
 | Hyperdrive | `HYPERDRIVE` | `elinno-agent-hyperdrive` config → Neon `elinno_agent_db` |
+| R2 bucket | `LOGOS` | `elinno-agent-logos` — **public-read** via `logos.elinnoagent.com` (Block 15.1) |
+| R2 bucket | `FINANCE` | `elinno-agent-finance` — **private, no custom domain** (Block 25) |
 
-Both are applied to Production and Preview environments. Bindings only attach
+⚠️ The two R2 buckets are deliberately opposite. `LOGOS` is public because
+logos are fetched straight from the CDN by URL. `FINANCE` holds company card
+spend: every read goes through `functions/api/finance/`, which gates on a
+session. **Never attach a custom domain or enable the public dev URL on
+`elinno-agent-finance`** — that would publish the data with no auth at all.
+
+All are applied to Production and Preview environments. Bindings only attach
 to the next deployment after they're created — existing deployed builds don't
 pick them up retroactively.
 
@@ -147,6 +158,8 @@ Environment variables / Secrets** UI for anything sensitive that runtime code ne
 | pgvector version | 0.8.0 |
 | Hyperdrive config name | `elinno-agent-hyperdrive` |
 | Hyperdrive config ID | `78af00bbf464468cb902e35099aa0dfe` |
+| R2 bucket (logos, public) | `elinno-agent-logos` |
+| R2 bucket (finance, private) | `elinno-agent-finance` (location EEUR) |
 
 ### Secrets (NEVER in repo, NEVER pasted into chat)
 
