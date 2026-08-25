@@ -150,11 +150,9 @@ function dominantCategory(members) {
       own total unreconcilable against the bars beneath it. They carry
       on_board:false so the UI can mark them. */
 function groupRowsIntoBoardColumns(rows, boardColumns) {
-  const claimed = new Set();
   const columns = boardColumns.map((col) => {
     const names = Array.isArray(col.statuses) ? col.statuses : [];
     const members = rows.filter((r) => names.includes(r.status));
-    for (const m of members) claimed.add(m.status);
     return {
       status: col.name,
       /* Prefer the explicit mapping, keyed by the COLUMN's name. Without this
@@ -171,14 +169,11 @@ function groupRowsIntoBoardColumns(rows, boardColumns) {
       on_board: true,
     };
   });
-  const unmapped = sortStatusesByCategory(rows.filter((r) => !claimed.has(r.status)))
-    .map((r) => ({ ...r, on_board: false }));
-  /* Off-board statuses lead rather than trail (2026-08-25, Jenny). The only
-     one in practice is Backlog, and it is where work sits BEFORE the board's
-     first column — reading it after Done put the earliest stage at the end of
-     a left-to-right progression. They are still marked on_board:false, so the
-     chart keeps labelling them "not on board". */
-  return unmapped.concat(columns);
+  /* Every row reaching here already belongs to a board column — statuses the
+     board has no column for are filtered out before any counting, to match
+     Jira's own board endpoint. The "not on board" bar this used to append is
+     therefore gone, and with it the ordering question of where to put it. */
+  return columns;
 }
 
 export async function onRequestGet({ request, env, params }) {
@@ -274,7 +269,28 @@ export async function onRequestGet({ request, env, params }) {
        ORDER BY status_category, status, issue_key
        LIMIT ${ISSUE_LIST_MAX}
     `;
+    /* BOARD PARITY. Jira's board endpoint returns fewer issues than its sprint
+       endpoint: for Rain Trade's sprint 1207 it is 88 against 91, the three
+       missing ones being status Backlog, which the board has no column for.
+       Jenny's instruction — "remove backlog, it's not on Jira" — is what Jira
+       itself does.
+
+       So a status with no column is not shown. When the board configuration is
+       absent (Kanban boards, boards the token cannot read, sprints synced
+       before Block 21) there is nothing to judge by and everything is kept. */
+    const storedColumnsForFilter =
+      boardColRows && boardColRows[0] && boardColRows[0].board_columns;
+    const onBoardStatuses =
+      Array.isArray(storedColumnsForFilter) && storedColumnsForFilter.length > 0
+        ? new Set(
+            storedColumnsForFilter.flatMap((c) =>
+              Array.isArray(c.statuses) ? c.statuses : []
+            )
+          )
+        : null;
+
     const boardRows = issueRows
+      .filter((r) => !onBoardStatuses || onBoardStatuses.has(r.status))
       /* Apply the category override ONCE, here. Everything downstream — the
          category bar, board_status, board_columns, workload, completed points
          and the issue list the client filters on — reads status_category off
