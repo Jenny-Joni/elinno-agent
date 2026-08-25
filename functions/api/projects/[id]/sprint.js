@@ -54,36 +54,27 @@ import { pickActiveSprint } from '../../../_lib/jira-sprint.js';
 
 const ISSUE_LIST_MAX = 500; // == the sync ceiling; uncapped vs the agent's 50.
 
-/* SPRINT MEMBERSHIP (2026-08-25). Sub-tasks are not sprint members in Jira.
-   Asked directly, /rest/agile/1.0/sprint/268/issue returns 154 issues for
-   Joni's sprint — Task 59, Story 10, Epic 14, Bug 71, and ZERO sub-tasks —
-   while our own store held 222 for the same sprint, 63 of them sub-tasks.
+/* SPRINT MEMBERSHIP. Deliberately NOT filtered here — this note replaces a
+   filter that was wrong.
 
-   Our sync tags them because a sub-task's sprint field is populated from its
-   parent, so the issue search returns a sprint id for rows Jira does not treat
-   as sprint members. Dropping them here is what reconciles the two.
+   A blanket "sub-tasks are not sprint members" rule lived here on 2026-08-25.
+   Checked against both Jira sites afterwards:
 
-   EPICS ARE NOT EXCLUDED. An earlier version of this filter dropped them too,
-   on the reasoning that a board shows epics in a panel rather than a column.
-   Jira disagrees: all 14 epics are in the sprint and in its To Do count, and
-   excluding them pushed To Do from 68 to 55 against Jira's 69 — the filter
-   made that column worse. Verified against the Jira API, not inferred from a
-   screenshot.
+     Joni  sprint 268   Jira: 154 issues, ZERO sub-tasks.
+                        Ours: 222, including 63 sub-tasks.
+     Rain  sprint 1207  Jira: 91 issues, INCLUDING 26 sub-tasks.
+                        Ours: 91. Exactly right.
 
-   Case-insensitive and both spellings: Jira's built-in type is "Sub-task",
-   this instance reports "Subtask".
+   Sub-tasks genuinely are sprint members in one project and not in the other,
+   so no rule applied at read time can be correct for both. The filter fixed
+   part of Joni by breaking Rain Trade, which had been exact.
 
-   THIS FILTERS IN JAVASCRIPT, NOT IN SQL, DELIBERATELY. The first attempt at
-   this (89aa257) added a `not_in` operator to the aggregate compiler and a
-   NOT-IN clause to the issue query; it 500'd every Sprint View in production
-   and had to be reverted. The cause was never established — the endpoint
-   swallowed its own exception (fixed separately in 7f0ca3b). Every query here
-   is therefore left EXACTLY as it was, and the filtering happens on rows that
-   have already come back. Nothing new can fail in the database.
+   The defect is upstream: the connector infers membership from each issue's
+   own sprint field, and a sub-task carries its parent's sprint there whether
+   or not it was ever added to the sprint. Jira's authoritative answer is
+   /rest/agile/1.0/sprint/{id}/issue, which the sync never consults. That is
+   where this has to be fixed, not here. */
 
-   The issue list is the single source for every count below, so the list and
-   the totals cannot disagree — which was a real risk while some counts came
-   from SQL aggregates and others from the list. */
 /* STATUS CATEGORY OVERRIDES (2026-08-25, Jenny).
 
    Jira assigns every status one of three fixed categories — To Do / In
@@ -121,10 +112,6 @@ function categoryOf(row) {
   return STATUS_CATEGORY_OVERRIDES[key] || row.status_category || 'unknown';
 }
 
-function isSprintMember(row) {
-  const t = String(row && row.issue_type || '').trim().toLowerCase();
-  return t !== 'sub-task' && t !== 'subtask';
-}
 const DAY_MS = 86_400_000;
 
 /* Pre-Block-21 ordering, kept verbatim as the fallback: category rank, then
@@ -287,10 +274,7 @@ export async function onRequestGet({ request, env, params }) {
        ORDER BY status_category, status, issue_key
        LIMIT ${ISSUE_LIST_MAX}
     `;
-    /* Drop the rows Jira does not count as sprint members. Done here rather
-       than in the query for the reason given at isSprintMember. */
     const boardRows = issueRows
-      .filter(isSprintMember)
       /* Apply the category override ONCE, here. Everything downstream — the
          category bar, board_status, board_columns, workload, completed points
          and the issue list the client filters on — reads status_category off
