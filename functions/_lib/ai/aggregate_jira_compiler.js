@@ -56,7 +56,6 @@ const AGGREGATES_SET = new Set(ALLOWED_AGGREGATES);
 export const ALLOWED_OPERATORS = Object.freeze([
   'eq',
   'in',
-  'not_in',
   'neq',
   'gt',
   'gte',
@@ -247,27 +246,6 @@ function parseWhereForColumn(col, raw, paramOffset, params) {
     }
     params.push(v);
     return { ok: true, sql: `${col} = ANY($${paramOffset + 1})`, consumed: 1 };
-  }
-
-  /* The mirror of `in`, added for Sprint View's board-parity filter
-     (issue_type not_in Sub-task/Epic). No wider than `in`: same shape, same
-     single array parameter, same allowlisted column.
-
-     The IS NULL arm is deliberate. `col <> ALL(array)` yields NULL when col is
-     NULL, and NULL is not true, so a row with no value would be dropped by a
-     predicate that only says "not one of these". "Not a sub-task" has to
-     include "has no type at all". */
-  if (op === 'not_in') {
-    const v = raw[op];
-    if (!Array.isArray(v) || v.length === 0) {
-      return { ok: false, code: 'predicate_value_invalid', field: `where.${col}.not_in` };
-    }
-    params.push(v);
-    return {
-      ok: true,
-      sql: `(${col} IS NULL OR ${col} <> ALL($${paramOffset + 1}))`,
-      consumed: 1,
-    };
   }
 
   // eq / neq / gt / gte / lt / lte

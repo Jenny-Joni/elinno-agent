@@ -54,20 +54,6 @@ import { runAggregateJira } from '../../../_lib/ai/aggregate_jira_compiler.js';
 import { pickActiveSprint } from '../../../_lib/jira-sprint.js';
 
 const ISSUE_LIST_MAX = 500; // == the sync ceiling; uncapped vs the agent's 50.
-
-/* BOARD PARITY (2026-08-25). A Jira board does not render these as cards: a
-   sub-task appears nested inside its parent, and an epic lives in the epic
-   panel, not in a column. Sprint View counted both, so it reported 222 issues
-   for Joni's sprint 268 where the board showed 140 — In Progress read 68
-   against the board's 9, because that sprint holds 63 sub-tasks.
-
-   Both spellings of sub-task are listed: Jira's default type is "Sub-task",
-   and this instance reports "Subtask". Matching is exact, so both are needed.
-
-   This changes what Sprint View COUNTS, not what is synced. Every issue is
-   still stored and still reachable by the agent — the sprint dashboard just
-   stops reporting rows the board it mirrors does not show. */
-const BOARD_HIDDEN_TYPES = Object.freeze(['Sub-task', 'Subtask', 'Epic']);
 const DAY_MS = 86_400_000;
 
 /* Pre-Block-21 ordering, kept verbatim as the fallback: category rank, then
@@ -182,10 +168,7 @@ export async function onRequestGet({ request, env, params }) {
     }
 
     // ── Step 4: aggregates (project_id server-injected; sprint_id threaded) ─
-    const whereSprint = {
-      sprint_id: { eq: sprintId },
-      issue_type: { not_in: BOARD_HIDDEN_TYPES },
-    };
+    const whereSprint = { sprint_id: { eq: sprintId } };
 
     const [typeAgg, statusAgg, workloadAgg, boardColRows] = await Promise.all([
       runAggregateJira(sql, projectId, {
@@ -226,10 +209,6 @@ export async function onRequestGet({ request, env, params }) {
         FROM jira_issues
        WHERE project_id = ${projectId}
          AND sprint_id  = ${sprintId}
-         /* Board parity — same predicate the aggregates above apply, so the
-            list and the counts cannot disagree. IS NULL included for the same
-            reason as in the compiler: a typeless row is still not a sub-task. */
-         AND (issue_type IS NULL OR issue_type <> ALL(${BOARD_HIDDEN_TYPES}))
        ORDER BY status_category, status, issue_key
        LIMIT ${ISSUE_LIST_MAX}
     `;
