@@ -1,5 +1,10 @@
-/* finance-xlsx.js — turn a Reap .xlsx export into the payload
+/* finance-xlsx.js — turn a finance .xlsx export into the payload
    /api/finance/<dataset> expects.
+
+   Block 26: the same parser serves all three datasets. Reap, Fiat and
+   Crypto carry the same concepts under different column names, so the
+   caller passes a per-dataset alias table; everything else — the header
+   scan, the footer trap, the date forms — is identical between them.
 
    Block 25, decision B: Jenny drops the file Reap produces and the browser
    parses it, so the Worker stays dependency-free. The server does NOT trust
@@ -47,7 +52,7 @@
   /* field -> accepted header spellings, normalised. `catrgory` is the
      misspelling in the real file; `category` is here so a corrected export
      keeps working. */
-  var ALIASES = {
+  var DEFAULT_ALIASES = {
     name: ['name'],
     requestedBy: ['requestedby', 'requester', 'requestedbyuser'],
     accountOwner: ['accountowner', 'owner', 'cardowner'],
@@ -70,7 +75,10 @@
      degrades to an empty string. */
   var REQUIRED = ['project', 'vendor', 'date', 'amount'];
 
-  function buildColumnMap(headerCells) {
+  /* `aliases` is the per-dataset header table (Block 26). Omitted, it is
+     Reap's -- the one set of spellings read off a real workbook. */
+  function buildColumnMap(headerCells, aliases) {
+    var ALIASES = aliases || DEFAULT_ALIASES;
     var map = {};
     var seen = {};
     var keys = [];
@@ -112,8 +120,8 @@
     return map;
   }
 
-  function scoreHeaderRow(cells) {
-    var map = buildColumnMap(cells);
+  function scoreHeaderRow(cells, aliases) {
+    var map = buildColumnMap(cells, aliases);
     var n = 0;
     for (var f in map) if (Object.prototype.hasOwnProperty.call(map, f)) n++;
     return n;
@@ -121,11 +129,11 @@
 
   /* Trap 1. Pick the row that looks most like a header rather than trusting
      a fixed index. Ties go to the earliest row. */
-  function findHeaderRow(rows) {
+  function findHeaderRow(rows, aliases) {
     var best = -1, bestScore = 0;
     var limit = Math.min(ROWS_TO_SCAN, rows.length);
     for (var i = 0; i < limit; i++) {
-      var s = scoreHeaderRow(rows[i] || []);
+      var s = scoreHeaderRow(rows[i] || [], aliases);
       if (s > bestScore) { bestScore = s; best = i; }
     }
     return { index: best, score: bestScore };
@@ -205,10 +213,16 @@
 
   /**
    * @param {File|Blob} file  the .xlsx the admin picked
+   * @param {object} [opts]
+   * @param {object} [opts.aliases]  per-dataset header spellings. Block 26:
+   *   Reap, Fiat and Crypto carry the same concepts under different column
+   *   names, and that is the only difference between them. Omitted or null,
+   *   Reap's table is used.
    * @returns {Promise<object>} payload for POST /api/finance/<dataset>
    * @throws {Error} with a message naming what was actually found
    */
-  async function parseFinanceWorkbook(file) {
+  async function parseFinanceWorkbook(file, opts) {
+    var aliases = (opts && opts.aliases) || DEFAULT_ALIASES;
     if (!global.readXlsxFile) {
       throw new Error('read-excel-file.min.js has not loaded');
     }
@@ -219,7 +233,7 @@
 
     if (!rows.length) throw new Error('That file has no rows in its first sheet.');
 
-    var found = findHeaderRow(rows);
+    var found = findHeaderRow(rows, aliases);
     if (found.index === -1 || found.score < REQUIRED.length) {
       var peek = rows.slice(0, 3)
         .reduce(function (acc, r) { return acc.concat(Array.isArray(r) ? r : [r]); }, [])
@@ -232,7 +246,7 @@
       );
     }
 
-    var map = buildColumnMap(rows[found.index]);
+    var map = buildColumnMap(rows[found.index], aliases);
     var missing = REQUIRED.filter(function (f) { return map[f] === undefined; });
     if (missing.length) {
       var headers = (Array.isArray(rows[found.index]) ? rows[found.index] : [])
@@ -308,6 +322,6 @@
     findHeaderRow: findHeaderRow,
     toIsoDate: toIsoDate,
     toAmount: toAmount,
-    ALIASES: ALIASES
+    ALIASES: DEFAULT_ALIASES
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

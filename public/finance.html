@@ -77,11 +77,6 @@
       color: var(--brand-strong); border-bottom-color: var(--brand);
     }
     .fin-tab:focus-visible { outline: 2px solid var(--brand-hair); outline-offset: -2px; }
-    .fin-placeholder {
-      background: var(--bg); border: 1px solid var(--border);
-      border-radius: var(--r-lg); padding: 48px 24px; text-align: center;
-      font-family: var(--font); font-size: 13.5px; color: var(--text-3);
-    }
 
     .fin-shell { max-width: 1100px; margin: 0 auto; padding: 28px 20px 96px; }
 
@@ -709,13 +704,19 @@
       <div class="eyebrow"><span class="eyebrow__label">Finance</span><span class="eyebrow__rule"></span></div>
 
       <div class="fin-tabs" role="tablist" aria-label="Finance sources">
-        <button class="fin-tab" type="button" role="tab" id="tab-reap" data-tab="reap" aria-controls="panel-reap" aria-selected="true">Reap</button>
-        <button class="fin-tab" type="button" role="tab" id="tab-fiat" data-tab="fiat" aria-controls="panel-fiat" aria-selected="false" tabindex="-1">Fiat</button>
-        <button class="fin-tab" type="button" role="tab" id="tab-crypto" data-tab="crypto" aria-controls="panel-crypto" aria-selected="false" tabindex="-1">Crypto</button>
+        <button class="fin-tab" type="button" role="tab" id="tab-reap" data-tab="reap" aria-controls="panel-finance" aria-selected="true">Reap</button>
+        <button class="fin-tab" type="button" role="tab" id="tab-fiat" data-tab="fiat" aria-controls="panel-finance" aria-selected="false" tabindex="-1">Fiat</button>
+        <button class="fin-tab" type="button" role="tab" id="tab-crypto" data-tab="crypto" aria-controls="panel-finance" aria-selected="false" tabindex="-1">Crypto</button>
       </div>
 
-      <section id="panel-reap" role="tabpanel" aria-labelledby="tab-reap" tabindex="0">
-      <h1 class="fin-h1">Reap</h1>
+      <!-- ONE panel for all three datasets (BLOCK_26_PLAN decision L1).
+           The tab switch re-points the fetch and re-renders in place rather
+           than revealing a second copy of this markup, so the three tabs are
+           identical by construction and a design change lands once. The
+           trade: three tabs share one tabpanel, and setTab moves the
+           panel's aria-labelledby to whichever tab is selected. -->
+      <section id="panel-finance" role="tabpanel" aria-labelledby="tab-reap" tabindex="0">
+      <h1 class="fin-h1" id="finTitle">Reap</h1>
       <div class="fin-meta fin-meta--row">
         <p>Last updated: <strong id="metaUpdated">—</strong></p>
         <!-- Admin-only, and a DISPLAY HINT ONLY: hidden markup is not a
@@ -843,18 +844,6 @@
 
       </section>
 
-      <section id="panel-fiat" role="tabpanel" aria-labelledby="tab-fiat" tabindex="0" hidden>
-        <h1 class="fin-h1">Fiat</h1>
-        <p class="fin-drill__panel">Not connected yet.</p>
-        <div class="fin-placeholder">Nothing here yet.</div>
-      </section>
-
-      <section id="panel-crypto" role="tabpanel" aria-labelledby="tab-crypto" tabindex="0" hidden>
-        <h1 class="fin-h1">Crypto</h1>
-        <p class="fin-drill__panel">Not connected yet.</p>
-        <div class="fin-placeholder">Nothing here yet.</div>
-      </section>
-
     </div>
   </main>
 
@@ -868,7 +857,7 @@
   (function () {
     'use strict';
 
-    /* Filled by boot() from the endpoint before initFilters()/render() run.
+    /* Filled by loadDataset() from the endpoint before buildFilters()/render() run.
        Reassigned wholesale, never mutated, so every closure below reads the
        current dataset through these bindings. */
     var DATA = { rows: [] };
@@ -1192,6 +1181,18 @@
             (m.noCount ? '' : '<span class="fin-ms__n">' + d.counts[n] + '</span>') + '</div>';
         }).join('') + '</div>';
 
+      paintMulti(m);
+    }
+
+    /* Listeners only, bound ONCE at boot -- never from buildMulti, which runs
+       again on every dataset load and every upload. Both targets survive
+       buildMulti's innerHTML replacement: the trigger sits outside the menu,
+       and the menu handler is delegated through closest(). That is precisely
+       why re-binding them silently doubled every click. */
+    function bindMulti(m) {
+      var wrap = document.querySelector('[data-ms="' + m.msId + '"]');
+      var menu = wrap.querySelector('[data-ms-menu]');
+
       wrap.querySelector('.fin-dr__trigger').addEventListener('click', function () {
         openMulti(m.msId, !wrap.classList.contains('open'));
       });
@@ -1215,7 +1216,6 @@
         else return;                                   /* at the cap: ignore */
         paintMulti(m); if (m.onChange) m.onChange(wrap); else render();
       });
-      paintMulti(m);
     }
 
     /* One menu open at a time — two overlapping panels in a single filter
@@ -1241,14 +1241,28 @@
       });
     }
 
-    function initFilters() {
-      initPeriodPicker();
+    /* Rebuilt for every dataset that lands: each menu's options, counts and
+       selection come from the rows just loaded, and the range resets to that
+       dataset's own span. Deliberately binds NOTHING -- see bindFilters. */
+    function buildFilters() {
+      resetPeriod();
       MULTI.forEach(buildMulti);
       buildMulti(PACE_MULTI);
       buildMulti(PACE_VENDOR);
       /* Narrow the vendor list to the default project straight away, so the
          card opens in the same state a project click would produce. */
       refreshPaceVendors();
+    }
+
+    /* Bound ONCE, at boot, before any dataset exists. Every target here is
+       in the static markup, so none of it depends on buildFilters having
+       run. Splitting these two apart is what makes a tab switch -- and an
+       upload, which had the same bug -- safe to repeat. */
+    function bindFilters() {
+      bindPeriodPicker();
+      MULTI.forEach(bindMulti);
+      bindMulti(PACE_MULTI);
+      bindMulti(PACE_VENDOR);
 
       document.getElementById('fReset').addEventListener('click', function () {
         /* the pace card's own menu resets too -- "Reset filters" that left a
@@ -1379,17 +1393,29 @@
         dr.pendingStart ? 'Now pick an end date.' : 'Pick a start date.';
     }
 
-    function initPeriodPicker() {
-      var btn = document.getElementById('fPeriod'), pop = document.getElementById('fPeriodPop');
+    /* Per dataset: each one opens on its own full span, so switching tabs
+       never carries a date range across (BLOCK_26_PLAN decision L4). */
+    function resetPeriod() {
       dr.view = firstOfMonth(P_START);
       setPeriod(P_START, P_END);
+    }
 
-      function open(on) {
-        pop.hidden = !on;
-        btn.setAttribute('aria-expanded', String(on));
-        if (on) { dr.pendingStart = null; dr.hover = null; buildCalendar(); }
-      }
-      btn.addEventListener('click', function () { open(pop.hidden); });
+    /* Hoisted out of the old initPeriodPicker so the handlers below can bind
+       once while the range itself is reset per dataset. */
+    function drOpen(on) {
+      var btn = document.getElementById('fPeriod'), pop = document.getElementById('fPeriodPop');
+      /* dr.view is set by resetPeriod when a dataset lands. Clicked before
+         that -- during the first load -- there is no month to draw, so the
+         picker stays shut rather than rendering an Invalid Date calendar. */
+      if (on && !dr.view) return;
+      pop.hidden = !on;
+      btn.setAttribute('aria-expanded', String(on));
+      if (on) { dr.pendingStart = null; dr.hover = null; buildCalendar(); }
+    }
+
+    function bindPeriodPicker() {
+      var btn = document.getElementById('fPeriod'), pop = document.getElementById('fPeriodPop');
+      btn.addEventListener('click', function () { drOpen(pop.hidden); });
 
       pop.addEventListener('click', function (e) {
         var nav = e.target.closest('[data-nav]');
@@ -1402,7 +1428,7 @@
            error — order the two and commit rather than refusing. */
         var a = dr.pendingStart;
         setPeriod(a < iso ? a : iso, a < iso ? iso : a);
-        open(false);
+        drOpen(false);
         render();
       });
       pop.addEventListener('mouseover', function (e) {
@@ -1413,17 +1439,17 @@
         }
       });
       document.getElementById('fPeriodAll').addEventListener('click', function () {
-        setPeriod(P_START, P_END); open(false); render();
+        setPeriod(P_START, P_END); drOpen(false); render();
       });
 
       /* mousedown, not click: the decision has to be made against the DOM as
          it was when the pointer went down, before any handler re-renders it.
          Dismissing must not half-commit — a pending start is dropped. */
       document.addEventListener('mousedown', function (e) {
-        if (!pop.hidden && !pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) open(false);
+        if (!pop.hidden && !pop.contains(e.target) && e.target !== btn && !btn.contains(e.target)) drOpen(false);
       });
       document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && !pop.hidden) { open(false); btn.focus(); }
+        if (e.key === 'Escape' && !pop.hidden) { drOpen(false); btn.focus(); }
       });
     }
 
@@ -2235,27 +2261,36 @@
 
     function setTab(name, syncUrl) {
       if (TABS.indexOf(name) < 0) name = 'reap';
+      var label = name.charAt(0).toUpperCase() + name.slice(1);
       TABS.forEach(function (t) {
         var btn = document.getElementById('tab-' + t);
-        var panel = document.getElementById('panel-' + t);
         var on = t === name;
         btn.setAttribute('aria-selected', String(on));
         btn.tabIndex = on ? 0 : -1;
-        panel.hidden = !on;
       });
+      /* One panel serves all three tabs (L1), so rather than hiding two of
+         them its label follows the selected tab and its heading is
+         rewritten. */
+      document.getElementById('panel-finance').setAttribute('aria-labelledby', 'tab-' + name);
+      titleEl.textContent = label;
       document.querySelectorAll('[data-fin-tab]').forEach(function (a) {
         var on = a.getAttribute('data-fin-tab') === name;
         if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
         a.parentNode.classList.toggle('is-current', on);
       });
-      document.title = name.charAt(0).toUpperCase() + name.slice(1) + ' — Finance — Elinno Agent';
+      document.title = label + ' — Finance — Elinno Agent';
       if (syncUrl) history.replaceState(null, '', '?tab=' + name);
+      loadDataset(name);
     }
 
     var tabStrip = document.querySelector('.fin-tabs');
     tabStrip.addEventListener('click', function (e) {
       var b = e.target.closest('.fin-tab');
-      if (b) setTab(b.getAttribute('data-tab'), true);
+      /* Clicking the tab you are already on is a no-op, not a reload. setTab
+         resets the filters for the dataset it loads (L4), so without this a
+         stray click on the current tab would silently throw away the range
+         and selections the reader had just set. */
+      if (b && b.getAttribute('data-tab') !== ACTIVE) setTab(b.getAttribute('data-tab'), true);
     });
     /* Roving arrow keys — a tablist that only answers to the mouse is not one. */
     tabStrip.addEventListener('keydown', function (e) {
@@ -2270,7 +2305,9 @@
       document.getElementById('tab-' + next).focus();
     });
 
-    setTab(new URLSearchParams(location.search).get('tab') || 'reap', false);
+    /* The initial setTab() lives in boot(), not here. It now reaches
+       loadDataset(), which reads vars declared further down -- function
+       declarations hoist, their initialisers do not. */
 
     function longDate(s) { var d = ymd(s); return MON[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }
     /* dd/mm/yy for the range control and, since 2026-08-24 at Jenny's
@@ -2307,9 +2344,9 @@
     }
     /* ---- boot ------------------------------------------------------------
        The page is a static asset with no data in it; everything comes from
-       GET /api/finance/<dataset>, which gates on a session. Only Reap has a
-       data path — Fiat and Crypto are static empty states (decision K), so
-       switching to them needs no fetch.
+       GET /api/finance/<dataset>, which gates on a session. All three
+       datasets now have a data path (Block 26, reversing decision K), so a
+       tab switch is a load, not a reveal.
 
        cache:'no-store' on the client pairs with the endpoint's
        `private, no-store`. Decision J: during the prototype session a stale
@@ -2317,6 +2354,23 @@
        an upload nobody can see is worse than no upload. */
 
     var metaEl = document.getElementById('metaUpdated');
+    var titleEl = document.getElementById('finTitle');
+
+    /* Which dataset is on screen. The fetch, the upload and the panel heading
+       all read this instead of naming 'reap'. */
+    var ACTIVE = 'reap';
+
+    /* Datasets already fetched, so returning to a tab is instant. An upload
+       drops its own entry -- see the upload handler -- and nothing else
+       invalidates it: the data only changes when someone replaces it. */
+    var CACHE = {};
+
+    /* Every load takes a ticket. A response whose ticket is no longer the
+       current one is dropped, because the reader has moved to another tab
+       since it was asked for. Without this, switching away from a slow Reap
+       load paints Reap's spend under Fiat's heading -- one dataset's money
+       shown as another's, which is the worst thing this page could do. */
+    var loadSeq = 0;
 
     function gotoLogin() {
       location.replace('/?next=' + encodeURIComponent(location.pathname + location.search));
@@ -2337,13 +2391,27 @@
          as NaN and the line read "undefined NaN, NaN". Trim to the date part
          before formatting. */
       metaEl.textContent = DATA.uploadedAt ? stamp(DATA.uploadedAt) : '—';
-      initFilters();
+      /* buildFilters, never bindFilters: this runs again on every tab switch
+         and every upload, and re-binding is what broke the filter menus. */
+      buildFilters();
       render();
     }
 
-    function boot() {
+    /* Load one dataset into the single panel. Safe to call repeatedly. */
+    function loadDataset(name) {
+      ACTIVE = name;
+      var seq = ++loadSeq;
+
+      if (CACHE[name]) { applyDataset(CACHE[name]); return; }
+
+      /* Blank the panel before fetching. Leaving the previous dataset's bars
+         on screen under the new heading would show one dataset's spend
+         labelled as another's for as long as the request takes. A card that
+         is briefly empty is honest; one that is briefly wrong is not. */
+      applyDataset({ rows: [] });
       metaEl.textContent = 'Loading…';
-      fetch('/api/finance/reap', { credentials: 'same-origin', cache: 'no-store' })
+
+      fetch('/api/finance/' + name, { credentials: 'same-origin', cache: 'no-store' })
         .then(function (r) {
           if (r.status === 401) { gotoLogin(); return null; }
           if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -2351,9 +2419,12 @@
         })
         .then(function (payload) {
           if (payload === null) return;          /* redirecting */
+          CACHE[name] = payload;
+          if (seq !== loadSeq) return;           /* reader moved on; drop it */
           applyDataset(payload);
         })
         .catch(function () {
+          if (seq !== loadSeq) return;
           /* Deliberately renders the empty state rather than a blank page:
              the cards, filters and rail stay in place and the meta line
              carries the failure, so a transient outage looks like "no data
@@ -2363,13 +2434,46 @@
         });
     }
 
+    function boot() {
+      /* Once, before any data exists. Every listener binds to static markup,
+         so ordering it ahead of the first load is deliberate, not incidental. */
+      bindFilters();
+      /* setTab paints the tab strip and the heading, then loads the dataset. */
+      setTab(new URLSearchParams(location.search).get('tab') || 'reap', false);
+    }
+
+    /* ---- per-dataset spreadsheet column names ----------------------------
+       BLOCK_26_PLAN decision D1. The three datasets carry the same twelve
+       concepts under different header spellings, so this is the ONLY thing
+       that differs between them.
+
+       `null` means "use the parser's own alias table", which is Reap's and
+       is the one set of spellings that has been read off a real workbook.
+
+       FIAT AND CRYPTO ARE PLACEHOLDERS. They inherit Reap's spellings
+       because nothing about their real headers is known yet — deliberately
+       not guessed. An upload whose headers do not match fails loudly, naming
+       the headers it actually saw, which is the correct outcome until these
+       are filled in from the real files. Both Block 25 parser bugs came from
+       trusting a shape nobody had opened. */
+    var DATASET_ALIASES = {
+      reap: null,
+      fiat: null,
+      crypto: null
+    };
+
     /* ---- admin upload -----------------------------------------------------
        Reveal is a display hint; the POST is gated by requireWorkspaceAdmin
        server-side. A non-admin who unhides this button gets a 403.
 
        The upload FULL-REPLACES the dataset, so it confirms first and names
        what is being destroyed. The endpoint keeps one previous version, but
-       an undo nobody knows about is not consent. */
+       an undo nobody knows about is not consent.
+
+       It targets whichever tab is active (L3), captured when the file is
+       picked rather than read at each step: an admin who switches tabs while
+       a large file parses must not have the upload follow them onto another
+       dataset. */
     var upWrap = document.getElementById('uploadWrap');
     var upBtn = document.getElementById('uploadBtn');
     var upInput = document.getElementById('uploadInput');
@@ -2392,13 +2496,17 @@
       upInput.value = '';                     /* so re-picking the same file fires again */
       if (!file) return;
 
+      /* Pinned here, for the whole of this upload. */
+      var target = ACTIVE;
+      var targetLabel = target.charAt(0).toUpperCase() + target.slice(1);
+
       say('Reading ' + file.name + '…');
       var parsed;
-      parseFinanceWorkbook(file)
+      parseFinanceWorkbook(file, { aliases: DATASET_ALIASES[target] })
         .then(function (payload) {
           parsed = payload;
           var had = (DATA.rows || []).length;
-          var msg = 'Replace the Reap dataset with ' + payload.rows.length +
+          var msg = 'Replace the ' + targetLabel + ' dataset with ' + payload.rows.length +
             ' payment' + (payload.rows.length === 1 ? '' : 's') +
             ' from ' + file.name + '?';
           if (had) {
@@ -2408,7 +2516,7 @@
           if (!window.confirm(msg)) { say(''); return null; }
 
           say('Uploading…');
-          return fetch('/api/finance/reap', {
+          return fetch('/api/finance/' + target, {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'content-type': 'application/json' },
@@ -2425,11 +2533,18 @@
         .then(function (body) {
           if (body === null) return;
           say('Replaced — ' + body.rows + ' payments', 'ok');
+          /* The cached copy is now the old dataset. Drop it before anything
+             can serve it back on a tab switch. */
+          delete CACHE[target];
           /* Re-read rather than trusting what we just sent: the server is the
              source of truth, and it rebuilt every row from its own whitelist. */
-          return fetch('/api/finance/reap', { credentials: 'same-origin', cache: 'no-store' })
+          return fetch('/api/finance/' + target, { credentials: 'same-origin', cache: 'no-store' })
             .then(function (r) { return r.json(); })
-            .then(applyDataset);
+            .then(function (payload) {
+              CACHE[target] = payload;
+              /* Only paint it if that dataset is still the one on screen. */
+              if (ACTIVE === target) applyDataset(payload);
+            });
         })
         .catch(function (err) {
           /* The parser's messages name the headers it actually saw, and the
