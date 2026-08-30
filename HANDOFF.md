@@ -7799,3 +7799,103 @@ data and reviewed as a diff before it goes near main.
 
 Nothing user-facing worth an entry: this was a correctness fix to an existing
 view. v2.1 (Finance) remains the published issue.
+
+## Session closeout — 2026-08-30 (Block 26 — Fiat SHIPPED; Crypto still a stub)
+
+### Production state at session end
+
+`main` at `ebb505d`, pushed by Jenny and live. Verified on production
+directly, signed in, not from a screenshot:
+
+- Reap **unchanged: 164 payments, $71,840.39**, 01/07 → 22/08, "Cards"
+  filter, same 15:35 24/08/26 timestamp. No regression.
+- Fiat and Crypto both **empty on the server** — the page is live, the data
+  is not. Jenny's first real Fiat upload has not happened yet.
+- One `role="tabpanel"` serving all three tabs; the old "Not connected yet"
+  placeholders are gone.
+
+### What shipped
+
+Four commits. Fiat became a real dataset; Crypto became a working *shell*
+whose column names are still Reap's.
+
+| | |
+|---|---|
+| `c5c9d47` | One panel, three datasets. `setTab` loads; per-dataset cache with a stale-response ticket; upload targets the active tab |
+| `bd0e673` | Fiat's alias table, read off the real export; Rain Trade + Kai Banking colours; the fourth filter becomes per-dataset |
+| `47a37af` | The third drill level becomes per-dataset — Reap by account owner, Fiat by who requested |
+| `ebb505d` | Fiat's "Payment Category" fills the `department` slot, so it is displayed rather than stored invisibly |
+
+`BLOCK_26_PLAN.md` carries the decisions (L1–L10) and the two Fiat file
+reviews. Read §"Fiat, second file — FINAL" for the mapping that shipped.
+
+### A live defect fixed in passing
+
+`buildMulti` and `initFilters` bound listeners while being called on every
+dataset load, and `applyDataset` already re-ran them after every upload. The
+trigger sits outside the replaced `innerHTML` and the menu handler is
+delegated, so both survived and doubled: first handler opens the menu,
+second sees it open and closes it. **Every filter dropdown stopped opening
+after an admin upload until a reload** — live on production since Block 25,
+invisible because only Jenny uploads and a reload clears it. Binding is now
+split from building and runs once.
+
+### Verification
+
+Locally against a stub (V1–V9 from the plan), then on the preview deploy,
+then on production. The two that matter most:
+
+- **Cross-tab contamination is impossible.** The Fiat file uploaded on the
+  Crypto tab fails *before the confirm dialog appears*, naming the missing
+  columns and the headers it saw. No POST, nothing written.
+- **The real workbook went through the real parser**, not a fixture: 14
+  rows, footer excluded, 53,139.82 with rows and footer agreeing exactly.
+
+### ⚠️ Open — carried forward
+
+1. **V3 / V12 / V10 — the non-admin check, still never run.** No non-admin
+   account exists. It now guards **three** datasets. Unchanged in risk
+   (Block 26 does not touch the endpoint or `requireWorkspaceAdmin`), but
+   it has been the top follow-up since Block 25 and still is.
+2. **What's New v2.1 is now wrong.** It tells users Fiat and Crypto are
+   "not connected yet". Shipped without a v2.2 entry; D6 is unwritten and
+   the copy is Jenny's. Either publish v2.2 or correct v2.1.
+3. **Crypto ships as a live upload control with Reap's column names.** Safe
+   — it fails loudly — but an admin clicking it gets a parser error rather
+   than "not configured yet". Needs its real export.
+4. **The rail child loses `aria-current` on a tab switch.** Pre-existing:
+   `side-nav.js` wraps `replaceState` (line 637) and `refreshActive()`
+   (line 630) strips every `aria-current`, then re-marks by pathname only.
+   Visually correct (`is-current` survives); screen-reader-only loss.
+5. **The vendor tooltip's empty fallback says "No department or description
+   recorded"** — wrong noun for Fiat. Cannot fire on Fiat (every row has a
+   payment category). Shared copy, so Jenny's.
+6. **The footer tolerance is fixed at 0.01 and does not scale.** Per-row
+   rounding accumulates against an independently rounded footer; enough
+   three-decimal rows would reject a good file with "the parse dropped or
+   duplicated rows". Fiat's file passes with nothing to spare. Carve-out
+   endpoint — default mode.
+7. **Preview and production still share one R2 bucket** (`wrangler.toml`
+   line 111). Harmless while Fiat and Crypto are empty; not harmless once
+   they hold data. A preview-only bucket is the fix. Flagged, not built.
+8. Everything still open from the 2026-08-25 closeout.
+
+### Process notes
+
+- **Claude could not reach the preview deploy** — both curl and the in-app
+  browser were refused by the auto-mode classifier. Verification happened
+  through Claude-in-Chrome on Jenny's own signed-in browser instead, which
+  is also the only way the authenticated pages are reachable at all.
+- **The push-to-main hook fired correctly every time**, including on a
+  compound command that merely *contained* `main..HEAD`. Jenny ran the
+  merge and push herself, which is the design working, not a workaround.
+- **Two files were written and verified against the real spreadsheet before
+  any code was written for it.** The first export carried a `Value Rate: $`
+  column and a `Mirror` column; the second replaced them. Had the aliases
+  been guessed from the first file they would have shipped wrong.
+- **The scratchpad was cleared twice mid-session**, destroying the stub
+  server file both times. Nothing durable should live there.
+
+### What's New notice
+
+**Owed.** v2.1 currently contradicts production. See open item 2.
