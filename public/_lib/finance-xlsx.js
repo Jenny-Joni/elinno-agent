@@ -214,6 +214,9 @@
   /**
    * @param {File|Blob} file  the .xlsx the admin picked
    * @param {object} [opts]
+   * @param {object} [opts.defaults]  per-dataset fallbacks for fields whose
+   *   cell is empty, e.g. {vendor: 'Other'}. Applied ONLY to a blank cell —
+   *   never overwrites a value the file actually carries.
    * @param {object} [opts.aliases]  per-dataset header spellings. Block 26:
    *   Reap, Fiat and Crypto carry the same concepts under different column
    *   names, and that is the only difference between them. Omitted or null,
@@ -223,6 +226,7 @@
    */
   async function parseFinanceWorkbook(file, opts) {
     var aliases = (opts && opts.aliases) || DEFAULT_ALIASES;
+    var defaults = (opts && opts.defaults) || {};
     if (!global.readXlsxFile) {
       throw new Error('read-excel-file.min.js has not loaded');
     }
@@ -279,6 +283,16 @@
       }
       if (amount === null) continue;
 
+      /* A blank cell can take a per-dataset default -- Crypto files a
+         payment with no supplier under "Other", which is already a real
+         vendor in that sheet, rather than leaving it to render as
+         "(not set)" (Jenny, 2026-08-30). Only ever fills a blank; a value
+         the file carries is never replaced. */
+      function field(f) {
+        var v = cell(row, map, f);
+        return v === '' && defaults[f] !== undefined ? defaults[f] : v;
+      }
+
       var rec = { date: date, amount: Math.round(amount * 100) / 100 };
       rec.name = cell(row, map, 'name');
       rec.requestedBy = cell(row, map, 'requestedBy');
@@ -286,7 +300,7 @@
       rec.card = cell(row, map, 'card');
       rec.project = cell(row, map, 'project');
       rec.merchant = cell(row, map, 'merchant');
-      rec.vendor = cell(row, map, 'vendor');
+      rec.vendor = field('vendor');
       rec.department = cell(row, map, 'department');
       rec.category = cell(row, map, 'category');
       rec.description = cell(row, map, 'description');

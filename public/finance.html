@@ -2587,6 +2587,15 @@
       }
     };
 
+    /* Per-dataset fallbacks for blank cells. Crypto's sheet already uses
+       "Other" as a real vendor on nine rows, so a payment with no supplier
+       belongs there rather than in "(not set)" -- which was otherwise the
+       second-largest vendor on the whole tab at $1.4M (Jenny, 2026-08-30).
+       Only fills a blank; never replaces a value the file carries. */
+    var DATASET_DEFAULTS = {
+      crypto: { vendor: 'Other' }
+    };
+
     /* ---- admin upload -----------------------------------------------------
        Reveal is a display hint; the POST is gated by requireWorkspaceAdmin
        server-side. A non-admin who unhides this button gets a 403.
@@ -2627,7 +2636,7 @@
 
       say('Reading ' + file.name + '…');
       var parsed;
-      parseFinanceWorkbook(file, { aliases: DATASET_ALIASES[target] })
+      parseFinanceWorkbook(file, { aliases: DATASET_ALIASES[target], defaults: DATASET_DEFAULTS[target] })
         .then(function (payload) {
           parsed = payload;
           var had = (DATA.rows || []).length;
