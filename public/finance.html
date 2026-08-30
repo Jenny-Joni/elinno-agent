@@ -2528,8 +2528,15 @@
         /* The header is "Suppliers / Vendor". The exact spelling leads;
            the other two are here so a renamed export still lands. */
         vendor:       ['suppliersvendor', 'vendor', 'supplier'],
-        department:   [],
-        category:     ['paymentcategory'],
+        /* "Payment Category" fills the DEPARTMENT slot, not category
+           (Jenny, 2026-08-30). Reason: `department` is displayed -- it is
+           what the vendor tooltip lists -- while `category` is stored and
+           shown nowhere. A header can only claim one field, so this is a
+           choice between the two, and the visible one wins. Fiat's vendors
+           now read "Marketing", "Technology", "Operations" on hover, the
+           same way Reap's read their departments. */
+        department:   ['paymentcategory'],
+        category:     [],
         description:  ['description'],
         date:         ['paymenttime'],
         /* "$ Value" normalises to `value`. The earlier export also carried
