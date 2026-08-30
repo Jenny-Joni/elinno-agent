@@ -82,31 +82,46 @@ window.WHATS_NEW = [
     // No real figures appear here. The page is visible to every signed-in
     // user, but an example total baked into release notes would age badly
     // and would be company spend sitting in a static file.
+    //
+    // EDITED AFTER PUBLICATION, 2026-08-30, at Jenny's direction. As
+    // published on 2026-08-24 this entry told readers Fiat and Crypto were
+    // "waiting to be connected". Both now carry real data, and a fourth
+    // view, All, was added. Rather than issue a v2.2 for work that reads as
+    // one release, Jenny asked for v2.1 to describe Finance as it actually
+    // shipped. The version number and date are unchanged deliberately.
+    //
+    // The `finance-vertical` illustration in whats-new.html was updated in
+    // the same pass — it carried "Soon" tags on Fiat and Crypto and had no
+    // All row. An entry whose illustration contradicts its copy is worse
+    // than one with no illustration.
     // ═══════════════════════════════════════════════════════════════════
     version: 'v2.1',
     // Week beginning Sunday 2026-08-23, matching the Sunday-dated
     // convention v1.8 through v2.0 use.
     date: '2026-08-23',
     status: 'published',
-    headline: 'Finance is a new area of the app: every company expense in one place, broken down by project, by vendor and by month \u2014 filtered by date, card or vendor, and read as a chart or a table.',
+    headline: 'Finance is a new area of the app: every company expense in one place \u2014 card, bank transfer and on-chain \u2014 broken down by project, by vendor and by month, filtered by date or vendor, and read as a chart or a table.',
     features: [
       {
         tag: 'New',
-        // NAMED: Finance as a top-level rail section on all 11 authenticated
-        // pages, above Projects, with three children. Reap live; Fiat and
-        // Crypto are titles + empty state only.
+        // NAMED: Finance as a top-level rail section on every authenticated
+        // page, above Projects, with four children. All four carry data;
+        // All is a merged view over the other three, with no upload of its
+        // own.
         title: 'A new area of the app, alongside Projects',
-        body: 'Elinno Agent was organised entirely around projects until now. Finance sits beside that as an area of its own \u2014 in the menu on every screen, above Projects \u2014 and it is where the company\u2019s spending is tracked from now on. Not a report you generate or a spreadsheet someone circulates, but a permanent part of the app that is in the same place wherever you are. It holds three sources: Reap, live now, carrying every company card payment; and Fiat for bank and wire transfers and Crypto for on-chain spending, both in place and waiting to be connected, so you can see where they will appear before there is anything in them. Everyone signed in can read Finance.',
+        body: 'Elinno Agent was organised entirely around projects until now. Finance sits beside that as an area of its own \u2014 in the menu on every screen, above Projects \u2014 and it is where the company\u2019s spending is tracked from now on. Not a report you generate or a spreadsheet someone circulates, but a permanent part of the app that is in the same place wherever you are. It holds four views: Reap for company card payments, Fiat for bank and wire transfers, Crypto for on-chain spending, and All, which puts the three together so you can see what the company spent in total without adding anything up yourself. Everyone signed in can read Finance.',
         image: null,
         placeholder: 'finance-vertical',
-        alt: 'Illustration: the left-hand menu with Finance above Projects, showing Reap marked live and Fiat and Crypto marked coming soon.'
+        alt: 'Illustration: the left-hand menu with Finance above Projects, showing its four entries \u2014 Reap, Fiat, Crypto and All.'
       },
       {
         tag: 'New',
         // NAMED: by PROJECT / by VENDOR / by MONTH over one shared filter
-        // row; four-level drill in both directions.
+        // row; four-level drill in both directions. The fourth filter and
+        // the third drill level read a different column per source, which
+        // is why neither is named absolutely here.
         title: 'Every expense, split the way you need to see it',
-        body: 'Reap holds every payment in the current export and shows the same period three ways at once: which projects the money went to, which vendors were paid, and how the spending split month by month. One row of filters sits above all of it \u2014 projects, vendors, date range and cards \u2014 so you can narrow to a single month, one card or one vendor and all three views follow together, never leaving you comparing one slice against another. Each project keeps its own colour throughout. And no total is a dead end: open a project to see the vendors behind it, open a vendor to see whose card was used, and keep going down to the individual payments with their dates.',
+        body: 'Every view shows the same period three ways at once: which projects the money went to, which vendors were paid, and how the spending split month by month. One row of filters sits above all of it \u2014 projects, vendors and a date range, plus one more that follows the source you are looking at: cards on Reap, payment type on Fiat, token on Crypto \u2014 so you can narrow to a single month or a single vendor and all three views move together, never leaving you comparing one slice against another. Each project keeps its own colour throughout. And no total is a dead end: open a project to see the vendors behind it, open a vendor to see who the spending belonged to, and keep going down to the individual payments with their dates.',
         image: null,
         placeholder: 'finance-chart',
         alt: 'Illustration: a filter row above a by-project chart, three projects with coloured bars and their totals.'
@@ -128,7 +143,7 @@ window.WHATS_NEW = [
       },
       {
         tag: 'New',
-        text: 'Admins keep Reap current by dropping the latest export onto the page. It reads the spreadsheet, says how many payments it found, and asks before replacing anything \u2014 and the previous version is kept in case the wrong file goes in.'
+        text: 'Admins keep each source current by dropping its latest export onto the page. It reads the spreadsheet, says how many payments it found, and asks before replacing anything \u2014 and the previous version is kept in case the wrong file goes in.'
       }
     ]
   },
