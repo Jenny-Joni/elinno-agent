@@ -1254,6 +1254,21 @@
     var DATASET_UI = {
       fiat: { card: { label: 'Payment type', noun: 'payment types', menu: 'Filter by payment type' } }
     };
+
+    /* The third drill level -- the one under project → vendor, and under the
+       pace card's vendor. Reap groups it by whose card the spend was on;
+       Fiat has no cards, so it groups by who requested the payment. Same
+       level, same position, same interaction: only the column it reads and
+       the heading above it change.
+
+       Without this, Fiat's deepest level was a single "(not set)" group
+       holding every payment, because nothing on the page displayed
+       requestedBy (Jenny, 2026-08-30). */
+    var OWNER_DEFAULT = { key: 'accountOwner', label: 'Account owner' };
+    var DATASET_OWNER = {
+      fiat: { key: 'requestedBy', label: 'Requested by' }
+    };
+    function ownerField() { return DATASET_OWNER[ACTIVE] || OWNER_DEFAULT; }
     var MULTI_DEFAULTS = null;
 
     function applyDatasetUi(name) {
@@ -1615,10 +1630,10 @@
             '<i class="fin-drill__rowchev ti ti-chevron-right" aria-hidden="true"></i>' +
           '</div>' +
           '<div class="fin-txns"><div class="fin-txns__inner"><div class="fin-txns__pad">' +
-            '<div class="fin-txn fin-txn__head"><span class="fin-txn__date">Account owner</span><span></span>' +
+            '<div class="fin-txn fin-txn__head"><span class="fin-txn__date">' + esc(ownerField().label) + '</span><span></span>' +
               '<span style="text-align:right">Amount</span><span></span></div>' +
-            groupBy(txns, { key: 'accountOwner' }).map(function (o) {
-              var his = txns.filter(function (t) { return val(t, 'accountOwner') === o.name; });
+            groupBy(txns, { key: ownerField().key }).map(function (o) {
+              var his = txns.filter(function (t) { return val(t, ownerField().key) === o.name; });
               var okey = key + KEYSEP + o.name;
               return '<div class="fin-own">' +
                 '<div class="fin-ownrow" role="button" tabindex="0" aria-expanded="false" data-owner="' + esc(okey) + '">' +
@@ -1874,7 +1889,7 @@
             cells(c.name, c.n, money(c.total), pct(c.total, d.total), '', true, c.name === BLANK) + '</tr>';
 
           var theirs = mine.filter(function (r) { return val(r, dim.drillBy) === c.name; });
-          groupBy(theirs, { key: 'accountOwner' }).forEach(function (o) {
+          groupBy(theirs, { key: ownerField().key }).forEach(function (o) {
             var okey = ckey + KEYSEP + o.name;
             var oopen = state.owner[dim.id] === okey;
             html += '<tr class="fin-trow fin-trow--l3 fin-trow--open' + (oopen ? ' is-open' : '') + '"' +
@@ -1882,7 +1897,7 @@
               (open && copen ? '' : ' hidden') + '>' +
               cells(o.name, o.n, money(o.total), pct(o.total, c.total), '', true, o.name === BLANK) + '</tr>';
 
-            theirs.filter(function (r) { return val(r, 'accountOwner') === o.name; })
+            theirs.filter(function (r) { return val(r, ownerField().key) === o.name; })
               .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; })
               .forEach(function (t) {
                 html += '<tr class="fin-trow fin-trow--l4" data-tof="' + esc(okey) + '"' +
@@ -2057,8 +2072,8 @@
        names one -- a tree whose every branch is the same single value is a
        row you have to click through to learn nothing. */
     function paceOwnerBlock(rows, parentTotal, keyPrefix, colour) {
-      return groupBy(rows, { key: 'accountOwner' }).map(function (o) {
-        var his = rows.filter(function (r) { return val(r, 'accountOwner') === o.name; })
+      return groupBy(rows, { key: ownerField().key }).map(function (o) {
+        var his = rows.filter(function (r) { return val(r, ownerField().key) === o.name; })
                       .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
         var okey = keyPrefix + KEYSEP + o.name;
         var oopen = state.paceOwner === okey;
@@ -2123,7 +2138,7 @@
               '<i class="fin-drill__rowchev ti ti-chevron-right" aria-hidden="true"></i>' +
             '</div>' +
             '<div class="fin-txns' + (vopen ? ' is-open' : '') + '"><div class="fin-txns__inner"><div class="fin-txns__pad">' +
-              '<div class="fin-txn fin-txn__head"><span class="fin-txn__date">Account owner</span><span></span>' +
+              '<div class="fin-txn fin-txn__head"><span class="fin-txn__date">' + esc(ownerField().label) + '</span><span></span>' +
                 '<span style="text-align:right">Amount</span><span></span></div>' +
               paceOwnerBlock(mine, v.total, vkey, colour) +
             '</div></div></div>' +
