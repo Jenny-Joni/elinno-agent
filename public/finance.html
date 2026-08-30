@@ -530,6 +530,9 @@
     }
     .fin-txn__date { font-variant-numeric: tabular-nums; padding-left: 14px; }
     .fin-txn__amt { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
+    /* Sits in the grid's free middle column, beside the date on a single
+       transaction. Crypto uses it for the token the payment was made in. */
+    .fin-txn__tag { color: var(--text-faint); letter-spacing: 0.03em; }
     .fin-txn__head {
       font-family: var(--font); font-size: 9.5px; font-weight: 500; letter-spacing: 0.05em;
       text-transform: uppercase; color: var(--text-faint); padding-bottom: 3px;
@@ -1269,6 +1272,17 @@
        Without this, Fiat's deepest level was a single "(not set)" group
        holding every payment, because nothing on the page displayed
        requestedBy (Jenny, 2026-08-30). */
+    /* An extra value shown beside the date on an individual transaction, in
+       the grid column that is otherwise empty. Crypto pays in four different
+       tokens, so which one a payment used is part of reading the row
+       (Jenny, 2026-08-30). Reap and Fiat have nothing to add there and
+       declare nothing, so their rows are unchanged. */
+    var DATASET_TXN_EXTRA = { crypto: 'card' };
+    function txnExtra(t) {
+      var k = DATASET_TXN_EXTRA[ACTIVE];
+      return k ? (t[k] || '') : '';
+    }
+
     var OWNER_DEFAULT = { key: 'accountOwner', label: 'Account owner' };
     var DATASET_OWNER = {
       fiat:   { key: 'requestedBy', label: 'Requested by' },
@@ -1654,7 +1668,7 @@
                   his.map(function (t) {
                     return '<div class="fin-txn">' +
                       '<span class="fin-txn__date">' + esc(dmy(t.date)) + '</span>' +
-                      '<span></span>' +
+                      '<span class="fin-txn__tag">' + esc(txnExtra(t)) + '</span>' +
                       '<span class="fin-txn__amt">' + esc(money(t.amount)) + '</span>' +
                       '<span></span>' +
                       '</div>';
@@ -1864,7 +1878,7 @@
       function cells(name, n, amount, share, cls, chev, blank) {
         return '<td class="' + (cls || '') + (blank ? ' is-blank' : '') + '">' +
                  (chev ? '<i class="fin-tchev ti ti-chevron-right" aria-hidden="true"></i>' : '') + esc(name) + '</td>' +
-               '<td class="is-num">' + (n === null ? '' : n) + '</td>' +
+               '<td class="is-num">' + (n === null ? '' : esc(n)) + '</td>' +
                '<td class="is-num">' + esc(amount) + '</td>' +
                '<td class="is-num">' + (share === null ? '' : esc(share)) + '</td>';
       }
@@ -1908,7 +1922,7 @@
               .forEach(function (t) {
                 html += '<tr class="fin-trow fin-trow--l4" data-tof="' + esc(okey) + '"' +
                   (open && copen && oopen ? '' : ' hidden') + '>' +
-                  cells(dmy(t.date), null, money(t.amount), null, '', false, false) + '</tr>';
+                  cells(dmy(t.date), txnExtra(t) || null, money(t.amount), null, '', false, false) + '</tr>';
               });
           });
         });
@@ -2096,7 +2110,8 @@
           '<div class="fin-opanel' + (oopen ? ' is-open' : '') + '"><div class="fin-opanel__inner"><div class="fin-opanel__pad">' +
             his.map(function (t) {
               return '<div class="fin-txn"><span class="fin-txn__date">' + esc(dmy(t.date)) + '</span>' +
-                '<span></span><span class="fin-txn__amt">' + esc(money(t.amount)) + '</span><span></span></div>';
+                '<span class="fin-txn__tag">' + esc(txnExtra(t)) + '</span>' +
+                '<span class="fin-txn__amt">' + esc(money(t.amount)) + '</span><span></span></div>';
             }).join('') +
           '</div></div></div></div>';
       }).join('');
