@@ -442,17 +442,30 @@ and GEMS; the token records how it was paid. Jenny confirmed, and row 65 is
 independent evidence: named "…syndika 0.036" with a $ Value of 69.228,
 which is 0.036 ETH at about $1,923. L5 holds.
 
-### Verification status — INCOMPLETE
+### Verification — COMPLETE, against the real workbook
 
-The real workbook was **read and analysed**, but the file was cleared from
-Downloads before it could be put through the parser. What has been proved:
-a genuine `.xlsx` carrying Crypto's **exact header spellings** parses end to
-end through the real control — all ten columns mapped, tokens intact, dates
-converted from serials, footer excluded, `category` empty.
+`Payment_Requests_1788092141.xlsx` (the updated export) went through the
+real parser and the real upload control end to end:
 
-What has NOT been proved: the real file's own quirks. Fiat's production bug
-was a single float in a single cell, invisible in a header list. **Crypto
-should not ship until the real export has been through the real parser.**
+| Check | Result |
+|---|---|
+| Rows parsed, footer excluded | **105** |
+| Period | 2026-07-02 → 2026-08-30 |
+| Footer sent vs computed | 5,312,537.328 vs 5,312,537.33 — **diff 0.002**, accepted |
+| Tokens | USDT ×91, USDC ×8, ETH ×5, GEMS ×1 |
+| Projects | all nine, Gems in `#8A5A2B` (rgb 138,90,43) confirmed on the bar |
+| `category` after parse | empty — Payments Status not stored |
+| Drill level | "Requested by" with real names |
+| Reap after switching back | "Cards" — per-dataset config reverts |
+
+Rendered totals: Rain $3,647,642 (68.7%), Gems $943,159, Rain Trade
+$312,603, Elinnovation $192,562, Kai Banking $140,100, Gems Trade $57,302,
+Gems Launchpad $12,420, DOP $5,450, TOMI $1,300.
+
+**Payments Status was removed at source** in this export, so L12 is now
+true of the file as well as the mapping. Column order also changed (Created
+by moved ahead of Suppliers / Vendor); irrelevant, since mapping is by
+header name, and worth noting as evidence that order-independence matters.
 
 ### Data-quality notes for Jenny, not blockers
 
