@@ -308,8 +308,25 @@
       rows: out
     };
     /* Only sent when the file actually carried a footer total. The server
-       treats it as optional and rejects a mismatch over a cent. */
-    if (declaredTotal !== null) payload.footerTotal = Math.round(declaredTotal * 100) / 100;
+       treats it as optional and rejects a mismatch over a cent.
+
+       Sent EXACTLY as the file states it -- deliberately not rounded. This
+       line used to round to 2dp and that was the bug (2026-08-30, Jenny's
+       first real Fiat upload): the server compares this against the sum of
+       the per-row amounts, which ARE rounded to 2dp, so rounding here too
+       compounds the error instead of cancelling it.
+
+       Concretely, on a footer of 53139.825 against rows summing to
+       53139.82: rounded, this sent 53139.83 and the difference computed to
+       0.010000000002 -- over the cent tolerance, rejected with "the parse
+       dropped or duplicated rows", which was false. Unrounded it sends
+       53139.825, the difference is 0.005, and it passes.
+
+       Two exports of the SAME data differed only in whether the footer was
+       stored as 53139.825 or 53139.82499999999 -- the first rounds up and
+       failed, the second rounds down and passed. That is why this survived
+       verification against a real workbook. */
+    if (declaredTotal !== null) payload.footerTotal = declaredTotal;
     return payload;
   }
 

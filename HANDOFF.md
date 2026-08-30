@@ -7870,11 +7870,11 @@ then on production. The two that matter most:
 5. **The vendor tooltip's empty fallback says "No department or description
    recorded"** — wrong noun for Fiat. Cannot fire on Fiat (every row has a
    payment category). Shared copy, so Jenny's.
-6. **The footer tolerance is fixed at 0.01 and does not scale.** Per-row
-   rounding accumulates against an independently rounded footer; enough
-   three-decimal rows would reject a good file with "the parse dropped or
-   duplicated rows". Fiat's file passes with nothing to spare. Carve-out
-   endpoint — default mode.
+6. **The footer tolerance is fixed at 0.01 and does not scale.** Partly
+   addressed — see the addendum below. The remaining risk: with enough
+   three-decimal rows the per-row rounding drift can still exceed a cent
+   even against an exact footer. Scaling the tolerance with row count is
+   the durable fix and lives in the carve-out endpoint — default mode.
 7. **Preview and production still share one R2 bucket** (`wrangler.toml`
    line 111). Harmless while Fiat and Crypto are empty; not harmless once
    they hold data. A preview-only bucket is the fix. Flagged, not built.
@@ -7899,3 +7899,36 @@ then on production. The two that matter most:
 ### What's New notice
 
 **Owed.** v2.1 currently contradicts production. See open item 2.
+
+### Addendum, same day — the footer check rejected Jenny's first real upload
+
+Predicted as open item 6 and hit within the hour. Production showed:
+
+    Row total 53139.82 does not match the file's stated total 53139.83
+    — the parse dropped or duplicated rows
+
+which was false: the rows were fine.
+
+**Cause.** `finance-xlsx.js` line 312 rounded the file's *stated* total to
+2dp before sending it. The server compares that against the sum of the
+per-row amounts, which are also rounded to 2dp — so rounding the footer
+compounded the error instead of cancelling it. On a footer of 53139.825
+against rows summing to 53139.82, it sent 53139.83 and the difference
+computed to 0.010000000002, just over the cent tolerance.
+
+**Why verification missed it.** Two exports of the *same* data differed
+only in how the footer was stored — `53139.82499999999` in the file tested
+against, `53139.825` in the one Jenny uploaded. The first rounds down and
+passes; the second rounds up and fails. The real workbook was opened, as
+the Block 25 lesson demands, and still did not surface this: one float
+representation of one number was the whole difference.
+
+**Fix** (`d4f1c8e`): send the declared total exactly as the file states it.
+The tolerance then absorbs the per-row rounding, as designed. Verified both
+ways — a fixture was built with the footer forced to 53139.825, which
+reproduced the rejection before the change and uploads cleanly after, end
+to end through the real control.
+
+Not a carve-out file, so this shipped in auto mode. The server-side
+tolerance scaling in open item 6 is still worth doing and still needs
+default mode.
