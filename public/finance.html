@@ -1293,12 +1293,15 @@
     var DATASET_OWNER = {
       fiat:   { key: 'requestedBy', label: 'Requested by' },
       crypto: { key: 'requestedBy', label: 'Requested by' },
-      /* Reap groups by account owner and the other two by who requested, so
-         on a merged view either choice leaves a third or two-thirds of the
-         rows blank. `source` is the one column that is always populated
-         here, and it answers the question a merged view actually raises
-         (Jenny, 2026-08-30). It is set during the merge, not by any parser. */
-      all:    { key: 'source', label: 'Source' }
+      /* Each source names its person in a different column -- Reap in
+         accountOwner, the other two in requestedBy -- so on the merged view
+         the level reads whichever column that row's own tab uses
+         (Jenny, 2026-08-30, replacing an earlier grouping by source).
+
+         `person` is resolved per ROW during the merge, from the entries
+         above, so a change to Fiat's or Crypto's drill column is inherited
+         here rather than needing a second edit. */
+      all:    { key: 'person', label: 'Owner / requested by' }
     };
     function ownerField() { return DATASET_OWNER[ACTIVE] || OWNER_DEFAULT; }
     var MULTI_DEFAULTS = null;
@@ -2356,7 +2359,7 @@
        "last updated" of its own. It merges the other three in the browser. */
     var TABS = ['reap', 'fiat', 'crypto', 'all'];
     var SOURCES = ['reap', 'fiat', 'crypto'];
-    var SOURCE_LABEL = { reap: 'Reap', fiat: 'Fiat', crypto: 'Crypto' };
+
     var root = document.documentElement;
 
     function setTab(name, syncUrl) {
@@ -2514,19 +2517,22 @@
         });
     }
 
-    /* Merge the three into one view. Every row is COPIED before being tagged
-       with its source -- mutating the cached rows in place would stamp the
-       tag onto Reap's own dataset, and the tag would then survive a switch
-       back to that tab. */
+    /* Merge the three into one view. Every row is COPIED before being given
+       its `person` -- mutating the cached rows in place would stamp the
+       field onto Reap's own dataset, and it would then survive a switch back
+       to that tab. */
     function mergeSources(list) {
       var rows = [], starts = [], ends = [];
       SOURCES.forEach(function (name, i) {
         var d = list[i];
         if (!d) return;
+        /* Whichever column this source names its person in. Reads the same
+           config the individual tabs drill by, so the two cannot disagree. */
+        var personKey = (DATASET_OWNER[name] || OWNER_DEFAULT).key;
         (d.rows || []).forEach(function (r) {
           var copy = {};
           for (var k in r) if (Object.prototype.hasOwnProperty.call(r, k)) copy[k] = r[k];
-          copy.source = SOURCE_LABEL[name];
+          copy.person = r[personKey] || '';
           rows.push(copy);
         });
         if (d.periodStart) starts.push(d.periodStart);
