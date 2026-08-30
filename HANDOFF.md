@@ -7923,7 +7923,7 @@ passes; the second rounds up and fails. The real workbook was opened, as
 the Block 25 lesson demands, and still did not surface this: one float
 representation of one number was the whole difference.
 
-**Fix** (`d4f1c8e`): send the declared total exactly as the file states it.
+**Fix** (`30755c4`): send the declared total exactly as the file states it.
 The tolerance then absorbs the per-row rounding, as designed. Verified both
 ways — a fixture was built with the footer forced to 53139.825, which
 reproduced the rejection before the change and uploads cleanly after, end
