@@ -667,6 +667,7 @@
         <div class="sn-l2"><a class="sn-l2__link" href="/finance.html?tab=reap" data-fin-tab="reap"><span class="sn-l2__label">Reap</span></a></div>
         <div class="sn-l2"><a class="sn-l2__link" href="/finance.html?tab=fiat" data-fin-tab="fiat"><span class="sn-l2__label">Fiat</span></a></div>
         <div class="sn-l2"><a class="sn-l2__link" href="/finance.html?tab=crypto" data-fin-tab="crypto"><span class="sn-l2__label">Crypto</span></a></div>
+        <div class="sn-l2"><a class="sn-l2__link" href="/finance.html?tab=all" data-fin-tab="all"><span class="sn-l2__label">All</span></a></div>
       </div></div>
       <button class="sn-item" type="button" data-sn-section="projects" aria-expanded="false" title="Projects"><i class="ti ti-folders" aria-hidden="true"></i><span class="sn-item__label">Projects</span><i class="ti ti-chevron-right sn-chev" aria-hidden="true"></i></button>
       <div data-sn-children="projects"></div>
@@ -710,6 +711,7 @@
         <button class="fin-tab" type="button" role="tab" id="tab-reap" data-tab="reap" aria-controls="panel-finance" aria-selected="true">Reap</button>
         <button class="fin-tab" type="button" role="tab" id="tab-fiat" data-tab="fiat" aria-controls="panel-finance" aria-selected="false" tabindex="-1">Fiat</button>
         <button class="fin-tab" type="button" role="tab" id="tab-crypto" data-tab="crypto" aria-controls="panel-finance" aria-selected="false" tabindex="-1">Crypto</button>
+        <button class="fin-tab" type="button" role="tab" id="tab-all" data-tab="all" aria-controls="panel-finance" aria-selected="false" tabindex="-1">All</button>
       </div>
 
       <!-- ONE panel for all three datasets (BLOCK_26_PLAN decision L1).
@@ -1260,7 +1262,11 @@
        Layout is untouched, so L2 holds everywhere except this one label. */
     var DATASET_UI = {
       fiat:   { card: { label: 'Payment type', noun: 'payment types', menu: 'Filter by payment type' } },
-      crypto: { card: { label: 'Token', noun: 'tokens', menu: 'Filter by token' } }
+      crypto: { card: { label: 'Token', noun: 'tokens', menu: 'Filter by token' } },
+      /* All keeps three filters only (Jenny). The fourth reads a different
+         column on each source -- cards, payment methods, tokens -- so merged
+         it would offer one list built from three incompatible vocabularies. */
+      all:    { card: { hidden: true } }
     };
 
     /* The third drill level -- the one under project → vendor, and under the
@@ -1286,7 +1292,13 @@
     var OWNER_DEFAULT = { key: 'accountOwner', label: 'Account owner' };
     var DATASET_OWNER = {
       fiat:   { key: 'requestedBy', label: 'Requested by' },
-      crypto: { key: 'requestedBy', label: 'Requested by' }
+      crypto: { key: 'requestedBy', label: 'Requested by' },
+      /* Reap groups by account owner and the other two by who requested, so
+         on a merged view either choice leaves a third or two-thirds of the
+         rows blank. `source` is the one column that is always populated
+         here, and it answers the question a merged view actually raises
+         (Jenny, 2026-08-30). It is set during the merge, not by any parser. */
+      all:    { key: 'source', label: 'Source' }
     };
     function ownerField() { return DATASET_OWNER[ACTIVE] || OWNER_DEFAULT; }
     var MULTI_DEFAULTS = null;
@@ -1305,8 +1317,22 @@
         var o = over[m.msId] || {};
         m.noun = o.noun || MULTI_DEFAULTS[i].noun;
         m.menu = o.menu || MULTI_DEFAULTS[i].menu;
-        document.getElementById('lbl-' + m.msId).textContent = o.label || MULTI_DEFAULTS[i].label;
+        var lbl = document.getElementById('lbl-' + m.msId);
+        lbl.textContent = o.label || MULTI_DEFAULTS[i].label;
+        /* Hidden, not removed: the menu is still built and stays fully
+           selected, so filtered() needs no special case for a filter that
+           is not on screen. */
+        var field = lbl.closest('.fin-field');
+        if (field) field.hidden = !!o.hidden;
       });
+
+      /* 'all' is a view over the other three, so it has nothing to upload
+         and no single "last updated" to report. Both are display hints; the
+         POST is gated server-side and /api/finance/all is not an allowed
+         dataset, so it 404s regardless of what the page shows. */
+      var isView = name === 'all';
+      metaEl.parentNode.hidden = isView;
+      upWrap.hidden = isView || !IS_ADMIN;
     }
 
     /* Rebuilt for every dataset that lands: each menu's options, counts and
@@ -2326,7 +2352,11 @@
        The three sources are one page, so the tab is a query param and the
        rail children point at it — the same ?tab= convention the project
        rows already use. */
-    var TABS = ['reap', 'fiat', 'crypto'];
+    /* 'all' is a VIEW, not a dataset: it has no R2 object, no upload and no
+       "last updated" of its own. It merges the other three in the browser. */
+    var TABS = ['reap', 'fiat', 'crypto', 'all'];
+    var SOURCES = ['reap', 'fiat', 'crypto'];
+    var SOURCE_LABEL = { reap: 'Reap', fiat: 'Fiat', crypto: 'Crypto' };
     var root = document.documentElement;
 
     function setTab(name, syncUrl) {
@@ -2467,12 +2497,77 @@
       render();
     }
 
+    /* One dataset, from cache or the network. Shared by the single-dataset
+       path and the merge, so 'all' costs nothing extra once the three tabs
+       have been visited. */
+    function fetchDataset(name) {
+      if (CACHE[name]) return Promise.resolve(CACHE[name]);
+      return fetch('/api/finance/' + name, { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) {
+          if (r.status === 401) { gotoLogin(); return null; }
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (payload) {
+          if (payload) CACHE[name] = payload;
+          return payload;
+        });
+    }
+
+    /* Merge the three into one view. Every row is COPIED before being tagged
+       with its source -- mutating the cached rows in place would stamp the
+       tag onto Reap's own dataset, and the tag would then survive a switch
+       back to that tab. */
+    function mergeSources(list) {
+      var rows = [], starts = [], ends = [];
+      SOURCES.forEach(function (name, i) {
+        var d = list[i];
+        if (!d) return;
+        (d.rows || []).forEach(function (r) {
+          var copy = {};
+          for (var k in r) if (Object.prototype.hasOwnProperty.call(r, k)) copy[k] = r[k];
+          copy.source = SOURCE_LABEL[name];
+          rows.push(copy);
+        });
+        if (d.periodStart) starts.push(d.periodStart);
+        if (d.periodEnd) ends.push(d.periodEnd);
+      });
+      rows.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+      starts.sort(); ends.sort();
+      /* No uploadedAt: three datasets have three, and the meta line is
+         hidden on this tab precisely because there is no single answer. */
+      return {
+        rows: rows,
+        periodStart: starts[0] || '',
+        periodEnd: ends[ends.length - 1] || ''
+      };
+    }
+
     /* Load one dataset into the single panel. Safe to call repeatedly. */
     function loadDataset(name) {
       ACTIVE = name;
       var seq = ++loadSeq;
 
       if (CACHE[name]) { applyDataset(CACHE[name]); return; }
+
+      if (name === 'all') {
+        applyDataset({ rows: [] });
+        metaEl.textContent = 'Loading…';
+        Promise.all(SOURCES.map(fetchDataset))
+          .then(function (list) {
+            if (list.indexOf(null) !== -1) return;      /* redirecting to login */
+            var merged = mergeSources(list);
+            CACHE.all = merged;
+            if (seq !== loadSeq) return;                /* reader moved on */
+            applyDataset(merged);
+          })
+          .catch(function () {
+            if (seq !== loadSeq) return;
+            applyDataset({ rows: [] });
+            metaEl.textContent = 'Could not load — reload to try again';
+          });
+        return;
+      }
 
       /* Blank the panel before fetching. Leaving the previous dataset's bars
          on screen under the new heading would show one dataset's spend
@@ -2623,6 +2718,9 @@
        picked rather than read at each step: an admin who switches tabs while
        a large file parses must not have the upload follow them onto another
        dataset. */
+    /* Answered by /api/me below. Still only a display hint -- the POST is
+       gated by requireWorkspaceAdmin server-side. */
+    var IS_ADMIN = false;
     var upWrap = document.getElementById('uploadWrap');
     var upBtn = document.getElementById('uploadBtn');
     var upInput = document.getElementById('uploadInput');
@@ -2635,7 +2733,13 @@
 
     fetch('/api/me', { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) { if (d && d.user && d.user.is_admin) upWrap.hidden = false; })
+      .then(function (d) {
+        IS_ADMIN = !!(d && d.user && d.user.is_admin);
+        /* Re-apply rather than reveal directly: the answer can land after
+           the first render, and on the All tab the control stays hidden
+           whatever it says. */
+        upWrap.hidden = ACTIVE === 'all' || !IS_ADMIN;
+      })
       .catch(function () { /* stay hidden; the endpoint is the real gate */ });
 
     upBtn.addEventListener('click', function () { upInput.click(); });
@@ -2683,8 +2787,10 @@
           if (body === null) return;
           say('Replaced — ' + body.rows + ' payments', 'ok');
           /* The cached copy is now the old dataset. Drop it before anything
-             can serve it back on a tab switch. */
+             can serve it back on a tab switch -- and drop the merged view
+             with it, since it holds a copy of these very rows. */
           delete CACHE[target];
+          delete CACHE.all;
           /* Re-read rather than trusting what we just sent: the server is the
              source of truth, and it rebuilt every row from its own whitelist. */
           return fetch('/api/finance/' + target, { credentials: 'same-origin', cache: 'no-store' })
