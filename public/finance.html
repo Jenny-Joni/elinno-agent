@@ -893,6 +893,12 @@
       'Mezada': '#30A59F',
       'TOMI': '#FF007F',
       'DOP': '#333333',
+      /* Added 2026-08-30 with Fiat's first file. Rain and Rain Trade are
+         different projects (L7), so Rain Trade gets its own colour rather
+         than sharing Rain's gold -- kin to it in hue, distinct as a mark.
+         Both clear 3:1 on white: Rain Trade 4.5:1, Kai Banking 7.5:1. */
+      'Rain Trade': '#C2571A',
+      'Kai Banking': '#3B4CA8',
       '(not set)': '#959595'
     };
     var LIMIT = 10;                    /* rows shown before "Show all" */
@@ -1241,10 +1247,38 @@
       });
     }
 
+    /* The fourth filter is Reap's cards and Fiat's payment methods (L8) --
+       same control in the same place, different label and contents. Only
+       what DIFFERS is listed; anything absent falls back to MULTI's own.
+       Layout is untouched, so L2 holds everywhere except this one label. */
+    var DATASET_UI = {
+      fiat: { card: { label: 'Payment type', noun: 'payment types', menu: 'Filter by payment type' } }
+    };
+    var MULTI_DEFAULTS = null;
+
+    function applyDatasetUi(name) {
+      /* Captured on first use, from the markup itself, so switching back to
+         Reap restores rather than re-hardcoding what the page already said. */
+      if (!MULTI_DEFAULTS) {
+        MULTI_DEFAULTS = MULTI.map(function (m) {
+          return { noun: m.noun, menu: m.menu,
+                   label: document.getElementById('lbl-' + m.msId).textContent };
+        });
+      }
+      var over = DATASET_UI[name] || {};
+      MULTI.forEach(function (m, i) {
+        var o = over[m.msId] || {};
+        m.noun = o.noun || MULTI_DEFAULTS[i].noun;
+        m.menu = o.menu || MULTI_DEFAULTS[i].menu;
+        document.getElementById('lbl-' + m.msId).textContent = o.label || MULTI_DEFAULTS[i].label;
+      });
+    }
+
     /* Rebuilt for every dataset that lands: each menu's options, counts and
        selection come from the rows just loaded, and the range resets to that
        dataset's own span. Deliberately binds NOTHING -- see bindFilters. */
     function buildFilters() {
+      applyDatasetUi(ACTIVE);
       resetPeriod();
       MULTI.forEach(buildMulti);
       buildMulti(PACE_MULTI);
@@ -2458,7 +2492,40 @@
        trusting a shape nobody had opened. */
     var DATASET_ALIASES = {
       reap: null,
-      fiat: null,
+
+      /* Read off Payment_Requests_1788083738.xlsx, 2026-08-30. Four title
+         rows, header on row 5, totals footer at the end. Nine columns, all
+         nine mapped, no collisions.
+
+         accountOwner / merchant / department have no Fiat column and are
+         left empty: cell() returns '' for an unmapped field, so they degrade
+         rather than fail. "Created by" is requestedBy, not accountOwner
+         (Jenny, 2026-08-30) -- semantically exact, at the cost of Fiat's
+         third drill level reading "(not set)" throughout, since nothing on
+         the page displays requestedBy. */
+      fiat: {
+        name:         ['name'],
+        requestedBy:  ['createdby'],
+        accountOwner: [],
+        card:         ['paymenttype'],
+        project:      ['project'],
+        merchant:     [],
+        /* The header is "Suppliers / Vendor". The exact spelling leads;
+           the other two are here so a renamed export still lands. */
+        vendor:       ['suppliersvendor', 'vendor', 'supplier'],
+        department:   [],
+        category:     ['paymentcategory'],
+        description:  ['description'],
+        date:         ['paymenttime'],
+        /* "$ Value" normalises to `value`. The earlier export also carried
+           "Value Rate: $" -> `valuerate`, which this list deliberately does
+           NOT match: an exact-only alias cannot claim the rate column. */
+        amount:       ['value']
+      },
+
+      /* PLACEHOLDER, as Fiat was until its file arrived. Inherits Reap's
+         spellings; a Crypto upload fails loudly naming the headers it saw
+         until the real export is read. */
       crypto: null
     };
 
