@@ -396,3 +396,70 @@ through it.
 - Fiat/Crypto-specific cards or fields beyond Reap's. L2 says identical.
 - The six spreadsheet columns carried but never displayed.
 - The real-workspaces migration.
+
+
+---
+
+## Crypto, file reviewed (2026-08-30)
+
+`Payment_Requests_1788091222.xlsx`, sheet `payment requests`: same four
+title rows and footer shape as Fiat, **105 payments**, ten columns.
+**Footer 5,312,537.328 matches the row sum exactly.**
+
+| Crypto column | System field |
+|---|---|
+| Name | `name` |
+| Project | `project` * |
+| Payment Category | `department` (as Fiat, L10) |
+| Suppliers / Vendor | `vendor` * |
+| Description | `description` |
+| Created by | `requestedBy` + the drill level |
+| Payment Token | the fourth filter (L11) |
+| $ Value | `amount` * |
+| Payments Status | **dropped** (L12) |
+| Payment Time | `date` * |
+
+(* required)
+
+**L11 — the fourth filter is Payment Token** on Crypto: USDT ×91, USDC ×8,
+ETH ×5, GEMS ×1, labelled "Token". Chosen over Payments Status, which
+competed for the same single slot.
+
+**L12 — Payments Status is dropped**, not parked in an unused field
+(Jenny, after seeing both rendered). Three values across 105 rows collapsed
+each project-vendor into Paid / Done / Paid! Please Add Invoice and
+displaced who requested the payment. Not parsed, not stored — surfacing it
+later needs a fresh upload. **56 of 105 rows read "Paid! Please Add
+Invoice"**; if that is ever chased it wants to be a filter, not this slot.
+
+**L13 — "Gems" is its own project**, distinct from Gems Trade and Gems
+Launchpad (Jenny). Four payments, ~$943k. Given `#8A5A2B` — deliberately
+not a third green, which would read as one of the other two. Every other
+Crypto project name was already in the palette.
+
+**Currency confirmed.** `$ Value` is US dollars on every row including ETH
+and GEMS; the token records how it was paid. Jenny confirmed, and row 65 is
+independent evidence: named "…syndika 0.036" with a $ Value of 69.228,
+which is 0.036 ETH at about $1,923. L5 holds.
+
+### Verification status — INCOMPLETE
+
+The real workbook was **read and analysed**, but the file was cleared from
+Downloads before it could be put through the parser. What has been proved:
+a genuine `.xlsx` carrying Crypto's **exact header spellings** parses end to
+end through the real control — all ten columns mapped, tokens intact, dates
+converted from serials, footer excluded, `category` empty.
+
+What has NOT been proved: the real file's own quirks. Fiat's production bug
+was a single float in a single cell, invisible in a header list. **Crypto
+should not ship until the real export has been through the real parser.**
+
+### Data-quality notes for Jenny, not blockers
+
+- One row ("MM Wallet", Rain, $1.4M) has no vendor and will group as
+  "(not set)".
+- Two rows carry a description in the Suppliers / Vendor column
+  ("For covering fees in Swap…").
+- Four rows repeat identically ("Trading budget for Rain", $150 each) and
+  three more ("rain trade liquidity", $15,000 each). Assumed genuine
+  separate payments.

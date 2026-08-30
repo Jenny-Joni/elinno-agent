@@ -899,6 +899,10 @@
          Both clear 3:1 on white: Rain Trade 4.5:1, Kai Banking 7.5:1. */
       'Rain Trade': '#C2571A',
       'Kai Banking': '#3B4CA8',
+      /* Added 2026-08-30 with Crypto's export. "Gems" is its own project,
+         not a loose spelling of Gems Trade or Gems Launchpad (Jenny) -- so
+         deliberately NOT a third green, which would read as one of them. */
+      'Gems': '#8A5A2B',
       '(not set)': '#959595'
     };
     var LIMIT = 10;                    /* rows shown before "Show all" */
@@ -1252,7 +1256,8 @@
        what DIFFERS is listed; anything absent falls back to MULTI's own.
        Layout is untouched, so L2 holds everywhere except this one label. */
     var DATASET_UI = {
-      fiat: { card: { label: 'Payment type', noun: 'payment types', menu: 'Filter by payment type' } }
+      fiat:   { card: { label: 'Payment type', noun: 'payment types', menu: 'Filter by payment type' } },
+      crypto: { card: { label: 'Token', noun: 'tokens', menu: 'Filter by token' } }
     };
 
     /* The third drill level -- the one under project → vendor, and under the
@@ -1266,7 +1271,8 @@
        requestedBy (Jenny, 2026-08-30). */
     var OWNER_DEFAULT = { key: 'accountOwner', label: 'Account owner' };
     var DATASET_OWNER = {
-      fiat: { key: 'requestedBy', label: 'Requested by' }
+      fiat:   { key: 'requestedBy', label: 'Requested by' },
+      crypto: { key: 'requestedBy', label: 'Requested by' }
     };
     function ownerField() { return DATASET_OWNER[ACTIVE] || OWNER_DEFAULT; }
     var MULTI_DEFAULTS = null;
@@ -2545,10 +2551,40 @@
         amount:       ['value']
       },
 
-      /* PLACEHOLDER, as Fiat was until its file arrived. Inherits Reap's
-         spellings; a Crypto upload fails loudly naming the headers it saw
-         until the real export is read. */
-      crypto: null
+      /* Read off Payment_Requests_1788091222.xlsx, 2026-08-30. Same four
+         title rows and footer as Fiat, ten columns, all ten mapped.
+
+         Two columns Fiat does not have. "Payment Token" takes the fourth
+         filter slot (Jenny's call -- USDT/USDC/ETH/GEMS is the dimension
+         that makes this tab different).
+
+         "Payments Status" is deliberately NOT mapped (Jenny, 2026-08-30,
+         after seeing it as a drill level). Three values across 105 rows
+         collapsed each project-vendor into Paid / Done / Paid! Please Add
+         Invoice and displaced who requested the payment, which is worth
+         more. Dropped rather than parked in an unused field: it is not
+         parsed and not stored, so surfacing it later needs a fresh upload.
+         Worth remembering that 56 of the 105 rows read "Paid! Please Add
+         Invoice" -- if that is ever chased, it wants to be a filter.
+
+         "$ Value" is US dollars on every row, including the ETH and GEMS
+         ones -- the token records how it was paid, not what it is worth.
+         Confirmed by Jenny, and by row 65: named "…syndika 0.036" with a
+         $ Value of 69.228, which is 0.036 ETH at about $1,923. */
+      crypto: {
+        name:         ['name'],
+        requestedBy:  ['createdby'],
+        accountOwner: [],
+        card:         ['paymenttoken'],
+        project:      ['project'],
+        merchant:     [],
+        vendor:       ['suppliersvendor', 'vendor', 'supplier'],
+        department:   ['paymentcategory'],
+        category:     [],
+        description:  ['description'],
+        date:         ['paymenttime'],
+        amount:       ['value']
+      }
     };
 
     /* ---- admin upload -----------------------------------------------------
